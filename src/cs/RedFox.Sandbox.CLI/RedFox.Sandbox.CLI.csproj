@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\ext\Cast.NET\src\Cast.NET\Cast.NET.csproj" />
+    <ProjectReference Include="..\RedFox.Compression.Deflate\RedFox.Compression.Deflate.csproj" />
+    <ProjectReference Include="..\RedFox.Compression.ZStandard\RedFox.Compression.ZStandard.csproj" />
+    <ProjectReference Include="..\RedFox.Compression\RedFox.Compression.csproj" />
+    <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Cast\RedFox.Graphics3D.Cast.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.SEAnim\RedFox.Graphics3D.SEAnim.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.SEModel\RedFox.Graphics3D.SEModel.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Translation\RedFox.Graphics3D.Translation.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+    <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
+    <ProjectReference Include="..\RedFox\RedFox.csproj" />
+  </ItemGroup>
+
+</Project>
