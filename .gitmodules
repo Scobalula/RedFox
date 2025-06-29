@@ -1,0 +1,9 @@
+[submodule "ext/miniz"]
+	path = ext/miniz
+	url = https://github.com/richgel999/miniz
+[submodule "ext/zstd"]
+	path = ext/zstd
+	url = https://github.com/facebook/zstd
+[submodule "ext/Cast.NET"]
+	path = ext/Cast.NET
+	url = https://github.com/Scobalula/Cast.NET
