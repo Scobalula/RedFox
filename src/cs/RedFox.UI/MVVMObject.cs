@@ -34,7 +34,7 @@ namespace RedFox.UI
         /// <summary>
         /// Gets the value of the given property
         /// </summary>
-        protected T GetValue<T>(T defaultValue, [CallerMemberName] string propertyName = "")
+        protected virtual T GetValue<T>(T defaultValue, [CallerMemberName] string propertyName = "")
         {
             if (KeyValuePairs.TryGetValue(propertyName, out var value) && value is T result)
                 return result;
@@ -45,7 +45,7 @@ namespace RedFox.UI
         /// <summary>
         /// Sets the value of the given property
         /// </summary>
-        protected void SetValue<T>(T newValue, [CallerMemberName] string propertyName = "")
+        protected virtual void SetValue<T>(T newValue, [CallerMemberName] string propertyName = "")
         {
             KeyValuePairs[propertyName] = newValue;
             NotifyPropertyChanged(propertyName);
