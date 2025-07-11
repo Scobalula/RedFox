@@ -115,7 +115,7 @@ namespace RedFox.IO
                     throw new NotImplementedException(origin.ToString());
             }
 
-            if (_position >= _buffer.Length)
+            if (_position > _buffer.Length)
                 throw new EndOfStreamException("Attempted to seek past the end of the buffer.");
             if (_position < 0)
                 throw new IOException("Attempted to seek before the start of the buffer.");
