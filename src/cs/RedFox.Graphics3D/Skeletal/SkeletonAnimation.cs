@@ -21,6 +21,11 @@ namespace RedFox.Graphics3D.Skeletal
         public List<SkeletonAnimationTarget> Targets { get; set; }
 
         /// <summary>
+        /// Gets or Sets the bone tracks.
+        /// </summary>
+        public List<SkeletonAnimationTrack>? Tracks { get; set; }
+
+        /// <summary>
         /// Gets or Sets the transform type.
         /// </summary>
         public TransformType TransformType { get; set; }

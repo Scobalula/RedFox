@@ -1,6 +1,7 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
 using RedFox.Graphics3D.Skeletal;
+using System.Diagnostics;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Xml;
@@ -214,6 +215,8 @@ namespace RedFox.Graphics3D.Cast
                     uniqueCurveNames.Add(curveNode.NodeName);
                 }
 
+                skeletalAnimation.Tracks = [];
+
                 foreach (var curveName in uniqueCurveNames)
                 {
                     var tx = curveNodes.FirstOrDefault(x => x.NodeName == curveName && x.KeyPropertyName == "tx");
@@ -221,63 +224,50 @@ namespace RedFox.Graphics3D.Cast
                     var tz = curveNodes.FirstOrDefault(x => x.NodeName == curveName && x.KeyPropertyName == "tz");
                     var rq = curveNodes.FirstOrDefault(x => x.NodeName == curveName && x.KeyPropertyName == "rq");
 
-                    var mode = "relative";
+                    var track = new SkeletonAnimationTrack(curveName);
 
-                    if (!string.IsNullOrWhiteSpace(tx?.Mode))
-                        mode = tx.Mode;
-
-                    var target = new SkeletonAnimationTarget(curveName);
-
-                    if (rq != null)
+                    // Rotation
+                    if (rq is not null)
                     {
-                        var rqFrames = rq.EnumerateKeyFrames().ToArray();
-                        var rqValues = rq.EnumerateKeyValues<Vector4>().ToArray();
+                        track.RotationCurve = new(TransformSpace.Local, ConvertToTransformType(rq.Mode));
 
-                        if (rqFrames.Length != rqValues.Length)
-                            throw new DataMisalignedException("Rotation frame buffer and value buffer are different lengths.");
-
-                        target.TransformType = mode switch
+                        foreach (var (key, value) in rq.EnumerateKeys<Vector4>())
                         {
-                            "absolute" => TransformType.Absolute,
-                            "additive" => TransformType.Additive,
-                            _ => TransformType.Relative,
-                        };
+                            track.RotationCurve.KeyFrames.Add(new(key, new(value.X, value.Y, value.Z, value.W)));
+                        }
+                    }
+                    // Translation X
+                    if (tx is not null)
+                    {
+                        track.TranslationXCurve = new(TransformSpace.Local, ConvertToTransformType(tx.Mode));
 
-                        for (int i = 0; i < rqFrames.Length; i++)
+                        foreach (var (key, value) in tx.EnumerateKeys<float>())
                         {
-                            target.AddRotationFrame(rqFrames[i], CastHelpers.CreateQuaternionFromVector4(rqValues[i]));
+                            track.TranslationXCurve.KeyFrames.Add(new(key, value));
+                        }
+                    }
+                    // Translation Y
+                    if (ty is not null)
+                    {
+                        track.TranslationYCurve = new(TransformSpace.Local, ConvertToTransformType(ty.Mode));
+
+                        foreach (var (key, value) in ty.EnumerateKeys<float>())
+                        {
+                            track.TranslationYCurve.KeyFrames.Add(new(key, value));
+                        }
+                    }
+                    // Translation Y
+                    if (tz is not null)
+                    {
+                        track.TranslationZCurve = new(TransformSpace.Local, ConvertToTransformType(tz.Mode));
+
+                        foreach (var (key, value) in tz.EnumerateKeys<float>())
+                        {
+                            track.TranslationZCurve.KeyFrames.Add(new(key, value));
                         }
                     }
 
-                    if (tx != null || ty != null || tz != null)
-                    {
-                        // For now we require all translations until I refactor animation classes to be more like cast/maya/blender/etc
-                        if (tx == null)
-                            throw new NotSupportedException("Cast files with dropped translation curves not currently supported.");
-                        if (ty == null)
-                            throw new NotSupportedException("Cast files with dropped translation curves not currently supported.");
-                        if (tz == null)
-                            throw new NotSupportedException("Cast files with dropped translation curves not currently supported.");
-
-                        var txFrames = tx.EnumerateKeyFrames().ToArray();
-                        var txValues = tx.EnumerateKeyValues<float>().ToArray();
-                        var tyValues = ty.EnumerateKeyValues<float>().ToArray();
-                        var tzValues = tz.EnumerateKeyValues<float>().ToArray();
-
-                        if (txFrames.Length != txValues.Length)
-                            throw new DataMisalignedException("Translation frame buffer and value buffer are different lengths.");
-                        if (txFrames.Length != tyValues.Length)
-                            throw new NotSupportedException("Cast files with different length translation curves not currently supported.");
-                        if (txFrames.Length != tzValues.Length)
-                            throw new NotSupportedException("Cast files with different length translation curves not currently supported.");
-
-                        for (int i = 0; i < txFrames.Length; i++)
-                        {
-                            target.AddTranslationFrame(txFrames[i], new(txValues[i], tyValues[i], tzValues[i]));
-                        }
-                    }
-
-                    skeletalAnimation.Targets.Add(target);
+                    skeletalAnimation.Tracks.Add(track);
                 }
 
                 foreach (var curveModeOverrideNode in animation.EnumerateCurveModeOverrides())
@@ -313,95 +303,95 @@ namespace RedFox.Graphics3D.Cast
                     animationNode.AddValue("fr", animation.Framerate);
                     animationNode.AddValue("lo", (byte)0);
 
-                    foreach (var target in animation.Targets)
+                    if (animation.Tracks is not null)
                     {
-                        if (target.TranslationFrames is not null && target.TranslationFrames.Count > 0)
+                        foreach (var track in animation.Tracks)
                         {
-                            var xCurve = animationNode.AddNode<CurveNode>();
-                            var yCurve = animationNode.AddNode<CurveNode>();
-                            var zCurve = animationNode.AddNode<CurveNode>();
-
-                            var mode = animation.TransformType;
-
-                            // If parent we'll add override nodes.
-                            if (target.TransformType != TransformType.Unknown && target.TransformType != TransformType.Parent)
-                                mode = target.TransformType;
-
-                            switch (mode)
+                            if (track.RotationCurve is not null)
                             {
-                                case TransformType.Absolute:
-                                    xCurve.Mode = "absolute";
-                                    yCurve.Mode = "absolute";
-                                    zCurve.Mode = "absolute";
-                                    break;
-                                case TransformType.Additive:
-                                    xCurve.Mode = "additive";
-                                    yCurve.Mode = "additive";
-                                    zCurve.Mode = "additive";
-                                    break;
-                                default:
-                                    xCurve.Mode = "relative";
-                                    yCurve.Mode = "relative";
-                                    zCurve.Mode = "relative";
-                                    break;
+                                var curveNode = animationNode.AddNode<CurveNode>();
+
+                                curveNode.Mode = ConvertFromTransformType(track.RotationCurve.Type);
+                                curveNode.NodeName = track.Name;
+                                curveNode.KeyPropertyName = "rq";
+
+                                var keyValueBuffer = curveNode.AddArray<Vector4>("kv");
+                                var keyFrameBuffer = curveNode.AddArray<uint>("kb");
+
+                                foreach (var frame in track.RotationCurve.KeyFrames)
+                                {
+                                    keyValueBuffer.Add(new(frame.Value.X, frame.Value.Y, frame.Value.Z, frame.Value.W));
+                                    keyFrameBuffer.Add((uint)frame.Frame);
+                                }
+
+                                curveNode.KeyValueBuffer = keyValueBuffer;
+                                curveNode.KeyFrameBuffer = keyFrameBuffer;
                             }
 
-                            xCurve.NodeName = target.BoneName;
-                            yCurve.NodeName = target.BoneName;
-                            zCurve.NodeName = target.BoneName;
-
-                            xCurve.KeyPropertyName = "tx";
-                            yCurve.KeyPropertyName = "ty";
-                            zCurve.KeyPropertyName = "tz";
-
-                            var xKeyValueBuffer = xCurve.AddArray<float>("kv");
-                            var yKeyValueBuffer = yCurve.AddArray<float>("kv");
-                            var zKeyValueBuffer = zCurve.AddArray<float>("kv");
-                            var xKeyFrameBuffer = xCurve.AddArray<uint>("kb");
-                            var yKeyFrameBuffer = yCurve.AddArray<uint>("kb");
-                            var zKeyFrameBuffer = zCurve.AddArray<uint>("kb");
-
-
-                            foreach (var frame in target.TranslationFrames)
+                            if (track.TranslationXCurve is not null)
                             {
-                                xKeyValueBuffer.Add(frame.Value.X);
-                                yKeyValueBuffer.Add(frame.Value.Y);
-                                zKeyValueBuffer.Add(frame.Value.Z);
+                                var curveNode = animationNode.AddNode<CurveNode>();
 
-                                xKeyFrameBuffer.Add((uint)frame.Frame);
-                                yKeyFrameBuffer.Add((uint)frame.Frame);
-                                zKeyFrameBuffer.Add((uint)frame.Frame);
+                                curveNode.Mode = ConvertFromTransformType(track.TranslationXCurve.Type);
+                                curveNode.NodeName = track.Name;
+                                curveNode.KeyPropertyName = "tx";
+
+                                var keyValueBuffer = curveNode.AddArray<float>("kv");
+                                var keyFrameBuffer = curveNode.AddArray<uint>("kb");
+
+                                foreach (var frame in track.TranslationXCurve.KeyFrames)
+                                {
+                                    keyValueBuffer.Add(frame.Value);
+                                    keyFrameBuffer.Add((uint)frame.Frame);
+                                }
+
+                                curveNode.KeyValueBuffer = keyValueBuffer;
+                                curveNode.KeyFrameBuffer = keyFrameBuffer;
+                            }
+
+                            if (track.TranslationYCurve is not null)
+                            {
+                                var curveNode = animationNode.AddNode<CurveNode>();
+
+                                curveNode.Mode = ConvertFromTransformType(track.TranslationYCurve.Type);
+                                curveNode.NodeName = track.Name;
+                                curveNode.KeyPropertyName = "ty";
+
+                                var keyValueBuffer = curveNode.AddArray<float>("kv");
+                                var keyFrameBuffer = curveNode.AddArray<uint>("kb");
+
+                                foreach (var frame in track.TranslationYCurve.KeyFrames)
+                                {
+                                    keyValueBuffer.Add(frame.Value);
+                                    keyFrameBuffer.Add((uint)frame.Frame);
+                                }
+
+                                curveNode.KeyValueBuffer = keyValueBuffer;
+                                curveNode.KeyFrameBuffer = keyFrameBuffer;
+                            }
+
+                            if (track.TranslationZCurve is not null)
+                            {
+                                var curveNode = animationNode.AddNode<CurveNode>();
+
+                                curveNode.Mode = ConvertFromTransformType(track.TranslationZCurve.Type);
+                                curveNode.NodeName = track.Name;
+                                curveNode.KeyPropertyName = "tz";
+
+                                var keyValueBuffer = curveNode.AddArray<float>("kv");
+                                var keyFrameBuffer = curveNode.AddArray<uint>("kb");
+
+                                foreach (var frame in track.TranslationZCurve.KeyFrames)
+                                {
+                                    keyValueBuffer.Add(frame.Value);
+                                    keyFrameBuffer.Add((uint)frame.Frame);
+                                }
+
+                                curveNode.KeyValueBuffer = keyValueBuffer;
+                                curveNode.KeyFrameBuffer = keyFrameBuffer;
                             }
                         }
 
-                        if (target.RotationFrames is not null && target.RotationFrames.Count > 0)
-                        {
-                            var rCurve = animationNode.AddNode<CurveNode>();
-
-                            var mode = animation.TransformType;
-
-                            // If parent we'll add override nodes.
-                            if (target.TransformType != TransformType.Unknown && target.TransformType != TransformType.Parent)
-                                mode = target.TransformType;
-
-                            rCurve.Mode = mode switch
-                            {
-                                TransformType.Absolute => "absolute",
-                                TransformType.Additive => "additive",
-                                _ => "relative",
-                            };
-                            rCurve.NodeName = target.BoneName;
-                            rCurve.KeyPropertyName = "rq";
-
-                            var rKeyValueBuffer = rCurve.AddArray<Vector4>("kv");
-                            var rKeyFrameBuffer = rCurve.AddArray<uint>("kb");
-
-                            foreach (var frame in target.RotationFrames)
-                            {
-                                rKeyValueBuffer.Add(CastHelpers.CreateVector4FromQuaternion(frame.Value));
-                                rKeyFrameBuffer.Add((uint)frame.Frame);
-                            }
-                        }
                     }
 
                     if (animation.Actions is not null)
@@ -423,8 +413,28 @@ namespace RedFox.Graphics3D.Cast
                 }
             }
 
-
             CastWriter.Save(stream, root);
+        }
+
+        public static TransformType ConvertToTransformType(string? transformType)
+        {
+            return transformType switch
+            {
+                "absolute" => TransformType.Absolute,
+                "relative" => TransformType.Relative,
+                "additive" => TransformType.Additive,
+                _          => TransformType.Unknown,
+            };
+        }
+
+        public static string ConvertFromTransformType(TransformType type)
+        {
+            return type switch
+            {
+                TransformType.Absolute => "absolute",
+                TransformType.Additive => "additive",
+                _                      => "relative",
+            };
         }
     }
 }
