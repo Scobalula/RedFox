@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,7 +17,10 @@ namespace RedFox.Graphics3D
         /// </summary>
         public Dictionary<string, Texture> Textures { get; set; }
 
-        public Material()
+        /// <summary>
+        /// 
+        /// </summary>
+        public Material() : base()
         {
             Textures = [];
         }

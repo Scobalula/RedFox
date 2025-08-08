@@ -29,6 +29,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Sandbox.CLI", "RedFo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Graphics3D.Translation", "RedFox.Graphics3D.Translation\RedFox.Graphics3D.Translation.csproj", "{D2B0F021-ED8D-1489-C296-F8349DC36D2B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Compression.LZ4", "RedFox.Compression.LZ4\RedFox.Compression.LZ4.csproj", "{0144F4F7-8BF0-4206-A6AB-7AAAA9F967D1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RedFox.Graphics2D.DirectXTex", "RedFox.Graphics2D.DirectXTex\RedFox.Graphics2D.DirectXTex.vcxproj", "{10241849-A7F8-440E-BC68-D173D627E213}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Graphics3D.KaydaraFBX", "RedFox.Graphics3D.KaydaraFBX\RedFox.Graphics3D.KaydaraFBX.csproj", "{6AAF169D-7E9E-310C-1498-25CF060CC54C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +93,18 @@ Global
 		{D2B0F021-ED8D-1489-C296-F8349DC36D2B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D2B0F021-ED8D-1489-C296-F8349DC36D2B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D2B0F021-ED8D-1489-C296-F8349DC36D2B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0144F4F7-8BF0-4206-A6AB-7AAAA9F967D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0144F4F7-8BF0-4206-A6AB-7AAAA9F967D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0144F4F7-8BF0-4206-A6AB-7AAAA9F967D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0144F4F7-8BF0-4206-A6AB-7AAAA9F967D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10241849-A7F8-440E-BC68-D173D627E213}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{10241849-A7F8-440E-BC68-D173D627E213}.Debug|Any CPU.Build.0 = Debug|x64
+		{10241849-A7F8-440E-BC68-D173D627E213}.Release|Any CPU.ActiveCfg = Release|x64
+		{10241849-A7F8-440E-BC68-D173D627E213}.Release|Any CPU.Build.0 = Release|x64
+		{6AAF169D-7E9E-310C-1498-25CF060CC54C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AAF169D-7E9E-310C-1498-25CF060CC54C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AAF169D-7E9E-310C-1498-25CF060CC54C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AAF169D-7E9E-310C-1498-25CF060CC54C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

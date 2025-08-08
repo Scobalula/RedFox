@@ -7,3 +7,6 @@
 [submodule "ext/Cast.NET"]
 	path = ext/Cast.NET
 	url = https://github.com/Scobalula/Cast.NET
+[submodule "ext/lz4"]
+	path = ext/lz4
+	url = https://github.com/lz4/lz4
