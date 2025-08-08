@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D.Interpolators
 {
-    public class QuaternionManipulator : IValueManipulator<Quaternion>
+    public class QuaternionInterpolator : IValueManipulator<Quaternion>
     {
         /// <inheritdoc/>
         public Quaternion Interpolate(Quaternion value1, Quaternion value2, float amount) => Quaternion.Slerp(value1, value2, amount);

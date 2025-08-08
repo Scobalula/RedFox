@@ -40,7 +40,15 @@ namespace RedFox.Graphics3D
         /// </summary>
         public List<AnimationSamplerSolver> Solvers { get; set; } = [];
 
-        public void AddLayer(AnimationSampler? sampler) => WithSubLayer(sampler);
+        public AnimationSampler? AddLayer(AnimationSampler? sampler)
+        {
+            if (sampler is not null)
+            {
+                Layers.Add(sampler);
+            }
+
+            return sampler;
+        }
 
         public AnimationPlayer WithSubLayer(AnimationSampler? layer)
         {
@@ -91,6 +99,37 @@ namespace RedFox.Graphics3D
             {
                 solver.Update(time);
             }
+        }
+
+        public (float, float) GetFrameRange()
+        {
+            var finalMinFrame = float.MaxValue;
+            var finalMaxFrame = float.MinValue; 
+            foreach(var layer in Layers)
+            {
+                var (minFrame, maxFrame) = layer.Animation.GetAnimationFrameRange();
+
+                minFrame += layer.StartFrame;
+                maxFrame += layer.StartFrame;
+
+                finalMinFrame = Math.Min(minFrame, finalMinFrame);
+                finalMaxFrame = Math.Max(maxFrame, finalMaxFrame);
+            }
+
+            return (finalMinFrame, finalMaxFrame);
+        }
+
+        public bool IsObjectAnimation(string name)
+        {
+            foreach (var layer in Layers)
+            {
+                if (layer.IsObjectAnimated(name))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         //public AnimationSampler GetLayer(string name) => Layers.TryGetValue(name, out var sampler) ? sampler : throw new Exception();

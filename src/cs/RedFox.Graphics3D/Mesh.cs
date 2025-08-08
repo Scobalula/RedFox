@@ -11,7 +11,7 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Gets or Sets the Positions
         /// </summary>
-        public MeshAttributeCollection<Vector3>? Positions { get; set; }
+        public MeshAttributeCollection<Vector3> Positions { get; set; }
 
         /// <summary>
         /// Gets or Sets the Normals

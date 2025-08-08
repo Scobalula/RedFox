@@ -12,7 +12,7 @@ namespace RedFox.Graphics3D
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float GetWeight(List<AnimationKeyFrame<float, float>> weights, float time, float startTime, float defaultWeight, ref int cursor)
         {
-            var (firstIndex, secondIndex) = AnimationKeyFrameHelper.GetFramePairIndex(weights, time, startTime, cursor:cursor);
+            var (firstIndex, secondIndex) = Animation.GetFramePairIndex(weights, time, startTime, cursor:cursor);
             var result = defaultWeight;
 
             if (firstIndex != -1)

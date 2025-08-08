@@ -1,9 +1,12 @@
 ﻿using RedFox.Graphics3D;
 using RedFox.Graphics3D.Cast;
+using RedFox.Graphics3D.KaydaraFBX.Document;
+using RedFox.Graphics3D.KaydaraFBX.Reading;
 using RedFox.Graphics3D.SEAnim;
 using RedFox.Graphics3D.SEModel;
 using RedFox.Graphics3D.Skeletal;
 using RedFox.Graphics3D.Translation;
+using System.Diagnostics;
 
 namespace RedFox.Sandbox.CLI
 {
@@ -57,70 +60,128 @@ namespace RedFox.Sandbox.CLI
 
             ////factory.Save("test.semodel", viewhandsModel);
 
-            //var document = FBXDocumentReader.ReadDocument(@"D:\Tools\CAT_OF_THOMAS\thingy.fbx");
+            var document = FBXDocumentReader.ReadDocument(@"D:\Tools\CAT_OF_THOMAS\thingy.fbx");
 
             ////fbx_defs = elem_find_first(elem_root, b'Definitions')  # can be None
             ////fbx_nodes = elem_find_first(elem_root, b'Objects')
             ////fbx_connections = elem_find_first(elem_root, b'Connections')
 
-            //var definitions = document.Nodes.FirstOrDefault(x => x.Name.Equals("Definitions"));
-            //var objects = document.Nodes.FirstOrDefault(x => x.Name.Equals("Objects"));
-            //var connections = document.Nodes.FirstOrDefault(x => x.Name.Equals("Connections"));
+            var definitions = document.Nodes.FirstOrDefault(x => x.Name.Equals("Definitions"));
+            var objects = document.Nodes.FirstOrDefault(x => x.Name.Equals("Objects"));
+            var connections = document.Nodes.FirstOrDefault(x => x.Name.Equals("Connections"));
 
-            //if (definitions is null)
-            //    throw new KeyNotFoundException("Failed to locate \"Definitions\" within the FBX file");
-            //if (objects is null)
-            //    throw new KeyNotFoundException("Failed to locate \"Objects\" within the FBX file");
-            //if (connections is null)
-            //    throw new KeyNotFoundException("Failed to locate \"Connections\" within the FBX file");
+            if (definitions is null)
+                throw new KeyNotFoundException("Failed to locate \"Definitions\" within the FBX file");
+            if (objects is null)
+                throw new KeyNotFoundException("Failed to locate \"Objects\" within the FBX file");
+            if (connections is null)
+                throw new KeyNotFoundException("Failed to locate \"Connections\" within the FBX file");
 
-            //var skeleton = new Skeleton("yo boy");
+            var skeleton = new Skeleton("yo boy");
 
-            //// Parse armature
-            //var modelNodes = objects.Children.Where(x => x.Name.Equals("Model"));
+            // Parse armature
+            var modelNodes = objects.Children.Where(x => x.Name.Equals("Model"));
 
-            //foreach (var modelNode in modelNodes)
+            foreach (var modelNode in modelNodes)
+            {
+                if (!modelNode.Properties[2].Equals("LimbNode"))
+                    continue;
+
+                var name = modelNode.Properties[1].Cast<FBXPropertyString>().Value;
+                var properties = modelNode.Children.First(x => x.Name.Equals("Properties70")).Children.Where(x => x.Name == "P").ToArray();
+
+                foreach (var property in properties)
+                {
+                    Console.WriteLine(property.Properties[0]);
+                }
+
+                //Console.WriteLine(properties.Length);
+
+
+                //Console.WriteLine(modelNode.Properties[1]);
+
+
+            }
+
+            ////// Consume constrains
+            ////var constraint
+
+            //////foreach (var item in document.Nodes)
+            //////{
+            //////    var objects = item.
+            //////    if (item.Name == "Connections")
+            //////    {
+            //////        foreach (var child in item.Children)
+            //////        {
+            //////            Console.WriteLine(child.Name);
+
+            //////            foreach (var child2 in child.Properties)
+            //////            {
+            //////                Console.WriteLine(child2);
+            //////            }
+            //////        }
+            //////    }
+            //////}
+            /////
+            //var factory = new Graphics3DTranslatorFactory().WithDefaultTranslators();
+
+            //var model = factory.Load<Model>(@"C:\shit\CAST Models\mp_vm_arms_fender_iw9_8_1_LOD0.cast");
+            //var animation = factory.Load<SkeletonAnimation>(@"C:\shit\CAST Animations\vm_p20_dm_sa700_reload_xmag.cast");
+
+            //var sampler = new SkeletonAnimationSampler("name", animation, model.Skeleton!);
+            //var newAnimation = new SkeletonAnimation(animation.Name)
             //{
-            //    if (!modelNode.Properties[2].Equals("LimbNode"))
-            //        continue;
+            //    Framerate = 30.0f
+            //};
+            //var (minFrame, maxFrame) = animation.GetAnimationFrameRange();
 
-            //    var name = modelNode.Properties[1].Cast<FBXPropertyString>().Value;
-            //    var properties = modelNode.Children.First(x => x.Name.Equals("Properties70")).Children.Where(x => x.Name == "P").ToArray();
-
-            //    Console.WriteLine(properties.Length);
-
-
-            //    Console.WriteLine(modelNode.Properties[1]);
+            //foreach (var bone in model.Skeleton.Bones)
+            //{
+            //    newAnimation.Tracks.Add(new SkeletonAnimationTrack(bone.Name)
+            //    {
+            //        TranslationCurve = new(TransformSpace.Local, TransformType.Absolute),
+            //        RotationCurve = new(TransformSpace.Local, TransformType.Absolute),
+            //    });
             //}
 
-            ////foreach (var item in document.Nodes)
-            ////{
-            ////    var objects = item.
-            ////    if (item.Name == "Connections")
-            ////    {
-            ////        foreach (var child in item.Children)
-            ////        {
-            ////            Console.WriteLine(child.Name);
+            //for (float i = minFrame; i < maxFrame; i += 1)
+            //{
+            //    model.Skeleton.Bones.ForEach(x => x.ActiveTransform.Invalidate());
+            //    sampler.Update(i, AnimationSampleType.AbsoluteFrameTime);
 
-            ////            foreach (var child2 in child.Properties)
-            ////            {
-            ////                Console.WriteLine(child2);
-            ////            }
-            ////        }
-            ////    }
-            ////}
-            ///
-            var factory = new Graphics3DTranslatorFactory().WithDefaultTranslators();
-
-            var animation = factory.Load<SkeletonAnimation>(@"C:\AlchemistExample\IW8-MP5\XAnimOut\vm_sm_mpapa5_sprint_loop_grip.cast");
-
-            Console.WriteLine(animation.Tracks[2].TranslationZCurve.Type);
-            Console.WriteLine(animation.Tracks[2].TranslationZCurve.Sample(4.5f));
+            //    for (int b = 0; b < model.Skeleton.Bones.Count; b++)
+            //    {
+            //        //if (model.Skeleton.Bones[b].Name == "tag_ads")
+            //        //    Debugger.Break();
+            //        newAnimation.Tracks[b].AddTranslationFrame(i, model.Skeleton.Bones[b].GetActiveWorldPosition());
+            //        newAnimation.Tracks[b].AddRotationFrame(i, model.Skeleton.Bones[b].GetActiveWorldRotation());
+            //    }
+            //}
 
 
-            var xFrame = animation.Tracks[2].ScaleXCurve.Apply(0);
+            //foreach (var bone in model.Skeleton.Bones)
+            //{
+            //    var currentA = bone.GetBaseWorldPosition();
+            //    var currentB = bone.GetBaseWorldRotation();
 
-            factory.Save(@"C:\AlchemistExample\IW8-MP5\XAnimOut\vm_sm_mpapa5_sprint_loop_grip2.cast", animation);
+            //    bone.MoveTo(null);
+
+            //    bone.BaseTransform.LocalPosition = currentA;
+            //    bone.BaseTransform.LocalRotation = currentB;
+            //}
+
+            ////Console.WriteLine(animation.Tracks[2].TranslationZCurve.Type);
+            ////Console.WriteLine(animation.Tracks[2].TranslationZCurve.Sample(4.5f));
+
+
+            //////var xFrame = animation.Tracks[2].ScaleXCurve.Apply(0);
+
+            //factory.Save(@"C:\shit\CAST Models\mp_vm_arms_fender_iw9_8_1_LOD02.cast", model);
+            //factory.Save(@"C:\shit\CAST Models\mp_vm_arms_fender_iw9_8_1_LOD03.cast", newAnimation);
+
+            //var finaler = factory.Load<SkeletonAnimation>(@"C:\shit\CAST Models\mp_vm_arms_fender_iw9_8_1_LOD03.cast");
+            //var thingy = finaler.GetAnimationFrameRange();
+            //Console.WriteLine(finaler);
         }
     }
 }

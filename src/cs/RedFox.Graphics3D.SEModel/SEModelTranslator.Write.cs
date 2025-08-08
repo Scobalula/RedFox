@@ -49,35 +49,35 @@ namespace RedFox.Graphics3D.SEModel
 
                 foreach (var bone in skeleton.Bones)
                 {
-                    writer.Write((byte)0); // Unused flags
+                    //writer.Write((byte)0); // Unused flags
 
-                    writer.Write(bone.Parent == null ? -1 : skeleton.Bones.IndexOf(bone.Parent));
+                    //writer.Write(bone.Parent == null ? -1 : skeleton.Bones.IndexOf(bone.Parent));
 
-                    var wt = bone.BaseWorldTranslation;
-                    var wr = bone.BaseWorldRotation;
-                    var lt = bone.BaseLocalTranslation;
-                    var lr = bone.BaseLocalRotation;
-                    var s = Vector3.One;
+                    //var wt = bone.BaseWorldTranslation;
+                    //var wr = bone.BaseWorldRotation;
+                    //var lt = bone.BaseLocalTranslation;
+                    //var lr = bone.BaseLocalRotation;
+                    //var s = Vector3.One;
 
-                    writer.Write(wt.X * scale);
-                    writer.Write(wt.Y * scale);
-                    writer.Write(wt.Z * scale);
-                    writer.Write(wr.X);
-                    writer.Write(wr.Y);
-                    writer.Write(wr.Z);
-                    writer.Write(wr.W);
+                    //writer.Write(wt.X * scale);
+                    //writer.Write(wt.Y * scale);
+                    //writer.Write(wt.Z * scale);
+                    //writer.Write(wr.X);
+                    //writer.Write(wr.Y);
+                    //writer.Write(wr.Z);
+                    //writer.Write(wr.W);
 
-                    writer.Write(lt.X * scale);
-                    writer.Write(lt.Y * scale);
-                    writer.Write(lt.Z * scale);
-                    writer.Write(lr.X);
-                    writer.Write(lr.Y);
-                    writer.Write(lr.Z);
-                    writer.Write(lr.W);
+                    //writer.Write(lt.X * scale);
+                    //writer.Write(lt.Y * scale);
+                    //writer.Write(lt.Z * scale);
+                    //writer.Write(lr.X);
+                    //writer.Write(lr.Y);
+                    //writer.Write(lr.Z);
+                    //writer.Write(lr.W);
 
-                    writer.Write(s.X);
-                    writer.Write(s.Y);
-                    writer.Write(s.Z);
+                    //writer.Write(s.X);
+                    //writer.Write(s.Y);
+                    //writer.Write(s.Z);
                 }
             }
 
@@ -213,6 +213,5 @@ namespace RedFox.Graphics3D.SEModel
                 }
             }
         }
-
     }
 }

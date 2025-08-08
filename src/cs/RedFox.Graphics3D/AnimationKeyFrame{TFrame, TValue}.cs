@@ -25,5 +25,12 @@ namespace RedFox.Graphics3D
         /// Gets or Sets the value stored at this frame.
         /// </summary>
         public TValue Value { get; set; } = value;
+
+        /// <inheritdoc/>
+        public readonly void Deconstruct(out TFrame frame, out TValue value)
+        {
+            frame = Frame;
+            value = Value;
+        }
     }
 }
