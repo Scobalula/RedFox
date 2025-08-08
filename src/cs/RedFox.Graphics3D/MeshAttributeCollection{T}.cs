@@ -316,7 +316,7 @@ namespace RedFox.Graphics3D
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            throw new NotImplementedException();
+           Array.Copy(_items, 0, array, arrayIndex, Count);
         }
 
 

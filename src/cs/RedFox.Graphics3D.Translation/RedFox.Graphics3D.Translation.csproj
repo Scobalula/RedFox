@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics3D.Cast\RedFox.Graphics3D.Cast.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.CoDXAsset\RedFox.Graphics3D.CoDXAsset.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.SEAnim\RedFox.Graphics3D.SEAnim.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.SEModel\RedFox.Graphics3D.SEModel.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />

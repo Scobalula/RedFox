@@ -7,9 +7,21 @@ using System.Threading.Tasks;
 
 namespace RedFox.UI
 {
-    public class MVVMItemListModifier<T>(MVVMItemList<T> items) : IDisposable
+    public class MVVMItemListModifier<T> : IDisposable
     {
-        public MVVMItemList<T> Items { get; set; } = items;
+        public MVVMItemList<T> Items { get; set; }
+
+        public SynchronizationContext? Context { get; set; }
+
+        public MVVMItemListModifier(MVVMItemList<T> items)
+        {
+            Items = items;
+        }
+
+        public MVVMItemListModifier(MVVMItemList<T> items, SynchronizationContext? context)
+        {
+            Items = items;
+        }
 
         public void Dispose()
         {
@@ -37,7 +49,11 @@ namespace RedFox.UI
             if (disposing)
             {
                 Items.Notify = true;
-                Items.SendNotify();
+
+                if (Context is not null)
+                    Context.Send(x => Items.SendNotify(), null);
+                else
+                    Items.SendNotify();
             }
         }
     }
