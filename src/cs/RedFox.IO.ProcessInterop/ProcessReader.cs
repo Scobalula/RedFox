@@ -117,7 +117,7 @@ namespace RedFox.IO.ProcessInterop
 
         public IEnumerable<long> FindBytes(string pattern)
         {
-            var b = BytePattern.ParseString(pattern);
+            var b = BytePattern.Parse(pattern);
             var buffer = new byte[65535];
             var address = GetModuleAddress();
             var addressEnd = address + GetModuleSize();

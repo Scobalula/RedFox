@@ -7,8 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\Cast.NET\src\Cast.NET\Cast.NET.csproj" />
+    <ProjectReference Include="..\..\..\..\CallOfFile\src\CallOfFile\CallOfFile.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+    <ProjectReference Include="..\RedFox\RedFox.csproj" />
   </ItemGroup>
 
 </Project>

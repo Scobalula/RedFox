@@ -7,12 +7,12 @@ using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D.Interpolators
 {
-    public class FloatManipulator : IValueManipulator<float>
+    public class Vector3Interpolator : IValueManipulator<Vector3>
     {
         /// <inheritdoc/>
-        public float Interpolate(float value1, float value2, float amount) => float.Lerp(value1, value2, amount);
+        public Vector3 Interpolate(Vector3 value1, Vector3 value2, float amount) => Vector3.Lerp(value1, value2, amount);
 
-        public float Modify(float value, TransformType type)
+        public Vector3 Modify(Vector3 value, TransformType type)
         {
             throw new NotImplementedException();
         }

@@ -28,70 +28,43 @@ namespace RedFox.Graphics3D.Skeletal
         /// <summary>
         /// Gets or Sets the translation X curve.
         /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? TranslationXCurve { get; set; }
-
-        /// <summary>
-        /// Gets or Sets the translation Y curve.
-        /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? TranslationYCurve { get; set; }
-
-        /// <summary>
-        /// Gets or Sets the translation Z curve.
-        /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? TranslationZCurve { get; set; }
+        public AnimationCurve<Vector3>? TranslationCurve { get; set; }
 
         /// <summary>
         /// Gets or Sets the scale X curve.
         /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? ScaleXCurve { get; set; }
-
-        /// <summary>
-        /// Gets or Sets the scale Y curve.
-        /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? ScaleYCurve { get; set; }
-
-        /// <summary>
-        /// Gets or Sets the scale Z curve.
-        /// </summary>
-        public AnimationCurve<float, FloatInterpolator>? ScaleZCurve { get; set; }
+        public AnimationCurve<Vector3>? ScaleCurve { get; set; }
 
         /// <summary>
         /// Gets or Sets the rotation curve.
         /// </summary>
-        public AnimationCurve<Quaternion, QuaternionInterpolator>? RotationCurve { get; set; }
+        public AnimationCurve<Quaternion>? RotationCurve { get; set; }
+
+        /// <summary>
+        /// Gets or Sets the transform space.
+        /// </summary>
+        public TransformSpace TransformSpace { get; set; }
+
+        /// <summary>
+        /// Gets or Sets the transform type.
+        /// </summary>
+        public TransformType TransformType { get; set; }
 
         public void AddTranslationFrame(float time, Vector3 value)
         {
-            TranslationXCurve ??= new();
-            TranslationYCurve ??= new();
-            TranslationZCurve ??= new();
-
-            TranslationXCurve.KeyFrames.Add(new(time, value.X));
-            TranslationYCurve.KeyFrames.Add(new(time, value.Y));
-            TranslationZCurve.KeyFrames.Add(new(time, value.Z));
+            TranslationCurve ??= new(TransformSpace, TransformType);
+            TranslationCurve.KeyFrames.Add(new(time, value));
         }
 
-        public void AddTranslationXFrame(float time, float value)
+        public void AddScaleFrame(float time, Vector3 value)
         {
-            TranslationYCurve ??= new();
-            TranslationYCurve.KeyFrames.Add(new(time, value));
-        }
-
-        public void AddTranslationZFrame(float time, float value)
-        {
-            TranslationYCurve ??= new();
-            TranslationYCurve.KeyFrames.Add(new(time, value));
-        }
-
-        public void AddTranslationYFrame(float time, float value)
-        {
-            TranslationZCurve ??= new();
-            TranslationZCurve.KeyFrames.Add(new(time, value));
+            ScaleCurve ??= new(TransformSpace, TransformType);
+            ScaleCurve.KeyFrames.Add(new(time, value));
         }
 
         public void AddRotationFrame(float time, Quaternion value)
         {
-            RotationCurve ??= new();
+            RotationCurve ??= new(TransformSpace, TransformType);
             RotationCurve.KeyFrames.Add(new(time, value));
         }
     }

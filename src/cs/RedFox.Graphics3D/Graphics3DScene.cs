@@ -75,9 +75,25 @@ namespace RedFox.Graphics3D
             }
         }
 
+        public Graphics3DObject AddObject(Graphics3DObject obj)
+        {
+            Objects.Add(obj);
+            return obj;
+        }
+
         public T AddObject<T>() where T : Graphics3DObject, new()
         {
             var obj = new T();
+            Objects.Add(obj);
+            return obj;
+        }
+
+        public T AddObject<T>(string name) where T : Graphics3DObject, new()
+        {
+            var obj = new T()
+            {
+                Name = name
+            };
             Objects.Add(obj);
             return obj;
         }

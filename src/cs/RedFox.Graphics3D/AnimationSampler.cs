@@ -37,7 +37,7 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Gets the number of frames in the animation.
         /// </summary>
-        public float FrameCount { get; set; } = animation.GetAnimationFrameCount();
+        public float FrameCount { get; set; } = animation.GetAnimationFrameRange().Item1;
 
         /// <summary>
         /// Gets or Sets the playback framerate.
@@ -67,7 +67,7 @@ namespace RedFox.Graphics3D
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UpdateWeight()
         {
-            var (firstIndex, secondIndex) = AnimationKeyFrameHelper.GetFramePairIndex(Weights, CurrentTime, 0, Cursor);
+            var (firstIndex, secondIndex) = Animation.GetFramePairIndex(Weights, CurrentTime, 0, Cursor);
             var result = 1.0f;
 
             if (firstIndex != -1)
@@ -115,12 +115,13 @@ namespace RedFox.Graphics3D
             //// Update sub-samplers
             //SkeletonAnimationSampler?.Update();
 
-            UpdateObjects();
+            if (CurrentTime >= StartFrame)
+                UpdateObjects();
 
             return this;
         }
 
-
+        public abstract bool IsObjectAnimated(string objectName);
         public abstract void UpdateObjects();
     }
 }

@@ -16,14 +16,9 @@ namespace RedFox.Graphics3D.Skeletal
         public Skeleton? Skeleton { get; set; }
 
         /// <summary>
-        /// Gets or Sets the targets that contain animation frames.
-        /// </summary>
-        public List<SkeletonAnimationTarget> Targets { get; set; }
-
-        /// <summary>
         /// Gets or Sets the bone tracks.
         /// </summary>
-        public List<SkeletonAnimationTrack>? Tracks { get; set; }
+        public List<SkeletonAnimationTrack> Tracks { get; set; }
 
         /// <summary>
         /// Gets or Sets the transform type.
@@ -37,66 +32,75 @@ namespace RedFox.Graphics3D.Skeletal
 
         public SkeletonAnimation(string name) : base(name)
         {
-            Targets = [];
+            Tracks = [];
             TransformType = TransformType.Unknown;
         }
 
         public SkeletonAnimation(string name, Skeleton? skeleton) : base(name)
         {
-            Targets = [];
+            Tracks = [];
             Skeleton = skeleton;
-            Skeleton?.CreateAnimationTargets(this);
+            //Skeleton?.CreateAnimationTargets(this);
         }
 
         public SkeletonAnimation(string name, Skeleton? skeleton, int targetCount, TransformType type) : base(name)
         {
             Skeleton = skeleton;
-            Targets = new(targetCount);
+            Tracks = new(targetCount);
             TransformType = type;
         }
 
-        /// <summary>
-        /// Checks whether or not any of the skeletal targets has translation frames.
-        /// </summary>
-        /// <returns>True if any of the targets has frames, otherwise false.</returns>
-        public bool HasTranslationFrames() => Targets.Any(x => x.TranslationFrameCount > 0);
+        ///// <summary>
+        ///// Checks whether or not any of the skeletal targets has translation frames.
+        ///// </summary>
+        ///// <returns>True if any of the targets has frames, otherwise false.</returns>
+        //public bool HasTranslationFrames() => Targets.Any(x => x.TranslationFrameCount > 0);
 
-        /// <summary>
-        /// Checks whether or not any of the skeletal targets has rotation frames.
-        /// </summary>
-        /// <returns>True if any of the targets has frames, otherwise false.</returns>
-        public bool HasRotationFrames() => Targets.Any(x => x.RotationFrameCount > 0);
+        ///// <summary>
+        ///// Checks whether or not any of the skeletal targets has rotation frames.
+        ///// </summary>
+        ///// <returns>True if any of the targets has frames, otherwise false.</returns>
+        //public bool HasRotationFrames() => Targets.Any(x => x.RotationFrameCount > 0);
 
-        /// <summary>
-        /// Checks whether or not any of the skeletal targets has scales frames.
-        /// </summary>
-        /// <returns>True if any of the targets has frames, otherwise false.</returns>
-        public bool HasScalesFrames() => Targets.Any(x => x.ScaleFrameCount > 0);
+        ///// <summary>
+        ///// Checks whether or not any of the skeletal targets has scales frames.
+        ///// </summary>
+        ///// <returns>True if any of the targets has frames, otherwise false.</returns>
+        //public bool HasScalesFrames() => Targets.Any(x => x.ScaleFrameCount > 0);
 
         /// <inheritdoc/>
-        public override float GetAnimationFrameCount()
+        public override (float, float) GetAnimationFrameRange()
         {
             var minFrame = float.MaxValue;
             var maxFrame = float.MinValue;
 
-            foreach (var target in Targets)
+            foreach (var target in Tracks)
             {
-                foreach (var f in AnimationKeyFrameHelper.EnumerateKeyFrames(target.TranslationFrames))
+                if (target.TranslationCurve is not null)
                 {
-                    minFrame = MathF.Min(minFrame, f.Frame);
-                    maxFrame = MathF.Max(maxFrame, f.Frame);
+                    foreach (var f in target.TranslationCurve.KeyFrames)
+                    {
+                        minFrame = MathF.Min(minFrame, f.Frame);
+                        maxFrame = MathF.Max(maxFrame, f.Frame);
+                    }
                 }
 
-                foreach (var f in AnimationKeyFrameHelper.EnumerateKeyFrames(target.RotationFrames))
+                if (target.RotationCurve is not null)
                 {
-                    minFrame = MathF.Min(minFrame, f.Frame);
-                    maxFrame = MathF.Max(maxFrame, f.Frame);
+                    foreach (var f in target.RotationCurve.KeyFrames)
+                    {
+                        minFrame = MathF.Min(minFrame, f.Frame);
+                        maxFrame = MathF.Max(maxFrame, f.Frame);
+                    }
                 }
 
-                foreach (var f in AnimationKeyFrameHelper.EnumerateKeyFrames(target.ScaleFrames))
+                if (target.ScaleCurve is not null)
                 {
-                    minFrame = MathF.Min(minFrame, f.Frame);
-                    maxFrame = MathF.Max(maxFrame, f.Frame);
+                    foreach (var f in target.ScaleCurve.KeyFrames)
+                    {
+                        minFrame = MathF.Min(minFrame, f.Frame);
+                        maxFrame = MathF.Max(maxFrame, f.Frame);
+                    }
                 }
             }
 
@@ -109,7 +113,20 @@ namespace RedFox.Graphics3D.Skeletal
             //    }
             //}
 
-            return (maxFrame - minFrame) + 1;
+            return (minFrame, maxFrame);
+        }
+
+        public void SetTransformType(TransformType transformType)
+        {
+            foreach (var track in Tracks)
+            {
+                if (track.TranslationCurve is not null)
+                    track.TranslationCurve.TransformType = transformType;
+                if (track.RotationCurve is not null)
+                    track.RotationCurve.TransformType = transformType;
+                if (track.ScaleCurve is not null)
+                    track.ScaleCurve.TransformType = transformType;
+            }
         }
     }
 }

@@ -69,14 +69,14 @@ namespace RedFox.Graphics3D.SEAnim
 
             for (int i = 0; i < boneCount; i++)
             {
-                skelAnim.Targets.Add(new(ReadUTF8String(reader)));
+                skelAnim.Tracks.Add(new(ReadUTF8String(reader)));
 
                 if ((dataFlags & 1) != 0)
-                    skelAnim.Targets[i].TranslationFrames = [];
+                    skelAnim.Tracks[i].TranslationCurve = new(TransformSpace.Local, transformType);
                 if ((dataFlags & 2) != 0)
-                    skelAnim.Targets[i].RotationFrames = [];
+                    skelAnim.Tracks[i].RotationCurve = new(TransformSpace.Local, transformType == TransformType.Additive ? TransformType.Additive : TransformType.Absolute);
                 if ((dataFlags & 4) != 0)
-                    skelAnim.Targets[i].ScaleFrames = [];
+                    skelAnim.Tracks[i].ScaleCurve = new(TransformSpace.Local, transformType);
             }
 
             for (int i = 0; i < modCount; i++)
@@ -85,13 +85,13 @@ namespace RedFox.Graphics3D.SEAnim
 
                 switch (reader.ReadByte())
                 {
-                    case 0: skelAnim.Targets[boneIndex].ChildTransformType = TransformType.Absolute; break;
-                    case 1: skelAnim.Targets[boneIndex].ChildTransformType = TransformType.Additive; break;
-                    case 2: skelAnim.Targets[boneIndex].ChildTransformType = TransformType.Relative; break;
+                    case 0: skelAnim.Tracks[boneIndex].TransformType = TransformType.Absolute; break;
+                    case 1: skelAnim.Tracks[boneIndex].TransformType = TransformType.Additive; break;
+                    case 2: skelAnim.Tracks[boneIndex].TransformType = TransformType.Relative; break;
                 }
             }
 
-            foreach (var bone in skelAnim.Targets)
+            foreach (var bone in skelAnim.Tracks)
             {
                 reader.ReadByte();
 
@@ -118,17 +118,17 @@ namespace RedFox.Graphics3D.SEAnim
                             frame = reader.ReadInt32();
 
                         if ((dataPropFlags & (1 << 0)) == 0)
-                            bone.TranslationFrames!.Add(new(
+                            bone.AddTranslationFrame(
                                 frame,
                                 new(reader.ReadSingle(),
                                     reader.ReadSingle(),
-                                    reader.ReadSingle())));
+                                    reader.ReadSingle()));
                         else
-                            bone.TranslationFrames!.Add(new(
+                            bone.AddTranslationFrame(
                                 frame,
                                 new((float)reader.ReadDouble(),
                                     (float)reader.ReadDouble(),
-                                    (float)reader.ReadDouble())));
+                                    (float)reader.ReadDouble()));
                     }
                 }
 
@@ -155,19 +155,19 @@ namespace RedFox.Graphics3D.SEAnim
                             frame = reader.ReadInt32();
 
                         if ((dataPropFlags & (1 << 0)) == 0)
-                            bone.RotationFrames!.Add(new(
+                            bone.AddRotationFrame(
                                 frame, 
                                 new(reader.ReadSingle(),
                                     reader.ReadSingle(),
                                     reader.ReadSingle(),
-                                    reader.ReadSingle())));
+                                    reader.ReadSingle()));
                         else
-                            bone.RotationFrames!.Add(new(
+                            bone.AddRotationFrame(
                                 frame,
                                 new((float)reader.ReadDouble(),
                                     (float)reader.ReadDouble(),
                                     (float)reader.ReadDouble(),
-                                    (float)reader.ReadDouble())));
+                                    (float)reader.ReadDouble()));
                     }
                 }
 
@@ -194,17 +194,17 @@ namespace RedFox.Graphics3D.SEAnim
                             frame = reader.ReadInt32();
 
                         if ((dataPropFlags & (1 << 0)) == 0)
-                            bone.ScaleFrames!.Add(new(
+                            bone.AddScaleFrame(
                                 frame,
                                 new(reader.ReadSingle(),
                                     reader.ReadSingle(),
-                                    reader.ReadSingle())));
+                                    reader.ReadSingle()));
                         else
-                            bone.ScaleFrames!.Add(new(
+                            bone.AddScaleFrame(
                                 frame,
                                 new((float)reader.ReadDouble(),
                                     (float)reader.ReadDouble(),
-                                    (float)reader.ReadDouble())));
+                                    (float)reader.ReadDouble()));
                     }
                 }
             }
@@ -232,31 +232,32 @@ namespace RedFox.Graphics3D.SEAnim
             // Determine bones with different types
             var boneModifiers = new Dictionary<int, byte>();
 
-            var data          = scene.GetFirstInstance<SkeletonAnimation>() ?? throw new InvalidDataException();
+            var data = scene.GetFirstInstance<SkeletonAnimation>() ?? throw new InvalidDataException();
 
-            var frameCount    = data.GetAnimationFrameCount();
-            var actionCount   = data.GetAnimationActionCount();
-            var targetCount   = data.Targets.Count;
+            var (_, maxFrame) = data.GetAnimationFrameRange();
+            var frameCount = (int)maxFrame;
+            var actionCount = data.GetAnimationActionCount();
+            var targetCount = data.Tracks.Count;
             var transformType = data.TransformType;
-            int index         = 0;
+            int index = 0;
 
             var animationType = data.TransformType;
 
-            foreach (var bone in data.Targets)
-            {
-                if (bone.ChildTransformType != TransformType.Parent && bone.ChildTransformType != animationType)
-                {
-                    // Convert to SEAnim Type
-                    switch (bone.ChildTransformType)
-                    {
-                        case TransformType.Absolute: boneModifiers[index] = 0; break;
-                        case TransformType.Additive: boneModifiers[index] = 1; break;
-                        case TransformType.Relative: boneModifiers[index] = 2; break;
-                    }
-                }
+            //foreach (var bone in data.Tracks)
+            //{
+            //    if (bone.ChildTransformType != TransformType.Parent && bone.ChildTransformType != animationType)
+            //    {
+            //        // Convert to SEAnim Type
+            //        switch (bone.ChildTransformType)
+            //        {
+            //            case TransformType.Absolute: boneModifiers[index] = 0; break;
+            //            case TransformType.Additive: boneModifiers[index] = 1; break;
+            //            case TransformType.Relative: boneModifiers[index] = 2; break;
+            //        }
+            //    }
 
-                index++;
-            }
+            //    index++;
+            //}
 
             using var writer = new BinaryWriter(stream);
 
@@ -277,11 +278,11 @@ namespace RedFox.Graphics3D.SEAnim
 
             byte flags = 0;
 
-            if (data != null && data.HasTranslationFrames())
+            if (data != null && data.Tracks.Any(x => x.TranslationCurve is not null))
                 flags |= 1;
-            if (data != null && data.HasRotationFrames())
+            if (data != null && data.Tracks.Any(x => x.RotationCurve is not null))
                 flags |= 2;
-            if (data != null && data.HasScalesFrames())
+            if (data != null && data.Tracks.Any(x => x.ScaleCurve is not null))
                 flags |= 4;
             if (actionCount > 0)
                 flags |= 64;
@@ -299,11 +300,11 @@ namespace RedFox.Graphics3D.SEAnim
 
             if (data != null)
             {
-                var targets = data.Targets;
+                var Tracks = data.Tracks;
 
-                foreach (var bone in targets)
+                foreach (var bone in Tracks)
                 {
-                    writer.Write(Encoding.UTF8.GetBytes(bone.BoneName.Replace('.', '_')));
+                    writer.Write(Encoding.UTF8.GetBytes(bone.Name.Replace('.', '_')));
                     writer.Write((byte)0);
                 }
 
@@ -319,23 +320,25 @@ namespace RedFox.Graphics3D.SEAnim
                     writer.Write(modifier.Value);
                 }
 
-                foreach (var bone in targets)
+                foreach (var bone in Tracks)
                 {
                     writer.Write((byte)0);
 
                     // TranslationFrames
                     if ((flags & 1) != 0)
                     {
-                        if (frameCount <= 0xFF)
-                            writer.Write((byte)bone.TranslationFrameCount);
-                        else if (frameCount <= 0xFFFF)
-                            writer.Write((ushort)bone.TranslationFrameCount);
-                        else
-                            writer.Write(bone.TranslationFrameCount);
+                        var translationFrameCount = bone.TranslationCurve is null ? 0 : bone.TranslationCurve.KeyFrames.Count;
 
-                        if (bone.TranslationFrames != null)
+                        if (frameCount <= 0xFF)
+                            writer.Write((byte)translationFrameCount);
+                        else if (frameCount <= 0xFFFF)
+                            writer.Write((ushort)translationFrameCount);
+                        else
+                            writer.Write(translationFrameCount);
+
+                        if (bone.TranslationCurve != null)
                         {
-                            foreach (var frame in bone.TranslationFrames)
+                            foreach (var frame in bone.TranslationCurve.KeyFrames)
                             {
                                 if (frameCount <= 0xFF)
                                     writer.Write((byte)frame.Frame);
@@ -354,16 +357,18 @@ namespace RedFox.Graphics3D.SEAnim
                     // RotationFrames
                     if ((flags & 2) != 0)
                     {
-                        if (frameCount <= 0xFF)
-                            writer.Write((byte)bone.RotationFrameCount);
-                        else if (frameCount <= 0xFFFF)
-                            writer.Write((ushort)bone.RotationFrameCount);
-                        else
-                            writer.Write(bone.RotationFrameCount);
+                        var rotationFrameCount = bone.RotationCurve is null ? 0 : bone.RotationCurve.KeyFrames.Count;
 
-                        if (bone.RotationFrames != null)
+                        if (frameCount <= 0xFF)
+                            writer.Write((byte)rotationFrameCount);
+                        else if (frameCount <= 0xFFFF)
+                            writer.Write((ushort)rotationFrameCount);
+                        else
+                            writer.Write(rotationFrameCount);
+
+                        if (bone.RotationCurve != null)
                         {
-                            foreach (var frame in bone.RotationFrames)
+                            foreach (var frame in bone.RotationCurve.KeyFrames)
                             {
                                 if (frameCount <= 0xFF)
                                     writer.Write((byte)frame.Frame);
@@ -383,16 +388,18 @@ namespace RedFox.Graphics3D.SEAnim
                     // ScaleFrames
                     if ((flags & 4) != 0)
                     {
-                        if (frameCount <= 0xFF)
-                            writer.Write((byte)bone.ScaleFrameCount);
-                        else if (frameCount <= 0xFFFF)
-                            writer.Write((ushort)bone.ScaleFrameCount);
-                        else
-                            writer.Write(bone.ScaleFrameCount);
+                        var scaleFrameCount = bone.ScaleCurve is null ? 0 : bone.ScaleCurve.KeyFrames.Count;
 
-                        if(bone.ScaleFrames != null)
+                        if (frameCount <= 0xFF)
+                            writer.Write((byte)scaleFrameCount);
+                        else if (frameCount <= 0xFFFF)
+                            writer.Write((ushort)scaleFrameCount);
+                        else
+                            writer.Write(scaleFrameCount);
+
+                        if (bone.ScaleCurve != null)
                         {
-                            foreach (var frame in bone.ScaleFrames)
+                            foreach (var frame in bone.ScaleCurve.KeyFrames)
                             {
                                 if (frameCount <= 0xFF)
                                     writer.Write((byte)frame.Frame);

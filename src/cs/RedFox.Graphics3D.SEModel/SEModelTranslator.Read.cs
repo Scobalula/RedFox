@@ -69,43 +69,33 @@ namespace RedFox.Graphics3D.SEModel
 
                 if (hasWorldTransforms)
                 {
-                    bone.BaseWorldTranslation = new Vector3(
+                    bone.BaseTransform.WorldPosition = new Vector3(
                         reader.ReadSingle() * scale,
                         reader.ReadSingle() * scale,
                         reader.ReadSingle() * scale);
-                    bone.BaseWorldRotation = new Quaternion(
+                    bone.BaseTransform.WorldRotation = new Quaternion(
                         reader.ReadSingle(),
                         reader.ReadSingle(),
                         reader.ReadSingle(),
                         reader.ReadSingle());
-                }
-                else
-                {
-                    bone.BaseWorldTranslation = Vector3.Zero;
-                    bone.BaseWorldRotation = Quaternion.Identity;
                 }
 
                 if (hasLocalTransforms)
                 {
-                    bone.BaseLocalTranslation = new Vector3(
+                    bone.BaseTransform.LocalPosition = new Vector3(
                         reader.ReadSingle() * scale,
                         reader.ReadSingle() * scale,
                         reader.ReadSingle()) * scale;
-                    bone.BaseLocalRotation = new Quaternion(
+                    bone.BaseTransform.LocalRotation = new Quaternion(
                         reader.ReadSingle(),
                         reader.ReadSingle(),
                         reader.ReadSingle(),
                         reader.ReadSingle());
                 }
-                else
-                {
-                    bone.BaseLocalTranslation = Vector3.Zero;
-                    bone.BaseLocalRotation = Quaternion.Identity;
-                }
 
                 if (hasScaleTransforms)
                 {
-                    bone.BaseScale = new Vector3(
+                    bone.BaseTransform.Scale = new Vector3(
                         reader.ReadSingle(),
                         reader.ReadSingle(),
                         reader.ReadSingle());
@@ -118,7 +108,7 @@ namespace RedFox.Graphics3D.SEModel
             {
                 if (boneParents[i] != -1)
                 {
-                    skeleton.Bones[i].Parent = skeleton.Bones[boneParents[i]];
+                    skeleton.Bones[i].MoveTo(skeleton.Bones[boneParents[i]]);
                 }
             }
 

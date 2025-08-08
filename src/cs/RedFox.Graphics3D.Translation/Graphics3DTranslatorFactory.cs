@@ -1,4 +1,5 @@
 ﻿using RedFox.Graphics3D.Cast;
+using RedFox.Graphics3D.CoDXAsset;
 using RedFox.Graphics3D.SEAnim;
 using RedFox.Graphics3D.SEModel;
 using System.Collections.Generic;
@@ -51,10 +52,11 @@ namespace RedFox.Graphics3D.Translation
             Translators.Add(new SEModelTranslator());
             Translators.Add(new SEAnimTranslator());
             Translators.Add(new CastTranslator());
+            //Translators.Add(new FBXTranslator());
             //Translators.Add(new SEModelTranslator());
             //Translators.Add(new SMDTranslator());
             //Translators.Add(new CoDXAnimTranslator());
-            //Translators.Add(new CoDXModelTranslator());
+            Translators.Add(new CoDXModelTranslator());
 
             return this;
         }
@@ -172,10 +174,7 @@ namespace RedFox.Graphics3D.Translation
 
             var result = scene.Objects.FirstOrDefault(x => x.GetType() == type);
 
-            if (result == null)
-                throw new Empty3DFileException();
-
-            return (T)result;
+            return result == null ? throw new Empty3DFileException() : (T)result;
         }
 
         public T Load<T>(string filePath) where T : Graphics3DObject

@@ -1,10 +1,11 @@
-﻿using System;
+﻿using RedFox.Graphics3D.Skeletal;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D
 {
@@ -28,7 +29,7 @@ namespace RedFox.Graphics3D
         /// </summary>
         public List<Material> Materials { get; set; }
 
-        public Model()
+        public Model() : base()
         {
             Meshes = [];
             Materials = [];

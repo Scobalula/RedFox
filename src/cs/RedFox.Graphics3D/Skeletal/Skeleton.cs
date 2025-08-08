@@ -14,12 +14,9 @@ namespace RedFox.Graphics3D.Skeletal
         /// <summary>
         /// Gets or Sets the bones stored within this skeleton.
         /// </summary>
-        public List<SkeletonBone> Bones { get; set; }
+        public List<SkeletonBone> Bones { get; set; } = [];
 
-        public Skeleton()
-        {
-            Bones = [];
-        }
+        public Skeleton() : base() { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Skeleton"/>.
@@ -94,7 +91,6 @@ namespace RedFox.Graphics3D.Skeletal
         /// <param name="bone">The bone to add to this skeleton.</param>
         public void AddBone(SkeletonBone bone)
         {
-            bone.Index = Bones.Count;
             Bones.Add(bone);
         }
 
@@ -117,94 +113,95 @@ namespace RedFox.Graphics3D.Skeletal
 
                 yield return currentBone;
 
-                foreach (var bone in currentBone.Children)
-                    boneStack.Push(bone);
+                foreach (var child in currentBone.Children)
+                    if (child is SkeletonBone bone)
+                        boneStack.Push(bone);
             }
         }
 
-        public IEnumerable<SkeletonBone> EnumerateRoots()
-        {
-            foreach (var bone in Bones)
-            {
-                if (bone.Parent == null)
-                {
-                    yield return bone;
-                }
-            }
-        }
+        //public IEnumerable<SkeletonBone> EnumerateRoots()
+        //{
+        //    foreach (var bone in Bones)
+        //    {
+        //        if (bone.Parent == null)
+        //        {
+        //            yield return bone;
+        //        }
+        //    }
+        //}
 
-        public void GenerateLocalTransforms()
-        {
-            foreach (var bone in EnumerateHierarchy())
-            {
-                bone.GenerateLocalTransform();
-            }
-        }
+        //public void GenerateLocalTransforms()
+        //{
+        //    foreach (var bone in EnumerateHierarchy())
+        //    {
+        //        bone.GenerateLocalTransform();
+        //    }
+        //}
 
-        public void GenerateGlobalTransforms()
-        {
-            foreach (var bone in EnumerateHierarchy())
-            {
-                bone.GenerateWorldTransform();
-            }
-        }
+        //public void GenerateGlobalTransforms()
+        //{
+        //    foreach (var bone in EnumerateHierarchy())
+        //    {
+        //        bone.GenerateWorldTransform();
+        //    }
+        //}
 
-        /// <summary>
-        /// Assigns the bone indices based off their index within the table. 
-        /// </summary>
-        public void AssignBoneIndices()
-        {
-            for (int i = 0; i < Bones.Count; i++)
-            {
-                Bones[i].Index = i;
-            }
-        }
+        ///// <summary>
+        ///// Assigns the bone indices based off their index within the table. 
+        ///// </summary>
+        //public void AssignBoneIndices()
+        //{
+        //    for (int i = 0; i < Bones.Count; i++)
+        //    {
+        //        Bones[i].Index = i;
+        //    }
+        //}
 
-        public Skeleton CreateCopy()
-        {
-            var newSkeleton = new Skeleton(Name);
-            var bones = new SkeletonBone[Bones.Count];
+        //public Skeleton CreateCopy()
+        //{
+        //    var newSkeleton = new Skeleton(Name);
+        //    var bones = new SkeletonBone[Bones.Count];
 
-            foreach(var bone in EnumerateHierarchy())
-            {
-                bones[bone.Index] = new SkeletonBone(bone.Name)
-                {
-                    Index                   = bone.Index,
-                    Parent                  = bone.Parent != null ? bones.First(x => x?.Name == bone.Parent?.Name) : null,
-                    BaseLocalTranslation    = bone.BaseLocalTranslation,
-                    BaseLocalRotation       = bone.BaseLocalRotation,
-                    BaseWorldTranslation    = bone.BaseWorldTranslation,
-                    BaseWorldRotation       = bone.BaseWorldRotation,
-                    LocalRotation    = bone.BaseLocalRotation,
-                    LocalTranslation = bone.BaseLocalTranslation,
-                    WorldRotation    = bone.BaseWorldRotation,
-                    WorldTranslation = bone.BaseWorldTranslation,
-                    BaseScale               = bone.BaseScale,
-                    CanAnimate              = bone.CanAnimate
-                };
-            }
+        //    foreach(var bone in EnumerateHierarchy())
+        //    {
+        //        bones[bone.Index] = new SkeletonBone(bone.Name)
+        //        {
+        //            Index                   = bone.Index,
+        //            Parent                  = bone.Parent != null ? bones.First(x => x?.Name == bone.Parent?.Name) : null,
+        //            BaseLocalTranslation    = bone.BaseLocalTranslation,
+        //            BaseLocalRotation       = bone.BaseLocalRotation,
+        //            BaseWorldTranslation    = bone.BaseWorldTranslation,
+        //            BaseWorldRotation       = bone.BaseWorldRotation,
+        //            LocalRotation    = bone.BaseLocalRotation,
+        //            LocalTranslation = bone.BaseLocalTranslation,
+        //            WorldRotation    = bone.BaseWorldRotation,
+        //            WorldTranslation = bone.BaseWorldTranslation,
+        //            BaseScale               = bone.BaseScale,
+        //            CanAnimate              = bone.CanAnimate
+        //        };
+        //    }
 
-            newSkeleton.Bones = [..bones];
-            return newSkeleton;
-        }
+        //    newSkeleton.Bones = [..bones];
+        //    return newSkeleton;
+        //}
 
-        public void CreateAnimationTargets(SkeletonAnimation animation) => Bones.ForEach(x => animation.Targets.Add(new(x.Name)));
+        //public void CreateAnimationTargets(SkeletonAnimation animation) => Bones.ForEach(x => animation.Tracks.Add(new(x.Name)));
 
-        public void InitializeAnimationTransforms()
-        {
-            // TODO: Make it so we don't have to call this every frame...
-            foreach (var bone in Bones)
-            {
-                bone.InitializeAnimationTransforms();
-            }
-        }
+        //public void InitializeAnimationTransforms()
+        //{
+        //    // TODO: Make it so we don't have to call this every frame...
+        //    foreach (var bone in Bones)
+        //    {
+        //        bone.InitializeAnimationTransforms();
+        //    }
+        //}
 
-        public void Update()
-        {
-            foreach (var bone in EnumerateHierarchy())
-            {
-                bone.GenerateCurrentWorldTransform();
-            }
-        }
+        //public void Update()
+        //{
+        //    foreach (var bone in EnumerateHierarchy())
+        //    {
+        //        bone.GenerateCurrentWorldTransform();
+        //    }
+        //}
     }
 }

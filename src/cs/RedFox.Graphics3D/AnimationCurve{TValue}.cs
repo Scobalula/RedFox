@@ -7,27 +7,22 @@ using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D
 {
-    public class AnimationCurve<T, I> where T : unmanaged where I : IValueManipulator<T>, new()
+    public class AnimationCurve<TValue> where TValue : unmanaged
     {
         /// <summary>
         /// Gets or Sets the transform space.
         /// </summary>
-        public TransformSpace Space { get; set; }
+        public TransformSpace TransformSpace { get; set; }
 
         /// <summary>
         /// Gets or Sets the transform type.
         /// </summary>
-        public TransformType Type { get; set; }
+        public TransformType TransformType { get; set; }
 
         /// <summary>
         /// Gets or Sets the key frames stored in this curve.
         /// </summary>
-        public List<AnimationKeyFrame<float, T>> KeyFrames { get; set; } = [];
-
-        /// <summary>
-        /// Gets the interpolator.
-        /// </summary>
-        public static IValueManipulator<T> Interpolator { get; } = new I();
+        public List<AnimationKeyFrame<float, TValue>> KeyFrames { get; set; } = [];
 
         /// <summary>
         /// Initializes a new <see cref="AnimationCurve{T}"/>.
@@ -43,14 +38,16 @@ namespace RedFox.Graphics3D
         /// <param name="type">The transform type which the curve applies.</param>
         public AnimationCurve(TransformSpace space, TransformType type)
         {
-            Space = space;
-            Type = type;
+            TransformSpace = space;
+            TransformType = type;
         }
 
-        public T Sample(float time)
+        public void Add(float time, TValue value) => KeyFrames.Add(new(time, value));
+
+        public TValue Sample(float time, Func<TValue, TValue, float, TValue> interpolationMethod)
         {
-            var t = default(T);
-            var (i0, i1) = AnimationKeyFrameHelper.GetFramePairIndex(KeyFrames, time, 0.0f);
+            var t = default(TValue);
+            var (i0, i1) = Animation.GetFramePairIndex(KeyFrames, time, 0.0f);
 
             if (i0 != -1 && i1 != -1)
             {
@@ -60,12 +57,10 @@ namespace RedFox.Graphics3D
                 if (i0 == i1)
                     t = firstFrame.Value;
                 else
-                    t = Interpolator.Interpolate(firstFrame.Value, secondFrame.Value, (time - firstFrame.Frame) / (secondFrame.Frame - firstFrame.Frame));
+                    t = interpolationMethod(firstFrame.Value, secondFrame.Value, (time - firstFrame.Frame) / (secondFrame.Frame - firstFrame.Frame));
             }
 
             return t;
         }
-
-        public T Apply(T input) => Interpolator.Modify(input, Type);
     }
 }
