@@ -1,5 +1,0 @@
-﻿ReadProcessMemory
-OpenProcess
-CloseHandle
-EnumProcessModulesEx
-GetModuleInformation
