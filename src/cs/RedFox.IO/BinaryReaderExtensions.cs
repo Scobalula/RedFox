@@ -9,6 +9,7 @@
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using RedFox;
 
 namespace RedFox.IO
 {
@@ -261,19 +262,7 @@ namespace RedFox.IO
         /// <returns>Resulting string</returns>
         public static string ReadUTF8NullTerminatedString(this BinaryReader reader)
         {
-            var output = new StringBuilder(256);
-
-            while (true)
-            {
-                var c = reader.ReadByte();
-
-                if (c == 0)
-                    break;
-
-                output.Append(Convert.ToChar(c));
-            }
-
-            return output.ToString();
+            return ReadNullTerminatedString(reader, Encoding.UTF8);
         }
 
         /// <summary>
@@ -302,19 +291,7 @@ namespace RedFox.IO
         /// <returns>Resulting string</returns>
         public static string ReadUTF16NullTerminatedString(this BinaryReader reader)
         {
-            var output = new StringBuilder(256);
-
-            while (true)
-            {
-                var c = reader.ReadUInt16();
-
-                if (c == 0)
-                    break;
-
-                output.Append(Convert.ToChar(c));
-            }
-
-            return output.ToString();
+            return ReadNullTerminatedString(reader, Encoding.Unicode);
         }
 
         /// <summary>
@@ -343,19 +320,7 @@ namespace RedFox.IO
         /// <returns>Resulting string</returns>
         public static string ReadUTF32NullTerminatedString(this BinaryReader reader)
         {
-            var output = new StringBuilder(256);
-
-            while (true)
-            {
-                var c = reader.ReadUInt32();
-
-                if (c == 0)
-                    break;
-
-                output.Append(Convert.ToChar(c));
-            }
-
-            return output.ToString();
+            return ReadNullTerminatedString(reader, Encoding.UTF32);
         }
 
         /// <summary>
@@ -374,6 +339,165 @@ namespace RedFox.IO
             var result = ReadUTF32NullTerminatedString(reader);
             reader.BaseStream.Position = temp;
             return result;
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="hexString">Hex String with masks, for example: "1A FF ?? ?? 00"</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, string hexString)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(hexString);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="hexString">Hex String with masks, for example: "1A FF ?? ?? 00"</param>
+        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, string hexString, bool firstOccurence)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(hexString, firstOccurence);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="hexString">Hex String with masks, for example: "1A FF ?? ?? 00"</param>
+        /// <param name="startPosition">Position to start searching from</param>
+        /// <param name="endPosition">Position to end the search at</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, string hexString, long startPosition, long endPosition)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(hexString, startPosition, endPosition);
+        }
+
+        private static string ReadNullTerminatedString(BinaryReader reader, Encoding encoding)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            ArgumentNullException.ThrowIfNull(encoding);
+            int maxBytes = GetMaxReadableBytes(reader);
+
+            string result = NullTerminatedStringReader.ReadNullTerminatedString(
+                encoding,
+                maxBytes,
+                chunkSize: 128,
+                readChunk: destination => reader.Read(destination),
+                onMissing: () =>
+                    new EndOfStreamException("Null-terminated string was not found before the end of the stream."));
+            return result;
+        }
+
+        private static int GetMaxReadableBytes(BinaryReader reader)
+        {
+            Stream baseStream = reader.BaseStream;
+            if (!baseStream.CanSeek)
+            {
+                return int.MaxValue;
+            }
+
+            long remainingBytes = baseStream.Length - baseStream.Position;
+            if (remainingBytes <= 0)
+            {
+                return 1;
+            }
+
+            return remainingBytes > int.MaxValue ? int.MaxValue : (int)remainingBytes;
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="hexString">Hex String with masks, for example: "1A FF ?? ?? 00"</param>
+        /// <param name="startPosition">Position to start searching from</param>
+        /// <param name="endPosition">Position to end the search at</param>
+        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, string hexString, long startPosition, long endPosition, bool firstOccurence)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(hexString, startPosition, endPosition, firstOccurence);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="pattern">Pattern to search for</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, Pattern<byte> pattern)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(pattern);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="pattern">Pattern to search for</param>
+        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, Pattern<byte> pattern, bool firstOccurence)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(pattern, firstOccurence);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="pattern">Pattern to search for</param>
+        /// <param name="startPosition">Position to start searching from</param>
+        /// <param name="endPosition">Position to end the search at</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, Pattern<byte> pattern, long startPosition, long endPosition)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(pattern, startPosition, endPosition);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="pattern">Pattern to search for</param>
+        /// <param name="startPosition">Position to start searching from</param>
+        /// <param name="endPosition">Position to end the search at</param>
+        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, Pattern<byte> pattern, long startPosition, long endPosition, bool firstOccurence)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(pattern, startPosition, endPosition, firstOccurence);
+        }
+
+        /// <summary>
+        /// Scans for the given pattern in the <see cref="BinaryReader"/> base stream.
+        /// </summary>
+        /// <param name="reader">Current <see cref="BinaryReader"/></param>
+        /// <param name="needle">Byte Array Needle to search for</param>
+        /// <param name="mask">Mask array for unknown bytes/pattern matching</param>
+        /// <param name="startPosition">Position to start searching from</param>
+        /// <param name="endPosition">Position to end the search at</param>
+        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <param name="bufferSize">The size of the scan buffer.</param>
+        /// <returns>Absolute positions of occurences</returns>
+        public static long[] Scan(this BinaryReader reader, byte[] needle, byte[] mask, long startPosition, long endPosition,
+            bool firstOccurence, int bufferSize)
+        {
+            ArgumentNullException.ThrowIfNull(reader);
+            return reader.BaseStream.Scan(needle, mask, startPosition, endPosition, firstOccurence, bufferSize);
         }
 
         public static long Align(this BinaryReader reader, long alignment)
