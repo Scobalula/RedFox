@@ -6,7 +6,6 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-
 namespace RedFox.IO
 {
     /// <summary>
@@ -14,6 +13,8 @@ namespace RedFox.IO
     /// </summary>
     public static class StreamExtensions
     {
+        private const int DefaultScanBufferSize = 0x10000;
+
         /// <summary>
         /// Scans for the given pattern in the <see cref="Stream"/>.
         /// </summary>
@@ -22,7 +23,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, string hexString)
         {
-            return Scan(stream, BytePattern.Parse(hexString), stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), false);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, BytePattern.Parse(hexString), startPosition, endPosition, false);
         }
 
         /// <summary>
@@ -34,7 +36,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, string hexString, bool firstOccurence)
         {
-            return Scan(stream, BytePattern.Parse(hexString), stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), firstOccurence);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, BytePattern.Parse(hexString), startPosition, endPosition, firstOccurence);
         }
 
         /// <summary>
@@ -72,7 +75,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, Pattern<byte> pattern)
         {
-            return Scan(stream, pattern, stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), false);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, pattern, startPosition, endPosition, false);
         }
 
         /// <summary>
@@ -84,7 +88,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, Pattern<byte> pattern, bool firstOccurence)
         {
-            return Scan(stream, pattern, stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), firstOccurence);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, pattern, startPosition, endPosition, firstOccurence);
         }
 
         /// <summary>
@@ -111,7 +116,7 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, Pattern<byte> pattern, long startPosition, long endPosition, bool firstOccurence)
         {
-            return Scan(stream, pattern.Needle, pattern.Mask, startPosition, endPosition, firstOccurence, 0x10000);
+            return Scan(stream, pattern.Needle, pattern.Mask, startPosition, endPosition, firstOccurence, DefaultScanBufferSize);
         }
 
         /// <summary>
@@ -123,7 +128,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, byte[] needle, byte[] mask)
         {
-            return Scan(stream, needle, mask, stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), false, 0x10000);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, needle, mask, startPosition, endPosition, false, DefaultScanBufferSize);
         }
 
         /// <summary>
@@ -136,7 +142,8 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, byte[] needle, byte[] mask, bool firstOccurence)
         {
-            return Scan(stream, needle, mask, stream.Seek(-stream.Length, SeekOrigin.End), stream.Seek(0, SeekOrigin.End), firstOccurence, 0x10000);
+            GetDefaultRange(stream, out long startPosition, out long endPosition);
+            return Scan(stream, needle, mask, startPosition, endPosition, firstOccurence, DefaultScanBufferSize);
         }
 
         /// <summary>
@@ -150,7 +157,7 @@ namespace RedFox.IO
         /// <returns>Absolute positions of occurences</returns>
         public static long[] Scan(this Stream stream, byte[] needle, byte[] mask, long startPosition, long endPosition)
         {
-            return Scan(stream, needle, mask, startPosition, endPosition, false, 0x10000);
+            return Scan(stream, needle, mask, startPosition, endPosition, false, DefaultScanBufferSize);
         }
 
         /// <summary>
@@ -159,88 +166,87 @@ namespace RedFox.IO
         /// <param name="stream">Stream</param>
         /// <param name="needle">Byte Array Needle to search for</param>
         /// <param name="mask">Mask array for unknown bytes/pattern matching</param>
-        /// <param name="startPosition">Position to start searching from</param>
-        /// <param name="endPosition">Position to end the search at</param>
-        /// <param name="firstOccurence">Whether or not to stop at the first result</param>
+        /// <param name="start">Position to start searching from</param>
+        /// <param name="end">Position to end the search at</param>
+        /// <param name="firstOnly">Whether or not to stop at the first result</param>
         /// <param name="bufferSize">The size of the scan buffer.</param>
         /// <returns>Absolute positions of occurences</returns>
-        public unsafe static long[] Scan(this Stream stream, byte[] needle, byte[] mask, long startPosition, long endPosition, bool firstOccurence, int bufferSize)
+        public static long[] Scan(this Stream stream, byte[] needle, byte[] mask, long start, long end, bool firstOnly, int bufferSize)
         {
-            if (startPosition == -1)
-                throw new IOException();
-            if (endPosition == -1)
-                throw new IOException();
+            ArgumentNullException.ThrowIfNull(stream);
+            ArgumentNullException.ThrowIfNull(needle);
+            ArgumentNullException.ThrowIfNull(mask);
+            EnsureSeekableReadable(stream);
 
-            stream.Position = startPosition;
-
-            long readBegin = stream.Position;
-
-            List<long> offsets = [];
-
-            int needleIndex = 0;
-            var buffer = new byte[bufferSize];
-
-            fixed (byte* n = needle)
-            fixed (byte* m = mask)
-            fixed (byte* p = buffer)
+            if (start < 0)
             {
-                while (true)
-                {
-                    var bytesRead = stream.Read(buffer, 0, buffer.Length);
-
-                    if (bytesRead <= 0)
-                        break;
-
-                    for (int i = 0; i < bytesRead; i++)
-                    {
-                        if (n[needleIndex] == p[i] || m[needleIndex] == 0xFF)
-                        {
-                            needleIndex++;
-
-                            if (needleIndex == needle.Length)
-                            {
-                                offsets.Add(readBegin + i + 1 - needle.Length);
-
-                                needleIndex = 0;
-
-                                if (firstOccurence)
-                                {
-                                    return [.. offsets];
-                                }
-                            }
-                        }
-                        else
-                        {
-                            needleIndex = 0;
-
-                            // TODO: Betta this lad
-                            if (n[needleIndex] == p[i] || m[needleIndex] == 0xFF)
-                            {
-                                needleIndex++;
-
-                                if (needleIndex == needle.Length)
-                                {
-                                    offsets.Add(readBegin + i + 1 - needle.Length);
-
-                                    needleIndex = 0;
-
-                                    if (firstOccurence)
-                                    {
-                                        return [.. offsets];
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (stream.Position > endPosition)
-                        break;
-
-                    readBegin += bytesRead;
-                }
+                throw new ArgumentOutOfRangeException(nameof(start), start, "Start position must be zero or greater.");
             }
 
-            return [.. offsets];
+            if (end < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(end), end, "End position must be zero or greater.");
+            }
+
+            if (end < start)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(end),
+                    end,
+                    "End position must be greater than or equal to start position.");
+            }
+
+            if (start > stream.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(start),
+                    start,
+                    "Start position cannot be greater than stream length.");
+            }
+
+            long originalPosition = stream.Position;
+            try
+            {
+                long clampedEndPosition = Math.Min(end, stream.Length);
+                return BytePatternScanner.Scan(
+                    new Pattern<byte>(needle, mask),
+                    start,
+                    clampedEndPosition,
+                    bufferSize,
+                    firstOnly,
+                    readChunk: (offset, destination) => ReadChunk(stream, offset, destination));
+            }
+            finally
+            {
+                stream.Position = originalPosition;
+            }
+        }
+
+        private static void GetDefaultRange(Stream stream, out long startPosition, out long endPosition)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            EnsureSeekableReadable(stream);
+            startPosition = 0;
+            endPosition = stream.Length;
+        }
+
+        private static void EnsureSeekableReadable(Stream stream)
+        {
+            if (!stream.CanRead)
+            {
+                throw new NotSupportedException("Stream does not support reading.");
+            }
+
+            if (!stream.CanSeek)
+            {
+                throw new NotSupportedException("Stream does not support seeking.");
+            }
+        }
+
+        private static int ReadChunk(Stream stream, long position, Span<byte> destination)
+        {
+            stream.Position = position;
+            return stream.Read(destination);
         }
     }
 }
