@@ -7,41 +7,40 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
-namespace RedFox.Compression.Deflate
+namespace RedFox.Compression.Deflate;
+
+/// <summary>
+/// Describes the compression level to use for deflating files.
+/// </summary>
+public enum DeflateLevel : int
 {
     /// <summary>
-    /// Describes the compression level to use for deflating files.
+    /// No compression.
     /// </summary>
-    public enum DeflateLevel : int
-    {
-        /// <summary>
-        /// No compression.
-        /// </summary>
-        NoCompression = 0,
+    NoCompression = 0,
 
-        /// <summary>
-        /// Favour speed.
-        /// </summary>
-        BestSpeed = 1,
+    /// <summary>
+    /// Favour speed.
+    /// </summary>
+    BestSpeed = 1,
 
-        /// <summary>
-        /// Favour compression.
-        /// </summary>
-        BestCompression = 9,
+    /// <summary>
+    /// Favour compression.
+    /// </summary>
+    BestCompression = 9,
 
-        /// <summary>
-        /// Favour compression even more.
-        /// </summary>
-        UberCompression = 10,
+    /// <summary>
+    /// Favour compression even more.
+    /// </summary>
+    UberCompression = 10,
 
-        /// <summary>
-        /// Default compression level
-        /// </summary>
-        DefaultLevel = 6,
+    /// <summary>
+    /// Default compression level
+    /// </summary>
+    DefaultLevel = 6,
 
-        /// <summary>
-        /// Default compression level.
-        /// </summary>
-        DefaultCompression = -1
-    };
-}
+    /// <summary>
+    /// Default compression level.
+    /// </summary>
+    DefaultCompression = -1
+};

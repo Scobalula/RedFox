@@ -19,15 +19,13 @@ public static class BytePattern
     /// <returns>The resulting pattern.</returns>
     public static Pattern<byte> Parse(string hexString)
     {
-        // 2 characters per byte
         Span<char> buffer = stackalloc char[2];
-        // We're going to need at least the size of this input string
+
         var pattern = new List<byte>(hexString.Length);
         var mask = new List<byte>(hexString.Length);
 
         for (int i = 0, j = 0; i < 2 && j < hexString.Length; j++)
         {
-            // Skip whitespace
             if (char.IsWhiteSpace(hexString[j]))
                 continue;
             buffer[i++] = hexString[j];

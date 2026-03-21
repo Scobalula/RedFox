@@ -29,4 +29,15 @@ internal readonly ref struct BytePatternScanWindow(ReadOnlySpan<byte> bytes, lon
         int lastCandidateStart = GetLastCandidateStart(patternLength);
         return Bytes.Slice(firstKnownByteIndex, lastCandidateStart + 1);
     }
+
+    public bool TryTranslateAnchorCandidateToMatchStart(int anchorByteIndex, int anchorCandidateIndex, out int matchStartIndex)
+    {
+        matchStartIndex = anchorCandidateIndex - anchorByteIndex;
+        if (matchStartIndex < 0)
+        {
+            return false;
+        }
+
+        return matchStartIndex < Bytes.Length;
+    }
 }
