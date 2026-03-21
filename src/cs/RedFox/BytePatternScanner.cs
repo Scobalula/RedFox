@@ -57,7 +57,7 @@ public static class BytePatternScanner
                 break;
             }
 
-            int bytesRead = readChunk(currentOffset, buffers.ChunkBuffer.AsSpan(0, requestedLength));
+            int bytesRead = readChunk(currentOffset, buffers.GetReadDestination(requestedLength));
             ValidateChunkReadCount(bytesRead, requestedLength);
             if (bytesRead == 0)
             {
@@ -160,18 +160,24 @@ public static class BytePatternScanner
 
     private static bool TryCollectFirstKnownMatch(BytePatternPlan plan, BytePatternScanWindow window, BytePatternScanBounds bounds, out long matchOffset)
     {
-        ReadOnlySpan<byte> candidateByteSpan = window.GetCandidateByteSpan(plan.FirstKnownByteIndex, plan.PatternLength);
+        ReadOnlySpan<byte> candidateByteSpan = window.GetCandidateByteSpan(plan.AnchorByteIndex, plan.PatternLength);
         int candidateSearchStart = 0;
         while (candidateSearchStart < candidateByteSpan.Length)
         {
-            int candidateIndex = IndexOfByte(candidateByteSpan[candidateSearchStart..], plan.FirstKnownByteValue);
+            int candidateIndex = IndexOfByte(candidateByteSpan[candidateSearchStart..], plan.AnchorByteValue);
             if (candidateIndex < 0)
             {
                 break;
             }
 
-            int matchStart = candidateSearchStart + candidateIndex;
-            if (IsMatchAt(window.Bytes, plan.Needle, plan.Mask, matchStart))
+            int anchorCandidateIndex = candidateSearchStart + candidateIndex + plan.AnchorByteIndex;
+            if (!window.TryTranslateAnchorCandidateToMatchStart(plan.AnchorByteIndex, anchorCandidateIndex, out int matchStart))
+            {
+                candidateSearchStart = anchorCandidateIndex + 1 - plan.AnchorByteIndex;
+                continue;
+            }
+
+            if (IsKnownMatchAt(window.Bytes, plan, matchStart))
             {
                 long offset = window.BaseOffset + matchStart;
                 if (bounds.Contains(offset))
@@ -190,18 +196,24 @@ public static class BytePatternScanner
 
     private static void CollectAllKnownMatches(BytePatternPlan plan, BytePatternScanWindow window, BytePatternScanBounds bounds, List<long> matches)
     {
-        ReadOnlySpan<byte> candidateByteSpan = window.GetCandidateByteSpan(plan.FirstKnownByteIndex, plan.PatternLength);
+        ReadOnlySpan<byte> candidateByteSpan = window.GetCandidateByteSpan(plan.AnchorByteIndex, plan.PatternLength);
         int candidateSearchStart = 0;
         while (candidateSearchStart < candidateByteSpan.Length)
         {
-            int candidateIndex = IndexOfByte(candidateByteSpan[candidateSearchStart..], plan.FirstKnownByteValue);
+            int candidateIndex = IndexOfByte(candidateByteSpan[candidateSearchStart..], plan.AnchorByteValue);
             if (candidateIndex < 0)
             {
                 return;
             }
 
-            int matchStart = candidateSearchStart + candidateIndex;
-            if (IsMatchAt(window.Bytes, plan.Needle, plan.Mask, matchStart))
+            int anchorCandidateIndex = candidateSearchStart + candidateIndex + plan.AnchorByteIndex;
+            if (!window.TryTranslateAnchorCandidateToMatchStart(plan.AnchorByteIndex, anchorCandidateIndex, out int matchStart))
+            {
+                candidateSearchStart = anchorCandidateIndex + 1 - plan.AnchorByteIndex;
+                continue;
+            }
+
+            if (IsKnownMatchAt(window.Bytes, plan, matchStart))
             {
                 long offset = window.BaseOffset + matchStart;
                 if (bounds.Contains(offset))
@@ -248,19 +260,6 @@ public static class BytePatternScanner
         {
             throw new InvalidOperationException("Chunk reader returned more bytes than requested.");
         }
-    }
-
-    internal static int FindFirstKnownByteIndex(ReadOnlySpan<byte> mask)
-    {
-        for (int index = 0; index < mask.Length; index++)
-        {
-            if (mask[index] != 0xFF)
-            {
-                return index;
-            }
-        }
-
-        return -1;
     }
 
     private static int IndexOfByte(ReadOnlySpan<byte> source, byte value)
@@ -347,16 +346,22 @@ public static class BytePatternScanner
         return -1;
     }
 
-    private static bool IsMatchAt(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> needle, ReadOnlySpan<byte> mask, int startIndex)
+    private static bool IsKnownMatchAt(ReadOnlySpan<byte> bytes, BytePatternPlan plan, int startIndex)
     {
-        for (int index = 0; index < needle.Length; index++)
+        if (startIndex < 0)
         {
-            if (mask[index] == 0xFF)
-            {
-                continue;
-            }
+            return false;
+        }
 
-            if (bytes[startIndex + index] != needle[index])
+        if (startIndex > bytes.Length - plan.PatternLength)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < plan.KnownByteCount; index++)
+        {
+            int checkOffset = startIndex + plan.KnownByteOffsets[index];
+            if (bytes[checkOffset] != plan.KnownByteValues[index])
             {
                 return false;
             }
@@ -364,4 +369,5 @@ public static class BytePatternScanner
 
         return true;
     }
+
 }
