@@ -79,7 +79,7 @@ namespace RedFox.Graphics2D
         /// <param name="format">The pixel format.</param>
         /// <param name="isCubemap">Whether this image is a cube map texture.</param>
         /// <param name="data">Optional initial pixel data. If null, a zeroed buffer is allocated.</param>
-        public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap = false, byte[]? data = null)
+        public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap, byte[]? data)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
             ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
@@ -113,9 +113,40 @@ namespace RedFox.Graphics2D
         }
 
         /// <summary>
+        /// Initializes a new <see cref="Image"/> with the given dimensions and format, without initial data.
+        /// </summary>
+        public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap)
+            : this(width, height, depth, arraySize, mipLevels, format, isCubemap, null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new <see cref="Image"/> with the given dimensions and format.
+        /// </summary>
+        public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format)
+            : this(width, height, depth, arraySize, mipLevels, format, false, null)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new <see cref="Image"/> with the given dimensions and initial data.
+        /// </summary>
+        public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, byte[] data)
+            : this(width, height, depth, arraySize, mipLevels, format, false, data)
+        {
+        }
+
+        /// <summary>
         /// Creates a simple 2D image with no mip maps and array size 1.
         /// </summary>
-        public Image(int width, int height, ImageFormat format, byte[]? data = null) : this(width, height, 1, 1, 1, format, false, data)
+        public Image(int width, int height, ImageFormat format, byte[] data) : this(width, height, 1, 1, 1, format, false, data)
+        {
+        }
+
+        /// <summary>
+        /// Creates a simple 2D image with no mip maps and array size 1.
+        /// </summary>
+        public Image(int width, int height, ImageFormat format) : this(width, height, 1, 1, 1, format, false, null)
         {
         }
 
@@ -123,10 +154,11 @@ namespace RedFox.Graphics2D
         /// Gets the <see cref="ImageSlice"/> for the specified mip level and array element.
         /// </summary>
         /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
         /// <param name="arrayIndex">The array element index.</param>
         /// <param name="depthSlice">The depth slice index (for 3D textures).</param>
         /// <returns>The corresponding <see cref="ImageSlice"/>.</returns>
-        public ref readonly ImageSlice GetSlice(int mipLevel = 0, int arrayIndex = 0, int depthSlice = 0)
+        public ref readonly ImageSlice GetSlice(int mipLevel, int arrayIndex, int depthSlice)
         {
             var mipDepth = Math.Max(1, Depth >> mipLevel);
 
@@ -136,6 +168,30 @@ namespace RedFox.Graphics2D
 
             var index = GetSliceIndex(mipLevel, arrayIndex, depthSlice);
             return ref _slices[index];
+        }
+
+        /// <summary>
+        /// Gets the first slice of the image.
+        /// </summary>
+        public ref readonly ImageSlice GetSlice()
+        {
+            return ref GetSlice(0, 0, 0);
+        }
+
+        /// <summary>
+        /// Gets the first depth slice for the specified mip level and array element.
+        /// </summary>
+        public ref readonly ImageSlice GetSlice(int mipLevel, int arrayIndex)
+        {
+            return ref GetSlice(mipLevel, arrayIndex, 0);
+        }
+
+        /// <summary>
+        /// Gets the first array/depth slice for the specified mip level.
+        /// </summary>
+        public ref readonly ImageSlice GetSlice(int mipLevel)
+        {
+            return ref GetSlice(mipLevel, 0, 0);
         }
 
         /// <summary>
@@ -185,7 +241,7 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values.
         /// </summary>
-        public Vector4[] DecodeSlice(int mipLevel = 0, int arrayIndex = 0, int depthSlice = 0)
+        public Vector4[] DecodeSlice(int mipLevel, int arrayIndex, int depthSlice)
         {
             ref readonly var slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
             var codec = PixelCodecRegistry.GetCodec(Format);
@@ -195,10 +251,34 @@ namespace RedFox.Graphics2D
         }
 
         /// <summary>
+        /// Decodes all pixels of the first slice to <see cref="Vector4"/> values.
+        /// </summary>
+        public Vector4[] DecodeSlice()
+        {
+            return DecodeSlice(0, 0, 0);
+        }
+
+        /// <summary>
+        /// Decodes all pixels for the specified mip level and array index.
+        /// </summary>
+        public Vector4[] DecodeSlice(int mipLevel, int arrayIndex)
+        {
+            return DecodeSlice(mipLevel, arrayIndex, 0);
+        }
+
+        /// <summary>
+        /// Decodes all pixels for the specified mip level.
+        /// </summary>
+        public Vector4[] DecodeSlice(int mipLevel)
+        {
+            return DecodeSlice(mipLevel, 0, 0);
+        }
+
+        /// <summary>
         /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/>.
         /// Each pixel produces 4 component values (RGBA).
         /// </summary>
-        public T[] DecodeSlice<T>(int mipLevel = 0, int arrayIndex = 0, int depthSlice = 0) where T : INumber<T>
+        public T[] DecodeSlice<T>(int mipLevel, int arrayIndex, int depthSlice) where T : INumber<T>
         {
             var vec4Data = DecodeSlice(mipLevel, arrayIndex, depthSlice);
             var result = new T[vec4Data.Length * 4];
@@ -214,6 +294,30 @@ namespace RedFox.Graphics2D
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Decodes all pixels of the first slice to values of type <typeparamref name="T"/>.
+        /// </summary>
+        public T[] DecodeSlice<T>() where T : INumber<T>
+        {
+            return DecodeSlice<T>(0, 0, 0);
+        }
+
+        /// <summary>
+        /// Decodes all pixels for the specified mip level and array index to values of type <typeparamref name="T"/>.
+        /// </summary>
+        public T[] DecodeSlice<T>(int mipLevel, int arrayIndex) where T : INumber<T>
+        {
+            return DecodeSlice<T>(mipLevel, arrayIndex, 0);
+        }
+
+        /// <summary>
+        /// Decodes all pixels for the specified mip level to values of type <typeparamref name="T"/>.
+        /// </summary>
+        public T[] DecodeSlice<T>(int mipLevel) where T : INumber<T>
+        {
+            return DecodeSlice<T>(mipLevel, 0, 0);
         }
 
         private int GetSliceIndex(int mipLevel, int arrayIndex, int depthSlice)

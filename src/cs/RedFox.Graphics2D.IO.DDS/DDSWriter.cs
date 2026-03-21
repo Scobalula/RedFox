@@ -5,7 +5,7 @@ namespace RedFox.Graphics2D.IO
     /// <summary>
     /// Writes <see cref="Image"/> instances to DDS (DirectDraw Surface) files using a DX10-extended header.
     /// </summary>
-    public static class DDSWriter
+    public static class DdsWriter
     {
         /// <summary>
         /// Writes an image to the specified file path.
@@ -26,19 +26,16 @@ namespace RedFox.Graphics2D.IO
         /// <param name="image">The source image.</param>
         public static void Save(Stream stream, Image image)
         {
-            ArgumentNullException.ThrowIfNull(stream);
-            ArgumentNullException.ThrowIfNull(image);
-            if (!stream.CanWrite) { throw new IOException("The supplied stream is not writable."); }
-
             DdsHeaderFactory.ValidateImage(image);
             DdsHeader header = DdsHeaderFactory.CreateHeader(image);
-            DdsHeaderDxt10 dxt10 = DdsHeaderFactory.CreateDxt10Header(image);
+            DdsHeaderDx10 dx10Header = DdsHeaderFactory.CreateDx10Header(image);
 
             using BinaryWriter writer = new(stream, Encoding.UTF8, true);
+
             writer.Write(DdsConstants.Magic);
             DdsStructSerializer.Write(writer, header);
-            DdsStructSerializer.Write(writer, dxt10);
-            writer.Write((ReadOnlySpan<byte>)image.PixelData);
+            DdsStructSerializer.Write(writer, dx10Header);
+            writer.Write(image.PixelData);
         }
     }
 }

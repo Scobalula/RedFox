@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 namespace RedFox.Graphics2D.IO
 {
     /// <summary>
-    /// Provides DDS translation support for <see cref="ImageTranslatorManager"/> using <see cref="DDSLoader"/> and <see cref="DDSWriter"/>.
+    /// Provides DDS translation support for <see cref="ImageTranslatorManager"/> using <see cref="DdsLoader"/> and <see cref="DdsWriter"/>.
     /// </summary>
     public sealed class DdsImageTranslator : ImageTranslator
     {
@@ -22,19 +22,19 @@ namespace RedFox.Graphics2D.IO
         /// <inheritdoc />
         public override Image Read(string filePath)
         {
-            return DDSLoader.Load(filePath);
+            return DdsLoader.Load(filePath);
         }
 
         /// <inheritdoc />
         public override Image Read(Stream stream)
         {
-            return DDSLoader.Load(stream);
+            return DdsLoader.Load(stream);
         }
 
         /// <inheritdoc />
         public override void Write(Stream stream, Image image)
         {
-            DDSWriter.Save(stream, image);
+            DdsWriter.Save(stream, image);
         }
 
         /// <inheritdoc />

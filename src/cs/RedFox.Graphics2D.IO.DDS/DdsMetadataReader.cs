@@ -28,10 +28,10 @@ namespace RedFox.Graphics2D.IO
 
         private static DdsMetadata ReadDx10Metadata(ReadOnlySpan<byte> data, in DdsHeader header, int width, int height, int mipLevels, int offset)
         {
-            int dxt10HeaderSize = Unsafe.SizeOf<DdsHeaderDxt10>();
+            int dxt10HeaderSize = Unsafe.SizeOf<DdsHeaderDx10>();
             if (data.Length < offset + dxt10HeaderSize) { throw new InvalidDataException("DDS file is too small for DX10 extended header."); }
 
-            DdsHeaderDxt10 dxt10 = DdsStructSerializer.Read<DdsHeaderDxt10>(data, offset);
+            DdsHeaderDx10 dxt10 = DdsStructSerializer.Read<DdsHeaderDx10>(data, offset);
             offset += dxt10HeaderSize;
 
             ImageFormat format = (ImageFormat)dxt10.DxgiFormat;

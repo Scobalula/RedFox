@@ -33,7 +33,7 @@ public class AnimationMask
     public AnimationMask(string name)
     {
         Name = name;
-        _entries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _entries = new HashSet<string>(0, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -111,11 +111,15 @@ public class AnimationMask
     public AnimationMask CreateInverse(IEnumerable<string> allNodes)
     {
         var inverse = new AnimationMask($"{Name}_Inverse");
+
         foreach (var name in allNodes)
         {
-            if (!_entries.Contains(name))
-                inverse._entries.Add(name);
+            if (_entries.Contains(name))
+                continue;
+
+            inverse._entries.Add(name);
         }
+
         return inverse;
     }
 }
