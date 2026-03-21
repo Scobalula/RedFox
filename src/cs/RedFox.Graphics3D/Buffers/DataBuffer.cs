@@ -1,0 +1,104 @@
+﻿using System.Numerics;
+
+namespace RedFox.Graphics3D.Buffers
+{
+    /// <summary>
+    /// Provides an abstract base class for managing a structured collection of data elements, each composed of multiple values and components.
+    /// </summary>
+    public abstract class DataBuffer
+    {
+        /// <summary>
+        /// Gets or sets the total number of elements contained in the collection.
+        /// </summary>
+        public abstract int ElementCount { get; }
+
+        /// <summary>
+        /// Gets or Sets the number of values associated with each element.
+        /// </summary>
+        public abstract int ValueCount { get; }
+
+        /// <summary>
+        /// Gets or Sets the number of components that make up each value.
+        /// </summary>
+        public abstract int ComponentCount { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether the current object is read-only.
+        /// </summary>
+        public abstract bool IsReadOnly { get; }
+
+        /// <summary>
+        /// Gets the specified component value from a buffer based on the provided indices.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to retrieve, which must implement the INumber<T> interface.</typeparam>
+        /// <param name="elementIndex">The index of the element from which to retrieve the value.</param>
+        /// <param name="valueIndex">The index of the value within the specified element.</param>
+        /// <param name="componentIndex">The index of the component to retrieve from the specified value.</param>
+        /// <returns>The component value of type T at the specified indices.</returns>
+        public abstract T Get<T>(int elementIndex, int valueIndex, int componentIndex) where T : INumber<T>;
+
+        /// <summary>
+        /// Gets the specified component value from a buffer based on the provided indices.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to retrieve, which must implement the INumber<T> interface.</typeparam>
+        /// <param name="elementIndex">The index of the element from which to retrieve the value.</param>
+        /// <param name="valueIndex">The index of the values within the specified element.</param>
+        /// <param name="destination">The span in which to store the values into.</param>
+        /// <returns>The component value of type T at the specified indices.</returns>
+        public void Get<T>(int elementIndex, int valueIndex, Span<T> destination) where T : INumber<T>
+        {
+            for (int i = 0; i < destination.Length; i++)
+            {
+                destination[i] = Get<T>(elementIndex, valueIndex, i);
+            }
+        }
+
+        /// <summary>
+        /// Sets the specified component value in a buffer based on the provided indices.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to store, which must implement the INumber<T> interface.</typeparam>
+        /// <param name="elementIndex">The index of the element from which to store the value.</param>
+        /// <param name="valueIndex">The index of the value within the specified element.</param>
+        /// <param name="componentIndex">The index of the component to store from the specified value.</param>
+        public abstract void Set<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value) where TInput : INumber<TInput>;
+
+        /// <summary>
+        /// Sets the specified component value im a buffer based on the provided indices.
+        /// </summary>
+        /// <typeparam name="T">The type of the value to store, which must implement the INumber<T> interface.</typeparam>
+        /// <param name="elementIndex">The index of the element from which to add the value. If equal to the number of elements, a new element is added.</param>
+        /// <param name="valueIndex">The index of the value within the specified element.</param>
+        /// <param name="componentIndex">The index of the component to store from the specified value.</param>
+        public abstract void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value) where TInput : INumber<TInput>;
+
+        public Vector2 GetVector2(int elementIndex, int valueIndex)
+        {
+            if (ComponentCount < 2)
+                throw new InvalidOperationException($"Cannot retrieve a Vector4 from a buffer with only {ComponentCount} components per value.");
+
+            Span<float> buffer = stackalloc float[2];
+            Get(elementIndex, valueIndex, buffer);
+            return new Vector2(buffer);
+        }
+
+        public Vector3 GetVector3(int elementIndex, int valueIndex)
+        {
+            if (ComponentCount < 3)
+                throw new InvalidOperationException($"Cannot retrieve a Vector3 from a buffer with only {ComponentCount} components per value.");
+
+            Span<float> buffer = stackalloc float[3];
+            Get(elementIndex, valueIndex, buffer);
+            return new Vector3(buffer);
+        }
+
+        public Vector4 GetVector4(int elementIndex, int valueIndex)
+        {
+            if (ComponentCount < 4)
+                throw new InvalidOperationException($"Cannot retrieve a Vector4 from a buffer with only {ComponentCount} components per value.");
+
+            Span<float> buffer = stackalloc float[4];
+            Get(elementIndex, valueIndex, buffer);
+            return new Vector4(buffer);
+        }
+    }
+}

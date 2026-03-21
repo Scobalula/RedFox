@@ -25,6 +25,7 @@
     <ProjectReference Include="..\RedFox.Compression.LZ4\RedFox.Compression.LZ4.csproj" />
     <ProjectReference Include="..\RedFox.Compression.ZStandard\RedFox.Compression.ZStandard.csproj" />
     <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.IO.DDS\RedFox.Graphics2D.IO.DDS.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
