@@ -4,7 +4,7 @@ namespace RedFox.Graphics2D.IO
     /// Loads DDS (DirectDraw Surface) files into <see cref="Image"/> instances.
     /// Supports legacy headers and DX10-extended headers.
     /// </summary>
-    public static class DDSLoader
+    public static class DdsLoader
     {
         /// <summary>
         /// Loads a DDS file from the specified file path.

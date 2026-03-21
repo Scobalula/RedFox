@@ -38,7 +38,7 @@ public static class BinaryReaderExtensions
     /// <typeparam name="T">The structure type to read</typeparam>
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
     /// <returns>A structure of the given type from the current stream</returns>
-    public static T ReadStruct<T>(this BinaryReader reader, long position, bool returnBack = false) where T : unmanaged
+    public static T ReadStruct<T>(this BinaryReader reader, long position, bool returnBack) where T : unmanaged
     {
         long temp = reader.BaseStream.Position;
         reader.BaseStream.Position = position;
@@ -46,6 +46,11 @@ public static class BinaryReaderExtensions
         if (returnBack)
             reader.BaseStream.Position = temp;
         return result;
+    }
+
+    public static T ReadStruct<T>(this BinaryReader reader, long position) where T : unmanaged
+    {
+        return ReadStruct<T>(reader, position, false);
     }
 
     /// <summary>
@@ -109,7 +114,7 @@ public static class BinaryReaderExtensions
     /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
     /// <param name="position">Position of the data</param>
     /// <returns>A structure array of the given type from the current stream</returns>
-    public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count, long position, bool returnBack = false) where T : unmanaged
+    public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count, long position, bool returnBack) where T : unmanaged
     {
         long temp = reader.BaseStream.Position;
         reader.BaseStream.Position = position;
@@ -119,6 +124,11 @@ public static class BinaryReaderExtensions
             reader.BaseStream.Position = temp;
 
         return result;
+    }
+
+    public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count, long position) where T : unmanaged
+    {
+        return ReadStructArray<T>(reader, count, position, false);
     }
 
     /// <summary>

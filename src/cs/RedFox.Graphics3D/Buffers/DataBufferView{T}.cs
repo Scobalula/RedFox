@@ -13,12 +13,27 @@ namespace RedFox.Graphics3D.Buffers
     /// <param name="elementCount">The number of elements in the buffer view.</param>
     /// <param name="byteOffset">The byte offset in the source array where the first element starts.</param>
     /// <param name="byteStride">The number of bytes from the start of one element to the start of the next element in the source array.</param>
-    /// <param name="valueCount">The number of values per element. Defaults to 1.</param>
-    /// <param name="componentCount">The number of components per value. Defaults to 1.</param>
+    /// <param name="valueCount">The number of values per element.</param>
+    /// <param name="componentCount">The number of components per value.</param>
     /// <param name="byteValueStride">The number of bytes from the start of one value within an element to the start of the next value. If null,
     /// defaults to componentCount multiplied by the size of T.</param>
-    public sealed class DataBufferView<T>(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount = 1, int componentCount = 1, int? byteValueStride = null) : DataBuffer where T : unmanaged, INumber<T>
+    public sealed class DataBufferView<T>(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount, int componentCount, int? byteValueStride) : DataBuffer where T : unmanaged, INumber<T>
     {
+        public DataBufferView(byte[] source, int elementCount, int byteOffset, int byteStride)
+            : this(source, elementCount, byteOffset, byteStride, valueCount: 1, componentCount: 1, byteValueStride: null)
+        {
+        }
+
+        public DataBufferView(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount)
+            : this(source, elementCount, byteOffset, byteStride, valueCount, componentCount: 1, byteValueStride: null)
+        {
+        }
+
+        public DataBufferView(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount, int componentCount)
+            : this(source, elementCount, byteOffset, byteStride, valueCount, componentCount, byteValueStride: null)
+        {
+        }
+
         private readonly byte[] _source = source;
         private readonly int _byteOffset = byteOffset;
         private readonly int _byteStride = byteStride;

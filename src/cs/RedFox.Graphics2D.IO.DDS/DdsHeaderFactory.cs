@@ -55,13 +55,13 @@ namespace RedFox.Graphics2D.IO
             };
         }
 
-        internal static DdsHeaderDxt10 CreateDxt10Header(Image image)
+        internal static DdsHeaderDx10 CreateDx10Header(Image image)
         {
             bool isVolume = image.Depth > 1;
             bool isCubemap = image.IsCubemap;
             uint arraySize = isCubemap ? checked((uint)(image.ArraySize / 6)) : (uint)image.ArraySize;
 
-            return new DdsHeaderDxt10
+            return new DdsHeaderDx10
             {
                 DxgiFormat = (uint)image.Format,
                 ResourceDimension = isVolume ? DdsResourceDimension.Texture3D : DdsResourceDimension.Texture2D,

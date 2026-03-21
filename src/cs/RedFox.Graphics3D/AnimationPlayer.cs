@@ -141,10 +141,6 @@ public class AnimationPlayer(string name) : SceneNode(name)
         return this;
     }
 
-    // ------------------------------------------------------------------
-    // Solver management
-    // ------------------------------------------------------------------
-
     /// <summary>
     /// Adds a post-process solver if it is not <see langword="null"/>.
     /// </summary>
@@ -159,10 +155,6 @@ public class AnimationPlayer(string name) : SceneNode(name)
             Solvers.Add(solver);
         return this;
     }
-
-    // ------------------------------------------------------------------
-    // Playback
-    // ------------------------------------------------------------------
 
     /// <summary>
     /// Updates all layers and solvers at the specified frame time.
@@ -194,10 +186,6 @@ public class AnimationPlayer(string name) : SceneNode(name)
             layer.Reset();
     }
 
-    // ------------------------------------------------------------------
-    // Queries
-    // ------------------------------------------------------------------
-
     /// <summary>
     /// Gets the minimum and maximum frame range across all layers,
     /// accounting for each layer's <see cref="AnimationSampler.StartFrame"/>.
@@ -222,7 +210,7 @@ public class AnimationPlayer(string name) : SceneNode(name)
     /// </summary>
     /// <param name="name">The node name to check.</param>
     /// <returns><see langword="true"/> if any layer animates this object.</returns>
-    public bool IsObjectAnimation(string name)
+    public bool IsObjectAnimated(string name)
     {
         foreach (var layer in Layers)
         {

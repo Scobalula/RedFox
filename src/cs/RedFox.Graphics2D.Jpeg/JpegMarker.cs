@@ -1,0 +1,27 @@
+namespace RedFox.Graphics2D.Jpeg;
+
+internal enum JpegMarker : byte
+{
+    SOI = 0xD8,
+    EOI = 0xD9,
+    SOF0 = 0xC0,
+    SOF1 = 0xC1,
+    SOF2 = 0xC2,
+    DHT = 0xC4,
+    DQT = 0xDB,
+    SOS = 0xDA,
+    RST0 = 0xD0,
+    RST1 = 0xD1,
+    RST2 = 0xD2,
+    RST3 = 0xD3,
+    RST4 = 0xD4,
+    RST5 = 0xD5,
+    RST6 = 0xD6,
+    RST7 = 0xD7,
+    DRI = 0xDD,
+    APP0 = 0xE0,
+    APP1 = 0xE1,
+    APP2 = 0xE2,
+    APP14 = 0xEE,
+    COM = 0xFE,
+}
