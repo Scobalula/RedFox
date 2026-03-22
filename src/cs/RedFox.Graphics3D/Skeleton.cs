@@ -28,34 +28,37 @@ public class Skeleton : SceneNode
         throw new KeyNotFoundException($"A bone with the name: {name} was not found in: {Name}");
     }
 
-    /// <summary>
-    /// Merges bones from <paramref name="source"/> into this skeleton by name.
-    /// For every bone in <paramref name="source"/> whose name matches a bone
-    /// already in this skeleton, the source bone's children are reparented under
-    /// the existing bone and the duplicate is removed.
-    /// Unmatched bones remain attached to their original parent.
-    /// </summary>
+
     public void MergeByName(Skeleton source)
         => MergeByName(source, StringComparison.OrdinalIgnoreCase);
 
     public void MergeByName(Skeleton source, StringComparison comparison)
     {
         // Snapshot the source bones before mutating the tree.
-        var sourceBones = source.GetBones();
+        SkeletonBone[] sourceBones = source.GetBones();
+        Dictionary<SkeletonBone, SkeletonBone> remappedBones = [];
 
-        foreach (var srcBone in sourceBones)
+        SceneNode targetRoot = GetRoot();
+        SceneNode sourceRoot = source.GetRoot();
+
+        foreach (SkeletonBone srcBone in sourceBones)
         {
             if (!TryFindBone(srcBone.Name, comparison, out var targetBone) || targetBone is null)
                 continue;
 
+            remappedBones[srcBone] = targetBone;
+
             // Move all of the source bone's children under the matched target bone.
-            var children = srcBone.EnumerateChildren().ToArray();
-            foreach (var child in children)
+            SceneNode[] children = srcBone.EnumerateChildren().ToArray();
+            foreach (SceneNode child in children)
                 child.MoveTo(targetBone, ReparentTransformMode.PreserveLocal);
 
             // Remove the now-empty source bone from its parent.
             srcBone.Detach();
         }
+
+        if (remappedBones.Count > 0)
+            RemapMergedBones(remappedBones, targetRoot, sourceRoot);
     }
 
     /// <summary>
@@ -120,7 +123,34 @@ public class Skeleton : SceneNode
         if (string.IsNullOrEmpty(ns))
             return;
 
-        foreach (var bone in EnumerateBones())
+        foreach (SkeletonBone bone in EnumerateBones())
             bone.Name = ns + bone.Name;
+    }
+
+    private static void RemapMergedBones(IReadOnlyDictionary<SkeletonBone, SkeletonBone> remappedBones, SceneNode targetRoot, SceneNode sourceRoot)
+    {
+        HashSet<SceneNode> visitedRoots = [];
+        HashSet<Mesh> visitedMeshes = [];
+
+        RemapMergedBones(remappedBones, targetRoot, visitedRoots, visitedMeshes);
+        RemapMergedBones(remappedBones, sourceRoot, visitedRoots, visitedMeshes);
+    }
+
+    private static void RemapMergedBones(
+        IReadOnlyDictionary<SkeletonBone, SkeletonBone> remappedBones,
+        SceneNode root,
+        ISet<SceneNode> visitedRoots,
+        ISet<Mesh> visitedMeshes)
+    {
+        if (!visitedRoots.Add(root))
+            return;
+
+        foreach (Mesh mesh in root.EnumerateHierarchy<Mesh>())
+        {
+            if (!visitedMeshes.Add(mesh))
+                continue;
+
+            mesh.RemapSkinnedBones(remappedBones);
+        }
     }
 }

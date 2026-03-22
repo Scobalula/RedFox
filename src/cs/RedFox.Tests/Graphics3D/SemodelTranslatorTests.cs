@@ -31,6 +31,42 @@ public sealed class SemodelTranslatorTests
     }
 
     [Fact]
+    public void Mesh_GetVertexAccessors_ApplyActiveSkinningUnlessRawRequested()
+    {
+        Scene scene = CreatePosedSkinningScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+
+        Vector3 rawPosition = mesh.GetVertexPosition(0, raw: true);
+        Vector3 posedPosition = mesh.GetVertexPosition(0);
+        Vector3 rawNormal = mesh.GetVertexNormal(0, raw: true);
+        Vector3 posedNormal = mesh.GetVertexNormal(0);
+
+        AssertVector3Equal(new Vector3(1f, 0f, 0f), rawPosition, 1e-5f);
+        AssertVector3Equal(new Vector3(2f, 0f, 0f), posedPosition, 1e-5f);
+        AssertVector3Equal(Vector3.UnitX, rawNormal, 1e-5f);
+        AssertVector3Equal(Vector3.UnitY, posedNormal, 1e-5f);
+    }
+
+    [Fact]
+    public void SemodelTranslator_Write_HonorsWriteRawVerticesForSkinnedMeshes()
+    {
+        Scene sourceScene = CreatePosedSkinningScene();
+        SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+        Mesh sourceMesh = sourceScene.GetDescendants<Mesh>().Single();
+
+        Scene posedScene = ReadSceneWithManager(manager, WriteSceneWithManager(manager, sourceScene, "sample.semodel", CreateDefaultOptions()), "sample.semodel");
+        Scene rawScene = ReadSceneWithManager(manager, WriteSceneWithManager(manager, sourceScene, "sample.semodel", CreateRawVertexOptions()), "sample.semodel");
+
+        Mesh posedMesh = posedScene.GetDescendants<Mesh>().Single();
+        Mesh rawMesh = rawScene.GetDescendants<Mesh>().Single();
+
+        AssertVector3Equal(sourceMesh.GetVertexPosition(0), posedMesh.Positions!.GetVector3(0, 0), 1e-5f);
+        AssertVector3Equal(sourceMesh.GetVertexNormal(0), posedMesh.Normals!.GetVector3(0, 0), 1e-5f);
+        AssertVector3Equal(sourceMesh.GetVertexPosition(0, raw: true), rawMesh.Positions!.GetVector3(0, 0), 1e-5f);
+        AssertVector3Equal(sourceMesh.GetVertexNormal(0, raw: true), rawMesh.Normals!.GetVector3(0, 0), 1e-5f);
+    }
+
+    [Fact]
     public void SemodelSamples_RoundTripViaManager_DeterministicRewriteAndStructuralMatch()
     {
         string semodelDirectory = GetRequiredSemodelDirectory();
@@ -119,7 +155,7 @@ public sealed class SemodelTranslatorTests
             0.85f, 0.15f,
         ], 2, 1);
 
-        mesh.SetSkinBinding(skeleton, [rootBone, childBone]);
+        mesh.SetSkinBinding([rootBone, childBone]);
         mesh.FaceIndices = new DataBuffer<ushort>([0, 1, 2], 1, 1);
 
         Material material = model.AddNode(new Material("material_0")
@@ -133,6 +169,127 @@ public sealed class SemodelTranslatorTests
         material.AddNode(new Texture("textures\\spec_a.dds", "specular"));
 
         return scene;
+    }
+
+    private static Scene CreatePosedSkinningScene()
+    {
+        Scene scene = new("PosedSkinningScene");
+
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Armature"));
+        SkeletonBone childBone = skeleton.AddNode(new SkeletonBone("child"));
+        childBone.BindTransform.LocalPosition = new Vector3(1f, 0f, 0f);
+        childBone.BindTransform.LocalRotation = Quaternion.Identity;
+        childBone.BindTransform.Scale = Vector3.One;
+        childBone.LiveTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+        childBone.LiveTransform.LocalRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI * 0.5f);
+
+        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        Mesh mesh = model.AddNode(new Mesh { Name = "skinned_mesh" });
+
+        mesh.Positions = new DataBuffer<float>(
+        [
+            1f, 0f, 0f,
+            2f, 0f, 0f,
+            1f, 1f, 0f,
+        ], 1, 3);
+
+        mesh.Normals = new DataBuffer<float>(
+        [
+            1f, 0f, 0f,
+            1f, 0f, 0f,
+            1f, 0f, 0f,
+        ], 1, 3);
+
+        mesh.BoneIndices = new DataBuffer<byte>(
+        [
+            0,
+            0,
+            0,
+        ], 1, 1);
+
+        mesh.BoneWeights = new DataBuffer<float>(
+        [
+            1f,
+            1f,
+            1f,
+        ], 1, 1);
+
+        mesh.SetSkinBinding([childBone]);
+        mesh.FaceIndices = new DataBuffer<ushort>([0, 1, 2], 1, 1);
+        return scene;
+    }
+
+    [Fact]
+    public void Mesh_GetVertexPosition_RespondsToSkeletonRootMovement()
+    {
+        Scene scene = CreatePosedSkinningScene();
+        Skeleton skeleton = scene.GetDescendants<Skeleton>().Single(static skeleton => skeleton is not SkeletonBone);
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+
+        skeleton.LiveTransform.LocalPosition = new Vector3(5f, 0f, 0f);
+
+        AssertVector3Equal(new Vector3(7f, 0f, 0f), mesh.GetVertexPosition(0), 1e-5f);
+    }
+
+    [Fact]
+    public void Mesh_BakeCurrentSkinningToVertices_RebasesToCurrentPoseAndClearsSkinning()
+    {
+        Scene scene = CreatePosedSkinningScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+        SkeletonBone bone = scene.GetDescendants<SkeletonBone>().Single();
+        Vector3 posedBeforeBake = mesh.GetVertexPosition(0);
+        Vector3 normalBeforeBake = mesh.GetVertexNormal(0);
+
+        mesh.BakeCurrentSkinningToVertices();
+
+        Assert.Null(mesh.BoneIndices);
+        Assert.Null(mesh.BoneWeights);
+        Assert.Null(mesh.SkinnedBones);
+        Assert.Null(mesh.InverseBindMatrices);
+        AssertVector3Equal(posedBeforeBake, mesh.GetVertexPosition(0, raw: true), 1e-5f);
+        AssertVector3Equal(posedBeforeBake, mesh.GetVertexPosition(0), 1e-5f);
+        AssertVector3Equal(normalBeforeBake, mesh.GetVertexNormal(0, raw: true), 1e-5f);
+
+        bone.LiveTransform.LocalPosition = new Vector3(9f, 0f, 0f);
+
+        AssertVector3Equal(posedBeforeBake, mesh.GetVertexPosition(0), 1e-5f);
+    }
+
+    [Fact]
+    public void Skeleton_MergeByName_RemapSkinnedBonesWithoutChangingMeshSkinData()
+    {
+        Scene scene = new("SkeletonMergeScene");
+
+        Skeleton targetSkeleton = scene.RootNode.AddNode(new Skeleton("Target"));
+        SkeletonBone targetBone = targetSkeleton.AddNode(new SkeletonBone("root"));
+        targetBone.BindTransform.LocalPosition = new Vector3(1f, 0f, 0f);
+        targetBone.BindTransform.LocalRotation = Quaternion.Identity;
+        targetBone.BindTransform.Scale = Vector3.One;
+
+        Skeleton sourceSkeleton = scene.RootNode.AddNode(new Skeleton("Source"));
+        SkeletonBone sourceBone = sourceSkeleton.AddNode(new SkeletonBone("root"));
+        sourceBone.BindTransform.LocalPosition = new Vector3(1f, 0f, 0f);
+        sourceBone.BindTransform.LocalRotation = Quaternion.Identity;
+        sourceBone.BindTransform.Scale = Vector3.One;
+
+        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        Mesh mesh = model.AddNode(new Mesh { Name = "skinned_mesh" });
+        mesh.Positions = new DataBuffer<float>([1f, 0f, 0f], 1, 3);
+        mesh.Normals = new DataBuffer<float>([1f, 0f, 0f], 1, 3);
+        mesh.BoneIndices = new DataBuffer<byte>([0], 1, 1);
+        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
+        mesh.SetSkinBinding([sourceBone]);
+
+        Matrix4x4 inverseBindBeforeMerge = mesh.InverseBindMatrices![0];
+
+        targetBone.LiveTransform.LocalPosition = new Vector3(3f, 0f, 0f);
+        targetSkeleton.MergeByName(sourceSkeleton, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Same(targetBone, mesh.SkinnedBones!.Single());
+        Assert.Equal(inverseBindBeforeMerge, mesh.InverseBindMatrices![0]);
+        Assert.Equal((byte)0, mesh.BoneIndices!.Get<byte>(0, 0, 0));
+        Assert.Equal(1f, mesh.BoneWeights!.Get<float>(0, 0, 0));
+        AssertVector3Equal(new Vector3(3f, 0f, 0f), mesh.GetVertexPosition(0), 1e-5f);
     }
 
     private static void AssertSceneStructureEquivalent(Scene expectedScene, Scene actualScene)
@@ -245,10 +402,23 @@ public sealed class SemodelTranslatorTests
         return new SceneTranslatorOptions();
     }
 
+    private static SceneTranslatorOptions CreateRawVertexOptions()
+    {
+        return new SceneTranslatorOptions
+        {
+            WriteRawVertices = true,
+        };
+    }
+
     private static byte[] WriteSceneWithManager(SceneTranslatorManager manager, Scene scene, string sourcePath)
     {
+        return WriteSceneWithManager(manager, scene, sourcePath, CreateDefaultOptions());
+    }
+
+    private static byte[] WriteSceneWithManager(SceneTranslatorManager manager, Scene scene, string sourcePath, SceneTranslatorOptions options)
+    {
         using MemoryStream stream = new();
-        manager.Write(stream, sourcePath, scene, CreateDefaultOptions(), token: null);
+        manager.Write(stream, sourcePath, scene, options, token: null);
         return stream.ToArray();
     }
 
@@ -256,6 +426,11 @@ public sealed class SemodelTranslatorTests
     {
         using MemoryStream stream = new(data, writable: false);
         return manager.Read(stream, sourcePath, CreateDefaultOptions(), token: null);
+    }
+
+    private static void AssertVector3Equal(Vector3 expected, Vector3 actual, float tolerance)
+    {
+        Assert.True(Vector3.Distance(expected, actual) <= tolerance, $"Expected {expected} but received {actual}.");
     }
 
     private static string GetRequiredSemodelDirectory()

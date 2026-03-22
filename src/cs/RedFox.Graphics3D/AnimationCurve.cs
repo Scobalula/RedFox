@@ -60,6 +60,22 @@ public class AnimationCurve
     public int ComponentCount => Values?.ComponentCount ?? 0;
 
     /// <summary>
+    /// Gets the time of the first keyframe, or 0 if the curve is empty.
+    /// </summary>
+    public float StartTime => KeyFrameCount > 0 ? GetKeyTime(0) : 0f;
+
+    /// <summary>
+    /// Gets the time of the last keyframe, or 0 if the curve is empty.
+    /// </summary>
+    public float EndTime => KeyFrameCount > 0 ? GetKeyTime(KeyFrameCount - 1) : 0f;
+
+    /// <summary>
+    /// Gets the duration spanned by all keyframes (last time - first time).
+    /// Returns 0 if the curve has fewer than 2 keyframes.
+    /// </summary>
+    public float Duration => KeyFrameCount >= 2 ? EndTime - StartTime : 0f;
+
+    /// <summary>
     /// Initializes a new empty <see cref="AnimationCurve"/> with no buffers allocated.
     /// Buffers are lazily created on the first <c>Add</c> call.
     /// </summary>
@@ -77,18 +93,17 @@ public class AnimationCurve
         TransformType = type;
     }
 
-    // ------------------------------------------------------------------
-    // Factory methods — create curves pre-configured for a specific type
-    // ------------------------------------------------------------------
+    /// <summary>
+    /// Creates a new curve configured for scalar (single-float) values.
+    /// </summary>
+    /// <returns>A new <see cref="AnimationCurve"/> with 1-component value buffer.</returns>
+    public static AnimationCurve CreateScalar() => CreateScalar(capacity: 0);
 
     /// <summary>
     /// Creates a new curve configured for scalar (single-float) values.
     /// </summary>
     /// <param name="capacity">Initial keyframe capacity (0 for default).</param>
     /// <returns>A new <see cref="AnimationCurve"/> with 1-component value buffer.</returns>
-    public static AnimationCurve CreateScalar()
-        => CreateScalar(capacity: 0);
-
     public static AnimationCurve CreateScalar(int capacity)
     {
         return new AnimationCurve
@@ -99,14 +114,16 @@ public class AnimationCurve
     }
 
     /// <summary>
-    /// Creates a new curve configured for <see cref="Vector3"/> values
-    /// (e.g. translation or scale).
+    /// Creates a new curve configured for <see cref="Vector3"/> values.
     /// </summary>
     /// <param name="capacity">Initial keyframe capacity (0 for default).</param>
     /// <returns>A new <see cref="AnimationCurve"/> with 3-component value buffer.</returns>
-    public static AnimationCurve CreateVector3()
-        => CreateVector3(capacity: 0);
+    public static AnimationCurve CreateVector3() => CreateVector3(capacity: 0);
 
+    /// <summary>
+    /// Creates a new curve configured for <see cref="Vector3"/> values.
+    /// </summary>
+    /// <returns>A new <see cref="AnimationCurve"/> with 3-component value buffer.</returns>
     public static AnimationCurve CreateVector3(int capacity)
     {
         return new AnimationCurve
@@ -119,11 +136,14 @@ public class AnimationCurve
     /// <summary>
     /// Creates a new curve configured for <see cref="Quaternion"/> values (rotation).
     /// </summary>
+    /// <returns>A new <see cref="AnimationCurve"/> with 4-component value buffer.</returns>
+    public static AnimationCurve CreateQuaternion() => CreateQuaternion(capacity: 0);
+
+    /// <summary>
+    /// Creates a new curve configured for <see cref="Quaternion"/> values (rotation).
+    /// </summary>
     /// <param name="capacity">Initial keyframe capacity (0 for default).</param>
     /// <returns>A new <see cref="AnimationCurve"/> with 4-component value buffer.</returns>
-    public static AnimationCurve CreateQuaternion()
-        => CreateQuaternion(capacity: 0);
-
     public static AnimationCurve CreateQuaternion(int capacity)
     {
         return new AnimationCurve
@@ -137,8 +157,7 @@ public class AnimationCurve
     /// Creates a new curve configured for <see cref="Vector3"/> values with the
     /// specified transform space and type.
     /// </summary>
-    public static AnimationCurve CreateVector3(TransformSpace space, TransformType type)
-        => CreateVector3(space, type, capacity: 0);
+    public static AnimationCurve CreateVector3(TransformSpace space, TransformType type) => CreateVector3(space, type, capacity: 0);
 
     public static AnimationCurve CreateVector3(TransformSpace space, TransformType type, int capacity)
     {
@@ -407,24 +426,4 @@ public class AnimationCurve
 
         return interpolate(extract(this, i0), extract(this, i1), GetLerpFactor(i0, i1, time));
     }
-
-    // ------------------------------------------------------------------
-    // Time range queries
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Gets the time of the first keyframe, or 0 if the curve is empty.
-    /// </summary>
-    public float StartTime => KeyFrameCount > 0 ? GetKeyTime(0) : 0f;
-
-    /// <summary>
-    /// Gets the time of the last keyframe, or 0 if the curve is empty.
-    /// </summary>
-    public float EndTime => KeyFrameCount > 0 ? GetKeyTime(KeyFrameCount - 1) : 0f;
-
-    /// <summary>
-    /// Gets the duration spanned by all keyframes (last time - first time).
-    /// Returns 0 if the curve has fewer than 2 keyframes.
-    /// </summary>
-    public float Duration => KeyFrameCount >= 2 ? EndTime - StartTime : 0f;
 }

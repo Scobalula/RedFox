@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D;
 
+/// <summary>
+/// Represents a 3D transformation, including local and world position, rotation, and scale, for an object in
+/// three-dimensional space.
+/// </summary>
 public class Transform
 {
     /// <summary>

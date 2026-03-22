@@ -6,11 +6,13 @@ RedFox is ultimately a personal project that I also use for learning purposes an
 
 # AI Disclosure
 
-Part of my experimenting and learning is utilizing AI to generate code, some of the code in this library is ultimately AI generated, I think AI is a powerful tool when used correctly and personally I have an interest in improvements in local LLMs that don't rely on giant data centers, if you don't like AI/AI code, please don't use this library.
+Part of my experimenting and learning is utilizing AI to generate code, some of the code in this library is ultimately AI generated (and in some cases quite large amounts), I think AI is a powerful tool when used correctly and personally I have an interest in improvements in local LLMs that don't rely on giant data centers. If you don't like AI/AI code, please don't use this library.
 
 # Issues/PRs
 
-I will take issues/PRs, please be as detailed as possible and provide any samples (if required), along with your use case.
+Please feel free to open issues if you find a bug, I hope this library is useful to people and ensuring it works ensures wider adoption.
+
+Please feel free also to provide PRs if you think there would be an interesting feature, format, etc. or bug fix to apply.
 
 # License
 

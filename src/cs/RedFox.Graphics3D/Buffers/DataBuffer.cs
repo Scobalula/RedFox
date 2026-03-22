@@ -71,6 +71,32 @@ namespace RedFox.Graphics3D.Buffers
         /// <param name="componentIndex">The index of the component to store from the specified value.</param>
         public abstract void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value) where TInput : INumber<TInput>;
 
+        /// <summary>
+        /// Creates a writable copy of the source buffer using the requested component type.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged numeric type to store in the writable clone.</typeparam>
+        /// <param name="source">The source buffer to clone.</param>
+        /// <returns>A writable clone containing the source data converted to <typeparamref name="T"/>.</returns>
+        public static DataBuffer<T> CloneToWritable<T>(DataBuffer source) where T : unmanaged, INumber<T>
+        {
+            ArgumentNullException.ThrowIfNull(source);
+
+            DataBuffer<T> clone = new(source.ElementCount, source.ValueCount, source.ComponentCount);
+
+            for (int elementIndex = 0; elementIndex < source.ElementCount; elementIndex++)
+            {
+                for (int valueIndex = 0; valueIndex < source.ValueCount; valueIndex++)
+                {
+                    for (int componentIndex = 0; componentIndex < source.ComponentCount; componentIndex++)
+                    {
+                        clone.Add(elementIndex, valueIndex, componentIndex, source.Get<T>(elementIndex, valueIndex, componentIndex));
+                    }
+                }
+            }
+
+            return clone;
+        }
+
         public Vector2 GetVector2(int elementIndex, int valueIndex)
         {
             if (ComponentCount < 2)
