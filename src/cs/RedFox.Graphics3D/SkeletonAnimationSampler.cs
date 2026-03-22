@@ -195,12 +195,9 @@ public class SkeletonAnimationSampler : AnimationSampler
     {
         foreach (var (_, track) in Tracks)
         {
-            if (track.TranslationCurve is not null)
-                track.TranslationCurve.TransformType = transformType;
-            if (track.RotationCurve is not null)
-                track.RotationCurve.TransformType = transformType;
-            if (track.ScaleCurve is not null)
-                track.ScaleCurve.TransformType = transformType;
+            track.TranslationCurve?.TransformType = transformType;
+            track.RotationCurve?.TransformType = transformType;
+            track.ScaleCurve?.TransformType = transformType;
         }
     }
 

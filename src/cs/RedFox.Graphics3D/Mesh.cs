@@ -96,12 +96,6 @@ namespace RedFox.Graphics3D
         public DataBuffer? FaceMaterialIndices { get; set; }
 
         /// <summary>
-        /// Gets or sets the skeleton targeted by this mesh's skin binding.
-        /// This is the mesh-level equivalent of the armature or skin deformer target in DCC tools.
-        /// </summary>
-        public Skeleton? SkinSkeleton { get; set; }
-
-        /// <summary>
         /// Gets or sets the import-time name of the mesh skin binding.
         /// This can preserve deformer identity from tools such as Maya skin clusters or Blender armature modifiers
         /// without introducing a dedicated deformer type yet.
@@ -109,15 +103,20 @@ namespace RedFox.Graphics3D
         public string? SkinBindingName { get; set; }
 
         /// <summary>
-        /// Gets or sets the ordered influence palette used by <see cref="BoneIndices"/>.
+        /// Gets or sets the ordered skinned bones used by <see cref="BoneIndices"/>.
         /// When present, each entry identifies the skeleton bone referenced by the corresponding index.
-        /// This may be either a compact mesh-local palette or the full source skeleton order, depending on the importer.
+        /// This may be either a compact mesh-local list or the full source skeleton order, depending on the importer.
         /// </summary>
         public IReadOnlyList<SkeletonBone>? SkinnedBones
         {
             get => _skinnedBones;
-            set => SetSkinBinding(SkinSkeleton, value);
+            set => SetSkinBinding(value);
         }
+
+        /// <summary>
+        /// Gets or sets the collection of materials associated with this mesh.
+        /// </summary>
+        public List<Material>? Materials { get; set; }
 
         /// <summary>
         /// Gets or sets the inverse bind matrices aligned with <see cref="SkinnedBones"/>.
@@ -134,139 +133,127 @@ namespace RedFox.Graphics3D
                     return;
                 }
 
-                if (_skinnedBones is { Length: > 0 } palette)
-                    _inverseBindMatrices = CopyAndFillInverseBind(palette, value);
+                if (_skinnedBones is { Length: > 0 } skinnedBones)
+                    _inverseBindMatrices = CopyAndFillInverseBindMatrices(skinnedBones, value);
                 else
                     _inverseBindMatrices = CopyToArray(value);
             }
         }
 
         /// <summary>
-        /// Sets the skin binding for this mesh and keeps the inverse bind palette aligned.
+        /// Sets the skin binding for this mesh and keeps the inverse bind matrices aligned.
         /// </summary>
-        /// <param name="skeleton">The skeleton targeted by this skin binding.</param>
-        /// <param name="skinnedBones">The ordered bone palette used by <see cref="BoneIndices"/>.</param>
+        /// <param name="skinnedBones">The ordered skinned bones used by <see cref="BoneIndices"/>.</param>
         /// <param name="inverseBindMatrices">
         /// Optional inverse bind matrices aligned with <paramref name="skinnedBones"/>.
         /// If omitted, inverse bind matrices are generated from the current bind transforms.
         /// </param>
-        public void SetSkinBinding(
-            Skeleton? skeleton,
-            IReadOnlyList<SkeletonBone>? skinnedBones)
-            => SetSkinBinding(skeleton, skinnedBones, inverseBindMatrices: null);
+        public void SetSkinBinding(IReadOnlyList<SkeletonBone>? skinnedBones)
+            => SetSkinBinding(skinnedBones, inverseBindMatrices: null);
 
         /// <summary>
-        /// Sets the skin binding for this mesh and keeps the inverse bind palette aligned.
+        /// Sets the skin binding for this mesh and keeps the inverse bind matrices aligned.
         /// </summary>
-        /// <param name="skeleton">The skeleton targeted by this skin binding.</param>
-        /// <param name="skinnedBones">The ordered bone palette used by <see cref="BoneIndices"/>.</param>
+        /// <param name="skinnedBones">The ordered skinned bones used by <see cref="BoneIndices"/>.</param>
         /// <param name="inverseBindMatrices">
         /// Optional inverse bind matrices aligned with <paramref name="skinnedBones"/>.
         /// If omitted, inverse bind matrices are generated from the current bind transforms.
         /// </param>
-        public void SetSkinBinding(
-            Skeleton? skeleton,
-            IReadOnlyList<SkeletonBone>? skinnedBones,
-            IReadOnlyList<Matrix4x4>? inverseBindMatrices)
+        public void SetSkinBinding(IReadOnlyList<SkeletonBone>? skinnedBones, IReadOnlyList<Matrix4x4>? inverseBindMatrices)
         {
             if (skinnedBones is null || skinnedBones.Count == 0)
             {
-                SkinSkeleton = skeleton;
                 _skinnedBones = null;
                 _inverseBindMatrices = null;
                 return;
             }
 
-            var palette = CopyToArray(skinnedBones);
-            _skinnedBones = palette;
-            SkinSkeleton = skeleton ?? ResolveOwningSkeleton(palette);
+            var skinnedBoneArray = CopyToArray(skinnedBones);
+            _skinnedBones = skinnedBoneArray;
 
             if (inverseBindMatrices is not null)
             {
-                _inverseBindMatrices = CopyAndFillInverseBind(palette, inverseBindMatrices);
+                _inverseBindMatrices = CopyAndFillInverseBindMatrices(skinnedBoneArray, inverseBindMatrices);
                 return;
             }
 
-            _inverseBindMatrices = BuildInverseBindPalette(palette);
+            _inverseBindMatrices = CreateInverseBindMatrices(skinnedBoneArray);
         }
 
         /// <summary>
-        /// Ensures an inverse bind palette exists and is aligned with <see cref="SkinnedBones"/>.
+        /// Ensures inverse bind matrices exist and are aligned with <see cref="SkinnedBones"/>.
         /// </summary>
-        public void EnsureInverseBindPalette()
+        public void EnsureInverseBindMatrices()
         {
-            if (_skinnedBones is not { Length: > 0 } palette)
+            if (_skinnedBones is not { Length: > 0 } skinnedBones)
                 return;
 
-            if (_inverseBindMatrices is { Length: var count } && count == palette.Length)
+            if (_inverseBindMatrices is { Length: var count } && count == skinnedBones.Length)
                 return;
 
-            _inverseBindMatrices = BuildInverseBindPalette(palette);
+            _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
         }
 
         /// <summary>
-        /// Rebuilds the inverse bind palette from the current bind transforms.
+        /// Rebuilds the inverse bind matrices from the current bind transforms.
         /// </summary>
-        public void RebuildInverseBindPalette()
+        public void RebuildInverseBindMatrices()
         {
-            if (_skinnedBones is not { Length: > 0 } palette)
+            if (_skinnedBones is not { Length: > 0 } skinnedBones)
             {
                 _inverseBindMatrices = null;
                 return;
             }
 
-            _inverseBindMatrices = BuildInverseBindPalette(palette);
+            _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
         }
 
         /// <summary>
-        /// Adds a bone to the skin palette and appends a matching inverse bind matrix.
+        /// Adds a skinned bone and appends a matching inverse bind matrix.
         /// </summary>
         /// <param name="bone">The bone to add.</param>
         /// <param name="inverseBindMatrix">Optional explicit inverse bind matrix for the added bone.</param>
-        /// <returns>The palette index of the added (or existing) bone.</returns>
+        /// <returns>The skin index of the added (or existing) bone.</returns>
         public int AddSkinnedBone(SkeletonBone bone)
             => AddSkinnedBone(bone, inverseBindMatrix: null);
 
         /// <summary>
-        /// Adds a bone to the skin palette and appends a matching inverse bind matrix.
+        /// Adds a skinned bone and appends a matching inverse bind matrix.
         /// </summary>
         /// <param name="bone">The bone to add.</param>
         /// <param name="inverseBindMatrix">Optional explicit inverse bind matrix for the added bone.</param>
-        /// <returns>The palette index of the added (or existing) bone.</returns>
+        /// <returns>The skin index of the added (or existing) bone.</returns>
         public int AddSkinnedBone(SkeletonBone bone, Matrix4x4? inverseBindMatrix)
         {
             ArgumentNullException.ThrowIfNull(bone);
 
-            if (_skinnedBones is { Length: > 0 } oldPalette)
+            if (_skinnedBones is { Length: > 0 } oldSkinnedBones)
             {
-                for (int i = 0; i < oldPalette.Length; i++)
+                for (int i = 0; i < oldSkinnedBones.Length; i++)
                 {
-                    if (ReferenceEquals(oldPalette[i], bone))
+                    if (ReferenceEquals(oldSkinnedBones[i], bone))
                         return i;
                 }
 
-                EnsureInverseBindPalette();
+                EnsureInverseBindMatrices();
 
-                var newPalette = new SkeletonBone[oldPalette.Length + 1];
-                var newInverseBind = new Matrix4x4[newPalette.Length];
+                var newSkinnedBones = new SkeletonBone[oldSkinnedBones.Length + 1];
+                var newInverseBindMatrices = new Matrix4x4[newSkinnedBones.Length];
 
-                Array.Copy(oldPalette, newPalette, oldPalette.Length);
-                Array.Copy(_inverseBindMatrices!, newInverseBind, oldPalette.Length);
+                Array.Copy(oldSkinnedBones, newSkinnedBones, oldSkinnedBones.Length);
+                Array.Copy(_inverseBindMatrices!, newInverseBindMatrices, oldSkinnedBones.Length);
 
-                newPalette[^1] = bone;
-                newInverseBind[^1] = inverseBindMatrix ?? ComputeInverseBindMatrix(bone, new());
+                newSkinnedBones[^1] = bone;
+                newInverseBindMatrices[^1] = inverseBindMatrix ?? CreateInverseBindMatrix(bone, new());
 
-                _skinnedBones = newPalette;
-                _inverseBindMatrices = newInverseBind;
+                _skinnedBones = newSkinnedBones;
+                _inverseBindMatrices = newInverseBindMatrices;
             }
             else
             {
                 _skinnedBones = [bone];
-                _inverseBindMatrices = [inverseBindMatrix ?? ComputeInverseBindMatrix(bone, new())];
+                _inverseBindMatrices = [inverseBindMatrix ?? CreateInverseBindMatrix(bone, new())];
             }
-
-            if (SkinSkeleton is null)
-                SkinSkeleton = ResolveOwningSkeleton(_skinnedBones);
 
             return _skinnedBones.Length - 1;
         }
@@ -280,12 +267,12 @@ namespace RedFox.Graphics3D
         {
             ArgumentNullException.ThrowIfNull(bone);
 
-            if (_skinnedBones is not { Length: > 0 } palette)
+            if (_skinnedBones is not { Length: > 0 } skinnedBones)
                 return false;
 
-            for (int i = 0; i < palette.Length; i++)
+            for (int i = 0; i < skinnedBones.Length; i++)
             {
-                if (ReferenceEquals(palette[i], bone))
+                if (ReferenceEquals(skinnedBones[i], bone))
                     return RemoveSkinnedBoneAt(i);
             }
 
@@ -293,55 +280,154 @@ namespace RedFox.Graphics3D
         }
 
         /// <summary>
-        /// Removes the palette entry at the specified index and rewrites influenced skin data.
+        /// Removes the skinned bone at the specified index and rewrites influenced skin data.
         /// </summary>
-        /// <param name="paletteIndex">The palette index to remove.</param>
+        /// <param name="skinIndex">The skin index to remove.</param>
         /// <returns><see langword="true"/> when removed; otherwise <see langword="false"/>.</returns>
-        public bool RemoveSkinnedBoneAt(int paletteIndex)
+        public bool RemoveSkinnedBoneAt(int skinIndex)
         {
-            if (_skinnedBones is not { Length: > 0 } palette)
+            if (_skinnedBones is not { Length: > 0 } skinnedBones)
                 return false;
 
-            if ((uint)paletteIndex >= (uint)palette.Length)
-                throw new ArgumentOutOfRangeException(nameof(paletteIndex), $"Palette index must be between 0 and {palette.Length - 1}.");
+            if ((uint)skinIndex >= (uint)skinnedBones.Length)
+                throw new ArgumentOutOfRangeException(nameof(skinIndex), $"Skin index must be between 0 and {skinnedBones.Length - 1}.");
 
-            int oldPaletteCount = palette.Length;
+            int oldSkinnedBoneCount = skinnedBones.Length;
 
-            if (oldPaletteCount == 1)
+            if (oldSkinnedBoneCount == 1)
             {
                 _skinnedBones = null;
                 _inverseBindMatrices = null;
-                SkinSkeleton = null;
                 ZeroAllSkinInfluences();
                 return true;
             }
 
-            EnsureInverseBindPalette();
+            EnsureInverseBindMatrices();
 
-            var newPalette = new SkeletonBone[oldPaletteCount - 1];
-            var newInverseBind = new Matrix4x4[oldPaletteCount - 1];
+            var newSkinnedBones = new SkeletonBone[oldSkinnedBoneCount - 1];
+            var newInverseBindMatrices = new Matrix4x4[oldSkinnedBoneCount - 1];
 
             int dst = 0;
-            for (int src = 0; src < oldPaletteCount; src++)
+            for (int src = 0; src < oldSkinnedBoneCount; src++)
             {
-                if (src == paletteIndex)
+                if (src == skinIndex)
                     continue;
 
-                newPalette[dst] = palette[src];
-                newInverseBind[dst] = _inverseBindMatrices![src];
+                newSkinnedBones[dst] = skinnedBones[src];
+                newInverseBindMatrices[dst] = _inverseBindMatrices![src];
                 dst++;
             }
 
-            _skinnedBones = newPalette;
-            _inverseBindMatrices = newInverseBind;
+            _skinnedBones = newSkinnedBones;
+            _inverseBindMatrices = newInverseBindMatrices;
 
-            RemapSkinInfluencesAfterPaletteRemoval(paletteIndex, oldPaletteCount);
-
-            var owner = ResolveOwningSkeleton(newPalette);
-            if (owner is not null)
-                SkinSkeleton = owner;
+            RemapSkinInfluencesAfterSkinRemoval(skinIndex, oldSkinnedBoneCount);
 
             return true;
+        }
+
+        /// <summary>
+        /// Replaces skinned bone references in-place without modifying indices, weights, or inverse bind matrices.
+        /// This is intended for skeleton merge operations where the same inverse bind matrix should follow a new bone reference.
+        /// </summary>
+        /// <param name="remap">The mapping from old bone references to new bone references.</param>
+        /// <returns>The number of skinned bone entries that were updated.</returns>
+        public int RemapSkinnedBones(IReadOnlyDictionary<SkeletonBone, SkeletonBone> remap)
+        {
+            ArgumentNullException.ThrowIfNull(remap);
+
+            if (_skinnedBones is not { Length: > 0 } skinnedBones || remap.Count == 0)
+                return 0;
+
+            int remappedCount = 0;
+            for (int i = 0; i < skinnedBones.Length; i++)
+            {
+                if (!remap.TryGetValue(skinnedBones[i], out SkeletonBone? replacement) || ReferenceEquals(replacement, skinnedBones[i]))
+                    continue;
+
+                skinnedBones[i] = replacement;
+                remappedCount++;
+            }
+
+            return remappedCount;
+        }
+
+        /// <summary>
+        /// Bakes the current skinned deformation into the vertex buffers and clears the skin binding.
+        /// The current visual pose becomes the new raw mesh data.
+        /// </summary>
+        public void BakeCurrentSkinningToVertices()
+        {
+            if (!HasSkinning || _skinnedBones is not { Length: > 0 } skinnedBones)
+                return;
+
+            Matrix4x4[] skinTransforms = new Matrix4x4[skinnedBones.Length];
+            CopySkinTransforms(skinTransforms);
+
+            if (Positions is not null)
+            {
+                if (Positions.IsReadOnly)
+                    Positions = DataBuffer.CloneToWritable<float>(Positions);
+
+                for (int vertexIndex = 0; vertexIndex < Positions.ElementCount; vertexIndex++)
+                {
+                    Vector3 position = GetVertexPosition(vertexIndex, skinTransforms);
+                    Positions.Set(vertexIndex, 0, 0, position.X);
+                    Positions.Set(vertexIndex, 0, 1, position.Y);
+                    Positions.Set(vertexIndex, 0, 2, position.Z);
+                }
+            }
+
+            if (Normals is not null)
+            {
+                if (Normals.IsReadOnly)
+                    Normals = DataBuffer.CloneToWritable<float>(Normals);
+
+                for (int vertexIndex = 0; vertexIndex < Normals.ElementCount; vertexIndex++)
+                {
+                    Vector3 normal = GetVertexNormal(vertexIndex, skinTransforms);
+                    Normals.Set(vertexIndex, 0, 0, normal.X);
+                    Normals.Set(vertexIndex, 0, 1, normal.Y);
+                    Normals.Set(vertexIndex, 0, 2, normal.Z);
+                }
+            }
+
+            if (Tangents is not null)
+            {
+                if (Tangents.IsReadOnly)
+                    Tangents = DataBuffer.CloneToWritable<float>(Tangents);
+
+                for (int vertexIndex = 0; vertexIndex < Tangents.ElementCount; vertexIndex++)
+                {
+                    Vector4 tangent = GetVertexTangent(vertexIndex, skinTransforms);
+                    Tangents.Set(vertexIndex, 0, 0, tangent.X);
+                    Tangents.Set(vertexIndex, 0, 1, tangent.Y);
+                    Tangents.Set(vertexIndex, 0, 2, tangent.Z);
+
+                    if (Tangents.ComponentCount > 3)
+                        Tangents.Set(vertexIndex, 0, 3, tangent.W);
+                }
+            }
+
+            if (BiTangents is not null)
+            {
+                if (BiTangents.IsReadOnly)
+                    BiTangents = DataBuffer.CloneToWritable<float>(BiTangents);
+
+                for (int vertexIndex = 0; vertexIndex < BiTangents.ElementCount; vertexIndex++)
+                {
+                    Vector3 bitangent = GetVertexBiTangent(vertexIndex, skinTransforms);
+                    BiTangents.Set(vertexIndex, 0, 0, bitangent.X);
+                    BiTangents.Set(vertexIndex, 0, 1, bitangent.Y);
+                    BiTangents.Set(vertexIndex, 0, 2, bitangent.Z);
+                }
+            }
+
+            BoneIndices = null;
+            BoneWeights = null;
+            _skinnedBones = null;
+            _inverseBindMatrices = null;
+            SkinBindingName = null;
         }
 
         /// <summary>
@@ -431,6 +517,268 @@ namespace RedFox.Graphics3D
         /// </summary>
         public bool HasPerFaceMaterials => FaceMaterialIndices is not null;
 
+        /// <summary>
+        /// Gets the vertex position for the specified vertex index, applying the current skin pose when available.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <returns>The resolved vertex position.</returns>
+        public Vector3 GetVertexPosition(int vertexIndex) => GetVertexPosition(vertexIndex, raw: false);
+
+        /// <summary>
+        /// Copies the active skin transforms aligned to <see cref="SkinnedBones"/> into the destination span.
+        /// </summary>
+        /// <param name="destination">The destination span to receive one transform per skinned bone.</param>
+        /// <returns>The number of transforms written.</returns>
+        public int CopySkinTransforms(Span<Matrix4x4> destination)
+        {
+            if (!HasSkinning || _skinnedBones is not { Length: > 0 } skinnedBones)
+                return 0;
+
+            EnsureInverseBindMatrices();
+
+            if (_inverseBindMatrices is not { Length: var count } || count != skinnedBones.Length)
+                return 0;
+
+            if (destination.Length < skinnedBones.Length)
+                throw new ArgumentException($"Destination span must be at least {skinnedBones.Length} elements.", nameof(destination));
+
+            for (int i = 0; i < skinnedBones.Length; i++)
+                destination[i] = _inverseBindMatrices[i] * skinnedBones[i].GetActiveWorldMatrix();
+
+            return skinnedBones.Length;
+        }
+
+        /// <summary>
+        /// Gets the vertex position for the specified vertex index.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="raw"><see langword="true"/> to return the stored buffer value without skinning; otherwise the active skin pose is applied.</param>
+        /// <returns>The resolved vertex position.</returns>
+        public Vector3 GetVertexPosition(int vertexIndex, bool raw)
+        {
+            Vector3 position = GetRequiredVector3(Positions, vertexIndex, nameof(Positions));
+            return raw ? position : ApplySkinningDirect(position, vertexIndex, transformAsDirection: false);
+        }
+
+        /// <summary>
+        /// Gets the vertex position for the specified vertex index using precomputed skin transforms.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="skinTransforms">The precomputed transforms aligned to <see cref="SkinnedBones"/>.</param>
+        /// <returns>The resolved vertex position.</returns>
+        public Vector3 GetVertexPosition(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
+        {
+            Vector3 position = GetRequiredVector3(Positions, vertexIndex, nameof(Positions));
+            return ApplySkinning(position, vertexIndex, transformAsDirection: false, skinTransforms);
+        }
+
+        /// <summary>
+        /// Gets the vertex normal for the specified vertex index, applying the current skin pose when available.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <returns>The resolved vertex normal.</returns>
+        public Vector3 GetVertexNormal(int vertexIndex) => GetVertexNormal(vertexIndex, raw: false);
+
+        /// <summary>
+        /// Gets the vertex normal for the specified vertex index.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="raw"><see langword="true"/> to return the stored buffer value without skinning; otherwise the active skin pose is applied.</param>
+        /// <returns>The resolved vertex normal.</returns>
+        public Vector3 GetVertexNormal(int vertexIndex, bool raw)
+        {
+            Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
+            return raw ? normal : ApplySkinningDirect(normal, vertexIndex, transformAsDirection: true);
+        }
+
+        /// <summary>
+        /// Gets the vertex normal for the specified vertex index using precomputed skin transforms.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="skinTransforms">The precomputed transforms aligned to <see cref="SkinnedBones"/>.</param>
+        /// <returns>The resolved vertex normal.</returns>
+        public Vector3 GetVertexNormal(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
+        {
+            Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
+            return ApplySkinning(normal, vertexIndex, transformAsDirection: true, skinTransforms);
+        }
+
+        /// <summary>
+        /// Gets the vertex tangent for the specified vertex index, applying the current skin pose when available.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <returns>The resolved vertex tangent. When the source tangent has four components, the W component is preserved.</returns>
+        public Vector4 GetVertexTangent(int vertexIndex) => GetVertexTangent(vertexIndex, raw: false);
+
+        /// <summary>
+        /// Gets the vertex tangent for the specified vertex index.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="raw"><see langword="true"/> to return the stored buffer value without skinning; otherwise the active skin pose is applied.</param>
+        /// <returns>The resolved vertex tangent. When the source tangent has four components, the W component is preserved.</returns>
+        public Vector4 GetVertexTangent(int vertexIndex, bool raw)
+        {
+            if (Tangents is null)
+                throw new InvalidOperationException($"Mesh '{Name}' has no {nameof(Tangents)} buffer.");
+
+            Vector3 tangent = GetRequiredVector3(Tangents, vertexIndex, nameof(Tangents));
+            Vector3 resolvedTangent = raw ? tangent : ApplySkinningDirect(tangent, vertexIndex, transformAsDirection: true);
+            float handedness = Tangents.ComponentCount > 3 ? Tangents.Get<float>(vertexIndex, 0, 3) : 0f;
+            return new Vector4(resolvedTangent, handedness);
+        }
+
+        /// <summary>
+        /// Gets the vertex tangent for the specified vertex index using precomputed skin transforms.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="skinTransforms">The precomputed transforms aligned to <see cref="SkinnedBones"/>.</param>
+        /// <returns>The resolved vertex tangent. When the source tangent has four components, the W component is preserved.</returns>
+        public Vector4 GetVertexTangent(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
+        {
+            if (Tangents is null)
+                throw new InvalidOperationException($"Mesh '{Name}' has no {nameof(Tangents)} buffer.");
+
+            Vector3 tangent = GetRequiredVector3(Tangents, vertexIndex, nameof(Tangents));
+            Vector3 resolvedTangent = ApplySkinning(tangent, vertexIndex, transformAsDirection: true, skinTransforms);
+            float handedness = Tangents.ComponentCount > 3 ? Tangents.Get<float>(vertexIndex, 0, 3) : 0f;
+            return new Vector4(resolvedTangent, handedness);
+        }
+
+        /// <summary>
+        /// Gets the vertex bitangent for the specified vertex index, applying the current skin pose when available.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <returns>The resolved vertex bitangent.</returns>
+        public Vector3 GetVertexBiTangent(int vertexIndex) => GetVertexBiTangent(vertexIndex, raw: false);
+
+        /// <summary>
+        /// Gets the vertex bitangent for the specified vertex index.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="raw"><see langword="true"/> to return the stored buffer value without skinning; otherwise the active skin pose is applied.</param>
+        /// <returns>The resolved vertex bitangent.</returns>
+        public Vector3 GetVertexBiTangent(int vertexIndex, bool raw)
+        {
+            Vector3 bitangent = GetRequiredVector3(BiTangents, vertexIndex, nameof(BiTangents));
+            return raw ? bitangent : ApplySkinningDirect(bitangent, vertexIndex, transformAsDirection: true);
+        }
+
+        /// <summary>
+        /// Gets the vertex bitangent for the specified vertex index using precomputed skin transforms.
+        /// </summary>
+        /// <param name="vertexIndex">The zero-based vertex index.</param>
+        /// <param name="skinTransforms">The precomputed transforms aligned to <see cref="SkinnedBones"/>.</param>
+        /// <returns>The resolved vertex bitangent.</returns>
+        public Vector3 GetVertexBiTangent(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
+        {
+            Vector3 bitangent = GetRequiredVector3(BiTangents, vertexIndex, nameof(BiTangents));
+            return ApplySkinning(bitangent, vertexIndex, transformAsDirection: true, skinTransforms);
+        }
+
+        private Vector3 ApplySkinningDirect(Vector3 value, int vertexIndex, bool transformAsDirection)
+        {
+            if (BoneIndices is null || BoneWeights is null || _skinnedBones is not { Length: > 0 } skinnedBones)
+                return value;
+
+            EnsureInverseBindMatrices();
+
+            if (_inverseBindMatrices is not { Length: var matrixCount } || matrixCount != skinnedBones.Length)
+                return value;
+
+            DataBuffer boneIndices = BoneIndices;
+            DataBuffer boneWeights = BoneWeights;
+            int influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+            if (influenceCount == 0)
+                return value;
+
+            Vector3 result = Vector3.Zero;
+            float totalWeight = 0f;
+
+            for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
+            {
+                float weight = boneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+                if (weight == 0f)
+                    continue;
+
+                int skinIndex = boneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                if ((uint)skinIndex >= (uint)skinnedBones.Length)
+                    throw new InvalidDataException($"Mesh '{Name}' contains an invalid skin index {skinIndex} at vertex {vertexIndex}.");
+
+                Matrix4x4 skinTransform = _inverseBindMatrices[skinIndex] * skinnedBones[skinIndex].GetActiveWorldMatrix();
+
+                Vector3 transformed = transformAsDirection
+                    ? Vector3.TransformNormal(value, skinTransform)
+                    : Vector3.Transform(value, skinTransform);
+
+                result += transformed * weight;
+                totalWeight += weight;
+            }
+
+            return FinalizeSkinnedVector(value, result, totalWeight, transformAsDirection);
+        }
+
+        private Vector3 ApplySkinning(Vector3 value, int vertexIndex, bool transformAsDirection, ReadOnlySpan<Matrix4x4> skinTransforms)
+        {
+            if (skinTransforms.IsEmpty || BoneIndices is null || BoneWeights is null)
+                return value;
+
+            DataBuffer boneIndices = BoneIndices;
+            DataBuffer boneWeights = BoneWeights;
+            int influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+            if (influenceCount == 0)
+                return value;
+
+            Vector3 result = Vector3.Zero;
+            float totalWeight = 0f;
+
+            for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
+            {
+                float weight = boneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+                if (weight == 0f)
+                    continue;
+
+                int skinIndex = boneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                if ((uint)skinIndex >= (uint)skinTransforms.Length)
+                    throw new InvalidDataException($"Mesh '{Name}' contains an invalid skin index {skinIndex} at vertex {vertexIndex}.");
+
+                Matrix4x4 skinTransform = skinTransforms[skinIndex];
+
+                Vector3 transformed = transformAsDirection
+                    ? Vector3.TransformNormal(value, skinTransform)
+                    : Vector3.Transform(value, skinTransform);
+
+                result += transformed * weight;
+                totalWeight += weight;
+            }
+
+            return FinalizeSkinnedVector(value, result, totalWeight, transformAsDirection);
+        }
+
+        private static Vector3 FinalizeSkinnedVector(Vector3 sourceValue, Vector3 weightedResult, float totalWeight, bool transformAsDirection)
+        {
+            if (totalWeight <= 0f)
+                return sourceValue;
+
+            if (transformAsDirection)
+            {
+                float lengthSquared = weightedResult.LengthSquared();
+                return lengthSquared > 1e-12f ? weightedResult / MathF.Sqrt(lengthSquared) : sourceValue;
+            }
+
+            return weightedResult;
+        }
+
+        private Vector3 GetRequiredVector3(DataBuffer? buffer, int vertexIndex, string bufferName)
+        {
+            if (buffer is null)
+                throw new InvalidOperationException($"Mesh '{Name}' has no {bufferName} buffer.");
+
+            if ((uint)vertexIndex >= (uint)buffer.ElementCount)
+                throw new ArgumentOutOfRangeException(nameof(vertexIndex), $"Vertex index must be between 0 and {buffer.ElementCount - 1}.");
+
+            return buffer.GetVector3(vertexIndex, 0);
+        }
+
         private static T[] CopyToArray<T>(IReadOnlyList<T> source)
         {
             var result = new T[source.Count];
@@ -439,26 +787,12 @@ namespace RedFox.Graphics3D
             return result;
         }
 
-        private static Skeleton? ResolveOwningSkeleton(IReadOnlyList<SkeletonBone> palette)
-        {
-            for (int i = 0; i < palette.Count; i++)
-            {
-                foreach (var ancestor in palette[i].EnumerateAncestors())
-                {
-                    if (ancestor is Skeleton owner && ancestor is not SkeletonBone)
-                        return owner;
-                }
-            }
-
-            return null;
-        }
-
         private void ZeroAllSkinInfluences()
         {
             if (BoneIndices is not null)
             {
                 if (BoneIndices.IsReadOnly)
-                    BoneIndices = CloneToWritableIntBuffer(BoneIndices);
+                        BoneIndices = DataBuffer.CloneToWritable<int>(BoneIndices);
 
                 for (int e = 0; e < BoneIndices.ElementCount; e++)
                 {
@@ -475,7 +809,7 @@ namespace RedFox.Graphics3D
             if (BoneWeights is not null)
             {
                 if (BoneWeights.IsReadOnly)
-                    BoneWeights = CloneToWritableFloatBuffer(BoneWeights);
+                        BoneWeights = DataBuffer.CloneToWritable<float>(BoneWeights);
 
                 for (int e = 0; e < BoneWeights.ElementCount; e++)
                 {
@@ -490,16 +824,17 @@ namespace RedFox.Graphics3D
             }
         }
 
-        private void RemapSkinInfluencesAfterPaletteRemoval(int removedIndex, int oldPaletteCount)
+        private void RemapSkinInfluencesAfterSkinRemoval(int removedIndex, int oldSkinnedBoneCount)
         {
             if (BoneIndices is null)
                 return;
+            if (BoneWeights is null)
+                return;
 
             if (BoneIndices.IsReadOnly)
-                BoneIndices = CloneToWritableIntBuffer(BoneIndices);
-
-            if (BoneWeights is not null && BoneWeights.IsReadOnly)
-                BoneWeights = CloneToWritableFloatBuffer(BoneWeights);
+                BoneIndices = DataBuffer.CloneToWritable<int>(BoneIndices);
+            if (BoneWeights.IsReadOnly)
+                BoneWeights = DataBuffer.CloneToWritable<float>(BoneWeights);
 
             int influenceCount = BoneIndices.ValueCount;
             int weightedInfluenceCount = BoneWeights is not null
@@ -519,11 +854,11 @@ namespace RedFox.Graphics3D
                         newIndex = 0;
                         removedReference = true;
                     }
-                    else if (oldIndex > removedIndex && oldIndex < oldPaletteCount)
+                    else if (oldIndex > removedIndex && oldIndex < oldSkinnedBoneCount)
                     {
                         newIndex = oldIndex - 1;
                     }
-                    else if (oldIndex < 0 || oldIndex >= oldPaletteCount)
+                    else if (oldIndex < 0 || oldIndex >= oldSkinnedBoneCount)
                     {
                         newIndex = 0;
                         removedReference = true;
@@ -561,100 +896,54 @@ namespace RedFox.Graphics3D
             }
         }
 
-        private static DataBuffer<int> CloneToWritableIntBuffer(DataBuffer source)
+        private static Matrix4x4[] CopyAndFillInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones, IReadOnlyList<Matrix4x4> source)
         {
-            var clone = new DataBuffer<int>(source.ElementCount, source.ValueCount, source.ComponentCount);
-
-            for (int e = 0; e < source.ElementCount; e++)
-            {
-                for (int v = 0; v < source.ValueCount; v++)
-                {
-                    for (int c = 0; c < source.ComponentCount; c++)
-                    {
-                        clone.Add(e, v, c, source.Get<int>(e, v, c));
-                    }
-                }
-            }
-
-            return clone;
-        }
-
-        private static DataBuffer<float> CloneToWritableFloatBuffer(DataBuffer source)
-        {
-            var clone = new DataBuffer<float>(source.ElementCount, source.ValueCount, source.ComponentCount);
-
-            for (int e = 0; e < source.ElementCount; e++)
-            {
-                for (int v = 0; v < source.ValueCount; v++)
-                {
-                    for (int c = 0; c < source.ComponentCount; c++)
-                    {
-                        clone.Add(e, v, c, source.Get<float>(e, v, c));
-                    }
-                }
-            }
-
-            return clone;
-        }
-
-        private static Matrix4x4[] CopyAndFillInverseBind(IReadOnlyList<SkeletonBone> palette, IReadOnlyList<Matrix4x4> source)
-        {
-            var result = new Matrix4x4[palette.Count];
-            int copyCount = Math.Min(source.Count, palette.Count);
+            var result = new Matrix4x4[skinnedBones.Count];
+            int copyCount = Math.Min(source.Count, skinnedBones.Count);
 
             for (int i = 0; i < copyCount; i++)
                 result[i] = source[i];
 
-            if (copyCount < palette.Count)
+            if (copyCount < skinnedBones.Count)
             {
-                var cache = new Dictionary<SceneNode, Matrix4x4>(palette.Count);
-
-                for (int i = copyCount; i < palette.Count; i++)
-                    result[i] = ComputeInverseBindMatrix(palette[i], cache);
+                for (int i = copyCount; i < skinnedBones.Count; i++)
+                    result[i] = CreateInverseBindMatrix(skinnedBones[i], cache: null);
             }
 
             return result;
         }
 
-        private static Matrix4x4[] BuildInverseBindPalette(IReadOnlyList<SkeletonBone> palette)
+        private static Matrix4x4[] CreateInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones)
         {
-            var result = new Matrix4x4[palette.Count];
-            var cache = new Dictionary<SceneNode, Matrix4x4>(palette.Count);
+            var result = new Matrix4x4[skinnedBones.Count];
 
-            for (int i = 0; i < palette.Count; i++)
-                result[i] = ComputeInverseBindMatrix(palette[i], cache);
+            for (int i = 0; i < skinnedBones.Count; i++)
+                result[i] = CreateInverseBindMatrix(skinnedBones[i], cache: null);
 
             return result;
         }
 
-        private static Matrix4x4 ComputeInverseBindMatrix(
-            SkeletonBone bone,
-            Dictionary<SceneNode, Matrix4x4> cache)
+        private static Matrix4x4 CreateInverseBindMatrix(SkeletonBone bone, Dictionary<SceneNode, Matrix4x4>? cache)
         {
-            var bindWorld = ComputeBindWorldMatrix(bone, cache);
+            Matrix4x4 bindWorld = cache is null
+                ? bone.GetBindWorldMatrix()
+                : ComputeCachedBindWorldMatrix(bone, cache);
+
             return Matrix4x4.Invert(bindWorld, out var inverse)
                 ? inverse
                 : Matrix4x4.Identity;
         }
 
-        private static Matrix4x4 ComputeBindWorldMatrix(
-            SkeletonBone bone,
-            Dictionary<SceneNode, Matrix4x4> cache)
+        private static Matrix4x4 ComputeCachedBindWorldMatrix(SceneNode node, Dictionary<SceneNode, Matrix4x4> cache)
         {
-            if (cache.TryGetValue(bone, out var cached))
+            if (cache.TryGetValue(node, out var cached))
                 return cached;
 
-            var local = Matrix4x4.CreateScale(bone.GetBindLocalScale())
-                      * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(bone.GetBindLocalRotation()))
-                      * Matrix4x4.CreateTranslation(bone.GetBindLocalPosition());
+            Matrix4x4 world = node.Parent is not null
+                ? node.GetBindLocalMatrix() * ComputeCachedBindWorldMatrix(node.Parent, cache)
+                : node.GetBindLocalMatrix();
 
-            Matrix4x4 world;
-            if (bone.Parent is SkeletonBone parentBone)
-                world = local * ComputeBindWorldMatrix(parentBone, cache);
-            else
-                world = local;
-
-            cache[bone] = world;
+            cache[node] = world;
             return world;
         }
     }

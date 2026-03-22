@@ -64,6 +64,8 @@ public sealed class AssetSourceManagerTests
 
         public bool IsDisposed { get; private set; }
 
+        public Guid Id => throw new NotImplementedException();
+
         public void Dispose()
         {
             IsDisposed = true;

@@ -139,6 +139,14 @@ namespace RedFox.Graphics3D
                 default:
                     throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
             }
+
+            foreach (var node in EnumerateDescendants())
+            {
+                node.BindTransform.WorldPosition = null;
+                node.BindTransform.WorldRotation = null;
+                node.LiveTransform.WorldPosition = null;
+                node.LiveTransform.WorldRotation = null;
+            }
         }
 
         /// <summary>
@@ -237,7 +245,23 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <typeparam name="T">The node type to filter for.</typeparam>
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
-        public IEnumerable<T> EnumerateDescendants<T>() where T : SceneNode => EnumerateDescendants().OfType<T>();
+        public IEnumerable<T> EnumerateDescendants<T>() where T : SceneNode
+        {
+            if (_children is null)
+                yield break;
+
+            foreach (var child in _children)
+            {
+                if (child.GetType() == typeof(T))
+                    yield return (T)child;
+
+                foreach (var descendant in child.EnumerateDescendants())
+                {
+                    if (descendant.GetType() == typeof(T))
+                        yield return (T)descendant;
+                }
+            }
+        }
 
         /// <summary>
         /// Enumerates ancestor nodes of the specified type.
@@ -725,6 +749,30 @@ namespace RedFox.Graphics3D
         public Vector3 GetBindLocalScale() => BindTransform.Scale ?? Vector3.One;
 
         /// <summary>
+        /// Gets the bind local transform matrix for this node.
+        /// The matrix is composed in scale, rotation, translation order.
+        /// </summary>
+        /// <returns>The bind local transform matrix.</returns>
+        public Matrix4x4 GetBindLocalMatrix()
+        {
+            return Matrix4x4.CreateScale(GetBindLocalScale())
+                * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetBindLocalRotation()))
+                * Matrix4x4.CreateTranslation(GetBindLocalPosition());
+        }
+
+        /// <summary>
+        /// Gets the bind world transform matrix for this node.
+        /// This includes the full ancestor chain, not only skeletal parents.
+        /// </summary>
+        /// <returns>The bind world transform matrix.</returns>
+        public Matrix4x4 GetBindWorldMatrix()
+        {
+            return Parent is not null
+                ? GetBindLocalMatrix() * Parent.GetBindWorldMatrix()
+                : GetBindLocalMatrix();
+        }
+
+        /// <summary>
         /// Enumerates this node followed by all its descendants in depth-first order.
         /// Useful for traversing an entire hierarchy including the root node itself.
         /// </summary>
@@ -777,6 +825,18 @@ namespace RedFox.Graphics3D
         }
 
         /// <summary>
+        /// Gets the active local transform matrix for this node.
+        /// The matrix is composed in scale, rotation, translation order.
+        /// </summary>
+        /// <returns>The active local transform matrix.</returns>
+        public Matrix4x4 GetActiveLocalMatrix()
+        {
+            return Matrix4x4.CreateScale(GetLiveLocalScale())
+                * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetLiveLocalRotation()))
+                * Matrix4x4.CreateTranslation(GetLiveLocalPosition());
+        }
+
+        /// <summary>
         /// Gets the active world position, preferring <see cref="LiveTransform"/> values,
         /// then <see cref="BindTransform"/>, and computing from the bind hierarchy if neither is set.
         /// </summary>
@@ -806,6 +866,18 @@ namespace RedFox.Graphics3D
                 not null => LiveTransform.LocalRotation.Value,
                 _ => BindTransform.WorldRotation ?? GetBindWorldRotation()
             };
+        }
+
+        /// <summary>
+        /// Gets the active world transform matrix for this node.
+        /// This includes the full ancestor chain, not only skeletal parents.
+        /// </summary>
+        /// <returns>The active world transform matrix.</returns>
+        public Matrix4x4 GetActiveWorldMatrix()
+        {
+            return Parent is not null
+                ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix()
+                : GetActiveLocalMatrix();
         }
 
         /// <summary>

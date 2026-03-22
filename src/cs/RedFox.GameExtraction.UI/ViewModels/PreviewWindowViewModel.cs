@@ -24,9 +24,6 @@ public partial class PreviewWindowViewModel : ObservableObject
     public partial string Title { get; set; } = "Preview";
 
     [ObservableProperty]
-    public partial ViewportCameraMode ViewportCameraMode { get; set; } = ViewportCameraMode.Blender;
-
-    [ObservableProperty]
     public partial bool DrawSkeleton { get; set; } = true;
 
     [ObservableProperty]

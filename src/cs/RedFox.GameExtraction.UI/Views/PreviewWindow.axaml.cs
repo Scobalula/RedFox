@@ -20,7 +20,7 @@ public partial class PreviewWindow : Window
     /// </summary>
     public void ApplySettings(SettingsBase settings)
     {
-        _viewModel.ViewportCameraMode = settings.ViewportCameraMode;
+        //_viewModel.ViewportCameraMode = settings.ViewportCameraMode;
     }
 
     /// <summary>
