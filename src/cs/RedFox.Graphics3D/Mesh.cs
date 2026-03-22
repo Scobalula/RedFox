@@ -1,5 +1,4 @@
 using RedFox.Graphics3D.Buffers;
-using RedFox.Graphics3D.Skeletal;
 using System;
 using System.Collections.Generic;
 using System.Numerics;

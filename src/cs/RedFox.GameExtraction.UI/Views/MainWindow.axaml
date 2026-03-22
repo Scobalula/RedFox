@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        xmlns:views="using:RedFox.GameExtraction.UI.Views"
+        x:Class="RedFox.GameExtraction.UI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="{Binding Config.WindowTitle}"
+        Width="1280" Height="780"
+        MinWidth="900" MinHeight="550"
+        WindowStartupLocation="CenterScreen">
+
+    <Panel>
+        <!-- Main Layout -->
+        <DockPanel>
+            <!-- Status Bar (Bottom) — UC handles its own shadow margins -->
+            <views:StatusBarView DockPanel.Dock="Bottom"
+                                DataContext="{Binding StatusBar}"/>
+
+            <!-- Sidebar (Left) — UC handles its own shadow margins -->
+            <views:SidebarView DockPanel.Dock="Left"
+                               DataContext="{Binding Sidebar}"
+                               Width="274"/>
+
+            <!-- Main Content Area -->
+            <views:AssetListView DataContext="{Binding AssetList}"/>
+        </DockPanel>
+
+        <!-- Progress Dialog Overlay -->
+        <Border Classes="progress-overlay"
+                IsVisible="{Binding ShowProgressDialog}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <Border Classes="progress-card"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    DataContext="{Binding ProgressDialog}">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFFF"/>
+                    <ProgressBar Classes="themed"
+                                 Value="{Binding ProgressValue}"
+                                 IsIndeterminate="{Binding IsIndeterminate}"
+                                 Maximum="100"/>
+                    <TextBlock Text="{Binding StatusText}"
+                               Foreground="#909096"
+                               FontSize="12"/>
+                    <TextBlock Text="{Binding ProgressText}"
+                               Foreground="#78787E"
+                               FontSize="11"
+                               HorizontalAlignment="Right"/>
+                    <Button Classes="cancel-btn"
+                            Content="Cancel"
+                            Command="{Binding CancelCommand}"
+                            IsEnabled="{Binding !IsCancelling}"
+                            HorizontalAlignment="Right"
+                            Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Panel>
+</Window>
