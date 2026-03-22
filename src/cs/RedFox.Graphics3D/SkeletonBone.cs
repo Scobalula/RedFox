@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text;
 
-namespace RedFox.Graphics3D.Skeletal;
+namespace RedFox.Graphics3D;
 
 
 public class SkeletonBone : Skeleton

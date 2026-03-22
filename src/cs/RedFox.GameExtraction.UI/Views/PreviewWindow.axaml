@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
+        xmlns:vp3d="using:RedFox.GameExtraction.UI.Controls.Viewport3D"
+        x:Class="RedFox.GameExtraction.UI.Views.PreviewWindow"
+        x:DataType="vm:PreviewWindowViewModel"
+        Title="{Binding Title}"
+        Width="960" Height="650"
+        MinWidth="600" MinHeight="400"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="12">
+        <!-- Error message bar -->
+        <Border DockPanel.Dock="Top"
+                Background="#3A2020"
+                Padding="12,8"
+                CornerRadius="10"
+                Margin="0,0,0,8"
+                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding ErrorMessage}"
+                       Foreground="#FF6666"
+                       FontSize="12"/>
+        </Border>
+
+        <!-- Loading indicator -->
+        <Border DockPanel.Dock="Top"
+                IsVisible="{Binding IsLoading}"
+                Padding="8"
+                Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Classes="themed" Width="200"/>
+                <TextBlock Text="Loading preview..." Foreground="#909096" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Empty state — when nothing is selected -->
+        <Border IsVisible="{Binding ShowEmptyState}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+                <PathIcon Data="{StaticResource IconEye}" Width="36" Height="36" HorizontalAlignment="Center" Opacity="0.4" Foreground="#68686E"/>
+                <TextBlock Text="Select an asset to preview"
+                           Foreground="#68686E"
+                           FontSize="14"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main preview: content area + details panel (no tabs) -->
+        <Grid ColumnDefinitions="*,Auto"
+              IsVisible="{Binding !ShowEmptyState}">
+
+            <!-- Content area — shows the appropriate viewer directly -->
+            <Panel Grid.Column="0" Margin="0,0,8,0">
+                <!-- 3D Model viewer (highest priority) -->
+                <Border Classes="card-subtle"
+                        Padding="0"
+                        IsVisible="{Binding ShowModel3DTab}">
+                    <DockPanel>
+                        <!-- Animation transport bar -->
+                        <Border DockPanel.Dock="Bottom"
+                                Background="#C01B1B1F"
+                                Padding="8,4"
+                                IsVisible="{Binding HasAnimation}">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <ToggleButton Grid.Column="0"
+                                              IsChecked="{Binding IsPlaying}"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Padding="4,2"
+                                              VerticalAlignment="Center"
+                                              Width="28" Height="28">
+                                    <Panel>
+                                        <PathIcon Data="M5,2 L5,14 L14,8 Z" Width="14" Height="14"
+                                                  IsVisible="{Binding !IsPlaying}" Foreground="#C4C4CA"/>
+                                        <PathIcon Data="M3,2 L6,2 L6,14 L3,14 Z M9,2 L12,2 L12,14 L9,14 Z" Width="14" Height="14"
+                                                  IsVisible="{Binding IsPlaying}" Foreground="#C4C4CA"/>
+                                    </Panel>
+                                </ToggleButton>
+                                <Slider Grid.Column="1"
+                                        Minimum="{Binding MinFrame}"
+                                        Maximum="{Binding MaxFrame}"
+                                        Value="{Binding CurrentFrame}"
+                                        IsSnapToTickEnabled="False"
+                                        VerticalAlignment="Center"
+                                        Margin="8,0"
+                                        IsHitTestVisible="{Binding !IsPlaying}"/>
+                                <TextBlock Grid.Column="2"
+                                           VerticalAlignment="Center"
+                                           Foreground="#909096"
+                                           FontSize="11"
+                                           Margin="4,0,0,0">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0:F0} / {1:F0}">
+                                            <Binding Path="CurrentFrame"/>
+                                            <Binding Path="MaxFrame"/>
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </DockPanel>
+                </Border>
+
+                <!-- Image viewer -->
+                <Border Classes="card-subtle"
+                        IsVisible="{Binding ShowImageTab}">
+                    <TextBlock Text="Image preview — plug in image decoder"
+                               Foreground="#68686E"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Text viewer (when text is available and NOT model/image) -->
+                <controls:TextEditorControl Text="{Binding PreviewData.TextContent}"
+                                            Language="{Binding PreviewData.TextLanguage}"
+                                            IsVisible="{Binding ShowTextTab}"/>
+
+                <!-- Hex viewer (fallback — always shown when only hex data) -->
+                <controls:HexViewerControl Data="{Binding PreviewData.RawData}"
+                                           IsVisible="{Binding ShowHexTab}"/>
+            </Panel>
+
+            <!-- Attributes detail panel (right side) -->
+            <Panel Grid.Column="1"
+                   Width="220"
+                   IsVisible="{Binding HasAttributes}">
+                <Border CornerRadius="10"
+                        BoxShadow="0 3 12 0 #40000000"
+                        Background="#1F1F22"
+                        IsHitTestVisible="False"/>
+                <Border Classes="card-subtle" ClipToBounds="True">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top"
+                                   Text="Details"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#D0D0D6"
+                                   Margin="0,0,0,10"/>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      AllowAutoHide="False">
+                            <ItemsControl ItemsSource="{Binding Attributes}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="{Binding Key}"
+                                                       Foreground="#78787E"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Value}"
+                                                       Foreground="#C4C4CA"
+                                                       FontSize="13"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Panel>
+        </Grid>
+    </DockPanel>
+</Window>

@@ -1,0 +1,22 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:aedit="using:AvaloniaEdit"
+             x:Class="RedFox.GameExtraction.UI.Controls.TextEditorControl">
+
+    <Panel>
+        <Border CornerRadius="10"
+                BoxShadow="0 3 12 0 #40000000"
+                Background="#1F1F22"
+                IsHitTestVisible="False"/>
+        <Border Classes="card-subtle" Padding="0" ClipToBounds="True">
+            <aedit:TextEditor x:Name="Editor"
+                              ShowLineNumbers="True"
+                              IsReadOnly="True"
+                              FontFamily="Cascadia Mono, Consolas, monospace"
+                              FontSize="13"
+                              Background="#1C1C1F"
+                              Foreground="#D0D0D6"
+                              Padding="8"/>
+        </Border>
+    </Panel>
+</UserControl>

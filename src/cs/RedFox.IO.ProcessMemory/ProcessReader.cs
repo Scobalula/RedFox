@@ -133,6 +133,37 @@ namespace RedFox.IO.ProcessMemory
         }
 
         /// <summary>
+        /// Reads an array of unmanaged values from the target process.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged type to read.</typeparam>
+        /// <param name="address">The target memory address to read from.</param>
+        /// <param name="count">The number of elements to read.</param>
+        /// <returns>An array of <typeparamref name="T"/> read from process memory.</returns>
+        /// <remarks>
+        /// Uses <see cref="MemoryMarshal.Cast{TFrom,TTo}(ReadOnlySpan{TFrom})"/> to reinterpret
+        /// the raw byte buffer, avoiding per-element marshalling overhead.
+        /// </remarks>
+        /// <exception cref="ObjectDisposedException">Thrown when this reader has already been disposed.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="address"/> is zero or when <paramref name="count"/> is negative.
+        /// </exception>
+        public T[] ReadArray<T>(nint address, int count) where T : unmanaged
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            ProcessMemoryValidation.ThrowIfInvalidAddress(address);
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+            if (count == 0)
+            {
+                return [];
+            }
+
+            byte[] buffer = new byte[count * Unsafe.SizeOf<T>()];
+            _backend.Read(address, buffer);
+            return MemoryMarshal.Cast<byte, T>(buffer.AsSpan()).ToArray();
+        }
+
+        /// <summary>
         /// Reads a 16-bit signed integer from process memory.
         /// </summary>
         /// <param name="address">The target memory address to read from.</param>

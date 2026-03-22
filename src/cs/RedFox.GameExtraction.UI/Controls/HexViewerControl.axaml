@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="RedFox.GameExtraction.UI.Controls.HexViewerControl">
+
+    <Panel>
+        <Border CornerRadius="10"
+                BoxShadow="0 3 12 0 #40000000"
+                Background="#1F1F22"
+                IsHitTestVisible="False"/>
+        <Border Classes="card-subtle" Padding="0" ClipToBounds="True">
+            <DockPanel>
+                <!-- Header — same font family & size as content for perfect column alignment -->
+                <Border DockPanel.Dock="Top" Background="#1E1E22" Padding="12,6"
+                        CornerRadius="8,8,0,0">
+                    <TextBlock FontFamily="Cascadia Mono, Consolas, monospace"
+                               FontSize="12"
+                               Foreground="#68686E"
+                               Text="Offset    00 01 02 03 04 05 06 07  08 09 0A 0B 0C 0D 0E 0F  ASCII"/>
+                </Border>
+
+                <!-- Hex content -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Auto"
+                              AllowAutoHide="False">
+                    <TextBlock x:Name="HexContent"
+                               FontFamily="Cascadia Mono, Consolas, monospace"
+                               FontSize="12"
+                               Foreground="#C4C4CA"
+                               Padding="12,8"
+                               LineHeight="20"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Panel>
+</UserControl>
