@@ -37,18 +37,25 @@ internal sealed class JpegHuffmanTable
         }
     }
 
-    public int Decode(JpegBitReader reader)
+    public bool TryDecode(JpegBitReader reader, out int value)
     {
+        value = 0;
         int code = 0;
 
         for (int bits = 1; bits <= 16; bits++)
         {
-            code = (code << 1) | reader.ReadBit();
+            if (!reader.TryReadBit(out int bit))
+            {
+                return false;
+            }
+
+            code = (code << 1) | bit;
 
             if (_maxCode[bits] >= 0 && code <= _maxCode[bits])
             {
                 int index = _valPtr[bits] + (code - _minCode[bits]);
-                return _values[index];
+                value = _values[index];
+                return true;
             }
         }
 

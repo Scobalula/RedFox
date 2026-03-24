@@ -16,42 +16,67 @@ internal sealed class JpegBitReader(Stream stream)
         _bitBuffer = 0;
         _bitsRemaining = 0;
         _hitMarker = false;
+        _pendingMarker = default;
     }
 
-    public int ReadBits(int count)
+    public bool TryReadBits(int count, out int value)
     {
+        value = 0;
+
         while (_bitsRemaining < count)
         {
-            int b = ReadByteStuffed();
-            _bitBuffer = (_bitBuffer << 8) | b;
+            if (!TryReadByteStuffed(out int nextByte))
+            {
+                return false;
+            }
+
+            _bitBuffer = (_bitBuffer << 8) | nextByte;
             _bitsRemaining += 8;
         }
 
         _bitsRemaining -= count;
-        return (_bitBuffer >> _bitsRemaining) & ((1 << count) - 1);
+        value = (_bitBuffer >> _bitsRemaining) & ((1 << count) - 1);
+        return true;
     }
 
-    public int ReadBit()
+    public bool TryReadBit(out int value)
     {
+        value = 0;
+
         if (_bitsRemaining == 0)
         {
-            int b = ReadByteStuffed();
-            _bitBuffer = (_bitBuffer << 8) | b;
+            if (!TryReadByteStuffed(out int nextByte))
+            {
+                return false;
+            }
+
+            _bitBuffer = (_bitBuffer << 8) | nextByte;
             _bitsRemaining = 8;
         }
 
         _bitsRemaining--;
-        return (_bitBuffer >> _bitsRemaining) & 1;
+        value = (_bitBuffer >> _bitsRemaining) & 1;
+        return true;
     }
 
-    private int ReadByteStuffed()
+    private bool TryReadByteStuffed(out int value)
     {
+        value = 0;
+
+        if (_hitMarker)
+        {
+            return false;
+        }
+
         int b = _stream.ReadByte();
         if (b < 0)
             throw new InvalidDataException("Unexpected end of JPEG stream.");
 
         if (b != 0xFF)
-            return b;
+        {
+            value = b;
+            return true;
+        }
 
         int next = _stream.ReadByte();
 
@@ -59,7 +84,10 @@ internal sealed class JpegBitReader(Stream stream)
             throw new InvalidDataException("Unexpected end of JPEG stream after 0xFF.");
 
         if (next == 0x00)
-            return 0xFF;
+        {
+            value = 0xFF;
+            return true;
+        }
 
         while (next == 0xFF)
         {
@@ -70,7 +98,7 @@ internal sealed class JpegBitReader(Stream stream)
 
         _hitMarker = true;
         _pendingMarker = (JpegMarker)next;
-        throw new JpegEndOfScanException(_pendingMarker);
+        return false;
     }
 
     public void AlignToByte()

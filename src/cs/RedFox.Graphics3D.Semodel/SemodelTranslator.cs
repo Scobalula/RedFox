@@ -211,13 +211,15 @@ public class SemodelTranslator : SceneTranslator
         if (hasMeshes) dataPresence |= 2;
         if (hasMats)   dataPresence |= 4;
 
+        var meshDataPresence = ComputeMeshDataPresence(meshes);
+
         // ---- Header ----
         writer.Write(MagicValue);
         writer.Write((ushort)1);    // version
         writer.Write((ushort)0x14); // headerSize
         writer.Write(dataPresence);
         writer.Write((byte)0x7); // boneDataPresence: world + local + scale
-        writer.Write(ComputeMeshDataPresence(meshes));
+        writer.Write(meshDataPresence);
 
         writer.Write(bones.Length);
         writer.Write(meshes.Length);
@@ -256,6 +258,11 @@ public class SemodelTranslator : SceneTranslator
             var s = bone.GetBindLocalScale();
             WriteVector3(writer, s);
         }
+
+        bool hasUVs     = (meshDataPresence & (1 << 0)) != 0;
+        bool hasNormals = (meshDataPresence & (1 << 1)) != 0;
+        bool hasColours = (meshDataPresence & (1 << 2)) != 0;
+        bool hasWeights = (meshDataPresence & (1 << 3)) != 0;
 
         // ---- Meshes ----
         Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
@@ -308,12 +315,30 @@ public class SemodelTranslator : SceneTranslator
                         }
                     }
                 }
+                else if (hasUVs)
+                {
+                    // If no UVs, write zeroes
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        for (int l = 0; l < layerCount; l++)
+                        {
+                            writer.Write(0f);
+                            writer.Write(0f);
+                        }
+                    }
+                }
 
                 // Normals
                 if (mesh.Normals is not null)
                 {
                     for (int v = 0; v < vertexCount; v++)
                         WriteVector3(writer, mesh.GetVertexNormal(v, skinTransforms));
+                }
+                else if (hasNormals)
+                {
+                    // If no normals, write zeroes
+                    for (int v = 0; v < vertexCount; v++)
+                        WriteVector3(writer, Vector3.Zero);
                 }
 
                 // Colors
@@ -327,22 +352,36 @@ public class SemodelTranslator : SceneTranslator
                         writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 3));
                     }
                 }
+                else if (hasColours)
+                {
+                    // If no vertex colors, write white with full alpha
+                    for (int v = 0; v < vertexCount; v++)
+                    {
+                        writer.Write((byte)255);
+                        writer.Write((byte)255);
+                        writer.Write((byte)255);
+                        writer.Write((byte)255);
+                    }
+                }
 
                 // Bone influences
-                for (int v = 0; v < vertexCount; v++)
+                if (influences > 0 && mesh.BoneWeights is not null)
                 {
-                    for (int j = 0; j < influences; j++)
+                    for (int v = 0; v < vertexCount; v++)
                     {
-                        int boneIdx = ResolveGlobalBoneIndex(mesh, globalBoneIndexTable, v, j);
+                        for (int j = 0; j < influences; j++)
+                        {
+                            int boneIdx = ResolveGlobalBoneIndex(mesh, globalBoneIndexTable, v, j);
 
-                        if (bones.Length <= byte.MaxValue)
-                            writer.Write((byte)boneIdx);
-                        else if (bones.Length <= ushort.MaxValue)
-                            writer.Write((ushort)boneIdx);
-                        else
-                            writer.Write(boneIdx);
+                            if (bones.Length <= byte.MaxValue)
+                                writer.Write((byte)boneIdx);
+                            else if (bones.Length <= ushort.MaxValue)
+                                writer.Write((ushort)boneIdx);
+                            else
+                                writer.Write(boneIdx);
 
-                        writer.Write(mesh.BoneWeights!.Get<float>(v, j, 0));
+                            writer.Write(mesh.BoneWeights!.Get<float>(v, j, 0));
+                        }
                     }
                 }
 

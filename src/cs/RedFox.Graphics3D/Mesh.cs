@@ -7,7 +7,7 @@ namespace RedFox.Graphics3D
 {
     /// <summary>
     /// Represents a renderable mesh node with optional vertex attributes, skinning metadata,
-    /// morph target data, and polygon topology information.
+    /// and morph target data.
     /// </summary>
     public class Mesh : SceneNode
     {
@@ -77,23 +77,9 @@ namespace RedFox.Graphics3D
         public DataBuffer? DeltaTangents { get; set; }
 
         /// <summary>
-        /// Gets or sets the vertex indices that define the faces in the mesh.
-        /// When <see cref="FaceVertexCounts"/> is <see langword="null"/>, indices are interpreted as a triangle list.
-        /// When <see cref="FaceVertexCounts"/> is present, indices are interpreted as a concatenated polygon corner list.
+        /// Gets or sets the vertex indices that define the faces in the mesh as a triangle list.
         /// </summary>
         public DataBuffer? FaceIndices { get; set; }
-
-        /// <summary>
-        /// Gets or sets the number of vertices that belong to each face.
-        /// This enables polygon meshes with mixed face sizes, similar to the topology editors preserve.
-        /// </summary>
-        public DataBuffer? FaceVertexCounts { get; set; }
-
-        /// <summary>
-        /// Gets or sets the material slot index assigned to each face.
-        /// This mirrors per-face shading assignments used by DCC tools such as Maya and Blender.
-        /// </summary>
-        public DataBuffer? FaceMaterialIndices { get; set; }
 
         /// <summary>
         /// Gets or sets the import-time name of the mesh skin binding.
@@ -452,9 +438,9 @@ namespace RedFox.Graphics3D
         public int IndexCount => FaceIndices?.ElementCount ?? 0;
 
         /// <summary>
-        /// Gets the number of faces described by the mesh topology.
+        /// Gets the number of triangle faces described by the mesh topology.
         /// </summary>
-        public int FaceCount => FaceVertexCounts?.ElementCount ?? (FaceIndices?.ElementCount ?? 0) / 3;
+        public int FaceCount => (FaceIndices?.ElementCount ?? 0) / 3;
 
         /// <summary>
         /// Gets the number of UV layers stored on the mesh.
@@ -485,11 +471,6 @@ namespace RedFox.Graphics3D
         public bool IsIndexed => FaceIndices is not null;
 
         /// <summary>
-        /// Gets a value indicating whether the mesh contains explicit polygon face sizes.
-        /// </summary>
-        public bool HasPolygonFaces => FaceVertexCounts is not null;
-
-        /// <summary>
         /// Gets a value indicating whether the mesh contains skinning data.
         /// </summary>
         public bool HasSkinning => BoneIndices is not null && BoneWeights is not null;
@@ -511,11 +492,6 @@ namespace RedFox.Graphics3D
             _inverseBindMatrices is not null
             && _skinnedBones is not null
             && _inverseBindMatrices.Length == _skinnedBones.Length;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh contains per-face material assignments.
-        /// </summary>
-        public bool HasPerFaceMaterials => FaceMaterialIndices is not null;
 
         /// <summary>
         /// Gets the vertex position for the specified vertex index, applying the current skin pose when available.
