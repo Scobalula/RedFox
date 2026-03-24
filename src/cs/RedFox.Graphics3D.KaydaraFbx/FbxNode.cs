@@ -60,4 +60,31 @@ public sealed class FbxNode
     {
         return Children.FirstOrDefault(child => string.Equals(child.Name, name, StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// Enumerates this node and all descendant nodes in depth-first order.
+    /// </summary>
+    /// <returns>A depth-first sequence beginning with this node.</returns>
+    public IEnumerable<FbxNode> EnumerateSubtree()
+    {
+        yield return this;
+
+        for (int i = 0; i < Children.Count; i++)
+        {
+            foreach (FbxNode descendant in Children[i].EnumerateSubtree())
+            {
+                yield return descendant;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Returns the first descendant node with the provided name, if any.
+    /// </summary>
+    /// <param name="name">The node name to match.</param>
+    /// <returns>The first matching descendant node, or <see langword="null"/>.</returns>
+    public FbxNode? FirstDescendant(string name)
+    {
+        return EnumerateSubtree().FirstOrDefault(node => !ReferenceEquals(node, this) && string.Equals(node.Name, name, StringComparison.Ordinal));
+    }
 }
