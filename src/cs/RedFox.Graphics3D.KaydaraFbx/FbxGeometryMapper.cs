@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
 
@@ -63,13 +64,28 @@ public static class FbxGeometryMapper
             Properties = { new FbxProperty('i', ExtractPolygonVertexIndex(mesh)) },
         });
 
+        int[] edges = ExtractEdges(mesh);
+        if (edges.Length > 0)
+        {
+            geometry.Children.Add(new FbxNode("Edges")
+            {
+                Properties = { new FbxProperty('i', edges) },
+            });
+        }
+
+        geometry.Children.Add(new FbxNode("GeometryVersion") { Properties = { new FbxProperty('I', 124) } });
+
         if (mesh.Normals is not null)
         {
             FbxNode layerNormals = new("LayerElementNormal");
             layerNormals.Properties.Add(new FbxProperty('I', 0));
+            double[] normals = ExtractNormals(mesh);
+            layerNormals.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 102) } });
+            layerNormals.Children.Add(new FbxNode("Name") { Properties = { new FbxProperty('S', string.Empty) } });
             layerNormals.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "ByVertice") } });
             layerNormals.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "Direct") } });
-            layerNormals.Children.Add(new FbxNode("Normals") { Properties = { new FbxProperty('d', ExtractNormals(mesh)) } });
+            layerNormals.Children.Add(new FbxNode("Normals") { Properties = { new FbxProperty('d', normals) } });
+            layerNormals.Children.Add(new FbxNode("NormalsW") { Properties = { new FbxProperty('d', CreateFilledArray(normals.Length / 3, 1.0)) } });
             geometry.Children.Add(layerNormals);
         }
 
@@ -79,12 +95,57 @@ public static class FbxGeometryMapper
             {
                 FbxNode layerUv = new("LayerElementUV");
                 layerUv.Properties.Add(new FbxProperty('I', layerIndex));
-                layerUv.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "ByVertice") } });
-                layerUv.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "Direct") } });
-                layerUv.Children.Add(new FbxNode("UV") { Properties = { new FbxProperty('d', ExtractUvLayer(mesh, layerIndex)) } });
+                double[] uvLayer = ExtractUvLayer(mesh, layerIndex);
+                layerUv.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 101) } });
+                layerUv.Children.Add(new FbxNode("Name") { Properties = { new FbxProperty('S', layerIndex == 0 ? "map1" : $"UVChannel_{layerIndex}") } });
+                layerUv.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "ByPolygonVertex") } });
+                layerUv.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "IndexToDirect") } });
+                layerUv.Children.Add(new FbxNode("UV") { Properties = { new FbxProperty('d', uvLayer) } });
+                layerUv.Children.Add(new FbxNode("UVIndex") { Properties = { new FbxProperty('i', ExtractPolygonVertexUvIndices(mesh)) } });
                 geometry.Children.Add(layerUv);
             }
         }
+
+        if (mesh.Materials is { Count: > 0 })
+        {
+            FbxNode layerMaterial = new("LayerElementMaterial");
+            layerMaterial.Properties.Add(new FbxProperty('I', 0));
+            layerMaterial.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 101) } });
+            layerMaterial.Children.Add(new FbxNode("Name") { Properties = { new FbxProperty('S', string.Empty) } });
+            layerMaterial.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "AllSame") } });
+            layerMaterial.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "IndexToDirect") } });
+            layerMaterial.Children.Add(new FbxNode("Materials") { Properties = { new FbxProperty('i', new[] { 0 }) } });
+            geometry.Children.Add(layerMaterial);
+        }
+
+        FbxNode layer = new("Layer");
+        layer.Properties.Add(new FbxProperty('I', 0));
+        layer.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 100) } });
+        if (mesh.Normals is not null)
+        {
+            FbxNode normalsElement = new("LayerElement");
+            normalsElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementNormal") } });
+            normalsElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', 0) } });
+            layer.Children.Add(normalsElement);
+        }
+
+        if (mesh.UVLayers is not null)
+        {
+            FbxNode uvElement = new("LayerElement");
+            uvElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementUV") } });
+            uvElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', 0) } });
+            layer.Children.Add(uvElement);
+        }
+
+        if (mesh.Materials is { Count: > 0 })
+        {
+            FbxNode materialElement = new("LayerElement");
+            materialElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementMaterial") } });
+            materialElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', 0) } });
+            layer.Children.Add(materialElement);
+        }
+
+        geometry.Children.Add(layer);
 
         return geometry;
     }
@@ -300,13 +361,29 @@ public static class FbxGeometryMapper
         }
 
         double[] result = new double[mesh.VertexCount * 3];
-        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
+        Matrix4x4[]? rentedSkinTransforms = null;
+        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
+
+        try
         {
-            int offset = vertexIndex * 3;
-            Vector3 position = mesh.Positions.GetVector3(vertexIndex, 0);
-            result[offset] = position.X;
-            result[offset + 1] = position.Y;
-            result[offset + 2] = position.Z;
+            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+            {
+                int offset = vertexIndex * 3;
+                Vector3 position = skinTransforms.Length > 0
+                    ? mesh.GetVertexPosition(vertexIndex, skinTransforms)
+                    : mesh.GetVertexPosition(vertexIndex);
+                result[offset] = position.X;
+                result[offset + 1] = position.Y;
+                result[offset + 2] = position.Z;
+            }
+        }
+        finally
+        {
+            if (rentedSkinTransforms is not null)
+            {
+                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
+            }
         }
 
         return result;
@@ -346,6 +423,38 @@ public static class FbxGeometryMapper
     }
 
     /// <summary>
+    /// Extracts unique FBX edge representatives as polygon-vertex slot indices.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <returns>The edge slot array, or an empty array when no index data is present.</returns>
+    public static int[] ExtractEdges(Mesh mesh)
+    {
+        if (mesh.FaceIndices is null || mesh.FaceIndices.ElementCount == 0)
+        {
+            return [];
+        }
+
+        if (mesh.FaceIndices.ElementCount % 3 != 0)
+        {
+            throw new InvalidDataException($"Mesh '{mesh.Name}' must contain triangle-list indices to export FBX.");
+        }
+
+        Dictionary<long, int> edges = [];
+        for (int triangleBaseIndex = 0; triangleBaseIndex < mesh.FaceIndices.ElementCount; triangleBaseIndex += 3)
+        {
+            int vertex0 = mesh.FaceIndices.Get<int>(triangleBaseIndex, 0, 0);
+            int vertex1 = mesh.FaceIndices.Get<int>(triangleBaseIndex + 1, 0, 0);
+            int vertex2 = mesh.FaceIndices.Get<int>(triangleBaseIndex + 2, 0, 0);
+
+            AddEdge(edges, vertex0, vertex1, triangleBaseIndex);
+            AddEdge(edges, vertex1, vertex2, triangleBaseIndex + 1);
+            AddEdge(edges, vertex2, vertex0, triangleBaseIndex + 2);
+        }
+
+        return edges.Values.ToArray();
+    }
+
+    /// <summary>
     /// Extracts normal vectors from a mesh as a flat double array.
     /// </summary>
     /// <param name="mesh">The source mesh.</param>
@@ -358,13 +467,29 @@ public static class FbxGeometryMapper
         }
 
         double[] result = new double[mesh.VertexCount * 3];
-        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
+        Matrix4x4[]? rentedSkinTransforms = null;
+        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
+
+        try
         {
-            int offset = vertexIndex * 3;
-            Vector3 normal = mesh.Normals.GetVector3(vertexIndex, 0);
-            result[offset] = normal.X;
-            result[offset + 1] = normal.Y;
-            result[offset + 2] = normal.Z;
+            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+            {
+                int offset = vertexIndex * 3;
+                Vector3 normal = skinTransforms.Length > 0
+                    ? mesh.GetVertexNormal(vertexIndex, skinTransforms)
+                    : mesh.GetVertexNormal(vertexIndex);
+                result[offset] = normal.X;
+                result[offset + 1] = normal.Y;
+                result[offset + 2] = normal.Z;
+            }
+        }
+        finally
+        {
+            if (rentedSkinTransforms is not null)
+            {
+                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
+            }
         }
 
         return result;
@@ -393,5 +518,170 @@ public static class FbxGeometryMapper
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Extracts normals per polygon vertex to match Maya-style FBX mesh layer encoding.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <returns>Flat XYZ double array in polygon-vertex order.</returns>
+    public static double[] ExtractPolygonVertexNormals(Mesh mesh)
+    {
+        if (mesh.Normals is null || mesh.FaceIndices is null)
+        {
+            return [];
+        }
+
+        double[] result = new double[mesh.FaceIndices.ElementCount * 3];
+        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
+        Matrix4x4[]? rentedSkinTransforms = null;
+        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
+
+        try
+        {
+            for (int faceIndex = 0; faceIndex < mesh.FaceIndices.ElementCount; faceIndex++)
+            {
+                int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex, 0, 0);
+                Vector3 normal = skinTransforms.Length > 0
+                    ? mesh.GetVertexNormal(vertexIndex, skinTransforms)
+                    : mesh.GetVertexNormal(vertexIndex);
+                int offset = faceIndex * 3;
+                result[offset] = normal.X;
+                result[offset + 1] = normal.Y;
+                result[offset + 2] = normal.Z;
+            }
+        }
+        finally
+        {
+            if (rentedSkinTransforms is not null)
+            {
+                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Adds a unique undirected edge keyed by its control-point pair.
+    /// </summary>
+    /// <param name="edges">The unique edge map.</param>
+    /// <param name="vertex0">The first control-point index.</param>
+    /// <param name="vertex1">The second control-point index.</param>
+    /// <param name="polygonVertexSlot">The polygon-vertex slot representing this edge.</param>
+    public static void AddEdge(Dictionary<long, int> edges, int vertex0, int vertex1, int polygonVertexSlot)
+    {
+        int minVertex = Math.Min(vertex0, vertex1);
+        int maxVertex = Math.Max(vertex0, vertex1);
+        long edgeKey = ((long)minVertex << 32) | (uint)maxVertex;
+        if (!edges.ContainsKey(edgeKey))
+        {
+            edges.Add(edgeKey, polygonVertexSlot);
+        }
+    }
+
+    /// <summary>
+    /// Extracts a UV layer per polygon vertex to match Maya-style FBX mesh layer encoding.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <param name="layerIndex">The UV layer index.</param>
+    /// <returns>Flat UV double array in polygon-vertex order.</returns>
+    public static double[] ExtractPolygonVertexUvLayer(Mesh mesh, int layerIndex)
+    {
+        if (mesh.UVLayers is null || mesh.FaceIndices is null)
+        {
+            return [];
+        }
+
+        double[] result = new double[mesh.FaceIndices.ElementCount * 2];
+        for (int faceIndex = 0; faceIndex < mesh.FaceIndices.ElementCount; faceIndex++)
+        {
+            int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex, 0, 0);
+            Vector2 uv = mesh.UVLayers.GetVector2(vertexIndex, layerIndex);
+            int offset = faceIndex * 2;
+            result[offset] = uv.X;
+            result[offset + 1] = uv.Y;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts polygon-vertex UV indices that reference the per-vertex UV direct array.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <returns>The UV index array in polygon-vertex order.</returns>
+    public static int[] ExtractPolygonVertexUvIndices(Mesh mesh)
+    {
+        if (mesh.FaceIndices is null)
+        {
+            return [];
+        }
+
+        int[] result = new int[mesh.FaceIndices.ElementCount];
+        for (int faceIndex = 0; faceIndex < mesh.FaceIndices.ElementCount; faceIndex++)
+        {
+            result[faceIndex] = mesh.FaceIndices.Get<int>(faceIndex, 0, 0);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a sequential integer array from zero to count minus one.
+    /// </summary>
+    /// <param name="count">The element count.</param>
+    /// <returns>The generated index array.</returns>
+    public static int[] CreateSequentialIndices(int count)
+    {
+        int[] result = new int[count];
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = i;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Creates a filled double array with a repeated value.
+    /// </summary>
+    /// <param name="count">The element count.</param>
+    /// <param name="value">The repeated value.</param>
+    /// <returns>The filled array.</returns>
+    public static double[] CreateFilledArray(int count, double value)
+    {
+        double[] result = new double[count];
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = value;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Resolves precomputed skin transforms aligned to the mesh skin palette for export-time geometry evaluation.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <param name="stackSkinTransforms">A caller-provided stack buffer used for small palettes.</param>
+    /// <param name="rentedSkinTransforms">Receives a rented array when the mesh palette exceeds the stack buffer.</param>
+    /// <returns>A span containing the resolved skin transforms, or an empty span when the mesh is not skinned.</returns>
+    public static ReadOnlySpan<Matrix4x4> GetSkinTransforms(Mesh mesh, Span<Matrix4x4> stackSkinTransforms, out Matrix4x4[]? rentedSkinTransforms)
+    {
+        rentedSkinTransforms = null;
+
+        int skinnedBoneCount = mesh.SkinnedBones?.Count ?? 0;
+        if (skinnedBoneCount == 0)
+        {
+            return [];
+        }
+
+        Span<Matrix4x4> skinTransforms = skinnedBoneCount <= stackSkinTransforms.Length
+            ? stackSkinTransforms[..skinnedBoneCount]
+            : (rentedSkinTransforms = ArrayPool<Matrix4x4>.Shared.Rent(skinnedBoneCount)).AsSpan(0, skinnedBoneCount);
+
+        mesh.CopySkinTransforms(skinTransforms);
+        return skinTransforms;
     }
 }

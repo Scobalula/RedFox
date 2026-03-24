@@ -9,7 +9,47 @@ namespace RedFox.Graphics3D.KaydaraFbx;
 /// </summary>
 public static class FbxDocumentSerializer
 {
-    public static readonly byte[] s_binaryHeader = [
+    /// <summary>
+    /// Gets the RedFox-authored creator string written into top-level FBX metadata.
+    /// </summary>
+    public const string RedFoxTopLevelCreator = "RedFox Graphics3D Kaydara FBX";
+
+    /// <summary>
+    /// Gets the Maya-compatible RedFox creation time written into top-level metadata.
+    /// </summary>
+    public const string RedFoxCompatibleCreationTime = "2026-03-24 15:33:49:359";
+
+    /// <summary>
+    /// Gets the Maya-compatible FileId used for RedFox-authored exports.
+    /// </summary>
+    public static readonly byte[] RedFoxCompatibleFileId =
+    [
+        0x2C, 0xBE, 0x27, 0xE4, 0xB9, 0x2E, 0xC4, 0xCF,
+        0xB1, 0xC3, 0xB8, 0x2B, 0xAD, 0x29, 0xFD, 0xF3,
+    ];
+
+    /// <summary>
+    /// Gets the default 16-byte FBX footer identifier fallback.
+    /// </summary>
+    public static readonly byte[] FooterId =
+    [
+        0xFA, 0xBC, 0xAB, 0x09, 0xD0, 0xCA, 0xD6, 0x63,
+        0xB6, 0x73, 0xFC, 0x8C, 0x12, 0xF8, 0x2D, 0x72,
+    ];
+
+    /// <summary>
+    /// Gets the 16-byte FBX binary footer magic sequence.
+    /// </summary>
+    public static readonly byte[] FooterMagic =
+    [
+        0xF8, 0x5A, 0x8C, 0x6A, 0xDE, 0xF5, 0xD9, 0x7E,
+        0xEC, 0xE9, 0x0C, 0xE3, 0x75, 0x8F, 0x29, 0x0B,
+    ];
+
+    /// <summary>
+    /// Gets the canonical FBX binary file header.
+    /// </summary>
+    public static readonly byte[] BinaryHeader = [
         (byte)'K', (byte)'a', (byte)'y', (byte)'d', (byte)'a', (byte)'r', (byte)'a', (byte)' ',
         (byte)'F', (byte)'B', (byte)'X', (byte)' ', (byte)'B', (byte)'i', (byte)'n', (byte)'a',
         (byte)'r', (byte)'y', (byte)' ', (byte)' ', 0x00, 0x1A, 0x00,
@@ -22,12 +62,12 @@ public static class FbxDocumentSerializer
     /// <returns><see langword="true"/> when the header matches the FBX binary signature.</returns>
     public static bool IsBinaryHeader(ReadOnlySpan<byte> header)
     {
-        if (header.Length < s_binaryHeader.Length)
+        if (header.Length < BinaryHeader.Length)
         {
             return false;
         }
 
-        return header[..s_binaryHeader.Length].SequenceEqual(s_binaryHeader);
+        return header[..BinaryHeader.Length].SequenceEqual(BinaryHeader);
     }
 
     /// <summary>
@@ -58,11 +98,11 @@ public static class FbxDocumentSerializer
         try
         {
             long originalPosition = workingStream.Position;
-            Span<byte> probe = stackalloc byte[s_binaryHeader.Length];
+            Span<byte> probe = stackalloc byte[BinaryHeader.Length];
             int read = workingStream.Read(probe);
             workingStream.Position = originalPosition;
 
-            if (read == s_binaryHeader.Length && IsBinaryHeader(probe))
+            if (read == BinaryHeader.Length && IsBinaryHeader(probe))
             {
                 return ReadBinary(workingStream);
             }
@@ -89,6 +129,8 @@ public static class FbxDocumentSerializer
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(document);
 
+        NormalizeRedFoxTopLevelMetadata(document);
+
         if (format == FbxFormat.Binary)
         {
             WriteBinary(stream, document);
@@ -107,8 +149,8 @@ public static class FbxDocumentSerializer
     {
         using BinaryReader reader = new(stream, Encoding.UTF8, leaveOpen: true);
 
-        byte[] header = reader.ReadBytes(s_binaryHeader.Length);
-        if (!header.AsSpan().SequenceEqual(s_binaryHeader))
+        byte[] header = reader.ReadBytes(BinaryHeader.Length);
+        if (!header.AsSpan().SequenceEqual(BinaryHeader))
         {
             throw new InvalidDataException("Invalid FBX binary header.");
         }
@@ -229,14 +271,12 @@ public static class FbxDocumentSerializer
         return new FbxProperty(typeCode, value);
     }
 
-    public delegate object ArrayFactory(ReadOnlySpan<byte> bytes, int count);
-
     /// <summary>Reads and optionally decompresses an FBX binary array property.</summary>
     /// <param name="reader">The binary reader positioned at the array header.</param>
     /// <param name="elementSize">The byte size of each element.</param>
     /// <param name="factory">The delegate that converts raw bytes into a typed array object.</param>
     /// <returns>The decoded array object.</returns>
-    public static object ReadArrayProperty(BinaryReader reader, int elementSize, ArrayFactory factory)
+    public static object ReadArrayProperty(BinaryReader reader, int elementSize, FbxArrayFactory factory)
     {
         int arrayLength = reader.ReadInt32();
         int encoding = reader.ReadInt32();
@@ -307,6 +347,12 @@ public static class FbxDocumentSerializer
         return exact;
     }
 
+    /// <summary>
+    /// Attempts to decompress the input stream using the zlib algorithm.
+    /// </summary>
+    /// <param name="input">The compressed source stream.</param>
+    /// <param name="output">The destination stream that receives decompressed bytes.</param>
+    /// <returns><see langword="true"/> when decompression succeeds; otherwise <see langword="false"/>.</returns>
     public static bool TryDecompressWithZlib(Stream input, Stream output)
     {
         try
@@ -321,12 +367,23 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Decompresses the input stream using the raw deflate algorithm.
+    /// </summary>
+    /// <param name="input">The compressed source stream.</param>
+    /// <param name="output">The destination stream that receives decompressed bytes.</param>
     public static void TryDecompressWithDeflate(Stream input, Stream output)
     {
         using DeflateStream deflate = new(input, CompressionMode.Decompress, leaveOpen: true);
         deflate.CopyTo(output);
     }
 
+    /// <summary>
+    /// Decodes a raw byte span into a <see cref="float"/> array.
+    /// </summary>
+    /// <param name="bytes">The source bytes in little-endian layout.</param>
+    /// <param name="count">The number of elements to decode.</param>
+    /// <returns>The decoded array.</returns>
     public static float[] ReadFloatArray(ReadOnlySpan<byte> bytes, int count)
     {
         float[] values = new float[count];
@@ -338,6 +395,12 @@ public static class FbxDocumentSerializer
         return values;
     }
 
+    /// <summary>
+    /// Decodes a raw byte span into a <see cref="double"/> array.
+    /// </summary>
+    /// <param name="bytes">The source bytes in little-endian layout.</param>
+    /// <param name="count">The number of elements to decode.</param>
+    /// <returns>The decoded array.</returns>
     public static double[] ReadDoubleArray(ReadOnlySpan<byte> bytes, int count)
     {
         double[] values = new double[count];
@@ -349,6 +412,12 @@ public static class FbxDocumentSerializer
         return values;
     }
 
+    /// <summary>
+    /// Decodes a raw byte span into a <see cref="long"/> array.
+    /// </summary>
+    /// <param name="bytes">The source bytes in little-endian layout.</param>
+    /// <param name="count">The number of elements to decode.</param>
+    /// <returns>The decoded array.</returns>
     public static long[] ReadInt64Array(ReadOnlySpan<byte> bytes, int count)
     {
         long[] values = new long[count];
@@ -360,6 +429,12 @@ public static class FbxDocumentSerializer
         return values;
     }
 
+    /// <summary>
+    /// Decodes a raw byte span into an <see cref="int"/> array.
+    /// </summary>
+    /// <param name="bytes">The source bytes in little-endian layout.</param>
+    /// <param name="count">The number of elements to decode.</param>
+    /// <returns>The decoded array.</returns>
     public static int[] ReadInt32Array(ReadOnlySpan<byte> bytes, int count)
     {
         int[] values = new int[count];
@@ -371,6 +446,12 @@ public static class FbxDocumentSerializer
         return values;
     }
 
+    /// <summary>
+    /// Decodes a raw byte span into a <see cref="bool"/> array where any non-zero byte is <see langword="true"/>.
+    /// </summary>
+    /// <param name="bytes">The source bytes.</param>
+    /// <param name="count">The number of elements to decode.</param>
+    /// <returns>The decoded array.</returns>
     public static bool[] ReadBoolArray(ReadOnlySpan<byte> bytes, int count)
     {
         bool[] values = new bool[count];
@@ -382,6 +463,11 @@ public static class FbxDocumentSerializer
         return values;
     }
 
+    /// <summary>
+    /// Reads a length-prefixed UTF-8 string from the binary reader.
+    /// </summary>
+    /// <param name="reader">The binary reader positioned at the 4-byte length prefix.</param>
+    /// <returns>The decoded string.</returns>
     public static string ReadLengthPrefixedString(BinaryReader reader)
     {
         int length = reader.ReadInt32();
@@ -394,6 +480,11 @@ public static class FbxDocumentSerializer
         return Encoding.UTF8.GetString(bytes);
     }
 
+    /// <summary>
+    /// Reads a length-prefixed raw byte array from the binary reader.
+    /// </summary>
+    /// <param name="reader">The binary reader positioned at the 4-byte length prefix.</param>
+    /// <returns>The decoded byte array.</returns>
     public static byte[] ReadLengthPrefixedBytes(BinaryReader reader)
     {
         int length = reader.ReadInt32();
@@ -425,17 +516,20 @@ public static class FbxDocumentSerializer
 
         using BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true);
 
-        writer.Write(s_binaryHeader);
+        writer.Write(BinaryHeader);
         writer.Write(document.Version <= 0 ? 7400 : document.Version);
 
         bool is64BitNodeRecords = document.Version >= 7500;
 
-        foreach (FbxNode node in document.Nodes)
+        for (int nodeIndex = 0; nodeIndex < document.Nodes.Count; nodeIndex++)
         {
-            WriteBinaryNode(writer, stream, node, is64BitNodeRecords);
+            FbxNode node = document.Nodes[nodeIndex];
+            bool isLast = nodeIndex == document.Nodes.Count - 1;
+            WriteBinaryNode(writer, stream, node, is64BitNodeRecords, isLast);
         }
 
         WriteBinaryNullRecord(writer, is64BitNodeRecords);
+        WriteBinaryFooter(writer, stream, document, document.Version <= 0 ? 7400 : document.Version);
     }
 
     /// <summary>
@@ -445,7 +539,8 @@ public static class FbxDocumentSerializer
     /// <param name="stream">The backing stream used for seek-back operations.</param>
     /// <param name="node">The node to serialise.</param>
     /// <param name="is64BitNodeRecords">Whether to use 64-bit node record headers.</param>
-    public static void WriteBinaryNode(BinaryWriter writer, Stream stream, FbxNode node, bool is64BitNodeRecords)
+    /// <param name="isLast">Whether the node is the last sibling in its current scope.</param>
+    public static void WriteBinaryNode(BinaryWriter writer, Stream stream, FbxNode node, bool is64BitNodeRecords, bool isLast)
     {
         long recordStart = stream.Position;
 
@@ -476,12 +571,18 @@ public static class FbxDocumentSerializer
         long propertyListEnd = stream.Position;
         ulong propertyListLength = (ulong)(propertyListEnd - propertyListStart);
 
-        foreach (FbxNode child in node.Children)
+        for (int childIndex = 0; childIndex < node.Children.Count; childIndex++)
         {
-            WriteBinaryNode(writer, stream, child, is64BitNodeRecords);
+            FbxNode child = node.Children[childIndex];
+            bool childIsLast = childIndex == node.Children.Count - 1;
+            WriteBinaryNode(writer, stream, child, is64BitNodeRecords, childIsLast);
         }
 
-        WriteBinaryNullRecord(writer, is64BitNodeRecords);
+        if (ShouldWriteBlockSentinel(node, isLast))
+        {
+            WriteBinaryNullRecord(writer, is64BitNodeRecords);
+        }
+
         long endOffset = stream.Position;
 
         stream.Position = recordStart;
@@ -505,6 +606,18 @@ public static class FbxDocumentSerializer
     }
 
     /// <summary>
+    /// Determines whether a node needs a trailing block sentinel in binary form.
+    /// </summary>
+    /// <param name="node">The node being written.</param>
+    /// <param name="isLast">Whether the node is the last sibling in its scope.</param>
+    /// <returns><see langword="true"/> when a trailing sentinel must be written.</returns>
+    public static bool ShouldWriteBlockSentinel(FbxNode node, bool isLast)
+    {
+        _ = isLast;
+        return node.Children.Count > 0;
+    }
+
+    /// <summary>
     /// Writes an all-zero FBX node record used as a sentinel at the end of a scope.
     /// </summary>
     /// <param name="writer">The binary writer.</param>
@@ -524,6 +637,119 @@ public static class FbxDocumentSerializer
         writer.Write(0U);
         writer.Write(0U);
         writer.Write((byte)0);
+    }
+
+    /// <summary>
+    /// Creates the 16-byte FBX footer identifier associated with a 16-byte <c>FileId</c> payload.
+    /// </summary>
+    /// <param name="fileId">The 16-byte FBX <c>FileId</c> value.</param>
+    /// <returns>The 16-byte footer identifier expected by Maya-compatible binary FBX files.</returns>
+    public static byte[] CreateFooterId(ReadOnlySpan<byte> fileId)
+    {
+        if (fileId.Length != 16)
+        {
+            throw new ArgumentException("The FBX FileId must contain exactly 16 bytes.", nameof(fileId));
+        }
+
+        return
+        [
+            0xFA,
+            0xBC,
+            (byte)(fileId[0] ^ 0x83),
+            (byte)(fileId[1] ^ 0xBA),
+            (byte)(fileId[0] ^ fileId[1] ^ 0x4B),
+            0xCA,
+            (byte)(fileId[0] ^ 0xFE),
+            (byte)(fileId[7] ^ 0xA1),
+            (byte)(fileId[0] ^ fileId[7] ^ 0x5C),
+            0x73,
+            (byte)(fileId[0] ^ fileId[7] ^ fileId[8] ^ 0xA9),
+            (byte)(fileId[11] ^ 0xA6),
+            (byte)(fileId[0] ^ fileId[7] ^ fileId[8] ^ fileId[11] ^ 0x6D),
+            0xF8,
+            (byte)(fileId[0] ^ fileId[7] ^ fileId[8] ^ 0x78),
+            (byte)(fileId[11] ^ 0x58),
+        ];
+    }
+
+    /// <summary>
+    /// Resolves the footer identifier that should be written for an FBX document.
+    /// </summary>
+    /// <param name="document">The document being serialized.</param>
+    /// <returns>The footer identifier derived from the document <c>FileId</c>, or the default fallback when unavailable.</returns>
+    public static byte[] ResolveFooterId(FbxDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        FbxNode? fileIdNode = document.FirstNode("FileId");
+        if (fileIdNode is not null && fileIdNode.Properties.Count > 0 && fileIdNode.Properties[0].Value is byte[] fileId && fileId.Length == 16)
+        {
+            return CreateFooterId(fileId);
+        }
+
+        return (byte[])FooterId.Clone();
+    }
+
+    /// <summary>
+    /// Normalizes RedFox-authored top-level metadata so exported documents use a Maya-compatible FileId and CreationTime pair.
+    /// </summary>
+    /// <param name="document">The document being prepared for serialization.</param>
+    public static void NormalizeRedFoxTopLevelMetadata(FbxDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        FbxNode? creatorNode = document.Nodes.FirstOrDefault(static node => node.Name == "Creator" && node.Properties.Count > 0);
+        if (creatorNode is null || !string.Equals(creatorNode.Properties[0].AsString(), RedFoxTopLevelCreator, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        FbxNode? fileIdNode = document.FirstNode("FileId");
+        if (fileIdNode is null)
+        {
+            fileIdNode = new FbxNode("FileId");
+            document.Nodes.Insert(Math.Min(1, document.Nodes.Count), fileIdNode);
+        }
+
+        fileIdNode.Properties.Clear();
+        fileIdNode.Properties.Add(new FbxProperty('R', (byte[])RedFoxCompatibleFileId.Clone()));
+
+        FbxNode? creationTimeNode = document.FirstNode("CreationTime");
+        if (creationTimeNode is null)
+        {
+            creationTimeNode = new FbxNode("CreationTime");
+            int creatorIndex = document.Nodes.FindIndex(static node => node.Name == "Creator");
+            int insertIndex = creatorIndex >= 0 ? creatorIndex : document.Nodes.Count;
+            document.Nodes.Insert(insertIndex, creationTimeNode);
+        }
+
+        creationTimeNode.Properties.Clear();
+        creationTimeNode.Properties.Add(new FbxProperty('S', RedFoxCompatibleCreationTime));
+    }
+
+    /// <summary>
+    /// Writes the binary FBX footer that follows the root sentinel.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="stream">The backing stream.</param>
+    /// <param name="document">The document whose footer is being written.</param>
+    /// <param name="version">The FBX file version.</param>
+    public static void WriteBinaryFooter(BinaryWriter writer, Stream stream, FbxDocument document, int version)
+    {
+        writer.Write(ResolveFooterId(document));
+        writer.Write(0);
+
+        long offset = stream.Position;
+        int padding = (int)(((offset + 15L) & ~15L) - offset);
+        if (padding == 0)
+        {
+            padding = 16;
+        }
+
+        writer.Write(new byte[padding]);
+        writer.Write(version);
+        writer.Write(new byte[120]);
+        writer.Write(FooterMagic);
     }
 
     /// <summary>
@@ -589,6 +815,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an uncompressed binary FBX array property containing <see cref="float"/> elements.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteArrayProperty(BinaryWriter writer, float[] values)
     {
         writer.Write(values.Length);
@@ -601,6 +832,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an uncompressed binary FBX array property containing <see cref="double"/> elements.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteArrayProperty(BinaryWriter writer, double[] values)
     {
         writer.Write(values.Length);
@@ -613,6 +849,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an uncompressed binary FBX array property containing <see cref="long"/> elements.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteArrayProperty(BinaryWriter writer, long[] values)
     {
         writer.Write(values.Length);
@@ -625,6 +866,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an uncompressed binary FBX array property containing <see cref="int"/> elements.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteArrayProperty(BinaryWriter writer, int[] values)
     {
         writer.Write(values.Length);
@@ -637,6 +883,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an uncompressed binary FBX array property containing <see cref="bool"/> elements.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteArrayProperty(BinaryWriter writer, bool[] values)
     {
         writer.Write(values.Length);
@@ -658,32 +909,219 @@ public static class FbxDocumentSerializer
     {
         using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
         string text = reader.ReadToEnd();
-
-        FbxAsciiTokenizer tokenizer = new(text);
         FbxDocument document = new()
         {
             Format = FbxFormat.Ascii,
             Version = 7400,
         };
 
-        while (!tokenizer.IsEnd)
+        foreach ((int start, int end) in EnumerateAsciiTopLevelNodeRanges(text))
         {
-            if (tokenizer.TryConsumeCommentOrWhitespace())
-            {
-                continue;
-            }
-
+            FbxAsciiTokenizer tokenizer = new(text, start, end - start);
             FbxNode? node = ParseAsciiNode(tokenizer);
             if (node is not null)
             {
                 document.Nodes.Add(node);
-                continue;
             }
-
-            tokenizer.AdvanceOne();
         }
 
         return document;
+    }
+
+    /// <summary>
+    /// Enumerates raw text slices for each top-level ASCII FBX node.
+    /// </summary>
+    /// <param name="text">The full ASCII FBX document text.</param>
+    /// <returns>A sequence of top-level node text spans.</returns>
+    public static IEnumerable<string> EnumerateAsciiTopLevelNodeTexts(string text)
+    {
+        foreach ((int start, int end) in EnumerateAsciiTopLevelNodeRanges(text))
+        {
+            yield return text[start..end];
+        }
+    }
+
+    /// <summary>
+    /// Enumerates absolute source ranges for each top-level ASCII FBX node.
+    /// </summary>
+    /// <param name="text">The full ASCII FBX document text.</param>
+    /// <returns>A sequence of inclusive-start/exclusive-end node ranges.</returns>
+    public static IEnumerable<(int Start, int End)> EnumerateAsciiTopLevelNodeRanges(string text)
+    {
+        return EnumerateAsciiTopLevelNodeRanges(text, 0, text.Length);
+    }
+
+    /// <summary>
+    /// Enumerates absolute source ranges for each top-level ASCII FBX node within the specified source window.
+    /// </summary>
+    /// <param name="text">The full ASCII FBX document text.</param>
+    /// <param name="start">The inclusive start offset of the scan window.</param>
+    /// <param name="end">The exclusive end offset of the scan window.</param>
+    /// <returns>A sequence of inclusive-start/exclusive-end node ranges.</returns>
+    public static IEnumerable<(int Start, int End)> EnumerateAsciiTopLevelNodeRanges(string text, int start, int end)
+    {
+        int position = start;
+        while (position < end)
+        {
+            SkipAsciiWhitespaceAndComments(text, ref position, end);
+            if (position >= end)
+            {
+                yield break;
+            }
+
+            int nodeStart = position;
+            int nodeEnd = FindAsciiTopLevelNodeEnd(text, position, end);
+            if (nodeEnd <= nodeStart)
+            {
+                position++;
+                continue;
+            }
+
+            yield return (nodeStart, nodeEnd);
+            position = nodeEnd;
+        }
+    }
+
+    /// <summary>
+    /// Skips ASCII whitespace and semicolon comments from the current text position.
+    /// </summary>
+    /// <param name="text">The source ASCII FBX text.</param>
+    /// <param name="position">The mutable character offset.</param>
+    public static void SkipAsciiWhitespaceAndComments(string text, ref int position)
+    {
+        SkipAsciiWhitespaceAndComments(text, ref position, text.Length);
+    }
+
+    /// <summary>
+    /// Skips ASCII whitespace and semicolon comments from the current text position inside the specified source window.
+    /// </summary>
+    /// <param name="text">The source ASCII FBX text.</param>
+    /// <param name="position">The mutable character offset.</param>
+    /// <param name="end">The exclusive end offset of the scan window.</param>
+    public static void SkipAsciiWhitespaceAndComments(string text, ref int position, int end)
+    {
+        while (position < end)
+        {
+            char current = text[position];
+            if (char.IsWhiteSpace(current))
+            {
+                position++;
+                continue;
+            }
+
+            if (current != ';')
+            {
+                break;
+            }
+
+            while (position < end && text[position] != '\n')
+            {
+                position++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the exclusive end offset of a top-level ASCII FBX node starting at the specified position.
+    /// </summary>
+    /// <param name="text">The source ASCII FBX text.</param>
+    /// <param name="start">The start offset of the node.</param>
+    /// <returns>The exclusive end offset of the node text.</returns>
+    public static int FindAsciiTopLevelNodeEnd(string text, int start)
+    {
+        return FindAsciiTopLevelNodeEnd(text, start, text.Length);
+    }
+
+    /// <summary>
+    /// Finds the exclusive end offset of a top-level ASCII FBX node starting at the specified position within a source window.
+    /// </summary>
+    /// <param name="text">The source ASCII FBX text.</param>
+    /// <param name="start">The start offset of the node.</param>
+    /// <param name="end">The exclusive end offset of the scan window.</param>
+    /// <returns>The exclusive end offset of the node text.</returns>
+    public static int FindAsciiTopLevelNodeEnd(string text, int start, int end)
+    {
+        bool inString = false;
+        bool inComment = false;
+        bool sawBlock = false;
+        int depth = 0;
+
+        for (int position = start; position < end; position++)
+        {
+            char current = text[position];
+
+            if (inComment)
+            {
+                if (current == '\n')
+                {
+                    inComment = false;
+                    if (!sawBlock)
+                    {
+                        return position + 1;
+                    }
+                }
+
+                continue;
+            }
+
+            if (inString)
+            {
+                if (current == '\\' && position + 1 < end)
+                {
+                    position++;
+                    continue;
+                }
+
+                if (current == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if (current == ';')
+            {
+                inComment = true;
+                continue;
+            }
+
+            if (current == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (current == '{')
+            {
+                sawBlock = true;
+                depth++;
+                continue;
+            }
+
+            if (current == '}')
+            {
+                if (depth <= 0)
+                {
+                    continue;
+                }
+
+                depth--;
+                if (depth == 0)
+                {
+                    return position + 1;
+                }
+
+                continue;
+            }
+
+            if (!sawBlock && (current == '\n' || current == '\r'))
+            {
+                return position + 1;
+            }
+        }
+
+        return end;
     }
 
     /// <summary>
@@ -705,14 +1143,15 @@ public static class FbxDocumentSerializer
         }
 
         FbxNode node = new(nodeName);
+        bool openedBlock = false;
 
         while (!tokenizer.IsEnd)
         {
             tokenizer.TryConsumeCommentOrWhitespace();
 
-            if (tokenizer.PeekChar() == '{')
+            if (tokenizer.TryConsume('{'))
             {
-                tokenizer.AdvanceOne();
+                openedBlock = true;
                 break;
             }
 
@@ -722,6 +1161,7 @@ public static class FbxDocumentSerializer
                 break;
             }
 
+            int propertyStart = tokenizer.Position;
             FbxProperty? property = ParseAsciiProperty(tokenizer);
             if (property is not null)
             {
@@ -730,29 +1170,26 @@ public static class FbxDocumentSerializer
 
             tokenizer.TryConsume(',');
             tokenizer.TryConsumeCommentOrWhitespace();
+            if (tokenizer.Position == propertyStart)
+            {
+                tokenizer.AdvanceOne();
+            }
         }
 
-        if (!tokenizer.LastOpenedBlock)
+        if (!openedBlock)
         {
             return node;
         }
 
-        while (!tokenizer.IsEnd)
+        (int childBlockStart, int childBlockEnd) = tokenizer.ReadBlockRange();
+        foreach ((int childNodeStart, int childNodeEnd) in EnumerateAsciiTopLevelNodeRanges(tokenizer.Text, childBlockStart, childBlockEnd))
         {
-            tokenizer.TryConsumeCommentOrWhitespace();
-            if (tokenizer.TryConsume('}'))
-            {
-                break;
-            }
-
-            FbxNode? child = ParseAsciiNode(tokenizer);
+            FbxAsciiTokenizer childTokenizer = new(tokenizer.Text, childNodeStart, childNodeEnd - childNodeStart);
+            FbxNode? child = ParseAsciiNode(childTokenizer);
             if (child is not null)
             {
                 node.Children.Add(child);
-                continue;
             }
-
-            tokenizer.AdvanceOne();
         }
 
         return node;
@@ -769,91 +1206,136 @@ public static class FbxDocumentSerializer
 
         if (tokenizer.TryConsume('*'))
         {
-            string? countText = tokenizer.ReadNumberToken();
-            _ = int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int _);
-            tokenizer.TryConsumeCommentOrWhitespace();
-            if (!tokenizer.TryConsume('{'))
-            {
-                return null;
-            }
-
-            tokenizer.TryConsumeCommentOrWhitespace();
-            string? arrayPrefix = tokenizer.ReadIdentifier();
-            if (!string.Equals(arrayPrefix, "a", StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-
-            tokenizer.TryConsumeCommentOrWhitespace();
-            tokenizer.TryConsume(':');
-
-            List<string> values = [];
-            while (!tokenizer.IsEnd)
-            {
-                tokenizer.TryConsumeCommentOrWhitespace();
-                if (tokenizer.PeekChar() == '}')
-                {
-                    tokenizer.AdvanceOne();
-                    break;
-                }
-
-                string? token = tokenizer.ReadNumberToken();
-                if (string.IsNullOrWhiteSpace(token))
-                {
-                    token = tokenizer.ReadIdentifier();
-                }
-
-                if (!string.IsNullOrWhiteSpace(token))
-                {
-                    values.Add(token);
-                }
-
-                tokenizer.TryConsume(',');
-            }
-
-            return InferArrayProperty(values);
+            return ParseAsciiArrayProperty(tokenizer);
         }
 
         if (tokenizer.PeekChar() == '"')
         {
-            string text = tokenizer.ReadQuotedString();
-            return new FbxProperty('S', text);
+            return new FbxProperty('S', tokenizer.ReadQuotedString());
         }
 
-        string? number = tokenizer.ReadNumberToken();
-        if (!string.IsNullOrWhiteSpace(number))
+        if (tokenizer.TryReadNumberRange(out int numberStart, out int numberLength))
         {
-            if (number.Contains('.') || number.Contains('e', StringComparison.OrdinalIgnoreCase))
-            {
-                double floating = double.Parse(number, CultureInfo.InvariantCulture);
-                return new FbxProperty('D', floating);
-            }
-
-            long integer = long.Parse(number, CultureInfo.InvariantCulture);
-            return new FbxProperty('L', integer);
+            return ParseAsciiNumericProperty(tokenizer.Text, numberStart, numberLength);
         }
 
-        string? identifier = tokenizer.ReadIdentifier();
-        if (string.IsNullOrWhiteSpace(identifier))
+        if (!tokenizer.TryReadIdentifierRange(out int identifierStart, out int identifierLength))
         {
             return null;
         }
 
-        if (string.Equals(identifier, "Y", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(identifier, "T", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(identifier, "true", StringComparison.OrdinalIgnoreCase))
+        return ParseAsciiBooleanOrStringProperty(tokenizer.Text, identifierStart, identifierLength);
+    }
+
+    /// <summary>
+    /// Parses an ASCII FBX array property of the form <c>*count { a: v0,v1,... }</c> from the tokenizer.
+    /// The leading <c>*</c> must already be consumed before calling this method.
+    /// </summary>
+    /// <param name="tokenizer">The tokenizer positioned immediately after the <c>*</c> token.</param>
+    /// <returns>The inferred typed array property, or <see langword="null"/> when the array header is malformed.</returns>
+    public static FbxProperty? ParseAsciiArrayProperty(FbxAsciiTokenizer tokenizer)
+    {
+        string? countText = tokenizer.ReadNumberToken();
+        _ = int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int _);
+        tokenizer.TryConsumeCommentOrWhitespace();
+
+        if (!tokenizer.TryConsume('{'))
+        {
+            return null;
+        }
+
+        tokenizer.TryConsumeCommentOrWhitespace();
+        string? arrayPrefix = tokenizer.ReadIdentifier();
+        if (!string.Equals(arrayPrefix, "a", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        tokenizer.TryConsumeCommentOrWhitespace();
+        tokenizer.TryConsume(':');
+
+        List<string> values = [];
+        while (!tokenizer.IsEnd)
+        {
+            tokenizer.TryConsumeCommentOrWhitespace();
+            if (tokenizer.PeekChar() == '}')
+            {
+                tokenizer.AdvanceOne();
+                break;
+            }
+
+            int valueStart = tokenizer.Position;
+            string? token = tokenizer.ReadNumberToken();
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                token = tokenizer.ReadIdentifier();
+            }
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                values.Add(token);
+            }
+
+            tokenizer.TryConsume(',');
+            if (tokenizer.Position == valueStart)
+            {
+                tokenizer.AdvanceOne();
+            }
+        }
+
+        return InferArrayProperty(values);
+    }
+
+    /// <summary>
+    /// Parses a numeric ASCII property from a pre-read number token range.
+    /// Integers produce an <c>L</c> (Int64) property, floating-point values produce a <c>D</c> (Double) property.
+    /// </summary>
+    /// <param name="text">The backing tokenizer text.</param>
+    /// <param name="start">The inclusive start offset of the numeric token.</param>
+    /// <param name="length">The length of the numeric token.</param>
+    /// <returns>The typed numeric property.</returns>
+    public static FbxProperty ParseAsciiNumericProperty(string text, int start, int length)
+    {
+        ReadOnlySpan<char> number = text.AsSpan(start, length);
+        if (number.IndexOfAny('.', 'e', 'E') >= 0)
+        {
+            double floating = double.Parse(number, CultureInfo.InvariantCulture);
+            return new FbxProperty('D', floating);
+        }
+
+        long integer = long.Parse(number, CultureInfo.InvariantCulture);
+        return new FbxProperty('L', integer);
+    }
+
+    /// <summary>
+    /// Evaluates an identifier token as either a boolean (<c>C</c>) or string (<c>S</c>) property.
+    /// Tokens matching <c>Y</c>, <c>T</c>, or <c>true</c> produce a boolean <see langword="true"/>;
+    /// tokens matching <c>N</c>, <c>F</c>, or <c>false</c> produce a boolean <see langword="false"/>;
+    /// all other identifiers produce a string property.
+    /// </summary>
+    /// <param name="text">The backing tokenizer text.</param>
+    /// <param name="start">The inclusive start offset of the identifier token.</param>
+    /// <param name="length">The length of the identifier token.</param>
+    /// <returns>The typed property.</returns>
+    public static FbxProperty ParseAsciiBooleanOrStringProperty(string text, int start, int length)
+    {
+        ReadOnlySpan<char> identifier = text.AsSpan(start, length);
+
+        if (identifier.Equals("Y".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || identifier.Equals("T".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || identifier.Equals("true".AsSpan(), StringComparison.OrdinalIgnoreCase))
         {
             return new FbxProperty('C', true);
         }
 
-        if (string.Equals(identifier, "N", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(identifier, "F", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(identifier, "false", StringComparison.OrdinalIgnoreCase))
+        if (identifier.Equals("N".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || identifier.Equals("F".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            || identifier.Equals("false".AsSpan(), StringComparison.OrdinalIgnoreCase))
         {
             return new FbxProperty('C', false);
         }
 
-        return new FbxProperty('S', identifier);
+        return new FbxProperty('S', text.Substring(start, length));
     }
 
     /// <summary>
@@ -931,6 +1413,12 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes a single FBX node and its children to the ASCII stream.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="node">The node to serialize.</param>
+    /// <param name="indent">The current indentation depth.</param>
     public static void WriteAsciiNode(StreamWriter writer, FbxNode node, int indent)
     {
         string indentText = new(' ', indent * 2);
@@ -968,17 +1456,22 @@ public static class FbxDocumentSerializer
         writer.WriteLine("}");
     }
 
+    /// <summary>
+    /// Writes a single FBX property value to the ASCII stream.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="property">The property to serialize.</param>
     public static void WriteAsciiProperty(StreamWriter writer, FbxProperty property)
     {
         switch (property.TypeCode)
         {
             case 'S':
                 writer.Write('"');
-                writer.Write(property.AsString().Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal));
+                writer.Write(FormatAsciiString(property.AsString()));
                 writer.Write('"');
                 return;
             case 'C':
-                writer.Write(Convert.ToBoolean(property.Value, CultureInfo.InvariantCulture) ? 'Y' : 'N');
+                writer.Write(Convert.ToBoolean(property.Value, CultureInfo.InvariantCulture) ? 'T' : 'F');
                 return;
             case 'Y':
             case 'I':
@@ -1012,6 +1505,11 @@ public static class FbxDocumentSerializer
         }
     }
 
+    /// <summary>
+    /// Writes an ASCII FBX array property containing <see cref="int"/> elements.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, int[] values)
     {
         writer.Write('*');
@@ -1030,6 +1528,11 @@ public static class FbxDocumentSerializer
         writer.Write(" }");
     }
 
+    /// <summary>
+    /// Writes an ASCII FBX array property containing <see cref="long"/> elements.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, long[] values)
     {
         writer.Write('*');
@@ -1048,6 +1551,11 @@ public static class FbxDocumentSerializer
         writer.Write(" }");
     }
 
+    /// <summary>
+    /// Writes an ASCII FBX array property containing <see cref="double"/> elements.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, double[] values)
     {
         writer.Write('*');
@@ -1066,6 +1574,11 @@ public static class FbxDocumentSerializer
         writer.Write(" }");
     }
 
+    /// <summary>
+    /// Writes an ASCII FBX array property containing <see cref="float"/> elements.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, float[] values)
     {
         writer.Write('*');
@@ -1084,6 +1597,11 @@ public static class FbxDocumentSerializer
         writer.Write(" }");
     }
 
+    /// <summary>
+    /// Writes an ASCII FBX array property containing <see cref="bool"/> elements.
+    /// </summary>
+    /// <param name="writer">The text writer.</param>
+    /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, bool[] values)
     {
         writer.Write('*');
@@ -1102,200 +1620,23 @@ public static class FbxDocumentSerializer
         writer.Write(" }");
     }
 
-    /// <summary>Provides a lightweight tokenizer for FBX ASCII text.</summary>
-    public sealed class FbxAsciiTokenizer
+    /// <summary>
+    /// Formats an FBX string for ASCII output, restoring binary object-name markers to the
+    /// equivalent <c>Class::Name</c> representation before escaping the value.
+    /// </summary>
+    /// <param name="value">The raw FBX string value.</param>
+    /// <returns>The escaped ASCII representation without surrounding quotes.</returns>
+    public static string FormatAsciiString(string value)
     {
-        private readonly string _text;
-        private int _position;
-
-        /// <summary>Initializes a new tokenizer over the given FBX ASCII text.</summary>
-        /// <param name="text">The full ASCII FBX document text.</param>
-        public FbxAsciiTokenizer(string text)
+        int separatorIndex = value.IndexOf('\0', StringComparison.Ordinal);
+        if (separatorIndex >= 0 && separatorIndex + 1 < value.Length && value[separatorIndex + 1] == '\u0001')
         {
-            _text = text;
+            string instanceName = value[..separatorIndex];
+            string className = value[(separatorIndex + 2)..];
+            value = className + "::" + instanceName;
         }
 
-        public bool IsEnd => _position >= _text.Length;
-
-        public bool LastOpenedBlock { get; private set; }
-
-        public char PeekChar()
-        {
-            if (IsEnd)
-            {
-                return '\0';
-            }
-
-            return _text[_position];
-        }
-
-        public void AdvanceOne()
-        {
-            if (!IsEnd)
-            {
-                _position++;
-            }
-        }
-
-        public bool TryConsume(char expected)
-        {
-            TryConsumeCommentOrWhitespace();
-            if (PeekChar() != expected)
-            {
-                if (expected == '{')
-                {
-                    LastOpenedBlock = false;
-                }
-
-                return false;
-            }
-
-            _position++;
-            LastOpenedBlock = expected == '{';
-            return true;
-        }
-
-        public void ConsumeLineEndings()
-        {
-            while (!IsEnd)
-            {
-                char c = PeekChar();
-                if (c != '\n' && c != '\r')
-                {
-                    break;
-                }
-
-                _position++;
-            }
-        }
-
-        public bool TryConsumeCommentOrWhitespace()
-        {
-            bool consumed = false;
-            while (!IsEnd)
-            {
-                char c = PeekChar();
-                if (char.IsWhiteSpace(c))
-                {
-                    consumed = true;
-                    _position++;
-                    continue;
-                }
-
-                if (c == ';')
-                {
-                    consumed = true;
-                    while (!IsEnd)
-                    {
-                        char commentChar = PeekChar();
-                        _position++;
-                        if (commentChar == '\n')
-                        {
-                            break;
-                        }
-                    }
-
-                    continue;
-                }
-
-                break;
-            }
-
-            return consumed;
-        }
-
-        public string? ReadIdentifier()
-        {
-            TryConsumeCommentOrWhitespace();
-            if (IsEnd)
-            {
-                return null;
-            }
-
-            int start = _position;
-            char first = PeekChar();
-            if (!(char.IsLetter(first) || first == '_' || first == '|'))
-            {
-                return null;
-            }
-
-            _position++;
-            while (!IsEnd)
-            {
-                char c = PeekChar();
-                if (!(char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '|'))
-                {
-                    break;
-                }
-
-                _position++;
-            }
-
-            return _text[start.._position];
-        }
-
-        public string? ReadNumberToken()
-        {
-            TryConsumeCommentOrWhitespace();
-            if (IsEnd)
-            {
-                return null;
-            }
-
-            int start = _position;
-            char first = PeekChar();
-            if (!(char.IsDigit(first) || first == '-' || first == '+'))
-            {
-                return null;
-            }
-
-            _position++;
-            while (!IsEnd)
-            {
-                char c = PeekChar();
-                if (!(char.IsDigit(c) || c == '.' || c == 'e' || c == 'E' || c == '-' || c == '+'))
-                {
-                    break;
-                }
-
-                _position++;
-            }
-
-            return _text[start.._position];
-        }
-
-        public string ReadQuotedString()
-        {
-            TryConsumeCommentOrWhitespace();
-            if (PeekChar() != '"')
-            {
-                return string.Empty;
-            }
-
-            _position++;
-            StringBuilder builder = new();
-            while (!IsEnd)
-            {
-                char c = PeekChar();
-                _position++;
-
-                if (c == '"')
-                {
-                    break;
-                }
-
-                if (c == '\\' && !IsEnd)
-                {
-                    char escaped = PeekChar();
-                    _position++;
-                    builder.Append(escaped);
-                    continue;
-                }
-
-                builder.Append(c);
-            }
-
-            return builder.ToString();
-        }
+        return value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
     }
+
 }

@@ -50,6 +50,11 @@ namespace RedFox.Graphics3D
         public SceneNodeFlags Flags { get; set; }
 
         /// <summary>
+        /// Gets arbitrary node metadata used by importers and exporters to preserve format-specific state.
+        /// </summary>
+        public Dictionary<string, object> Metadata { get; } = [];
+
+        /// <summary>
         /// Initializes a new instance of <see cref="SceneNode"/> with a generated name.
         /// </summary>
         public SceneNode() : this($"SceneNode{SceneNodeId.GetNextId()}")
@@ -894,6 +899,6 @@ namespace RedFox.Graphics3D
         }
 
         /// <inheritdoc/>
-        public override string ToString() => Name;
+        public override string ToString() => $"{GetType()}({Name})";
     }
 }

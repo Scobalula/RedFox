@@ -51,7 +51,7 @@ public sealed class FbxTranslator : SceneTranslator
     /// <param name="name">The source file name or path used for export.</param>
     /// <param name="stream">The output stream that receives the encoded FBX data.</param>
     /// <returns>The selected <see cref="FbxFormat"/>.</returns>
-    private static FbxFormat ResolveWriteFormat(string name, Stream stream)
+    public static FbxFormat ResolveWriteFormat(string name, Stream stream)
     {
         _ = stream;
 
@@ -69,7 +69,7 @@ public sealed class FbxTranslator : SceneTranslator
     /// </summary>
     /// <param name="target">The destination scene to populate.</param>
     /// <param name="source">The temporary translated scene.</param>
-    private static void MergeScene(Scene target, Scene source)
+    public static void MergeScene(Scene target, Scene source)
     {
         foreach (SceneNode child in source.RootNode.EnumerateChildren().ToArray())
         {

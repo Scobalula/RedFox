@@ -9,7 +9,301 @@ namespace RedFox.Graphics3D.KaydaraFbx;
 /// </summary>
 public static class FbxSceneMapper
 {
-    private const long RootConnectionId = 0;
+    /// <summary>
+    /// Gets the root connection id used by FBX object graphs.
+    /// </summary>
+    public const long RootConnectionId = 0;
+
+    /// <summary>
+    /// Gets the default take name emitted for exported FBX scenes.
+    /// </summary>
+    public const string DefaultTakeName = "Take 001";
+
+    /// <summary>
+    /// Gets the default creation time string emitted for scene metadata.
+    /// </summary>
+    public const string DefaultFileCreationTime = "2026-03-24 15:33:49:359";
+
+    /// <summary>
+    /// Gets the metadata key used to mark synthetic FBX helper roots.
+    /// </summary>
+    public const string MetadataSyntheticRootKey = "fbx.syntheticRoot";
+
+    /// <summary>
+    /// Gets the metadata key indicating whether a model should export a Null node attribute.
+    /// </summary>
+    public const string MetadataHasNullNodeAttributeKey = "fbx.model.hasNullNodeAttribute";
+
+    /// <summary>
+    /// Gets the metadata key storing the original Null node-attribute name.
+    /// </summary>
+    public const string MetadataNullNodeAttributeNameKey = "fbx.model.nullNodeAttributeName";
+
+    /// <summary>
+    /// Gets the metadata key storing imported local translation values.
+    /// </summary>
+    public const string MetadataLclTranslationKey = "fbx.model.lclTranslation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported local rotation values.
+    /// </summary>
+    public const string MetadataLclRotationKey = "fbx.model.lclRotation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported local scaling values.
+    /// </summary>
+    public const string MetadataLclScalingKey = "fbx.model.lclScaling";
+
+    /// <summary>
+    /// Gets the metadata key storing imported pre-rotation values.
+    /// </summary>
+    public const string MetadataPreRotationKey = "fbx.model.preRotation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported post-rotation values.
+    /// </summary>
+    public const string MetadataPostRotationKey = "fbx.model.postRotation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported rotation-offset values.
+    /// </summary>
+    public const string MetadataRotationOffsetKey = "fbx.model.rotationOffset";
+
+    /// <summary>
+    /// Gets the metadata key storing imported rotation-pivot values.
+    /// </summary>
+    public const string MetadataRotationPivotKey = "fbx.model.rotationPivot";
+
+    /// <summary>
+    /// Gets the metadata key storing imported scaling-offset values.
+    /// </summary>
+    public const string MetadataScalingOffsetKey = "fbx.model.scalingOffset";
+
+    /// <summary>
+    /// Gets the metadata key storing imported scaling-pivot values.
+    /// </summary>
+    public const string MetadataScalingPivotKey = "fbx.model.scalingPivot";
+
+    /// <summary>
+    /// Gets the metadata key storing imported geometric translation values.
+    /// </summary>
+    public const string MetadataGeometricTranslationKey = "fbx.model.geometricTranslation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported geometric rotation values.
+    /// </summary>
+    public const string MetadataGeometricRotationKey = "fbx.model.geometricRotation";
+
+    /// <summary>
+    /// Gets the metadata key storing imported geometric scaling values.
+    /// </summary>
+    public const string MetadataGeometricScalingKey = "fbx.model.geometricScaling";
+
+    /// <summary>
+    /// Gets the metadata key storing imported FBX rotation-order values.
+    /// </summary>
+    public const string MetadataRotationOrderKey = "fbx.model.rotationOrder";
+
+    /// <summary>
+    /// Gets the pre-rotation applied to authored top-level export roots.
+    /// </summary>
+    public static readonly Vector3 s_authoredRootPreRotation = new(-90f, 0f, 0f);
+
+    /// <summary>
+    /// Gets the basis transform applied to authored top-level export roots.
+    /// </summary>
+    public static readonly Matrix4x4 s_authoredRootBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2f);
+
+    /// <summary>
+    /// Gets the default scene FileId used for RedFox-authored exports.
+    /// </summary>
+    public static readonly byte[] s_fileId =
+    [
+        0x2C, 0xBE, 0x27, 0xE4, 0xB9, 0x2E, 0xC4, 0xCF,
+        0xB1, 0xC3, 0xB8, 0x2B, 0xAD, 0x29, 0xFD, 0xF3,
+    ];
+
+    /// <summary>
+    /// Reads a <see cref="Vector3"/> metadata value from a scene node.
+    /// </summary>
+    /// <param name="node">The node whose metadata should be queried.</param>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="fallback">The fallback value returned when the key is absent or incompatible.</param>
+    /// <returns>The stored vector value or <paramref name="fallback"/>.</returns>
+    public static Vector3 GetMetadataVector3(SceneNode node, string key, Vector3 fallback)
+        => node.Metadata.TryGetValue(key, out object? value) && value is Vector3 vector ? vector : fallback;
+
+    /// <summary>
+    /// Reads an integer metadata value from a scene node.
+    /// </summary>
+    /// <param name="node">The node whose metadata should be queried.</param>
+    /// <param name="key">The metadata key.</param>
+    /// <param name="fallback">The fallback value returned when the key is absent or incompatible.</param>
+    /// <returns>The stored integer value or <paramref name="fallback"/>.</returns>
+    public static int GetMetadataInt(SceneNode node, string key, int fallback)
+        => node.Metadata.TryGetValue(key, out object? value) && value is int intValue ? intValue : fallback;
+
+    /// <summary>
+    /// Determines whether a node carries imported FBX transform metadata.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns><see langword="true"/> when any imported FBX transform metadata keys are present.</returns>
+    public static bool HasImportedTransformMetadata(SceneNode node)
+        => node.Metadata.ContainsKey(MetadataLclTranslationKey)
+            || node.Metadata.ContainsKey(MetadataLclRotationKey)
+            || node.Metadata.ContainsKey(MetadataLclScalingKey)
+            || node.Metadata.ContainsKey(MetadataPreRotationKey)
+            || node.Metadata.ContainsKey(MetadataPostRotationKey)
+            || node.Metadata.ContainsKey(MetadataRotationOrderKey);
+
+    /// <summary>
+    /// Determines whether a node is marked as a synthetic FBX helper root.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns><see langword="true"/> when the synthetic-root metadata flag is set.</returns>
+    public static bool IsSyntheticRootNode(SceneNode node)
+        => node.Metadata.TryGetValue(MetadataSyntheticRootKey, out object? syntheticRootValue)
+            && syntheticRootValue is bool isSyntheticRoot
+            && isSyntheticRoot;
+
+    /// <summary>
+    /// Resolves the top-level authored export root for a node.
+    /// </summary>
+    /// <param name="node">The node whose export root should be located.</param>
+    /// <returns>The top-level export root, or <see langword="null"/> when none can be resolved.</returns>
+    public static SceneNode? GetTopLevelExportRoot(SceneNode node)
+    {
+        SceneNode current = node;
+        while (current.Parent is not null && current.Parent is not SceneRoot && !IsSyntheticRootNode(current.Parent))
+        {
+            current = current.Parent;
+        }
+
+        return current.Parent is SceneRoot || (current.Parent is not null && IsSyntheticRootNode(current.Parent)) ? current : null;
+    }
+
+    /// <summary>
+    /// Determines whether the node is a top-level authored export root.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns><see langword="true"/> when the node is an authored top-level model or skeleton root.</returns>
+    public static bool IsTopLevelAuthoredExportRoot(SceneNode node)
+    {
+        SceneNode? topLevelRoot = GetTopLevelExportRoot(node);
+        return ReferenceEquals(topLevelRoot, node)
+            && (node is Model || (node is Skeleton && node is not SkeletonBone))
+            && !HasImportedTransformMetadata(node);
+    }
+
+    /// <summary>
+    /// Determines whether the authored root basis should be applied during export.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns><see langword="true"/> when the node belongs to an authored top-level export root.</returns>
+    public static bool ShouldApplyAuthoredRootBasis(SceneNode node)
+    {
+        SceneNode? topLevelRoot = GetTopLevelExportRoot(node);
+        return topLevelRoot is not null && IsTopLevelAuthoredExportRoot(topLevelRoot);
+    }
+
+    /// <summary>
+    /// Computes the bind-world matrix that will be exported for the specified node.
+    /// </summary>
+    /// <param name="node">The node to evaluate.</param>
+    /// <returns>The exported bind-world matrix.</returns>
+    public static Matrix4x4 GetExportBindWorldMatrix(SceneNode node)
+    {
+        Matrix4x4 localMatrix = GetExportLocalBindMatrix(node);
+        return node.Parent is not null && node.Parent is not SceneRoot
+            ? localMatrix * GetExportBindWorldMatrix(node.Parent)
+            : localMatrix;
+    }
+
+    /// <summary>
+    /// Computes the bind-local matrix that will be exported for the specified node.
+    /// </summary>
+    /// <param name="node">The node to evaluate.</param>
+    /// <returns>The exported bind-local matrix.</returns>
+    public static Matrix4x4 GetExportLocalBindMatrix(SceneNode node)
+    {
+        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(node);
+        Vector3 exportedLocalTranslation = GetMetadataVector3(node, MetadataLclTranslationKey, localTranslation);
+        Vector3 exportedLocalRotation = GetMetadataVector3(node, MetadataLclRotationKey, FbxRotation.ToEulerDegreesXyz(localRotation));
+        Vector3 exportedLocalScale = GetMetadataVector3(node, MetadataLclScalingKey, localScale);
+        Vector3 exportedPreRotation = GetMetadataVector3(node, MetadataPreRotationKey, Vector3.Zero);
+        Vector3 exportedPostRotation = GetMetadataVector3(node, MetadataPostRotationKey, Vector3.Zero);
+        Vector3 exportedRotationOffset = GetMetadataVector3(node, MetadataRotationOffsetKey, Vector3.Zero);
+        Vector3 exportedRotationPivot = GetMetadataVector3(node, MetadataRotationPivotKey, Vector3.Zero);
+        Vector3 exportedScalingOffset = GetMetadataVector3(node, MetadataScalingOffsetKey, Vector3.Zero);
+        Vector3 exportedScalingPivot = GetMetadataVector3(node, MetadataScalingPivotKey, Vector3.Zero);
+        int exportedRotationOrder = GetMetadataInt(node, MetadataRotationOrderKey, 0);
+
+        if (IsTopLevelAuthoredExportRoot(node) && IsNearlyZero(exportedPreRotation))
+        {
+            exportedPreRotation = s_authoredRootPreRotation;
+        }
+
+        if (node is SkeletonBone && !HasImportedTransformMetadata(node) && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
+        {
+            exportedPreRotation = exportedLocalRotation;
+            exportedLocalRotation = Vector3.Zero;
+        }
+
+        return ComposeNodeLocalTransform(
+            exportedLocalTranslation,
+            exportedLocalRotation,
+            exportedLocalScale,
+            exportedPreRotation,
+            exportedPostRotation,
+            exportedRotationOffset,
+            exportedRotationPivot,
+            exportedScalingOffset,
+            exportedScalingPivot,
+            exportedRotationOrder);
+    }
+
+    /// <summary>
+    /// Determines whether a vector is numerically close to zero.
+    /// </summary>
+    /// <param name="value">The vector to test.</param>
+    /// <returns><see langword="true"/> when the vector magnitude is within the zero tolerance.</returns>
+    public static bool IsNearlyZero(Vector3 value)
+        => value.LengthSquared() <= 1e-10f;
+
+    /// <summary>
+    /// Determines whether a vector is numerically close to <see cref="Vector3.One"/>.
+    /// </summary>
+    /// <param name="value">The vector to test.</param>
+    /// <returns><see langword="true"/> when the vector is within the one tolerance.</returns>
+    public static bool IsNearlyOne(Vector3 value)
+        => Vector3.DistanceSquared(value, Vector3.One) <= 1e-10f;
+
+    /// <summary>
+    /// Determines whether a node should export an FBX Null node attribute.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns><see langword="true"/> when a Null node attribute should be written.</returns>
+    public static bool ShouldExportNullNodeAttribute(SceneNode node)
+    {
+        if (node.Metadata.TryGetValue(MetadataHasNullNodeAttributeKey, out object? hasNullNodeAttributeValue)
+            && hasNullNodeAttributeValue is bool hasNullNodeAttribute)
+        {
+            return hasNullNodeAttribute;
+        }
+
+        return !HasImportedTransformMetadata(node);
+    }
+
+    /// <summary>
+    /// Resolves the FBX Null node-attribute name for a node.
+    /// </summary>
+    /// <param name="node">The node to inspect.</param>
+    /// <returns>The stored Null node-attribute name, or an empty string when none is present.</returns>
+    public static string GetNullNodeAttributeName(SceneNode node)
+        => node.Metadata.TryGetValue(MetadataNullNodeAttributeNameKey, out object? nodeAttributeNameValue)
+            && nodeAttributeNameValue is string storedNodeAttributeName
+            ? storedNodeAttributeName
+            : string.Empty;
 
     /// <summary>
     /// Imports a scene from an FBX document.
@@ -22,8 +316,8 @@ public static class FbxSceneMapper
         ArgumentNullException.ThrowIfNull(document);
 
         Scene scene = new(string.IsNullOrWhiteSpace(sceneName) ? "FBX Scene" : sceneName);
-        FbxNode? objectsNode = document.FirstNode("Objects");
-        FbxNode? connectionsNode = document.FirstNode("Connections");
+        FbxNode? objectsNode = document.FirstNode("Objects") ?? document.FirstNodeRecursive("Objects");
+        FbxNode? connectionsNode = document.FirstNode("Connections") ?? document.FirstNodeRecursive("Connections");
         if (objectsNode is null)
         {
             return scene;
@@ -31,8 +325,6 @@ public static class FbxSceneMapper
 
         Dictionary<long, FbxNode> objectsById = BuildObjectMap(objectsNode);
         List<FbxConnection> connections = BuildConnections(connectionsNode);
-        Skeleton skeletonRoot = scene.RootNode.AddNode(new Skeleton("FbxSkeleton"));
-        Model modelRoot = scene.RootNode.AddNode(new Model { Name = "FbxModelRoot" });
         Dictionary<long, SceneNode> modelNodes = [];
         Dictionary<long, Mesh> meshesByModelId = [];
         Dictionary<long, FbxNode> geometryNodes = [];
@@ -40,6 +332,7 @@ public static class FbxSceneMapper
         Dictionary<long, SkeletonBone> bonesByModelId = [];
         Dictionary<long, Camera> camerasByModelId = [];
         Dictionary<long, Light> lightsByModelId = [];
+    Dictionary<long, FbxNode> constraintNodes = [];
         Dictionary<Mesh, int[]> perTriangleMaterials = [];
 
         foreach ((long objectId, FbxNode objectNode) in objectsById)
@@ -51,15 +344,15 @@ public static class FbxSceneMapper
                     string modelType = objectNode.Properties.Count > 2 ? objectNode.Properties[2].AsString() : "Null";
                     if (string.Equals(modelType, "Camera", StringComparison.OrdinalIgnoreCase))
                     {
-                        CreateCameraNode(objectNode, objectId, modelRoot, modelNodes, camerasByModelId);
+                        CreateCameraNode(objectNode, objectId, modelNodes, camerasByModelId);
                     }
                     else if (string.Equals(modelType, "Light", StringComparison.OrdinalIgnoreCase))
                     {
-                        CreateLightNode(objectNode, objectId, modelRoot, modelNodes, lightsByModelId);
+                        CreateLightNode(objectNode, objectId, modelNodes, lightsByModelId);
                     }
                     else
                     {
-                        CreateModelNode(objectNode, objectId, modelRoot, skeletonRoot, modelNodes, meshesByModelId, bonesByModelId);
+                        CreateModelNode(objectNode, objectId, modelNodes, meshesByModelId, bonesByModelId);
                     }
 
                     break;
@@ -68,20 +361,34 @@ public static class FbxSceneMapper
                 case "Geometry":
                     geometryNodes[objectId] = objectNode;
                     break;
+
                 case "Material":
-                    CreateMaterialNode(objectNode, objectId, modelRoot, materialsById);
+                    CreateMaterialNode(objectNode, objectId, materialsById);
+                    break;
+
+                case "Constraint":
+                    constraintNodes[objectId] = objectNode;
+                    break;
+
+                default:
                     break;
             }
         }
 
         ApplyModelHierarchy(modelNodes, connections);
+        AttachImportedRootNodes(scene.RootNode, modelNodes.Values);
+        AttachImportedRootNodes(scene.RootNode, materialsById.Values);
+        ClassifyNullContainers(modelNodes);
         AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials);
         AttachMaterials(meshesByModelId, materialsById, connections);
         SplitMeshesByMaterial(perTriangleMaterials);
         FbxSkinningMapper.ImportSkinning(meshesByModelId, objectsById, connections, bonesByModelId);
-            AttachCameraAndLightNodeAttributes(camerasByModelId, lightsByModelId, objectsById, connections);
+        AttachNullNodeAttributes(modelNodes, objectsById, connections);
+        AttachCameraAndLightNodeAttributes(camerasByModelId, lightsByModelId, objectsById, connections);
+        ImportConstraints(scene.RootNode, modelNodes, constraintNodes, connections);
         return scene;
     }
+
 
     /// <summary>
     /// Exports a scene into an FBX document.
@@ -93,13 +400,9 @@ public static class FbxSceneMapper
     {
         ArgumentNullException.ThrowIfNull(scene);
 
-        FbxDocument document = new() { Format = format, Version = 7400 };
-        AddHeaderNodes(document);
-
+        FbxDocument document = new() { Format = format, Version = 7700 };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
-        document.Nodes.Add(objectsNode);
-        document.Nodes.Add(connectionsNode);
 
         long nextId = 100000;
         Dictionary<SceneNode, long> modelIds = [];
@@ -109,19 +412,40 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
         Model[] models = scene.GetDescendants<Model>();
+        Group[] groups = scene.GetDescendants<Group>();
         Mesh[] meshes = scene.GetDescendants<Mesh>();
         Material[] materials = scene.GetDescendants<Material>();
         Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
         SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
-    Camera[] cameras = scene.GetDescendants<Camera>();
-    Light[] lights = scene.GetDescendants<Light>();
+        Camera[] cameras = scene.GetDescendants<Camera>();
+        Light[] lights = scene.GetDescendants<Light>();
 
         for (int i = 0; i < models.Length; i++)
         {
             Model model = models[i];
+            if (IsSyntheticRootNode(model))
+            {
+                continue;
+            }
+
             long id = nextId++;
             modelIds[model] = id;
             objectsNode.Children.Add(CreateModelObject(id, model.Name, "Null", model));
+            ExportNullNodeAttributeIfNeeded(model, id, objectsNode, connectionsNode, ref nextId);
+        }
+
+        for (int i = 0; i < groups.Length; i++)
+        {
+            Group group = groups[i];
+            if (IsSyntheticRootNode(group))
+            {
+                continue;
+            }
+
+            long id = nextId++;
+            modelIds[group] = id;
+            objectsNode.Children.Add(CreateModelObject(id, group.Name, "Null", group));
+            ExportNullNodeAttributeIfNeeded(group, id, objectsNode, connectionsNode, ref nextId);
         }
 
         for (int i = 0; i < skeletons.Length; i++)
@@ -132,9 +456,15 @@ public static class FbxSceneMapper
                 continue;
             }
 
+            if (IsSyntheticRootNode(skeleton))
+            {
+                continue;
+            }
+
             long id = nextId++;
             modelIds[skeleton] = id;
             objectsNode.Children.Add(CreateModelObject(id, skeleton.Name, "Null", skeleton));
+            ExportNullNodeAttributeIfNeeded(skeleton, id, objectsNode, connectionsNode, ref nextId);
         }
 
         for (int i = 0; i < bones.Length; i++)
@@ -146,9 +476,15 @@ public static class FbxSceneMapper
             boneAttributeIds[bone] = nodeAttributeId;
             modelIds[bone] = modelId;
             objectsNode.Children.Add(CreateModelObject(modelId, bone.Name, "LimbNode", bone));
-            objectsNode.Children.Add(CreateBoneNodeAttribute(nodeAttributeId, bone.Name));
+            objectsNode.Children.Add(CreateBoneNodeAttribute(nodeAttributeId, bone));
             AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
         }
+
+        long animationStackId = nextId++;
+        long animationLayerId = nextId++;
+        objectsNode.Children.Add(CreateAnimationStackObject(animationStackId));
+        objectsNode.Children.Add(CreateAnimationLayerObject(animationLayerId));
+        AddConnection(connectionsNode, "OO", animationLayerId, animationStackId);
 
         for (int i = 0; i < meshes.Length; i++)
         {
@@ -215,7 +551,9 @@ public static class FbxSceneMapper
             if (mesh.HasSkinning && geometryIds.TryGetValue(mesh, out long geometryId))
             {
                 FbxSkinningMapper.ExportSkinning(objectsNode, connectionsNode, mesh, geometryId, boneIds, ref nextId);
-                objectsNode.Children.Add(CreateBindPoseObject(nextId++, mesh, meshModelId, modelIds, boneIds));
+
+                long bindPoseId = nextId++;
+                objectsNode.Children.Add(CreateBindPoseObject(bindPoseId, mesh, modelIds, boneIds));
             }
         }
 
@@ -229,6 +567,14 @@ public static class FbxSceneMapper
 
             AddConnection(connectionsNode, "OO", childId, parentId);
         }
+
+        AddHeaderNodes(document, scene.Name);
+        AddDocumentsNode(document, scene.Name);
+        AddReferencesNode(document);
+        AddDefinitionsNode(document, objectsNode);
+        document.Nodes.Add(objectsNode);
+        document.Nodes.Add(connectionsNode);
+        AddTakesNode(document);
 
         _ = boneAttributeIds;
         return document;
@@ -414,6 +760,8 @@ public static class FbxSceneMapper
             foreach ((int materialIndex, List<int> triangleIndices) in indicesByMaterial)
             {
                 Mesh splitMesh = parent.AddNode(new Mesh { Name = mesh.Name + "_mat" + materialIndex.ToString(CultureInfo.InvariantCulture) });
+                mesh.BindTransform.CopyTo(splitMesh.BindTransform);
+                mesh.LiveTransform.CopyTo(splitMesh.LiveTransform);
                 splitMesh.Positions = mesh.Positions;
                 splitMesh.Normals = mesh.Normals;
                 splitMesh.Tangents = mesh.Tangents;
@@ -429,9 +777,21 @@ public static class FbxSceneMapper
                 splitMesh.Materials = [materials[materialIndex]];
                 splitMesh.FaceIndices = new DataBuffer<int>(triangleIndices.ToArray(), 1, 1);
 
+                foreach ((string key, object value) in mesh.Metadata)
+                {
+                    splitMesh.Metadata[key] = value;
+                }
+
                 if (mesh.SkinnedBones is not null)
                 {
-                    splitMesh.SetSkinBinding(mesh.SkinnedBones, mesh.InverseBindMatrices);
+                    if (mesh.HasExplicitInverseBindMatrices)
+                    {
+                        splitMesh.SetSkinBinding(mesh.SkinnedBones, mesh.InverseBindMatrices);
+                    }
+                    else
+                    {
+                        splitMesh.SetSkinBinding(mesh.SkinnedBones);
+                    }
                 }
             }
 
@@ -478,7 +838,8 @@ public static class FbxSceneMapper
                 continue;
             }
 
-            connections.Add(new FbxConnection(connectionNode.Properties[0].AsString(), connectionNode.Properties[1].AsInt64(), connectionNode.Properties[2].AsInt64()));
+            string propertyName = connectionNode.Properties.Count > 3 ? connectionNode.Properties[3].AsString() : string.Empty;
+            connections.Add(new FbxConnection(connectionNode.Properties[0].AsString(), connectionNode.Properties[1].AsInt64(), connectionNode.Properties[2].AsInt64(), propertyName));
         }
 
         return connections;
@@ -489,19 +850,17 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="objectNode">The FBX Model node.</param>
     /// <param name="objectId">The unique object identifier.</param>
-    /// <param name="modelRoot">The parent model container for general nodes.</param>
-    /// <param name="skeletonRoot">The parent skeleton for bone nodes.</param>
     /// <param name="modelNodes">Map updated with the new scene node.</param>
     /// <param name="meshesByModelId">Map updated when the node is a mesh.</param>
     /// <param name="bonesByModelId">Map updated when the node is a bone.</param>
-    public static void CreateModelNode(FbxNode objectNode, long objectId, Model modelRoot, Skeleton skeletonRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Mesh> meshesByModelId, Dictionary<long, SkeletonBone> bonesByModelId)
+    public static void CreateModelNode(FbxNode objectNode, long objectId, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Mesh> meshesByModelId, Dictionary<long, SkeletonBone> bonesByModelId)
     {
         string modelName = GetNodeObjectName(objectNode);
         string modelType = objectNode.Properties.Count > 2 ? objectNode.Properties[2].AsString() : "Null";
 
         if (string.Equals(modelType, "Mesh", StringComparison.OrdinalIgnoreCase))
         {
-            Mesh mesh = modelRoot.AddNode(new Mesh { Name = modelName });
+            Mesh mesh = new() { Name = modelName };
             ApplyModelTransform(mesh, objectNode);
             modelNodes[objectId] = mesh;
             meshesByModelId[objectId] = mesh;
@@ -510,16 +869,139 @@ public static class FbxSceneMapper
 
         if (string.Equals(modelType, "LimbNode", StringComparison.OrdinalIgnoreCase) || string.Equals(modelType, "Root", StringComparison.OrdinalIgnoreCase))
         {
-            SkeletonBone bone = skeletonRoot.AddNode(new SkeletonBone(modelName));
+            SkeletonBone bone = new(modelName);
             ApplyModelTransform(bone, objectNode);
             modelNodes[objectId] = bone;
             bonesByModelId[objectId] = bone;
             return;
         }
 
-        Model container = modelRoot.AddNode(new Model { Name = modelName });
+        Group container = new(modelName);
         ApplyModelTransform(container, objectNode);
         modelNodes[objectId] = container;
+    }
+
+    /// <summary>
+    /// Attaches any imported nodes that remain parentless after FBX hierarchy construction to the scene root.
+    /// </summary>
+    /// <param name="sceneRoot">The destination scene root.</param>
+    /// <param name="nodes">The imported nodes to inspect.</param>
+    public static void AttachImportedRootNodes(SceneRoot sceneRoot, IEnumerable<SceneNode> nodes)
+    {
+        foreach (SceneNode node in nodes)
+        {
+            if (node.Parent is null)
+            {
+                sceneRoot.AddNode(node);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reclassifies imported Null containers after hierarchy construction so skeleton-shaped and model-shaped branches map to the correct scene-node types.
+    /// </summary>
+    /// <param name="modelNodes">All imported scene nodes keyed by model id.</param>
+    public static void ClassifyNullContainers(Dictionary<long, SceneNode> modelNodes)
+    {
+        KeyValuePair<long, SceneNode>[] groupsByDepth = [.. modelNodes
+            .Where(static pair => pair.Value is Group)
+            .OrderByDescending(static pair => pair.Value.GetAncestors().Length)];
+
+        for (int i = 0; i < groupsByDepth.Length; i++)
+        {
+            long objectId = groupsByDepth[i].Key;
+            if (modelNodes[objectId] is not Group group)
+            {
+                continue;
+            }
+
+            SceneNode replacement = CreateClassifiedNullContainer(group);
+            if (ReferenceEquals(replacement, group))
+            {
+                continue;
+            }
+
+            ReplaceImportedNullContainer(group, replacement);
+            modelNodes[objectId] = replacement;
+        }
+    }
+
+    /// <summary>
+    /// Creates the scene-node type that best matches an imported Null container based on its immediate children.
+    /// </summary>
+    /// <param name="group">The imported generic group node.</param>
+    /// <returns>A replacement node when the group should become a specific container type; otherwise the original group.</returns>
+    public static SceneNode CreateClassifiedNullContainer(Group group)
+    {
+        SceneNode[] children = [.. group.EnumerateChildren()];
+        if (children.Length == 0)
+        {
+            return group;
+        }
+
+        bool allSkeletonChildren = true;
+        bool allModelChildren = true;
+
+        for (int i = 0; i < children.Length; i++)
+        {
+            SceneNode child = children[i];
+            allSkeletonChildren &= child is SkeletonBone or Skeleton;
+            allModelChildren &= child is Mesh or Model or Camera or Light;
+        }
+
+        if (allSkeletonChildren)
+        {
+            return new Skeleton(group.Name);
+        }
+
+        if (allModelChildren)
+        {
+            return new Model { Name = group.Name };
+        }
+
+        return group;
+    }
+
+    /// <summary>
+    /// Replaces an imported generic group node with a specialized scene-node type while preserving transforms, metadata, and children.
+    /// </summary>
+    /// <param name="source">The source group being replaced.</param>
+    /// <param name="replacement">The replacement node.</param>
+    public static void ReplaceImportedNullContainer(Group source, SceneNode replacement)
+    {
+        SceneNode? originalParent = source.Parent;
+        if (originalParent is null)
+        {
+            return;
+        }
+
+        originalParent.RemoveNode(source);
+        originalParent.AddNode(replacement);
+        CopySceneNodeState(source, replacement);
+
+        SceneNode[] children = [.. source.EnumerateChildren()];
+        for (int i = 0; i < children.Length; i++)
+        {
+            children[i].MoveTo(replacement, ReparentTransformMode.PreserveLocal);
+        }
+    }
+
+    /// <summary>
+    /// Copies transform and metadata state between two scene nodes during importer-driven node replacement.
+    /// </summary>
+    /// <param name="source">The source scene node.</param>
+    /// <param name="destination">The destination scene node.</param>
+    public static void CopySceneNodeState(SceneNode source, SceneNode destination)
+    {
+        source.BindTransform.CopyTo(destination.BindTransform);
+        source.LiveTransform.CopyTo(destination.LiveTransform);
+        destination.Flags = source.Flags;
+        destination.GraphicsHandle = source.GraphicsHandle;
+
+        foreach ((string key, object value) in source.Metadata)
+        {
+            destination.Metadata[key] = value;
+        }
     }
 
     /// <summary>
@@ -527,14 +1009,259 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="objectNode">The FBX Material node.</param>
     /// <param name="objectId">The unique object identifier.</param>
-    /// <param name="modelRoot">The parent container for the new material node.</param>
     /// <param name="materialsById">Map updated with the new material.</param>
-    public static void CreateMaterialNode(FbxNode objectNode, long objectId, Model modelRoot, Dictionary<long, Material> materialsById)
+    public static void CreateMaterialNode(FbxNode objectNode, long objectId, Dictionary<long, Material> materialsById)
     {
         string materialName = GetNodeObjectName(objectNode);
-        Material material = modelRoot.AddNode(new Material(materialName));
+        Material material = new(materialName);
         ApplyMaterialProperties(material, objectNode);
         materialsById[objectId] = material;
+    }
+
+    /// <summary>
+    /// Gets the effective FBX constraint type for a constraint object node.
+    /// </summary>
+    /// <param name="objectNode">The FBX object node to inspect.</param>
+    /// <returns>The FBX constraint type token, or an empty string when unavailable.</returns>
+    public static string GetConstraintType(FbxNode objectNode)
+    {
+        if (!string.Equals(objectNode.Name, "Constraint", StringComparison.Ordinal) || objectNode.Properties.Count < 3)
+        {
+            return string.Empty;
+        }
+
+        string? type = GetNodeString(objectNode, "Type");
+        return !string.IsNullOrWhiteSpace(type) ? type : objectNode.Properties[2].AsString();
+    }
+
+    /// <summary>
+    /// Determines whether an FBX constraint type maps to a Maya-style parent constraint.
+    /// </summary>
+    /// <param name="constraintType">The FBX constraint type token.</param>
+    /// <returns><see langword="true"/> when the type is a supported parent-constraint form.</returns>
+    public static bool IsParentConstraintType(string constraintType)
+        => string.Equals(constraintType, "Parent-Child", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Determines whether an FBX constraint type maps to a supported orient constraint.
+    /// </summary>
+    /// <param name="constraintType">The FBX constraint type token.</param>
+    /// <returns><see langword="true"/> when the type is a supported orient-constraint form.</returns>
+    public static bool IsOrientConstraintType(string constraintType)
+        => string.Equals(constraintType, "Orientation", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(constraintType, "Orient", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(constraintType, "Rotation", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Imports supported FBX constraint objects as runtime solver scene nodes.
+    /// </summary>
+    /// <param name="sceneRoot">The destination scene root.</param>
+    /// <param name="modelNodes">Imported model nodes keyed by FBX object id.</param>
+    /// <param name="constraintNodes">Constraint FBX nodes keyed by object id.</param>
+    /// <param name="connections">The full FBX connection list.</param>
+    public static void ImportConstraints(SceneRoot sceneRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, FbxNode> constraintNodes, IReadOnlyList<FbxConnection> connections)
+    {
+        foreach ((long constraintId, FbxNode constraintNode) in constraintNodes)
+        {
+            if (!TryResolveConstraintNodes(constraintId, modelNodes, connections, out SceneNode? constrainedNode, out SceneNode? sourceNode))
+            {
+                continue;
+            }
+
+            string constraintType = GetConstraintType(constraintNode);
+            ConstraintNode? constraint = CreateImportedConstraint(constraintType, constraintNode, constrainedNode!, sourceNode!);
+            if (constraint is null)
+            {
+                continue;
+            }
+
+            SceneNode parentNode = ResolveConstraintParentNode(sceneRoot, constraintId, constrainedNode!, modelNodes, connections);
+            parentNode.AddNode(constraint);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the imported scene-graph parent for a constraint node.
+    /// </summary>
+    /// <param name="sceneRoot">The destination scene root.</param>
+    /// <param name="constraintId">The FBX constraint object identifier.</param>
+    /// <param name="constrainedNode">The constrained scene node.</param>
+    /// <param name="modelNodes">Imported model nodes keyed by FBX object id.</param>
+    /// <param name="connections">The full FBX connection list.</param>
+    /// <returns>The scene node that should own the imported constraint.</returns>
+    public static SceneNode ResolveConstraintParentNode(SceneRoot sceneRoot, long constraintId, SceneNode constrainedNode, Dictionary<long, SceneNode> modelNodes, IReadOnlyList<FbxConnection> connections)
+    {
+        for (int i = 0; i < connections.Count; i++)
+        {
+            FbxConnection connection = connections[i];
+            if (!string.Equals(connection.ConnectionType, "OO", StringComparison.Ordinal) || connection.ChildId != constraintId)
+            {
+                continue;
+            }
+
+            if (modelNodes.TryGetValue(connection.ParentId, out SceneNode? explicitParent))
+            {
+                return explicitParent;
+            }
+
+            if (connection.ParentId == RootConnectionId)
+            {
+                return sceneRoot;
+            }
+        }
+
+        return constrainedNode;
+    }
+
+    /// <summary>
+    /// Creates a runtime solver node for a supported imported FBX constraint object.
+    /// </summary>
+    /// <param name="constraintType">The FBX constraint type token.</param>
+    /// <param name="constraintNode">The source FBX constraint node.</param>
+    /// <param name="constrainedNode">The constrained scene node.</param>
+    /// <param name="sourceNode">The source scene node.</param>
+    /// <returns>The created constraint node, or <see langword="null"/> when the type is unsupported.</returns>
+    public static ConstraintNode? CreateImportedConstraint(string constraintType, FbxNode constraintNode, SceneNode constrainedNode, SceneNode sourceNode)
+    {
+        float weight = GetConstraintWeight(constraintNode);
+        string constraintName = GetNodeObjectName(constraintNode);
+
+        if (IsParentConstraintType(constraintType))
+        {
+            return new ParentConstraintNode(constraintName, constrainedNode, sourceNode)
+            {
+                Weight = weight,
+                TranslationOffset = GetConstraintOffsetTranslation(constraintNode),
+                RotationOffset = Quaternion.Normalize(FbxRotation.FromEulerDegreesXyz(GetConstraintOffsetRotation(constraintNode))),
+            };
+        }
+
+        if (IsOrientConstraintType(constraintType))
+        {
+            return new OrientConstraintNode(constraintName, constrainedNode, sourceNode)
+            {
+                Weight = weight,
+                RotationOffset = Quaternion.Normalize(FbxRotation.FromEulerDegreesXyz(GetConstraintOffsetRotation(constraintNode))),
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves the constrained and source nodes referenced by a supported FBX constraint.
+    /// </summary>
+    /// <param name="constraintId">The FBX constraint object identifier.</param>
+    /// <param name="modelNodes">Imported model nodes keyed by FBX object id.</param>
+    /// <param name="connections">The full FBX connection list.</param>
+    /// <param name="constrainedNode">Receives the constrained child node.</param>
+    /// <param name="sourceNode">Receives the source parent node.</param>
+    /// <returns><see langword="true"/> when both nodes were resolved.</returns>
+    public static bool TryResolveConstraintNodes(long constraintId, Dictionary<long, SceneNode> modelNodes, IReadOnlyList<FbxConnection> connections, out SceneNode? constrainedNode, out SceneNode? sourceNode)
+    {
+        constrainedNode = null;
+        sourceNode = null;
+
+        for (int i = 0; i < connections.Count; i++)
+        {
+            FbxConnection connection = connections[i];
+            if (!string.Equals(connection.ConnectionType, "OP", StringComparison.Ordinal) || connection.ParentId != constraintId)
+            {
+                continue;
+            }
+
+            if (string.Equals(connection.PropertyName, "Constrained object (Child)", StringComparison.OrdinalIgnoreCase)
+                && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedChild))
+            {
+                constrainedNode = resolvedChild;
+                continue;
+            }
+
+            if (string.Equals(connection.PropertyName, "Source (Parent)", StringComparison.OrdinalIgnoreCase)
+                && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedSource))
+            {
+                sourceNode = resolvedSource;
+            }
+        }
+
+        return constrainedNode is not null && sourceNode is not null;
+    }
+
+    /// <summary>
+    /// Reads the normalized weight from an FBX constraint node.
+    /// </summary>
+    /// <param name="constraintNode">The source FBX constraint node.</param>
+    /// <returns>The normalized constraint weight in the range 0 to 1.</returns>
+    public static float GetConstraintWeight(FbxNode constraintNode)
+    {
+        FbxNode? properties70 = constraintNode.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return 1.0f;
+        }
+
+        foreach (FbxNode propertyNode in properties70.ChildrenNamed("P"))
+        {
+            if (propertyNode.Properties.Count > 4 && propertyNode.Properties[0].AsString().EndsWith(".Weight", StringComparison.Ordinal))
+            {
+                return (float)(propertyNode.Properties[4].AsDouble() / 100.0);
+            }
+        }
+
+        return 1.0f;
+    }
+
+    /// <summary>
+    /// Reads the translation offset from an FBX constraint node.
+    /// </summary>
+    /// <param name="constraintNode">The source FBX constraint node.</param>
+    /// <returns>The imported translation offset.</returns>
+    public static Vector3 GetConstraintOffsetTranslation(FbxNode constraintNode)
+        => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset T", Vector3.Zero);
+
+    /// <summary>
+    /// Reads the Euler rotation offset in degrees from an FBX constraint node.
+    /// </summary>
+    /// <param name="constraintNode">The source FBX constraint node.</param>
+    /// <returns>The imported XYZ Euler rotation offset in degrees.</returns>
+    public static Vector3 GetConstraintOffsetRotation(FbxNode constraintNode)
+        => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset R", Vector3.Zero);
+
+    /// <summary>
+    /// Reads a vector constraint property whose name ends with the specified suffix.
+    /// </summary>
+    /// <param name="constraintNode">The source FBX constraint node.</param>
+    /// <param name="propertyNameSuffix">The property-name suffix to match.</param>
+    /// <param name="fallback">The fallback vector returned when the property is absent.</param>
+    /// <returns>The decoded vector value or <paramref name="fallback"/>.</returns>
+    public static Vector3 GetConstraintVector3PropertyBySuffix(FbxNode constraintNode, string propertyNameSuffix, Vector3 fallback)
+    {
+        FbxNode? properties70 = constraintNode.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return fallback;
+        }
+
+        foreach (FbxNode propertyNode in properties70.ChildrenNamed("P"))
+        {
+            if (propertyNode.Properties.Count < 7)
+            {
+                continue;
+            }
+
+            string propertyName = propertyNode.Properties[0].AsString();
+            if (!propertyName.EndsWith(propertyNameSuffix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return new Vector3(
+                (float)propertyNode.Properties[4].AsDouble(),
+                (float)propertyNode.Properties[5].AsDouble(),
+                (float)propertyNode.Properties[6].AsDouble());
+        }
+
+        return fallback;
     }
 
     /// <summary>
@@ -554,25 +1281,21 @@ public static class FbxSceneMapper
 
             if (child is SkeletonBone childBone && parent is SkeletonBone parentBone)
             {
-                childBone.MoveTo(parentBone, ReparentTransformMode.PreserveExisting);
+                childBone.MoveTo(parentBone, ReparentTransformMode.PreserveLocal);
                 continue;
             }
 
-            if (child is Mesh && parent is Model)
+            bool shouldReparent = (child, parent) switch
             {
-                child.MoveTo(parent, ReparentTransformMode.PreserveExisting);
-                continue;
-            }
+                (SkeletonBone, Skeleton or Model or Group) => true,
+                (Mesh or Group or Model, Model or Group) => true,
+                (Camera or Light, _) => true,
+                _ => false,
+            };
 
-            if (child is Model && parent is Model)
+            if (shouldReparent)
             {
-                child.MoveTo(parent, ReparentTransformMode.PreserveExisting);
-                continue;
-            }
-
-            if ((child is Camera || child is Light) && parent is SceneNode)
-            {
-                child.MoveTo(parent, ReparentTransformMode.PreserveExisting);
+                child.MoveTo(parent, ReparentTransformMode.PreserveLocal);
             }
         }
     }
@@ -620,6 +1343,20 @@ public static class FbxSceneMapper
         Vector3 geometricRotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
         Vector3 geometricScaling = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
         int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
+
+        node.Metadata[MetadataLclTranslationKey] = localTranslation;
+        node.Metadata[MetadataLclRotationKey] = localRotation;
+        node.Metadata[MetadataLclScalingKey] = localScale;
+        node.Metadata[MetadataPreRotationKey] = preRotation;
+        node.Metadata[MetadataPostRotationKey] = postRotation;
+        node.Metadata[MetadataRotationOffsetKey] = rotationOffset;
+        node.Metadata[MetadataRotationPivotKey] = rotationPivot;
+        node.Metadata[MetadataScalingOffsetKey] = scalingOffset;
+        node.Metadata[MetadataScalingPivotKey] = scalingPivot;
+        node.Metadata[MetadataGeometricTranslationKey] = geometricTranslation;
+        node.Metadata[MetadataGeometricRotationKey] = geometricRotation;
+        node.Metadata[MetadataGeometricScalingKey] = geometricScaling;
+        node.Metadata[MetadataRotationOrderKey] = rotationOrder;
 
         Matrix4x4 localMatrix = ComposeNodeLocalTransform(localTranslation, localRotation, localScale, preRotation, postRotation, rotationOffset, rotationPivot, scalingOffset, scalingPivot, rotationOrder);
         if (node is Mesh)
@@ -685,27 +1422,264 @@ public static class FbxSceneMapper
     /// Appends the FBX header and global settings nodes to the document.
     /// </summary>
     /// <param name="document">The target FBX document.</param>
-    public static void AddHeaderNodes(FbxDocument document)
+    /// <param name="sceneName">The scene name written into document metadata.</param>
+    public static void AddHeaderNodes(FbxDocument document, string sceneName)
     {
+        DateTime utcNow = DateTime.UtcNow;
         FbxNode header = new("FBXHeaderExtension");
-        header.Children.Add(new FbxNode("FBXHeaderVersion") { Properties = { new FbxProperty('I', 1003) } });
-        header.Children.Add(new FbxNode("FBXVersion") { Properties = { new FbxProperty('I', 7400) } });
+        header.Children.Add(new FbxNode("FBXHeaderVersion") { Properties = { new FbxProperty('I', 1004) } });
+        header.Children.Add(new FbxNode("FBXVersion") { Properties = { new FbxProperty('I', document.Version) } });
+        header.Children.Add(new FbxNode("EncryptionType") { Properties = { new FbxProperty('I', 0) } });
+        FbxNode otherFlags = new("OtherFlags");
+        otherFlags.Children.Add(new FbxNode("TCDefinition") { Properties = { new FbxProperty('I', 127) } });
+        header.Children.Add(otherFlags);
+        FbxNode creationTimeStamp = new("CreationTimeStamp");
+        creationTimeStamp.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 1000) } });
+        creationTimeStamp.Children.Add(new FbxNode("Year") { Properties = { new FbxProperty('I', utcNow.Year) } });
+        creationTimeStamp.Children.Add(new FbxNode("Month") { Properties = { new FbxProperty('I', utcNow.Month) } });
+        creationTimeStamp.Children.Add(new FbxNode("Day") { Properties = { new FbxProperty('I', utcNow.Day) } });
+        creationTimeStamp.Children.Add(new FbxNode("Hour") { Properties = { new FbxProperty('I', utcNow.Hour) } });
+        creationTimeStamp.Children.Add(new FbxNode("Minute") { Properties = { new FbxProperty('I', utcNow.Minute) } });
+        creationTimeStamp.Children.Add(new FbxNode("Second") { Properties = { new FbxProperty('I', utcNow.Second) } });
+        creationTimeStamp.Children.Add(new FbxNode("Millisecond") { Properties = { new FbxProperty('I', utcNow.Millisecond) } });
+        header.Children.Add(creationTimeStamp);
         header.Children.Add(new FbxNode("Creator") { Properties = { new FbxProperty('S', "RedFox Graphics3D Kaydara FBX") } });
+        header.Children.Add(CreateSceneInfoNode(sceneName));
         document.Nodes.Add(header);
 
+        document.Nodes.Add(new FbxNode("FileId") { Properties = { new FbxProperty('R', (byte[])s_fileId.Clone()) } });
+        document.Nodes.Add(new FbxNode("CreationTime") { Properties = { new FbxProperty('S', DefaultFileCreationTime) } });
+        document.Nodes.Add(new FbxNode("Creator") { Properties = { new FbxProperty('S', "RedFox Graphics3D Kaydara FBX") } });
+
         FbxNode globalSettings = new("GlobalSettings");
+        globalSettings.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 1000) } });
         FbxNode globalProperties = globalSettings.AddChild("Properties70");
-        AddGlobalProperty(globalProperties, "UpAxis", "int", new FbxProperty('I', 2));
+        AddGlobalProperty(globalProperties, "UpAxis", "int", new FbxProperty('I', 1));
         AddGlobalProperty(globalProperties, "UpAxisSign", "int", new FbxProperty('I', 1));
-        AddGlobalProperty(globalProperties, "FrontAxis", "int", new FbxProperty('I', 1));
-        AddGlobalProperty(globalProperties, "FrontAxisSign", "int", new FbxProperty('I', -1));
+        AddGlobalProperty(globalProperties, "FrontAxis", "int", new FbxProperty('I', 2));
+        AddGlobalProperty(globalProperties, "FrontAxisSign", "int", new FbxProperty('I', 1));
         AddGlobalProperty(globalProperties, "CoordAxis", "int", new FbxProperty('I', 0));
         AddGlobalProperty(globalProperties, "CoordAxisSign", "int", new FbxProperty('I', 1));
-        AddGlobalProperty(globalProperties, "OriginalUpAxis", "int", new FbxProperty('I', -1));
+        AddGlobalProperty(globalProperties, "OriginalUpAxis", "int", new FbxProperty('I', 1));
         AddGlobalProperty(globalProperties, "OriginalUpAxisSign", "int", new FbxProperty('I', 1));
-        AddGlobalProperty(globalProperties, "UnitScaleFactor", "double", new FbxProperty('D', 100.0));
-        AddGlobalProperty(globalProperties, "OriginalUnitScaleFactor", "double", new FbxProperty('D', 100.0));
+        AddGlobalProperty(globalProperties, "UnitScaleFactor", "double", new FbxProperty('D', 1.0));
+        AddGlobalProperty(globalProperties, "OriginalUnitScaleFactor", "double", new FbxProperty('D', 1.0));
+        AddGlobalProperty(globalProperties, "AmbientColor", "ColorRGB", new FbxProperty('D', 0.0));
+        AddStringProperty(globalProperties, "DefaultCamera", "KString", "Producer Perspective");
+        AddIntProperty(globalProperties, "TimeMode", "enum", 11);
+        AddIntProperty(globalProperties, "TimeProtocol", "enum", 2);
+        AddIntProperty(globalProperties, "SnapOnFrameMode", "enum", 0);
+        AddGlobalProperty(globalProperties, "TimeSpanStart", "KTime", new FbxProperty('L', 0L));
+        AddGlobalProperty(globalProperties, "TimeSpanStop", "KTime", new FbxProperty('L', 0L));
+        AddDoubleProperty(globalProperties, "CustomFrameRate", "double", -1.0);
         document.Nodes.Add(globalSettings);
+    }
+
+    /// <summary>
+    /// Appends a Documents node with a single scene document entry.
+    /// </summary>
+    /// <param name="document">The target FBX document.</param>
+    /// <param name="sceneName">The source scene name.</param>
+    public static void AddDocumentsNode(FbxDocument document, string sceneName)
+    {
+        FbxNode documents = new("Documents");
+        documents.Children.Add(new FbxNode("Count") { Properties = { new FbxProperty('I', 1) } });
+
+        FbxNode doc = new("Document");
+        doc.Properties.Add(new FbxProperty('L', 1L));
+        doc.Properties.Add(new FbxProperty('S', string.Empty));
+        doc.Properties.Add(new FbxProperty('S', "Scene"));
+        FbxNode properties = doc.AddChild("Properties70");
+        AddGlobalProperty(properties, "SourceObject", "object", new FbxProperty('L', 0L));
+        AddStringProperty(properties, "ActiveAnimStackName", "KString", DefaultTakeName);
+        doc.Children.Add(new FbxNode("RootNode") { Properties = { new FbxProperty('L', 0L) } });
+        documents.Children.Add(doc);
+        document.Nodes.Add(documents);
+    }
+
+    /// <summary>
+    /// Appends an empty References node.
+    /// </summary>
+    /// <param name="document">The target FBX document.</param>
+    public static void AddReferencesNode(FbxDocument document)
+    {
+        document.Nodes.Add(new FbxNode("References"));
+    }
+
+    /// <summary>
+    /// Appends an FBX Definitions node based on the exported Objects payload.
+    /// </summary>
+    /// <param name="document">The target FBX document.</param>
+    /// <param name="objectsNode">The populated Objects node.</param>
+    public static void AddDefinitionsNode(FbxDocument document, FbxNode objectsNode)
+    {
+        Dictionary<string, int> counts = [];
+        Dictionary<string, int> nodeAttributeCounts = [];
+        foreach (FbxNode child in objectsNode.Children)
+        {
+            counts[child.Name] = counts.TryGetValue(child.Name, out int count) ? count + 1 : 1;
+
+            if (string.Equals(child.Name, "NodeAttribute", StringComparison.Ordinal) && child.Properties.Count > 2)
+            {
+                string subtype = child.Properties[2].AsString();
+                nodeAttributeCounts[subtype] = nodeAttributeCounts.TryGetValue(subtype, out int subtypeCount) ? subtypeCount + 1 : 1;
+            }
+        }
+
+        FbxNode definitions = new("Definitions");
+        definitions.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 100) } });
+        definitions.Children.Add(new FbxNode("Count") { Properties = { new FbxProperty('I', counts.Values.Sum() + 1) } });
+
+        FbxNode globalSettingsType = new("ObjectType");
+        globalSettingsType.Properties.Add(new FbxProperty('S', "GlobalSettings"));
+        globalSettingsType.Children.Add(new FbxNode("Count") { Properties = { new FbxProperty('I', 1) } });
+        definitions.Children.Add(globalSettingsType);
+
+        foreach ((string objectTypeName, int count) in counts.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+        {
+            FbxNode objectType = new("ObjectType");
+            objectType.Properties.Add(new FbxProperty('S', objectTypeName));
+            objectType.Children.Add(new FbxNode("Count") { Properties = { new FbxProperty('I', count) } });
+
+            if (string.Equals(objectTypeName, "Model", StringComparison.Ordinal))
+            {
+                objectType.Children.Add(CreateDefinitionTemplate("FbxNode", static properties =>
+                {
+                    AddVectorProperty(properties, "Lcl Translation", "Lcl Translation", Vector3.Zero);
+                    AddVectorProperty(properties, "Lcl Rotation", "Lcl Rotation", Vector3.Zero);
+                    AddVectorProperty(properties, "Lcl Scaling", "Lcl Scaling", Vector3.One);
+                    AddDoubleProperty(properties, "Visibility", "Visibility", 1.0);
+                    AddIntProperty(properties, "Visibility Inheritance", "Visibility Inheritance", 1);
+                    AddIntProperty(properties, "DefaultAttributeIndex", "int", 0);
+                    AddIntProperty(properties, "InheritType", "enum", 1);
+                }));
+            }
+            else if (string.Equals(objectTypeName, "AnimationStack", StringComparison.Ordinal))
+            {
+                objectType.Children.Add(CreateDefinitionTemplate("FbxAnimStack", static properties =>
+                {
+                    AddStringProperty(properties, "Description", "KString", string.Empty);
+                    AddGlobalProperty(properties, "LocalStart", "KTime", new FbxProperty('L', 0L));
+                    AddGlobalProperty(properties, "LocalStop", "KTime", new FbxProperty('L', 0L));
+                    AddGlobalProperty(properties, "ReferenceStart", "KTime", new FbxProperty('L', 0L));
+                    AddGlobalProperty(properties, "ReferenceStop", "KTime", new FbxProperty('L', 0L));
+                }));
+            }
+            else if (string.Equals(objectTypeName, "AnimationLayer", StringComparison.Ordinal))
+            {
+                objectType.Children.Add(CreateDefinitionTemplate("FbxAnimLayer", static properties =>
+                {
+                    AddDoubleProperty(properties, "Weight", "Number", 100.0);
+                    AddIntProperty(properties, "Mute", "bool", 0);
+                    AddIntProperty(properties, "Solo", "bool", 0);
+                    AddIntProperty(properties, "Lock", "bool", 0);
+                    AddVectorProperty(properties, "Color", "ColorRGB", new Vector3(0.8f, 0.8f, 0.8f));
+                    AddIntProperty(properties, "BlendMode", "enum", 0);
+                    AddIntProperty(properties, "RotationAccumulationMode", "enum", 0);
+                    AddIntProperty(properties, "ScaleAccumulationMode", "enum", 0);
+                    AddGlobalProperty(properties, "BlendModeBypass", "ULongLong", new FbxProperty('L', 0L));
+                }));
+            }
+            else if (string.Equals(objectTypeName, "Geometry", StringComparison.Ordinal))
+            {
+                objectType.Children.Add(CreateDefinitionTemplate("FbxMesh", static properties =>
+                {
+                    AddVectorProperty(properties, "Color", "ColorRGB", new Vector3(0.8f, 0.8f, 0.8f));
+                    AddVectorProperty(properties, "BBoxMin", "Vector3D", Vector3.Zero);
+                    AddVectorProperty(properties, "BBoxMax", "Vector3D", Vector3.Zero);
+                    AddIntProperty(properties, "Primary Visibility", "bool", 1);
+                    AddIntProperty(properties, "Casts Shadows", "bool", 1);
+                    AddIntProperty(properties, "Receive Shadows", "bool", 1);
+                }));
+            }
+            else if (string.Equals(objectTypeName, "Material", StringComparison.Ordinal))
+            {
+                objectType.Children.Add(CreateDefinitionTemplate("FbxSurfaceLambert", static properties =>
+                {
+                    AddStringProperty(properties, "ShadingModel", "KString", "Lambert");
+                    AddIntProperty(properties, "MultiLayer", "bool", 0);
+                    AddVectorProperty(properties, "EmissiveColor", "Color", Vector3.Zero);
+                    AddDoubleProperty(properties, "EmissiveFactor", "Number", 1.0);
+                    AddVectorProperty(properties, "AmbientColor", "Color", new Vector3(0.2f, 0.2f, 0.2f));
+                    AddDoubleProperty(properties, "AmbientFactor", "Number", 1.0);
+                    AddVectorProperty(properties, "DiffuseColor", "Color", new Vector3(0.8f, 0.8f, 0.8f));
+                    AddDoubleProperty(properties, "DiffuseFactor", "Number", 1.0);
+                    AddVectorProperty(properties, "Bump", "Vector3D", Vector3.Zero);
+                    AddVectorProperty(properties, "NormalMap", "Vector3D", Vector3.Zero);
+                    AddDoubleProperty(properties, "BumpFactor", "double", 1.0);
+                    AddVectorProperty(properties, "TransparentColor", "Color", Vector3.Zero);
+                    AddDoubleProperty(properties, "TransparencyFactor", "Number", 0.0);
+                    AddVectorProperty(properties, "DisplacementColor", "ColorRGB", Vector3.Zero);
+                    AddDoubleProperty(properties, "DisplacementFactor", "double", 1.0);
+                    AddVectorProperty(properties, "VectorDisplacementColor", "ColorRGB", Vector3.Zero);
+                    AddDoubleProperty(properties, "VectorDisplacementFactor", "double", 1.0);
+                }));
+            }
+            else if (string.Equals(objectTypeName, "NodeAttribute", StringComparison.Ordinal))
+            {
+                foreach ((string subtype, int subtypeCount) in nodeAttributeCounts.OrderBy(static pair => pair.Key, StringComparer.Ordinal))
+                {
+                    _ = subtypeCount;
+                    objectType.Children.Add(CreateNodeAttributeTemplate(subtype));
+                }
+            }
+
+            definitions.Children.Add(objectType);
+        }
+
+        document.Nodes.Add(definitions);
+    }
+
+    /// <summary>
+    /// Appends a Takes node with the default take entry used by Maya exports.
+    /// </summary>
+    /// <param name="document">The target FBX document.</param>
+    public static void AddTakesNode(FbxDocument document)
+    {
+        FbxNode takes = new("Takes");
+        takes.Children.Add(new FbxNode("Current") { Properties = { new FbxProperty('S', DefaultTakeName) } });
+
+        FbxNode take = new("Take");
+        take.Properties.Add(new FbxProperty('S', DefaultTakeName));
+        take.Children.Add(new FbxNode("FileName") { Properties = { new FbxProperty('S', "Take_001.tak") } });
+        take.Children.Add(new FbxNode("LocalTime") { Properties = { new FbxProperty('L', 0L), new FbxProperty('L', 0L) } });
+        take.Children.Add(new FbxNode("ReferenceTime") { Properties = { new FbxProperty('L', 0L), new FbxProperty('L', 0L) } });
+        takes.Children.Add(take);
+
+        document.Nodes.Add(takes);
+    }
+
+    /// <summary>
+    /// Creates the default animation stack object.
+    /// </summary>
+    /// <param name="id">The FBX object identifier.</param>
+    /// <returns>The generated AnimationStack node.</returns>
+    public static FbxNode CreateAnimationStackObject(long id)
+    {
+        FbxNode animationStack = new("AnimationStack");
+        animationStack.Properties.Add(new FbxProperty('L', id));
+        animationStack.Properties.Add(new FbxProperty('S', DefaultTakeName + "\0\u0001AnimStack"));
+        animationStack.Properties.Add(new FbxProperty('S', string.Empty));
+        FbxNode properties = animationStack.AddChild("Properties70");
+        AddGlobalProperty(properties, "LocalStart", "KTime", new FbxProperty('L', 0L));
+        AddGlobalProperty(properties, "LocalStop", "KTime", new FbxProperty('L', 0L));
+        AddGlobalProperty(properties, "ReferenceStart", "KTime", new FbxProperty('L', 0L));
+        AddGlobalProperty(properties, "ReferenceStop", "KTime", new FbxProperty('L', 0L));
+        return animationStack;
+    }
+
+    /// <summary>
+    /// Creates the default animation layer object.
+    /// </summary>
+    /// <param name="id">The FBX object identifier.</param>
+    /// <returns>The generated AnimationLayer node.</returns>
+    public static FbxNode CreateAnimationLayerObject(long id)
+    {
+        FbxNode animationLayer = new("AnimationLayer");
+        animationLayer.Properties.Add(new FbxProperty('L', id));
+        animationLayer.Properties.Add(new FbxProperty('S', "BaseLayer\0\u0001AnimLayer"));
+        animationLayer.Properties.Add(new FbxProperty('S', string.Empty));
+        return animationLayer;
     }
 
     /// <summary>
@@ -739,22 +1713,119 @@ public static class FbxSceneMapper
         modelNode.Properties.Add(new FbxProperty('L', id));
         modelNode.Properties.Add(new FbxProperty('S', name + "\0\u0001Model"));
         modelNode.Properties.Add(new FbxProperty('S', type));
+        modelNode.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 232) } });
         FbxNode properties = modelNode.AddChild("Properties70");
         (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(sourceNode);
-        AddVectorProperty(properties, "Lcl Translation", "Lcl Translation", localTranslation);
-        AddVectorProperty(properties, "Lcl Rotation", "Lcl Rotation", FbxRotation.ToEulerDegreesXyz(localRotation));
-        AddVectorProperty(properties, "Lcl Scaling", "Lcl Scaling", localScale);
-        AddVectorProperty(properties, "PreRotation", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "PostRotation", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "RotationOffset", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "RotationPivot", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "ScalingOffset", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "ScalingPivot", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "GeometricTranslation", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "GeometricRotation", "Vector3D", Vector3.Zero);
-        AddVectorProperty(properties, "GeometricScaling", "Vector3D", Vector3.One);
-        AddIntProperty(properties, "RotationOrder", "enum", 0);
-        AddIntProperty(properties, "InheritType", "enum", 1);
+        Vector3 exportedLocalTranslation = GetMetadataVector3(sourceNode, MetadataLclTranslationKey, localTranslation);
+        Vector3 exportedLocalRotation = GetMetadataVector3(sourceNode, MetadataLclRotationKey, FbxRotation.ToEulerDegreesXyz(localRotation));
+        Vector3 exportedLocalScale = GetMetadataVector3(sourceNode, MetadataLclScalingKey, localScale);
+        Vector3 exportedPreRotation = GetMetadataVector3(sourceNode, MetadataPreRotationKey, Vector3.Zero);
+        Vector3 exportedPostRotation = GetMetadataVector3(sourceNode, MetadataPostRotationKey, Vector3.Zero);
+        Vector3 exportedRotationOffset = GetMetadataVector3(sourceNode, MetadataRotationOffsetKey, Vector3.Zero);
+        Vector3 exportedRotationPivot = GetMetadataVector3(sourceNode, MetadataRotationPivotKey, Vector3.Zero);
+        Vector3 exportedScalingOffset = GetMetadataVector3(sourceNode, MetadataScalingOffsetKey, Vector3.Zero);
+        Vector3 exportedScalingPivot = GetMetadataVector3(sourceNode, MetadataScalingPivotKey, Vector3.Zero);
+        Vector3 exportedGeometricTranslation = GetMetadataVector3(sourceNode, MetadataGeometricTranslationKey, Vector3.Zero);
+        Vector3 exportedGeometricRotation = GetMetadataVector3(sourceNode, MetadataGeometricRotationKey, Vector3.Zero);
+        Vector3 exportedGeometricScaling = GetMetadataVector3(sourceNode, MetadataGeometricScalingKey, Vector3.One);
+        int exportedRotationOrder = GetMetadataInt(sourceNode, MetadataRotationOrderKey, 0);
+        if (IsTopLevelAuthoredExportRoot(sourceNode) && IsNearlyZero(exportedPreRotation))
+        {
+            exportedPreRotation = s_authoredRootPreRotation;
+        }
+
+        if (sourceNode is SkeletonBone && !HasImportedTransformMetadata(sourceNode) && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
+        {
+            exportedPreRotation = exportedLocalRotation;
+            exportedLocalRotation = Vector3.Zero;
+        }
+
+        if (sourceNode is Mesh)
+        {
+            AddIntProperty(properties, "RotationActive", "bool", 1);
+            AddIntProperty(properties, "InheritType", "enum", 1);
+            AddVectorProperty(properties, "ScalingMax", "Vector3D", Vector3.Zero);
+            AddIntProperty(properties, "DefaultAttributeIndex", "int", 0);
+            AddVectorProperty(properties, "Lcl Translation", "Lcl Translation", exportedLocalTranslation);
+            AddVectorProperty(properties, "Lcl Rotation", "Lcl Rotation", exportedLocalRotation);
+            AddVectorProperty(properties, "Lcl Scaling", "Lcl Scaling", exportedLocalScale);
+            AddStringProperty(properties, "currentUVSet", "KString", "map1");
+        }
+        else
+        {
+            AddIntProperty(properties, "RotationActive", "bool", 1);
+            AddVectorProperty(properties, "ScalingMax", "Vector3D", Vector3.Zero);
+            AddIntProperty(properties, "InheritType", "enum", 1);
+            AddIntProperty(properties, "DefaultAttributeIndex", "int", 0);
+
+            if (!IsNearlyZero(exportedPreRotation))
+            {
+                AddVectorProperty(properties, "PreRotation", "Vector3D", exportedPreRotation);
+            }
+
+            if (!IsNearlyZero(exportedLocalTranslation))
+            {
+                AddVectorProperty(properties, "Lcl Translation", "Lcl Translation", exportedLocalTranslation);
+            }
+
+            if (!IsNearlyZero(exportedLocalRotation))
+            {
+                AddVectorProperty(properties, "Lcl Rotation", "Lcl Rotation", exportedLocalRotation);
+            }
+
+            if (!IsNearlyOne(exportedLocalScale))
+            {
+                AddVectorProperty(properties, "Lcl Scaling", "Lcl Scaling", exportedLocalScale);
+            }
+
+            if (!IsNearlyZero(exportedPostRotation))
+            {
+                AddVectorProperty(properties, "PostRotation", "Vector3D", exportedPostRotation);
+            }
+
+            if (!IsNearlyZero(exportedRotationOffset))
+            {
+                AddVectorProperty(properties, "RotationOffset", "Vector3D", exportedRotationOffset);
+            }
+
+            if (!IsNearlyZero(exportedRotationPivot))
+            {
+                AddVectorProperty(properties, "RotationPivot", "Vector3D", exportedRotationPivot);
+            }
+
+            if (!IsNearlyZero(exportedScalingOffset))
+            {
+                AddVectorProperty(properties, "ScalingOffset", "Vector3D", exportedScalingOffset);
+            }
+
+            if (!IsNearlyZero(exportedScalingPivot))
+            {
+                AddVectorProperty(properties, "ScalingPivot", "Vector3D", exportedScalingPivot);
+            }
+
+            if (!IsNearlyZero(exportedGeometricTranslation))
+            {
+                AddVectorProperty(properties, "GeometricTranslation", "Vector3D", exportedGeometricTranslation);
+            }
+
+            if (!IsNearlyZero(exportedGeometricRotation))
+            {
+                AddVectorProperty(properties, "GeometricRotation", "Vector3D", exportedGeometricRotation);
+            }
+
+            if (!IsNearlyOne(exportedGeometricScaling))
+            {
+                AddVectorProperty(properties, "GeometricScaling", "Vector3D", exportedGeometricScaling);
+            }
+
+            if (exportedRotationOrder != 0)
+            {
+                AddIntProperty(properties, "RotationOrder", "enum", exportedRotationOrder);
+            }
+        }
+
+        modelNode.Children.Add(new FbxNode("Shading") { Properties = { new FbxProperty('C', true) } });
+        modelNode.Children.Add(new FbxNode("Culling") { Properties = { new FbxProperty('S', "CullingOff") } });
         return modelNode;
     }
 
@@ -762,16 +1833,19 @@ public static class FbxSceneMapper
     /// Creates an FBX NodeAttribute node for a skeleton limb bone.
     /// </summary>
     /// <param name="id">The FBX object identifier.</param>
-    /// <param name="boneName">The bone name.</param>
+    /// <param name="bone">The source bone.</param>
     /// <returns>The generated NodeAttribute node.</returns>
-    public static FbxNode CreateBoneNodeAttribute(long id, string boneName)
+    public static FbxNode CreateBoneNodeAttribute(long id, SkeletonBone bone)
     {
+        ArgumentNullException.ThrowIfNull(bone);
+
         FbxNode nodeAttribute = new("NodeAttribute");
         nodeAttribute.Properties.Add(new FbxProperty('L', id));
-        nodeAttribute.Properties.Add(new FbxProperty('S', boneName + "\0\u0001NodeAttribute"));
+        nodeAttribute.Properties.Add(new FbxProperty('S', bone.Name + "\0\u0001NodeAttribute"));
         nodeAttribute.Properties.Add(new FbxProperty('S', "LimbNode"));
+        nodeAttribute.Children.Add(new FbxNode("TypeFlags") { Properties = { new FbxProperty('S', "Skeleton") } });
         FbxNode properties = nodeAttribute.AddChild("Properties70");
-        AddGlobalProperty(properties, "Size", "double", new FbxProperty('D', 1.0));
+        AddGlobalProperty(properties, "Size", "double", new FbxProperty('D', GetBoneDisplaySize(bone)));
         return nodeAttribute;
     }
 
@@ -787,13 +1861,20 @@ public static class FbxSceneMapper
         materialNode.Properties.Add(new FbxProperty('L', id));
         materialNode.Properties.Add(new FbxProperty('S', material.Name + "\0\u0001Material"));
         materialNode.Properties.Add(new FbxProperty('S', string.Empty));
+        materialNode.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 102) } });
+        materialNode.Children.Add(new FbxNode("ShadingModel") { Properties = { new FbxProperty('S', "lambert") } });
+        materialNode.Children.Add(new FbxNode("MultiLayer") { Properties = { new FbxProperty('I', 0) } });
         FbxNode properties = materialNode.AddChild("Properties70");
         Vector4 diffuse = material.DiffuseColor ?? Vector4.One;
+        AddVectorProperty(properties, "AmbientColor", "Color", Vector3.Zero);
         AddVectorProperty(properties, "DiffuseColor", "Color", new Vector3(diffuse.X, diffuse.Y, diffuse.Z));
+        AddDoubleProperty(properties, "DiffuseFactor", "Number", 0.8);
+        AddDoubleProperty(properties, "TransparencyFactor", "Number", 1.0);
         Vector4 emissive = material.EmissiveColor ?? Vector4.Zero;
-        AddVectorProperty(properties, "EmissiveColor", "Color", new Vector3(emissive.X, emissive.Y, emissive.Z));
-        Vector4 specular = material.SpecularColor ?? Vector4.Zero;
-        AddVectorProperty(properties, "SpecularColor", "Color", new Vector3(specular.X, specular.Y, specular.Z));
+        AddVectorProperty(properties, "Emissive", "Vector3D", new Vector3(emissive.X, emissive.Y, emissive.Z));
+        AddVectorProperty(properties, "Ambient", "Vector3D", Vector3.Zero);
+        AddVectorProperty(properties, "Diffuse", "Vector3D", new Vector3(diffuse.X * 0.5f, diffuse.Y * 0.5f, diffuse.Z * 0.5f));
+        AddDoubleProperty(properties, "Opacity", "double", diffuse.W);
         return materialNode;
     }
 
@@ -802,11 +1883,10 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="id">The FBX object identifier.</param>
     /// <param name="mesh">The source mesh.</param>
-    /// <param name="meshModelId">The FBX model id of the mesh.</param>
     /// <param name="modelIds">All exported model ids keyed by scene node.</param>
     /// <param name="boneIds">All exported bone model ids keyed by skeleton bone.</param>
     /// <returns>The generated FBX Pose node.</returns>
-    public static FbxNode CreateBindPoseObject(long id, Mesh mesh, long meshModelId, Dictionary<SceneNode, long> modelIds, Dictionary<SkeletonBone, long> boneIds)
+    public static FbxNode CreateBindPoseObject(long id, Mesh mesh, Dictionary<SceneNode, long> modelIds, Dictionary<SkeletonBone, long> boneIds)
     {
         FbxNode poseNode = new("Pose");
         poseNode.Properties.Add(new FbxProperty('L', id));
@@ -815,35 +1895,68 @@ public static class FbxSceneMapper
         poseNode.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "BindPose") } });
         poseNode.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 100) } });
 
-        Skeleton? armature = FindBindPoseArmature(mesh);
-        bool hasArmature = armature is not null && modelIds.ContainsKey(armature);
-        int poseNodeCount = hasArmature ? 2 : 1;
-        if (mesh.SkinnedBones is { Count: > 0 } skinnedBones)
+        List<SceneNode> bindPoseNodes = CollectBindPoseNodes(mesh, modelIds, boneIds);
+        poseNode.Children.Add(new FbxNode("NbPoseNodes") { Properties = { new FbxProperty('I', bindPoseNodes.Count) } });
+
+        for (int nodeIndex = 0; nodeIndex < bindPoseNodes.Count; nodeIndex++)
         {
-            poseNodeCount += skinnedBones.Count;
+            SceneNode node = bindPoseNodes[nodeIndex];
+            poseNode.Children.Add(CreatePoseEntry(modelIds[node], GetExportBindWorldMatrix(node)));
         }
 
-        poseNode.Children.Add(new FbxNode("NbPoseNodes") { Properties = { new FbxProperty('I', poseNodeCount) } });
-        poseNode.Children.Add(CreatePoseEntry(meshModelId, mesh.GetBindWorldMatrix()));
+        return poseNode;
+    }
 
-        if (hasArmature && armature is not null)
-        {
-            poseNode.Children.Add(CreatePoseEntry(modelIds[armature], armature.GetBindWorldMatrix()));
-        }
+    /// <summary>
+    /// Collects the exported nodes that must appear in a mesh bind pose, including mesh and bone ancestors.
+    /// </summary>
+    /// <param name="mesh">The mesh being exported.</param>
+    /// <param name="modelIds">All exported model ids keyed by scene node.</param>
+    /// <param name="boneIds">All exported bone model ids keyed by skeleton bone.</param>
+    /// <returns>The ordered bind-pose node list with duplicates removed.</returns>
+    public static List<SceneNode> CollectBindPoseNodes(Mesh mesh, Dictionary<SceneNode, long> modelIds, Dictionary<SkeletonBone, long> boneIds)
+    {
+        List<SceneNode> nodes = [];
+        HashSet<SceneNode> seen = [];
+
+        AddBindPoseChain(nodes, seen, mesh, modelIds);
 
         if (mesh.SkinnedBones is { Count: > 0 } bones)
         {
             for (int i = 0; i < bones.Count; i++)
             {
                 SkeletonBone bone = bones[i];
-                if (boneIds.TryGetValue(bone, out long boneModelId))
+                if (!boneIds.ContainsKey(bone))
                 {
-                    poseNode.Children.Add(CreatePoseEntry(boneModelId, bone.GetBindWorldMatrix()));
+                    continue;
                 }
+
+                AddBindPoseChain(nodes, seen, bone, modelIds);
             }
         }
 
-        return poseNode;
+        return nodes;
+    }
+
+    /// <summary>
+    /// Adds a scene node and its exported ancestors to the ordered bind-pose list.
+    /// </summary>
+    /// <param name="nodes">The destination ordered node list.</param>
+    /// <param name="seen">The de-duplication set.</param>
+    /// <param name="startNode">The node whose chain should be added.</param>
+    /// <param name="modelIds">All exported model ids keyed by scene node.</param>
+    public static void AddBindPoseChain(List<SceneNode> nodes, HashSet<SceneNode> seen, SceneNode? startNode, Dictionary<SceneNode, long> modelIds)
+    {
+        SceneNode? current = startNode;
+        while (current is not null)
+        {
+            if (modelIds.ContainsKey(current) && seen.Add(current))
+            {
+                nodes.Add(current);
+            }
+
+            current = current.Parent;
+        }
     }
 
     /// <summary>
@@ -856,34 +1969,84 @@ public static class FbxSceneMapper
     {
         FbxNode poseEntry = new("PoseNode");
         poseEntry.Children.Add(new FbxNode("Node") { Properties = { new FbxProperty('L', nodeId) } });
-        poseEntry.Children.Add(new FbxNode("Matrix") { Properties = { new FbxProperty('d', MatrixToArray(matrix)) } });
+        poseEntry.Children.Add(new FbxNode("Matrix") { Properties = { new FbxProperty('d', matrix) } });
         return poseEntry;
     }
 
     /// <summary>
-    /// Resolves the local transform to export for a scene node by computing
-    /// <c>worldMatrix * parentWorldInverse</c>.
+    /// Resolves the exact bind-local transform to export for a scene node.
     /// </summary>
     /// <param name="sourceNode">The scene node to query.</param>
     /// <returns>A tuple of translation, rotation, and scale in local space.</returns>
     public static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ResolveExportLocalTransform(SceneNode sourceNode)
     {
-        Matrix4x4 localMatrix = sourceNode.GetBindWorldMatrix();
-        if (sourceNode.Parent is not null)
+        return
+        (
+            sourceNode.GetBindLocalPosition(),
+            Quaternion.Normalize(sourceNode.GetBindLocalRotation()),
+            sourceNode.GetBindLocalScale()
+        );
+    }
+
+    /// <summary>
+    /// Computes a display size for an exported FBX limb node based on the bone hierarchy.
+    /// </summary>
+    /// <param name="bone">The source bone.</param>
+    /// <returns>The display size to store in the FBX limb node attribute.</returns>
+    public static double GetBoneDisplaySize(SkeletonBone bone)
+    {
+        ArgumentNullException.ThrowIfNull(bone);
+
+        float bestChildDistance = float.MaxValue;
+        Vector3 bonePosition = bone.GetBindWorldPosition();
+
+        foreach (SceneNode child in bone.EnumerateChildren())
         {
-            Matrix4x4 parentWorld = sourceNode.Parent.GetBindWorldMatrix();
-            if (Matrix4x4.Invert(parentWorld, out Matrix4x4 parentInverse))
+            if (child is not SkeletonBone childBone)
             {
-                localMatrix *= parentInverse;
+                continue;
+            }
+
+            float childDistance = Vector3.Distance(bonePosition, childBone.GetBindWorldPosition());
+            if (childDistance > 1e-5f)
+            {
+                bestChildDistance = MathF.Min(bestChildDistance, childDistance);
             }
         }
 
-        if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+        if (bestChildDistance != float.MaxValue)
         {
-            return (translation, Quaternion.Normalize(rotation), scale);
+            return Math.Max(bestChildDistance, 1e-3f);
         }
 
-        return (sourceNode.GetBindLocalPosition(), sourceNode.GetBindLocalRotation(), sourceNode.GetBindLocalScale());
+        if (bone.Parent is SkeletonBone parentBone)
+        {
+            float parentDistance = Vector3.Distance(parentBone.GetBindWorldPosition(), bonePosition) * 0.5f;
+            if (parentDistance > 1e-5f)
+            {
+                return Math.Max(parentDistance, 1e-3f);
+            }
+        }
+
+        return 1.0;
+    }
+
+    /// <summary>
+    /// Creates an FBX NodeAttribute node for a Null transform helper.
+    /// </summary>
+    /// <param name="id">The FBX object identifier.</param>
+    /// <param name="rawName">The raw FBX node-attribute name.</param>
+    /// <returns>The generated NodeAttribute node.</returns>
+    public static FbxNode CreateNullNodeAttribute(long id, string rawName)
+    {
+        FbxNode nodeAttribute = new("NodeAttribute");
+        nodeAttribute.Properties.Add(new FbxProperty('L', id));
+        nodeAttribute.Properties.Add(new FbxProperty('S', rawName));
+        nodeAttribute.Properties.Add(new FbxProperty('S', "Null"));
+        FbxNode properties = nodeAttribute.AddChild("Properties70");
+        AddIntProperty(properties, "Look", "enum", 0);
+        nodeAttribute.Children.Add(new FbxNode("TypeFlags") { Properties = { new FbxProperty('S', "Null") } });
+        return nodeAttribute;
     }
 
     /// <summary>
@@ -946,6 +2109,109 @@ public static class FbxSceneMapper
         property.Properties.Add(new FbxProperty('S', string.Empty));
         property.Properties.Add(new FbxProperty('S', string.Empty));
         property.Properties.Add(new FbxProperty('I', value));
+    }
+
+    /// <summary>
+    /// Appends a string-typed Properties70 entry to the given properties node.
+    /// </summary>
+    /// <param name="properties">The Properties70 node to append to.</param>
+    /// <param name="propertyName">The FBX property name.</param>
+    /// <param name="propertyType">The FBX property type string.</param>
+    /// <param name="value">The string value to write.</param>
+    public static void AddStringProperty(FbxNode properties, string propertyName, string propertyType, string value)
+    {
+        FbxNode property = properties.AddChild("P");
+        property.Properties.Add(new FbxProperty('S', propertyName));
+        property.Properties.Add(new FbxProperty('S', propertyType));
+        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', value));
+    }
+
+    /// <summary>
+    /// Creates a Definitions PropertyTemplate node.
+    /// </summary>
+    /// <param name="templateName">The FBX template class name.</param>
+    /// <param name="populate">Callback that fills the template Properties70 node.</param>
+    /// <returns>The generated PropertyTemplate node.</returns>
+    public static FbxNode CreateDefinitionTemplate(string templateName, Action<FbxNode> populate)
+    {
+        FbxNode template = new("PropertyTemplate");
+        template.Properties.Add(new FbxProperty('S', templateName));
+        FbxNode properties = template.AddChild("Properties70");
+        populate(properties);
+        return template;
+    }
+
+    /// <summary>
+    /// Creates a NodeAttribute PropertyTemplate node for the specified subtype.
+    /// </summary>
+    /// <param name="subtype">The node attribute subtype.</param>
+    /// <returns>The generated PropertyTemplate node.</returns>
+    public static FbxNode CreateNodeAttributeTemplate(string subtype)
+    {
+        if (string.Equals(subtype, "Camera", StringComparison.Ordinal))
+        {
+            return CreateDefinitionTemplate("FbxCamera", static properties =>
+            {
+                AddDoubleProperty(properties, "FilmAspectRatio", "double", 1.7777777778);
+                AddDoubleProperty(properties, "FieldOfView", "FieldOfView", 60.0);
+                AddDoubleProperty(properties, "NearPlane", "double", 10.0);
+                AddDoubleProperty(properties, "FarPlane", "double", 100000.0);
+                AddIntProperty(properties, "CameraProjectionType", "enum", 0);
+            });
+        }
+
+        if (string.Equals(subtype, "Light", StringComparison.Ordinal))
+        {
+            return CreateDefinitionTemplate("FbxLight", static properties =>
+            {
+                AddIntProperty(properties, "LightType", "enum", 0);
+                AddIntProperty(properties, "CastLight", "bool", 1);
+                AddVectorProperty(properties, "Color", "Color", Vector3.One);
+                AddDoubleProperty(properties, "Intensity", "Number", 100.0);
+                AddIntProperty(properties, "DecayType", "enum", 2);
+            });
+        }
+
+        if (string.Equals(subtype, "LimbNode", StringComparison.Ordinal))
+        {
+            return CreateDefinitionTemplate("LimbNode", static properties =>
+            {
+                AddDoubleProperty(properties, "Size", "double", 1.0);
+            });
+        }
+
+        return CreateDefinitionTemplate("FbxNull", static properties =>
+        {
+            AddVectorProperty(properties, "Color", "ColorRGB", new Vector3(0.8f, 0.8f, 0.8f));
+            AddDoubleProperty(properties, "Size", "double", 100.0);
+        });
+    }
+
+    /// <summary>
+    /// Creates a minimal SceneInfo node for the FBX header extension.
+    /// </summary>
+    /// <param name="sceneName">The source scene name.</param>
+    /// <returns>The generated SceneInfo node.</returns>
+    public static FbxNode CreateSceneInfoNode(string sceneName)
+    {
+        FbxNode sceneInfo = new("SceneInfo");
+        sceneInfo.Properties.Add(new FbxProperty('S', "GlobalInfo\0\u0001SceneInfo"));
+        sceneInfo.Properties.Add(new FbxProperty('S', "UserData"));
+        sceneInfo.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "UserData") } });
+        sceneInfo.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 100) } });
+
+        FbxNode metaData = new("MetaData");
+        metaData.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 100) } });
+        metaData.Children.Add(new FbxNode("Title") { Properties = { new FbxProperty('S', sceneName) } });
+        metaData.Children.Add(new FbxNode("Subject") { Properties = { new FbxProperty('S', string.Empty) } });
+        metaData.Children.Add(new FbxNode("Author") { Properties = { new FbxProperty('S', "RedFox") } });
+        metaData.Children.Add(new FbxNode("Keywords") { Properties = { new FbxProperty('S', string.Empty) } });
+        metaData.Children.Add(new FbxNode("Revision") { Properties = { new FbxProperty('S', string.Empty) } });
+        metaData.Children.Add(new FbxNode("Comment") { Properties = { new FbxProperty('S', string.Empty) } });
+        sceneInfo.Children.Add(metaData);
+        return sceneInfo;
     }
 
     /// <summary>
@@ -1020,7 +2286,7 @@ public static class FbxSceneMapper
         Matrix4x4 post = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(postRotation, rotationOrder));
         Matrix4x4 postInv = Matrix4x4.Invert(post, out Matrix4x4 invertedPost) ? invertedPost : Matrix4x4.Identity;
         Matrix4x4 s = Matrix4x4.CreateScale(scaling);
-        return t * roff * rp * pre * localRot * postInv * rpInv * soff * sp * s * spInv;
+        return spInv * s * sp * soff * rpInv * postInv * localRot * pre * rp * roff * t;
     }
 
     /// <summary>
@@ -1036,7 +2302,7 @@ public static class FbxSceneMapper
         Matrix4x4 t = Matrix4x4.CreateTranslation(translation);
         Matrix4x4 r = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(rotation, rotationOrder));
         Matrix4x4 s = Matrix4x4.CreateScale(scaling);
-        return t * r * s;
+        return s * r * t;
     }
 
     /// <summary>
@@ -1085,13 +2351,12 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="objectNode">The FBX Model node with type Camera.</param>
     /// <param name="objectId">The unique object identifier.</param>
-    /// <param name="modelRoot">The parent container for the new camera node.</param>
     /// <param name="modelNodes">Map updated with the new camera node.</param>
     /// <param name="camerasByModelId">Map updated with the new camera.</param>
-    public static void CreateCameraNode(FbxNode objectNode, long objectId, Model modelRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Camera> camerasByModelId)
+    public static void CreateCameraNode(FbxNode objectNode, long objectId, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Camera> camerasByModelId)
     {
         string name = GetNodeObjectName(objectNode);
-        Camera camera = modelRoot.AddNode(new Camera(name));
+        Camera camera = new(name);
         ApplyModelTransform(camera, objectNode);
         ApplyCameraProperties(camera, objectNode);
         modelNodes[objectId] = camera;
@@ -1103,13 +2368,12 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="objectNode">The FBX Model node with type Light.</param>
     /// <param name="objectId">The unique object identifier.</param>
-    /// <param name="modelRoot">The parent container for the new light node.</param>
     /// <param name="modelNodes">Map updated with the new light node.</param>
     /// <param name="lightsByModelId">Map updated with the new light.</param>
-    public static void CreateLightNode(FbxNode objectNode, long objectId, Model modelRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Light> lightsByModelId)
+    public static void CreateLightNode(FbxNode objectNode, long objectId, Dictionary<long, SceneNode> modelNodes, Dictionary<long, Light> lightsByModelId)
     {
         string name = GetNodeObjectName(objectNode);
-        Light light = modelRoot.AddNode(new Light(name));
+        Light light = new(name);
         ApplyModelTransform(light, objectNode);
         ApplyLightProperties(light, objectNode);
         modelNodes[objectId] = light;
@@ -1193,6 +2457,34 @@ public static class FbxSceneMapper
         }
     }
 
+    public static void AttachNullNodeAttributes(Dictionary<long, SceneNode> modelNodes, Dictionary<long, FbxNode> objectsById, IReadOnlyList<FbxConnection> connections)
+    {
+        for (int i = 0; i < connections.Count; i++)
+        {
+            FbxConnection connection = connections[i];
+            if (!string.Equals(connection.ConnectionType, "OO", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!objectsById.TryGetValue(connection.ChildId, out FbxNode? nodeAttribute)
+                || !string.Equals(nodeAttribute.Name, "NodeAttribute", StringComparison.Ordinal)
+                || nodeAttribute.Properties.Count < 3
+                || !string.Equals(nodeAttribute.Properties[2].AsString(), "Null", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!modelNodes.TryGetValue(connection.ParentId, out SceneNode? node) || node is Mesh or Camera or Light or SkeletonBone)
+            {
+                continue;
+            }
+
+            node.Metadata[MetadataHasNullNodeAttributeKey] = true;
+            node.Metadata[MetadataNullNodeAttributeNameKey] = nodeAttribute.Properties[1].AsString();
+        }
+    }
+
     /// <summary>
     /// Reads a double value from a named typed property in a Properties70 node.
     /// </summary>
@@ -1244,6 +2536,7 @@ public static class FbxSceneMapper
         attr.Properties.Add(new FbxProperty('L', id));
         attr.Properties.Add(new FbxProperty('S', camera.Name + "\0\u0001NodeAttribute"));
         attr.Properties.Add(new FbxProperty('S', "Camera"));
+        attr.Children.Add(new FbxNode("TypeFlags") { Properties = { new FbxProperty('S', "Camera") } });
         FbxNode properties = attr.AddChild("Properties70");
         AddDoubleProperty(properties, "FilmAspectRatio", "double", camera.AspectRatio);
         AddDoubleProperty(properties, "FieldOfView", "FieldOfView", camera.FieldOfView);
@@ -1266,11 +2559,33 @@ public static class FbxSceneMapper
         attr.Properties.Add(new FbxProperty('L', id));
         attr.Properties.Add(new FbxProperty('S', light.Name + "\0\u0001NodeAttribute"));
         attr.Properties.Add(new FbxProperty('S', "Light"));
+        attr.Children.Add(new FbxNode("TypeFlags") { Properties = { new FbxProperty('S', "Light") } });
         FbxNode properties = attr.AddChild("Properties70");
         AddVectorProperty(properties, "Color", "Color", light.Color);
         AddDoubleProperty(properties, "Intensity", "Number", light.Intensity * 100.0);
         AddIntProperty(properties, "CastLight", "bool", light.Enabled ? 1 : 0);
         AddIntProperty(properties, "LightType", "enum", 0);
         return attr;
+    }
+
+    /// <summary>
+    /// Conditionally creates and connects a Null node attribute for the given model when applicable.
+    /// </summary>
+    /// <param name="node">The scene node to inspect.</param>
+    /// <param name="modelId">The FBX model object identifier.</param>
+    /// <param name="objectsNode">The FBX Objects node.</param>
+    /// <param name="connectionsNode">The FBX Connections node.</param>
+    /// <param name="nextId">The mutable object id counter.</param>
+    private static void ExportNullNodeAttributeIfNeeded(SceneNode node, long modelId, FbxNode objectsNode, FbxNode connectionsNode, ref long nextId)
+    {
+        if (!ShouldExportNullNodeAttribute(node))
+        {
+            return;
+        }
+
+        long nodeAttributeId = nextId++;
+        string nodeAttributeName = GetNullNodeAttributeName(node);
+        objectsNode.Children.Add(CreateNullNodeAttribute(nodeAttributeId, nodeAttributeName));
+        AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
     }
 }

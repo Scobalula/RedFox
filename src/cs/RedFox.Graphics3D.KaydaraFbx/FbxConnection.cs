@@ -6,4 +6,5 @@ namespace RedFox.Graphics3D.KaydaraFbx;
 /// <param name="ConnectionType">The FBX connection type token such as <c>OO</c> or <c>OP</c>.</param>
 /// <param name="ChildId">The connected child object identifier.</param>
 /// <param name="ParentId">The connected parent object identifier.</param>
-public readonly record struct FbxConnection(string ConnectionType, long ChildId, long ParentId);
+/// <param name="PropertyName">The optional FBX property label carried by <c>OP</c> connections.</param>
+public readonly record struct FbxConnection(string ConnectionType, long ChildId, long ParentId, string PropertyName);

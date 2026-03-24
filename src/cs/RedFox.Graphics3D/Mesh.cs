@@ -13,6 +13,7 @@ namespace RedFox.Graphics3D
     {
         private SkeletonBone[]? _skinnedBones;
         private Matrix4x4[]? _inverseBindMatrices;
+        private bool _hasExplicitInverseBindMatrices;
 
         /// <summary>
         /// Gets or sets the data buffer that contains vertex position information for the mesh.
@@ -116,6 +117,7 @@ namespace RedFox.Graphics3D
                 if (value is null)
                 {
                     _inverseBindMatrices = null;
+                    _hasExplicitInverseBindMatrices = false;
                     return;
                 }
 
@@ -123,8 +125,16 @@ namespace RedFox.Graphics3D
                     _inverseBindMatrices = CopyAndFillInverseBindMatrices(skinnedBones, value);
                 else
                     _inverseBindMatrices = CopyToArray(value);
+
+                _hasExplicitInverseBindMatrices = true;
             }
         }
+
+        /// <summary>
+        /// Gets a value indicating whether the current inverse bind matrices were supplied explicitly
+        /// rather than generated from the active bind transforms.
+        /// </summary>
+        public bool HasExplicitInverseBindMatrices => _hasExplicitInverseBindMatrices;
 
         /// <summary>
         /// Sets the skin binding for this mesh and keeps the inverse bind matrices aligned.
@@ -151,6 +161,7 @@ namespace RedFox.Graphics3D
             {
                 _skinnedBones = null;
                 _inverseBindMatrices = null;
+                _hasExplicitInverseBindMatrices = false;
                 return;
             }
 
@@ -160,10 +171,12 @@ namespace RedFox.Graphics3D
             if (inverseBindMatrices is not null)
             {
                 _inverseBindMatrices = CopyAndFillInverseBindMatrices(skinnedBoneArray, inverseBindMatrices);
+                _hasExplicitInverseBindMatrices = true;
                 return;
             }
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBoneArray);
+            _hasExplicitInverseBindMatrices = false;
         }
 
         /// <summary>
@@ -178,6 +191,7 @@ namespace RedFox.Graphics3D
                 return;
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
+            _hasExplicitInverseBindMatrices = false;
         }
 
         /// <summary>
@@ -188,10 +202,12 @@ namespace RedFox.Graphics3D
             if (_skinnedBones is not { Length: > 0 } skinnedBones)
             {
                 _inverseBindMatrices = null;
+                _hasExplicitInverseBindMatrices = false;
                 return;
             }
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
+            _hasExplicitInverseBindMatrices = false;
         }
 
         /// <summary>
@@ -234,11 +250,13 @@ namespace RedFox.Graphics3D
 
                 _skinnedBones = newSkinnedBones;
                 _inverseBindMatrices = newInverseBindMatrices;
+                _hasExplicitInverseBindMatrices = _hasExplicitInverseBindMatrices && inverseBindMatrix.HasValue;
             }
             else
             {
                 _skinnedBones = [bone];
                 _inverseBindMatrices = [inverseBindMatrix ?? CreateInverseBindMatrix(bone, new())];
+                _hasExplicitInverseBindMatrices = inverseBindMatrix.HasValue;
             }
 
             return _skinnedBones.Length - 1;
@@ -872,7 +890,7 @@ namespace RedFox.Graphics3D
             }
         }
 
-        private static Matrix4x4[] CopyAndFillInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones, IReadOnlyList<Matrix4x4> source)
+        private Matrix4x4[] CopyAndFillInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones, IReadOnlyList<Matrix4x4> source)
         {
             var result = new Matrix4x4[skinnedBones.Count];
             int copyCount = Math.Min(source.Count, skinnedBones.Count);
@@ -889,24 +907,28 @@ namespace RedFox.Graphics3D
             return result;
         }
 
-        private static Matrix4x4[] CreateInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones)
+        private Matrix4x4[] CreateInverseBindMatrices(IReadOnlyList<SkeletonBone> skinnedBones)
         {
             var result = new Matrix4x4[skinnedBones.Count];
+            Dictionary<SceneNode, Matrix4x4> cache = [];
 
             for (int i = 0; i < skinnedBones.Count; i++)
-                result[i] = CreateInverseBindMatrix(skinnedBones[i], cache: null);
+                result[i] = CreateInverseBindMatrix(skinnedBones[i], cache);
 
             return result;
         }
 
-        private static Matrix4x4 CreateInverseBindMatrix(SkeletonBone bone, Dictionary<SceneNode, Matrix4x4>? cache)
+        private Matrix4x4 CreateInverseBindMatrix(SkeletonBone bone, Dictionary<SceneNode, Matrix4x4>? cache)
         {
-            Matrix4x4 bindWorld = cache is null
+            Matrix4x4 boneBindWorld = cache is null
                 ? bone.GetBindWorldMatrix()
                 : ComputeCachedBindWorldMatrix(bone, cache);
+            Matrix4x4 meshBindWorld = cache is null
+                ? GetBindWorldMatrix()
+                : ComputeCachedBindWorldMatrix(this, cache);
 
-            return Matrix4x4.Invert(bindWorld, out var inverse)
-                ? inverse
+            return Matrix4x4.Invert(boneBindWorld, out Matrix4x4 inverseBoneBindWorld)
+                ? meshBindWorld * inverseBoneBindWorld
                 : Matrix4x4.Identity;
         }
 

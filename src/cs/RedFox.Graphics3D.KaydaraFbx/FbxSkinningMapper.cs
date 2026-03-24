@@ -10,6 +10,21 @@ namespace RedFox.Graphics3D.KaydaraFbx;
 public static class FbxSkinningMapper
 {
     /// <summary>
+    /// Gets the mesh metadata prefix used to store imported cluster Transform matrices.
+    /// </summary>
+    public const string ClusterTransformMetadataPrefix = "fbx.cluster.transform.";
+
+    /// <summary>
+    /// Gets the mesh metadata prefix used to store imported cluster TransformLink matrices.
+    /// </summary>
+    public const string ClusterTransformLinkMetadataPrefix = "fbx.cluster.transformLink.";
+
+    /// <summary>
+    /// Gets the mesh metadata prefix used to store imported cluster TransformAssociateModel matrices.
+    /// </summary>
+    public const string ClusterTransformAssociateModelMetadataPrefix = "fbx.cluster.transformAssociateModel.";
+
+    /// <summary>
     /// Imports skinning deformers into mesh skin palettes and influence buffers.
     /// </summary>
     /// <param name="meshesByModelId">Mesh map keyed by FBX model id.</param>
@@ -30,49 +45,39 @@ public static class FbxSkinningMapper
                 continue;
             }
 
-            if (objectsById.TryGetValue(connection.ChildId, out FbxNode? childNode)
-                && string.Equals(childNode.Name, "Deformer", StringComparison.Ordinal)
-                && childNode.Properties.Count > 2)
+            if (objectsById.TryGetValue(connection.ChildId, out FbxNode? childNode))
             {
-                string deformerType = childNode.Properties[2].AsString();
-                if (string.Equals(deformerType, "Skin", StringComparison.OrdinalIgnoreCase))
+                if (IsDeformerOfType(childNode, "Skin"))
                 {
                     skinToGeometry[connection.ChildId] = connection.ParentId;
                     continue;
                 }
 
-                if (string.Equals(deformerType, "Cluster", StringComparison.OrdinalIgnoreCase)
-                    && objectsById.TryGetValue(connection.ParentId, out FbxNode? parentNode)
-                    && string.Equals(parentNode.Name, "Deformer", StringComparison.Ordinal)
-                    && parentNode.Properties.Count > 2
-                    && string.Equals(parentNode.Properties[2].AsString(), "Skin", StringComparison.OrdinalIgnoreCase))
+                if (IsDeformerOfType(childNode, "Cluster"))
                 {
-                    if (!skinToClusters.TryGetValue(connection.ParentId, out List<long>? clusters))
+                    if (objectsById.TryGetValue(connection.ParentId, out FbxNode? parentNode) && IsDeformerOfType(parentNode, "Skin"))
                     {
-                        clusters = [];
-                        skinToClusters[connection.ParentId] = clusters;
+                        if (!skinToClusters.TryGetValue(connection.ParentId, out List<long>? clusters))
+                        {
+                            clusters = [];
+                            skinToClusters[connection.ParentId] = clusters;
+                        }
+
+                        clusters.Add(connection.ChildId);
+                        continue;
                     }
 
-                    clusters.Add(connection.ChildId);
-                    continue;
+                    if (bonesByModelId.ContainsKey(connection.ParentId))
+                    {
+                        clusterToBone[connection.ChildId] = connection.ParentId;
+                        continue;
+                    }
                 }
-            }
-
-            if (objectsById.TryGetValue(connection.ChildId, out FbxNode? clusterNode)
-                && string.Equals(clusterNode.Name, "Deformer", StringComparison.Ordinal)
-                && clusterNode.Properties.Count > 2
-                && string.Equals(clusterNode.Properties[2].AsString(), "Cluster", StringComparison.OrdinalIgnoreCase)
-                && bonesByModelId.ContainsKey(connection.ParentId))
-            {
-                clusterToBone[connection.ChildId] = connection.ParentId;
-                continue;
             }
 
             if (bonesByModelId.ContainsKey(connection.ChildId)
                 && objectsById.TryGetValue(connection.ParentId, out FbxNode? reverseClusterNode)
-                && string.Equals(reverseClusterNode.Name, "Deformer", StringComparison.Ordinal)
-                && reverseClusterNode.Properties.Count > 2
-                && string.Equals(reverseClusterNode.Properties[2].AsString(), "Cluster", StringComparison.OrdinalIgnoreCase))
+                && IsDeformerOfType(reverseClusterNode, "Cluster"))
             {
                 clusterToBone[connection.ParentId] = connection.ChildId;
             }
@@ -111,6 +116,7 @@ public static class FbxSkinningMapper
                 int paletteIndex = palette.Count;
                 palette.Add(bone);
                 inverseBindMatrices.Add(ReadClusterInverseBindMatrix(clusterNode));
+                StoreClusterTransformMetadata(mesh, clusterNode, bone.Name);
 
                 int[] indices = FbxSceneMapper.GetNodeArray<int>(clusterNode, "Indexes");
                 double[] weights = FbxSceneMapper.GetNodeArray<double>(clusterNode, "Weights");
@@ -200,6 +206,8 @@ public static class FbxSkinningMapper
             return;
         }
 
+        mesh.EnsureInverseBindMatrices();
+
         long skinId = nextId++;
         FbxNode skin = new("Deformer");
         skin.Properties.Add(new FbxProperty('L', skinId));
@@ -245,6 +253,11 @@ public static class FbxSkinningMapper
                 }
             }
 
+            if (vertexIndices.Count == 0)
+            {
+                continue;
+            }
+
             long clusterId = nextId++;
             FbxNode cluster = new("Deformer");
             cluster.Properties.Add(new FbxProperty('L', clusterId));
@@ -258,33 +271,29 @@ public static class FbxSkinningMapper
             cluster.Children.Add(new FbxNode("Indexes") { Properties = { new FbxProperty('i', vertexIndices.ToArray()) } });
             cluster.Children.Add(new FbxNode("Weights") { Properties = { new FbxProperty('d', vertexWeights.ToArray()) } });
 
-            Matrix4x4 inverseBind = Matrix4x4.Identity;
-            if (mesh.InverseBindMatrices is { Count: > 0 } inverseBindMatrices && paletteIndex < inverseBindMatrices.Count)
-            {
-                inverseBind = inverseBindMatrices[paletteIndex];
-            }
-
-            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
-            Matrix4x4 boneBindWorld = Matrix4x4.Invert(inverseBind, out Matrix4x4 inverted) ? inverted : bone.GetBindWorldMatrix();
-            Matrix4x4 armatureBindWorld = GetArmatureBindWorldMatrix(bone);
-            Matrix4x4 boneBindInverse = Matrix4x4.Invert(boneBindWorld, out Matrix4x4 boneInverse) ? boneInverse : Matrix4x4.Identity;
-            Matrix4x4 transformLink = boneBindWorld;
-            Matrix4x4 transform = boneBindInverse * meshBindWorld;
+            Matrix4x4 transformLink = FbxSceneMapper.GetExportBindWorldMatrix(bone);
+            Matrix4x4 transform = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
+            bool hasStoredTransform = TryGetStoredTransformMatrix(mesh, ClusterTransformMetadataPrefix, bone.Name, out double[]? storedTransformArray);
+            bool hasStoredTransformLink = TryGetStoredTransformMatrix(mesh, ClusterTransformLinkMetadataPrefix, bone.Name, out double[]? storedTransformLinkArray);
+            bool hasStoredTransformAssociateModel = TryGetStoredTransformMatrix(mesh, ClusterTransformAssociateModelMetadataPrefix, bone.Name, out double[]? storedTransformAssociateModelArray);
 
             cluster.Children.Add(new FbxNode("TransformLink")
             {
-                Properties = { new FbxProperty('d', MatrixToArray(transformLink)) },
+                Properties = { new FbxProperty('d', hasStoredTransformLink ? storedTransformLinkArray! : MatrixToArray(transformLink)) },
             });
 
             cluster.Children.Add(new FbxNode("Transform")
             {
-                Properties = { new FbxProperty('d', MatrixToArray(transform)) },
+                Properties = { new FbxProperty('d', hasStoredTransform ? storedTransformArray! : MatrixToArray(transform)) },
             });
 
-            cluster.Children.Add(new FbxNode("TransformAssociateModel")
+            if (hasStoredTransformAssociateModel)
             {
-                Properties = { new FbxProperty('d', MatrixToArray(armatureBindWorld)) },
-            });
+                cluster.Children.Add(new FbxNode("TransformAssociateModel")
+                {
+                    Properties = { new FbxProperty('d', storedTransformAssociateModelArray!) },
+                });
+            }
 
             cluster.Children.Add(new FbxNode("Mode") { Properties = { new FbxProperty('S', "Normalize") } });
 
@@ -392,5 +401,61 @@ public static class FbxSkinningMapper
             matrix.M31, matrix.M32, matrix.M33, matrix.M34,
             matrix.M41, matrix.M42, matrix.M43, matrix.M44,
         ];
+    }
+
+    /// <summary>
+    /// Returns whether the given FBX node is a Deformer of the specified sub-type.
+    /// </summary>
+    /// <param name="node">The FBX node to inspect.</param>
+    /// <param name="deformerType">The expected deformer sub-type (e.g. "Skin" or "Cluster").</param>
+    /// <returns><c>true</c> when the node is a Deformer with a matching sub-type property.</returns>
+    private static bool IsDeformerOfType(FbxNode node, string deformerType) =>
+        string.Equals(node.Name, "Deformer", StringComparison.Ordinal)
+        && node.Properties.Count > 2
+        && string.Equals(node.Properties[2].AsString(), deformerType, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Stores the raw cluster Transform, TransformLink, and TransformAssociateModel matrices
+    /// as mesh metadata so they can be round-tripped on export.
+    /// </summary>
+    /// <param name="mesh">The target mesh.</param>
+    /// <param name="clusterNode">The FBX Cluster deformer node.</param>
+    /// <param name="boneName">The bone name used as the metadata key suffix.</param>
+    private static void StoreClusterTransformMetadata(Mesh mesh, FbxNode clusterNode, string boneName)
+    {
+        double[] rawTransform = FbxSceneMapper.GetNodeArray<double>(clusterNode, "Transform");
+        if (rawTransform.Length == 16)
+        {
+            mesh.Metadata[ClusterTransformMetadataPrefix + boneName] = rawTransform;
+        }
+
+        double[] rawTransformLink = FbxSceneMapper.GetNodeArray<double>(clusterNode, "TransformLink");
+        if (rawTransformLink.Length == 16)
+        {
+            mesh.Metadata[ClusterTransformLinkMetadataPrefix + boneName] = rawTransformLink;
+        }
+
+        double[] rawTransformAssociateModel = FbxSceneMapper.GetNodeArray<double>(clusterNode, "TransformAssociateModel");
+        if (rawTransformAssociateModel.Length == 16)
+        {
+            mesh.Metadata[ClusterTransformAssociateModelMetadataPrefix + boneName] = rawTransformAssociateModel;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to retrieve a stored 4×4 transform matrix from mesh metadata.
+    /// </summary>
+    /// <param name="mesh">The mesh whose metadata is inspected.</param>
+    /// <param name="metadataPrefix">The metadata key prefix.</param>
+    /// <param name="boneName">The bone name used as the metadata key suffix.</param>
+    /// <param name="array">When successful, receives the stored sixteen-element double array.</param>
+    /// <returns><c>true</c> when a valid sixteen-element array was found in metadata.</returns>
+    private static bool TryGetStoredTransformMatrix(Mesh mesh, string metadataPrefix, string boneName, out double[]? array)
+    {
+        array = null;
+        return mesh.Metadata.TryGetValue(metadataPrefix + boneName, out object? value)
+            && value is double[] raw
+            && raw.Length == 16
+            && (array = raw) is not null;
     }
 }
