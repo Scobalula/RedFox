@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../RedFox.GameExtraction/RedFox.GameExtraction.csproj" />
-    <ProjectReference Include="G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
   </ItemGroup>
 
 </Project>

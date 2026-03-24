@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
 
 namespace RedFox.Graphics2D.Png;
@@ -261,10 +262,162 @@ internal static class PngScanlineProcessor
             ctx.Inflated.Slice(cursor, rowBytes).CopyTo(curRow);
             cursor += rowBytes;
             UnfilterRow(curRow, prevRow, bytesPerPixel, filterType);
-            // WriteDecodedRow is assumed to be in another helper or can be added here if needed
-            // WriteDecodedRow(ctx, curRow, row);
+            WriteDecodedRow(ctx, curRow, row);
             (prevRow, curRow) = (curRow, prevRow);
         }
         consumedBytes = cursor - ctx.StartOffset;
+    }
+
+    private static void WriteDecodedRow(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int rowIndex)
+    {
+        int dstY = ctx.StartY + rowIndex * ctx.StepY;
+        byte colorType = ctx.Header.ColorType;
+        int bitDepth = ctx.Header.BitDepth;
+
+        for (int x = 0; x < ctx.PassWidth; x++)
+        {
+            int dstX = ctx.StartX + x * ctx.StepX;
+
+            switch (colorType)
+            {
+                case 0:
+                    WriteGrayscalePixel(ctx, row, x, dstX, dstY, bitDepth);
+                    break;
+                case 2:
+                    WriteTruecolorPixel(ctx, row, x, dstX, dstY, bitDepth);
+                    break;
+                case 3:
+                    WriteIndexedPixel(ctx, row, x, dstX, dstY, bitDepth);
+                    break;
+                case 4:
+                    WriteGrayscaleAlphaPixel(ctx, row, x, dstX, dstY, bitDepth);
+                    break;
+                case 6:
+                    WriteTruecolorAlphaPixel(ctx, row, x, dstX, dstY, bitDepth);
+                    break;
+                default:
+                    throw new NotSupportedException($"Unsupported PNG color type {colorType}.");
+            }
+        }
+    }
+
+    private static void WriteGrayscalePixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
+    {
+        int rawGray = ReadSample(row, pixelIndex, 0, 1, bitDepth);
+        byte gray = ScaleSampleToByte(rawGray, bitDepth);
+
+        byte alpha = 255;
+        if (ctx.Transparency is { Length: 2 })
+        {
+            int transparentGray = bitDepth == 16 ? BinaryPrimitives.ReadUInt16BigEndian(ctx.Transparency) : ctx.Transparency[1];
+            if (rawGray == transparentGray)
+            {
+                alpha = 0;
+            }
+        }
+
+        WriteRgba(ctx.Rgba, ctx.Header.Width, dstX, dstY, gray, gray, gray, alpha);
+    }
+
+    private static void WriteTruecolorPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
+    {
+        int rawRed = ReadSample(row, pixelIndex, 0, 3, bitDepth);
+        int rawGreen = ReadSample(row, pixelIndex, 1, 3, bitDepth);
+        int rawBlue = ReadSample(row, pixelIndex, 2, 3, bitDepth);
+
+        byte alpha = 255;
+        if (ctx.Transparency is { Length: 6 })
+        {
+            int transparentRed = bitDepth == 16 ? BinaryPrimitives.ReadUInt16BigEndian(ctx.Transparency.AsSpan(0, 2)) : ctx.Transparency[1];
+            int transparentGreen = bitDepth == 16 ? BinaryPrimitives.ReadUInt16BigEndian(ctx.Transparency.AsSpan(2, 2)) : ctx.Transparency[3];
+            int transparentBlue = bitDepth == 16 ? BinaryPrimitives.ReadUInt16BigEndian(ctx.Transparency.AsSpan(4, 2)) : ctx.Transparency[5];
+
+            if (rawRed == transparentRed && rawGreen == transparentGreen && rawBlue == transparentBlue)
+            {
+                alpha = 0;
+            }
+        }
+
+        WriteRgba(
+            ctx.Rgba,
+            ctx.Header.Width,
+            dstX,
+            dstY,
+            ScaleSampleToByte(rawRed, bitDepth),
+            ScaleSampleToByte(rawGreen, bitDepth),
+            ScaleSampleToByte(rawBlue, bitDepth),
+            alpha);
+    }
+
+    private static void WriteIndexedPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
+    {
+        if (ctx.Palette is null)
+            throw new InvalidDataException("Indexed PNG is missing a palette.");
+
+        int paletteIndex = ReadSample(row, pixelIndex, 0, 1, bitDepth);
+        int paletteOffset = paletteIndex * 3;
+        if (paletteOffset + 2 >= ctx.Palette.Length)
+            throw new InvalidDataException("Indexed PNG referenced a palette entry outside the PLTE chunk.");
+
+        byte alpha = 255;
+        if (ctx.Transparency is not null && paletteIndex < ctx.Transparency.Length)
+        {
+            alpha = ctx.Transparency[paletteIndex];
+        }
+
+        WriteRgba(
+            ctx.Rgba,
+            ctx.Header.Width,
+            dstX,
+            dstY,
+            ctx.Palette[paletteOffset + 0],
+            ctx.Palette[paletteOffset + 1],
+            ctx.Palette[paletteOffset + 2],
+            alpha);
+    }
+
+    private static void WriteGrayscaleAlphaPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
+    {
+        int rawGray = ReadSample(row, pixelIndex, 0, 2, bitDepth);
+        int rawAlpha = ReadSample(row, pixelIndex, 1, 2, bitDepth);
+        byte gray = ScaleSampleToByte(rawGray, bitDepth);
+        byte alpha = ScaleSampleToByte(rawAlpha, bitDepth);
+        WriteRgba(ctx.Rgba, ctx.Header.Width, dstX, dstY, gray, gray, gray, alpha);
+    }
+
+    private static void WriteTruecolorAlphaPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
+    {
+        int rawRed = ReadSample(row, pixelIndex, 0, 4, bitDepth);
+        int rawGreen = ReadSample(row, pixelIndex, 1, 4, bitDepth);
+        int rawBlue = ReadSample(row, pixelIndex, 2, 4, bitDepth);
+        int rawAlpha = ReadSample(row, pixelIndex, 3, 4, bitDepth);
+
+        WriteRgba(
+            ctx.Rgba,
+            ctx.Header.Width,
+            dstX,
+            dstY,
+            ScaleSampleToByte(rawRed, bitDepth),
+            ScaleSampleToByte(rawGreen, bitDepth),
+            ScaleSampleToByte(rawBlue, bitDepth),
+            ScaleSampleToByte(rawAlpha, bitDepth));
+    }
+
+    private static int ReadSample(ReadOnlySpan<byte> row, int pixelIndex, int channelIndex, int channelCount, int bitDepth)
+    {
+        if (bitDepth < 8)
+        {
+            if (channelIndex != 0 || channelCount != 1)
+                throw new InvalidDataException("Packed PNG samples are only valid for single-channel rows.");
+
+            return ReadPackedSample(row, pixelIndex, bitDepth);
+        }
+
+        int sampleIndex = pixelIndex * channelCount + channelIndex;
+        if (bitDepth == 8)
+            return row[sampleIndex];
+
+        int byteOffset = sampleIndex * 2;
+        return BinaryPrimitives.ReadUInt16BigEndian(row.Slice(byteOffset, 2));
     }
 }

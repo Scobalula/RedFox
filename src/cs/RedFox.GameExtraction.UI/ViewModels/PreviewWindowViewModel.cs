@@ -2,8 +2,6 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
-using RedFox.Graphics3D;
-using RedFox.Graphics3D.Skeletal;
 using RedFox.GameExtraction;
 using RedFox.GameExtraction.UI;
 
