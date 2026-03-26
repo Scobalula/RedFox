@@ -3,7 +3,7 @@ namespace RedFox.Graphics2D.Jpeg
     /// <summary>
     /// Container for a fully decoded JPEG image before conversion to the final <see cref="Image"/> format.
     /// </summary>
-    internal sealed class DecodedJpegImage
+    public sealed class DecodedJpegImage
     {
         /// <summary>Image width in pixels.</summary>
         public int Width { get; init; }

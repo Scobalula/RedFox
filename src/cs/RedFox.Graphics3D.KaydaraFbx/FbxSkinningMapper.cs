@@ -206,8 +206,6 @@ public static class FbxSkinningMapper
             return;
         }
 
-        mesh.EnsureInverseBindMatrices();
-
         long skinId = nextId++;
         FbxNode skin = new("Deformer");
         skin.Properties.Add(new FbxProperty('L', skinId));
@@ -271,8 +269,19 @@ public static class FbxSkinningMapper
             cluster.Children.Add(new FbxNode("Indexes") { Properties = { new FbxProperty('i', vertexIndices.ToArray()) } });
             cluster.Children.Add(new FbxNode("Weights") { Properties = { new FbxProperty('d', vertexWeights.ToArray()) } });
 
-            Matrix4x4 transformLink = FbxSceneMapper.GetExportBindWorldMatrix(bone);
-            Matrix4x4 transform = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
+            Matrix4x4 inverseBind = Matrix4x4.Identity;
+            if (mesh.InverseBindMatrices is { Count: > 0 } inverseBindMatrices && paletteIndex < inverseBindMatrices.Count)
+            {
+                inverseBind = inverseBindMatrices[paletteIndex];
+            }
+
+            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
+            Matrix4x4 boneBindWorld = Matrix4x4.Invert(inverseBind, out Matrix4x4 inverted) ? inverted : bone.GetBindWorldMatrix();
+            Matrix4x4 armatureBindWorld = GetArmatureBindWorldMatrix(bone);
+            Matrix4x4 boneBindInverse = Matrix4x4.Invert(boneBindWorld, out Matrix4x4 boneInverse) ? boneInverse : Matrix4x4.Identity;
+            Matrix4x4 transformLink = boneBindWorld;
+            Matrix4x4 transform = boneBindInverse * meshBindWorld;
+
             bool hasStoredTransform = TryGetStoredTransformMatrix(mesh, ClusterTransformMetadataPrefix, bone.Name, out double[]? storedTransformArray);
             bool hasStoredTransformLink = TryGetStoredTransformMatrix(mesh, ClusterTransformLinkMetadataPrefix, bone.Name, out double[]? storedTransformLinkArray);
             bool hasStoredTransformAssociateModel = TryGetStoredTransformMatrix(mesh, ClusterTransformAssociateModelMetadataPrefix, bone.Name, out double[]? storedTransformAssociateModelArray);
@@ -287,13 +296,10 @@ public static class FbxSkinningMapper
                 Properties = { new FbxProperty('d', hasStoredTransform ? storedTransformArray! : MatrixToArray(transform)) },
             });
 
-            if (hasStoredTransformAssociateModel)
+            cluster.Children.Add(new FbxNode("TransformAssociateModel")
             {
-                cluster.Children.Add(new FbxNode("TransformAssociateModel")
-                {
-                    Properties = { new FbxProperty('d', storedTransformAssociateModelArray!) },
-                });
-            }
+                Properties = { new FbxProperty('d', hasStoredTransformAssociateModel ? storedTransformAssociateModelArray! : MatrixToArray(armatureBindWorld)) },
+            });
 
             cluster.Children.Add(new FbxNode("Mode") { Properties = { new FbxProperty('S', "Normalize") } });
 

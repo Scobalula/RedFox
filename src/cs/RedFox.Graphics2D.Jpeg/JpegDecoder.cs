@@ -2,7 +2,11 @@ using System.Buffers.Binary;
 
 namespace RedFox.Graphics2D.Jpeg;
 
-internal sealed class JpegDecoder(Stream stream)
+/// <summary>
+/// JPEG image decoder supporting baseline and progressive modes. Reads a JPEG bitstream
+/// and produces a <see cref="DecodedJpegImage"/> containing decoded component planes.
+/// </summary>
+public sealed class JpegDecoder(Stream stream)
 {
     private readonly Stream _stream = stream;
     private readonly JpegQuantizationTable?[] _quantTables = new JpegQuantizationTable?[4];
@@ -13,6 +17,8 @@ internal sealed class JpegDecoder(Stream stream)
     private JpegMarker? _pendingMarker;
     private int _eobRun;
 
+    /// <summary>Decodes the JPEG bitstream and returns the resulting image.</summary>
+    /// <returns>A <see cref="DecodedJpegImage"/> containing the decoded pixel data and metadata.</returns>
     public DecodedJpegImage Decode()
     {
         ReadMarker(out var marker);
@@ -343,33 +349,13 @@ internal sealed class JpegDecoder(Stream stream)
         for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
         {
             // Handle restart interval
-            if (_restartInterval > 0 && mcuCount == _restartInterval)
+            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
             {
-                mcuCount = 0;
-                reader.AlignToByte();
+                return;
+            }
 
-                // The restart marker was already consumed by the bit reader
-                // or we need to read it from the stream
-                if (reader.HitMarker)
-                {
-                    // If the bit reader hit a non-restart marker, save it and stop
-                    var hitMarker = reader.PendingMarker;
-                    if (!IsRestartMarker(hitMarker))
-                    {
-                        _pendingMarker = hitMarker;
-                        return;
-                    }
-                    reader.Reset();
-                }
-                else
-                {
-                    // Read restart marker
-                    ReadRestartMarker(restartExpected);
-                    reader.Reset();
-                }
-
-                restartExpected = (restartExpected + 1) & 7;
-
+            if (_restartInterval > 0 && mcuCount == 0 && mcuIndex > 0)
+            {
                 foreach (var sc in scan.Components)
                     _frame.Components[sc.ComponentId].PreviousDc = 0;
             }
@@ -472,9 +458,6 @@ internal sealed class JpegDecoder(Stream stream)
 
     private void DecodeProgressiveScan(JpegScanHeader scan)
     {
-        var reader = new JpegBitReader(_stream);
-        int mcuCount = 0;
-        int restartExpected = 0;
         _eobRun = 0;
 
         bool isDc = scan.SpectralStart == 0;
@@ -489,136 +472,125 @@ internal sealed class JpegDecoder(Stream stream)
 
         if (scan.Components.Length == 1)
         {
-            // Non-interleaved scan: iterate component blocks directly
-            var sc = scan.Components[0];
-            var comp = _frame!.Components[sc.ComponentId];
-            int totalBlocks = comp.BlocksPerRow * comp.BlocksPerColumn;
-
-            var dcTable = isDc ? _dcTables[sc.DcTableId] : null;
-            var acTable = !isDc ? _acTables[sc.AcTableId] : null;
-
-            for (int blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
-            {
-                // Restart handling
-                if (_restartInterval > 0 && mcuCount == _restartInterval)
-                {
-                    mcuCount = 0;
-                    reader.AlignToByte();
-
-                    if (reader.HitMarker)
-                    {
-                        var hitMarker = reader.PendingMarker;
-                        if (!IsRestartMarker(hitMarker))
-                        {
-                            _pendingMarker = hitMarker;
-                            return;
-                        }
-                        reader.Reset();
-                    }
-                    else
-                    {
-                        ReadRestartMarker(restartExpected);
-                        reader.Reset();
-                    }
-
-                    restartExpected = (restartExpected + 1) & 7;
-                    _eobRun = 0;
-
-                    if (isDc)
-                    {
-                        if (isFirstVisit)
-                            comp.PreviousDc = 0;
-                    }
-
-                }
-
-                var block = comp.Blocks![blockIndex];
-                bool decoded = isDc
-                    ? isFirstVisit
-                        ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
-                        : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow)
-                    : isFirstVisit
-                        ? TryDecodeProgressiveAcFirst(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow)
-                        : TryDecodeProgressiveAcRefine(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow);
-
-                if (!decoded)
-                {
-                    CaptureScanMarker(reader);
-                    return;
-                }
-
-                mcuCount++;
-            }
+            DecodeProgressiveScanNonInterleaved(scan, isDc, isFirstVisit);
         }
         else
         {
-            // Interleaved DC-only scan
-            for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
-            {
-                if (_restartInterval > 0 && mcuCount == _restartInterval)
-                {
-                    mcuCount = 0;
-                    reader.AlignToByte();
+            DecodeProgressiveScanInterleaved(scan, isDc, isFirstVisit);
+        }
+    }
 
-                    if (reader.HitMarker)
+    private void DecodeProgressiveScanNonInterleaved(
+        JpegScanHeader scan,
+        bool isDc,
+        bool isFirstVisit)
+    {
+        var reader = new JpegBitReader(_stream);
+        int mcuCount = 0;
+        int restartExpected = 0;
+
+        var sc = scan.Components[0];
+        var comp = _frame!.Components[sc.ComponentId];
+        int totalBlocks = comp.BlocksPerRow * comp.BlocksPerColumn;
+
+        var dcTable = isDc ? _dcTables[sc.DcTableId] : null;
+        var acTable = !isDc ? _acTables[sc.AcTableId] : null;
+
+        for (int blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
+        {
+            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
+            {
+                return;
+            }
+
+            if (_restartInterval > 0 && mcuCount == 0 && blockIndex > 0)
+            {
+                _eobRun = 0;
+
+                if (isDc && isFirstVisit)
+                {
+                    comp.PreviousDc = 0;
+                }
+            }
+
+            var block = comp.Blocks![blockIndex];
+            bool decoded = isDc
+                ? isFirstVisit
+                    ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
+                    : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow)
+                : isFirstVisit
+                    ? TryDecodeProgressiveAcFirst(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow)
+                    : TryDecodeProgressiveAcRefine(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow);
+
+            if (!decoded)
+            {
+                CaptureScanMarker(reader);
+                return;
+            }
+
+            mcuCount++;
+        }
+    }
+
+    private void DecodeProgressiveScanInterleaved(
+        JpegScanHeader scan,
+        bool isDc,
+        bool isFirstVisit)
+    {
+        var reader = new JpegBitReader(_stream);
+        int mcuCount = 0;
+        int restartExpected = 0;
+
+        for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
+        {
+            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
+            {
+                return;
+            }
+
+            if (_restartInterval > 0 && mcuCount == 0 && mcuIndex > 0)
+            {
+                _eobRun = 0;
+
+                if (isDc && isFirstVisit)
+                {
+                    foreach (var sc2 in scan.Components)
+                        _frame.Components[sc2.ComponentId].PreviousDc = 0;
+                }
+            }
+
+            int mcuRow = mcuIndex / _frame.McuWidth;
+            int mcuCol = mcuIndex % _frame.McuWidth;
+
+            foreach (var sc in scan.Components)
+            {
+                var comp = _frame.Components[sc.ComponentId];
+                var dcTable = _dcTables[sc.DcTableId];
+
+                for (int v = 0; v < comp.VSample; v++)
+                {
+                    for (int h = 0; h < comp.HSample; h++)
                     {
-                        var hitMarker = reader.PendingMarker;
-                        if (!IsRestartMarker(hitMarker))
+                        int blockRow = mcuRow * comp.VSample + v;
+                        int blockCol = mcuCol * comp.HSample + h;
+                        int blockIndex = blockRow * comp.BlocksPerRow + blockCol;
+
+                        var block = comp.Blocks![blockIndex];
+
+                        bool decoded = isFirstVisit
+                            ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
+                            : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow);
+
+                        if (!decoded)
                         {
-                            _pendingMarker = hitMarker;
+                            CaptureScanMarker(reader);
                             return;
                         }
-                        reader.Reset();
-                    }
-                    else
-                    {
-                        ReadRestartMarker(restartExpected);
-                        reader.Reset();
-                    }
-
-                    restartExpected = (restartExpected + 1) & 7;
-                    _eobRun = 0;
-
-                    if (isDc && isFirstVisit)
-                    {
-                        foreach (var sc2 in scan.Components)
-                            _frame.Components[sc2.ComponentId].PreviousDc = 0;
                     }
                 }
-
-                int mcuRow = mcuIndex / _frame.McuWidth;
-                int mcuCol = mcuIndex % _frame.McuWidth;
-
-                foreach (var sc in scan.Components)
-                {
-                    var comp = _frame.Components[sc.ComponentId];
-                    var dcTable = _dcTables[sc.DcTableId];
-
-                    for (int v = 0; v < comp.VSample; v++)
-                    {
-                        for (int h = 0; h < comp.HSample; h++)
-                        {
-                            int blockRow = mcuRow * comp.VSample + v;
-                            int blockCol = mcuCol * comp.HSample + h;
-                            int blockIndex = blockRow * comp.BlocksPerRow + blockCol;
-
-                            var block = comp.Blocks![blockIndex];
-
-                            bool decoded = isFirstVisit
-                                ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
-                                : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow);
-
-                            if (!decoded)
-                            {
-                                CaptureScanMarker(reader);
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                mcuCount++;
             }
+
+            mcuCount++;
         }
     }
 
@@ -860,6 +832,45 @@ internal sealed class JpegDecoder(Stream stream)
     {
         byte m = (byte)marker;
         return m >= 0xD0 && m <= 0xD7;
+    }
+
+    /// <summary>
+    /// Checks whether a restart marker boundary has been reached and, if so,
+    /// resets the bit reader for the next entropy segment. Returns <c>false</c>
+    /// when a non-restart marker is encountered (the caller should abort the scan).
+    /// </summary>
+    private bool TryHandleRestartMarker(
+        JpegBitReader reader,
+        ref int mcuCount,
+        ref int restartExpected)
+    {
+        if (_restartInterval <= 0 || mcuCount != _restartInterval)
+        {
+            return true;
+        }
+
+        mcuCount = 0;
+        reader.AlignToByte();
+
+        if (reader.HitMarker)
+        {
+            var hitMarker = reader.PendingMarker;
+            if (!IsRestartMarker(hitMarker))
+            {
+                _pendingMarker = hitMarker;
+                return false;
+            }
+
+            reader.Reset();
+        }
+        else
+        {
+            ReadRestartMarker(restartExpected);
+            reader.Reset();
+        }
+
+        restartExpected = (restartExpected + 1) & 7;
+        return true;
     }
 
     private void ReadRestartMarker(int expected)

@@ -73,10 +73,7 @@ namespace RedFox.Graphics2D.Codecs
 
         #region Mode Descriptors
 
-        private readonly record struct ModeInfo(
-            int NumSubsets, bool Transformed,
-            int EndpointBits, int DeltaBitsR, int DeltaBitsG, int DeltaBitsB,
-            int IndexBits);
+        private readonly record struct ModeInfo(int NumSubsets, bool Transformed, int EndpointBits, int DeltaBitsR, int DeltaBitsG, int DeltaBitsB, int IndexBits);
 
         // 14 modes (0-indexed). Based on the D3D11/DirectXTex BC6H specification.
         // Modes 0-9: 2 subsets, 3-bit indices.

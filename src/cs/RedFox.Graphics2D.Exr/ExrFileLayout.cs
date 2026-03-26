@@ -3,7 +3,7 @@ namespace RedFox.Graphics2D.Exr
     /// <summary>
     /// Describes the byte layout and block sizing rules for scanline OpenEXR files.
     /// </summary>
-    internal static class ExrFileLayout
+    public static class ExrFileLayout
     {
         /// <summary>
         /// The OpenEXR file magic value.
@@ -18,6 +18,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Gets the byte width of a single EXR channel sample.
         /// </summary>
+        /// <param name="pixelType">The channel pixel type.</param>
+        /// <returns>The number of bytes per sample.</returns>
         public static int GetBytesPerSample(ExrPixelType pixelType)
         {
             return pixelType switch
@@ -30,8 +32,11 @@ namespace RedFox.Graphics2D.Exr
         }
 
         /// <summary>
-        /// Computes the number of scanlines stored in each chunk for the specified compression mode.
+        /// Computes the number of scanlines stored in each chunk
+        /// for the specified compression mode.
         /// </summary>
+        /// <param name="compression">The EXR compression type.</param>
+        /// <returns>The number of scanlines per chunk.</returns>
         public static int GetLinesPerBlock(ExrCompressionType compression)
         {
             return compression switch
@@ -53,6 +58,10 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Computes the expected byte size of an uncompressed scanline block.
         /// </summary>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <returns>The total byte size of the uncompressed block.</returns>
         public static int CalculateBlockSize(IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock)
         {
             int total = 0;

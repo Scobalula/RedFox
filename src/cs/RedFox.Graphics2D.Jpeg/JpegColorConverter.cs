@@ -5,30 +5,44 @@ using System.Runtime.Intrinsics.X86;
 
 namespace RedFox.Graphics2D.Jpeg;
 
-internal static class JpegColorConverter
+/// <summary>
+/// Converts decoded JPEG component planes between color spaces.
+/// Supports scalar, SSE2, and AVX2 fast paths for YCbCr-to-RGBA conversion.
+/// </summary>
+public static class JpegColorConverter
 {
+    /// <summary>Converts YCbCr component planes to interleaved RGBA bytes, handling chroma subsampling.</summary>
+    /// <param name="y">The luminance (Y) component plane.</param>
+    /// <param name="cb">The blue-difference chroma (Cb) component plane.</param>
+    /// <param name="cr">The red-difference chroma (Cr) component plane.</param>
+    /// <param name="output">The output buffer for interleaved RGBA pixel data (4 bytes per pixel).</param>
+    /// <param name="width">The image width in pixels.</param>
+    /// <param name="height">The image height in pixels.</param>
+    /// <param name="chroma">The chroma subsampling layout describing plane dimensions and sampling ratios.</param>
     public static void YCbCrToRgba(
-        ReadOnlySpan<byte> y, ReadOnlySpan<byte> cb, ReadOnlySpan<byte> cr,
+        ReadOnlySpan<byte> y,
+        ReadOnlySpan<byte> cb,
+        ReadOnlySpan<byte> cr,
         Span<byte> output,
-        int width, int height,
-        int cbWidth,
-        int maxHSample, int maxVSample,
-        int compHSample, int compVSample)
+        int width,
+        int height,
+        ChromaSampling chroma)
     {
-        int hRatio = maxHSample / compHSample;
-        int vRatio = maxVSample / compVSample;
-
-        if (hRatio == 1 && vRatio == 1)
+        if (chroma.HRatio == 1 && chroma.VRatio == 1)
         {
             // No subsampling — fast path
             YCbCrToRgbaNoSubsampling(y, cb, cr, output, width, height);
         }
         else
         {
-            YCbCrToRgbaSubsampled(y, cb, cr, output, width, height, cbWidth, hRatio, vRatio);
+            YCbCrToRgbaSubsampled(y, cb, cr, output, width, height, chroma.ChromaWidth, chroma.HRatio, chroma.VRatio);
         }
     }
 
+    /// <summary>Converts a grayscale component plane to interleaved RGBA bytes.</summary>
+    /// <param name="gray">The grayscale component data.</param>
+    /// <param name="output">The output buffer for interleaved RGBA pixel data (4 bytes per pixel).</param>
+    /// <param name="pixelCount">The number of pixels to convert.</param>
     public static void GrayscaleToRgba(ReadOnlySpan<byte> gray, Span<byte> output, int pixelCount)
     {
         // Scalar path — simple and correct for all platforms

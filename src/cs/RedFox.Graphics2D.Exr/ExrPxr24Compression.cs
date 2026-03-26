@@ -5,11 +5,17 @@ namespace RedFox.Graphics2D.Exr
     /// <summary>
     /// Reconstructs PXR24-compressed scanline blocks.
     /// </summary>
-    internal static class ExrPxr24Compression
+    public static class ExrPxr24Compression
     {
         /// <summary>
-        /// Encodes a channel-major scanline block using the PXR24 transform and zlib compression.
+        /// Encodes a channel-major scanline block using the PXR24 transform
+        /// and zlib compression.
         /// </summary>
+        /// <param name="rawData">The uncompressed channel-major block data.</param>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <returns>The PXR24-compressed byte array.</returns>
         public static byte[] Encode(ReadOnlySpan<byte> rawData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock)
         {
             int[] planeOffsets = CalculatePlaneOffsets(channels, width, rowsInBlock);
@@ -48,6 +54,12 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Decodes a PXR24-compressed block into the standard channel-major byte layout.
         /// </summary>
+        /// <param name="packedData">The compressed block data.</param>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decoded channel-major byte array.</returns>
         public static byte[] Decode(ReadOnlySpan<byte> packedData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock, int expectedSize)
         {
             int transformedSize = CalculateTransformedSize(channels, width, rowsInBlock);

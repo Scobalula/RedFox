@@ -8,14 +8,14 @@ namespace RedFox.Graphics2D.Tiff
     /// LZW uses MSB-first bit packing with variable code widths (9–12 bits)
     /// and early code-size increase per the TIFF 6.0 specification.
     /// </summary>
-    internal static class TiffCompressor
+    public static class TiffCompressor
     {
         /// <summary>
         /// Compresses data using the PackBits (byte-oriented RLE) scheme.
         /// </summary>
         /// <param name="src">The uncompressed input data.</param>
         /// <returns>A byte array containing the PackBits-compressed data.</returns>
-        internal static byte[] CompressPackBits(ReadOnlySpan<byte> src)
+        public static byte[] CompressPackBits(ReadOnlySpan<byte> src)
         {
             // Worst case: each input byte can produce up to 2 output bytes (header + literal).
             int worstCase = Math.Max(4, src.Length * 2);
@@ -77,7 +77,7 @@ namespace RedFox.Graphics2D.Tiff
         /// </summary>
         /// <param name="src">The uncompressed input data.</param>
         /// <returns>A byte array containing the LZW-compressed data.</returns>
-        internal static byte[] CompressLZW(ReadOnlySpan<byte> src)
+        public static byte[] CompressLZW(ReadOnlySpan<byte> src)
         {
             if (src.Length == 0)
             {
@@ -199,7 +199,7 @@ namespace RedFox.Graphics2D.Tiff
 
         /// <summary>
         /// Helper that writes MSB-first variable-width codes into a byte buffer using
-        /// an internal bit-accumulator. Designed as a ref struct for stack-only use.
+        /// an public bit-accumulator. Designed as a ref struct for stack-only use.
         /// </summary>
         private ref struct BitWriter(byte[] buffer)
         {

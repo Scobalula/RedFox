@@ -5,7 +5,7 @@ namespace RedFox.Graphics2D.Exr
     /// <summary>
     /// Reconstructs PIZ-compressed scanline blocks.
     /// </summary>
-    internal static class ExrPizCompression
+    public static class ExrPizCompression
     {
         private const int HufEncSize = (1 << 16) + 1;
         private const int ShortZeroCodeRun = 59;
@@ -18,6 +18,12 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Decodes a PIZ-compressed block into the standard channel-major byte layout.
         /// </summary>
+        /// <param name="packedData">The compressed block data.</param>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decoded channel-major byte array.</returns>
         public static byte[] Decode(ReadOnlySpan<byte> packedData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock, int expectedSize)
         {
             if ((expectedSize & 1) != 0)

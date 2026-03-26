@@ -19,6 +19,11 @@ namespace RedFox.Graphics3D
         public string Name { get; set; }
 
         /// <summary>
+        /// Gets or sets the scene that owns this object.
+        /// </summary>
+        public Scene? Owner { get; set; }
+
+        /// <summary>
         /// Gets or Sets the parent of this node.
         /// </summary>
         public SceneNode? Parent { get; internal set; }
@@ -108,9 +113,10 @@ namespace RedFox.Graphics3D
             if (newParent == Parent)
                 return;
 
+            Parent?._children?.Remove(this);
+
             if (newParent is not null)
             {
-                Parent?._children?.Remove(this);
                 Parent = newParent;
 
                 if (newParent?._children is not null && newParent._children.FindIndex(x => x.Name.Equals(Name, StringComparison.CurrentCultureIgnoreCase)) != -1)
@@ -506,7 +512,10 @@ namespace RedFox.Graphics3D
             if (_children.Any(x => x.Name.Equals(node.Name, StringComparison.CurrentCultureIgnoreCase)))
                 throw new SceneNodeDuplicateException($"A node with the name: {node.Name} already exists in: {Name}");
             _children.Add(node);
+
             node.Parent = this;
+            node.Owner = Owner;
+
             OnChildAdded(node);
             return node;
         }

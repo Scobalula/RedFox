@@ -5,11 +5,17 @@ namespace RedFox.Graphics2D.Exr
     /// <summary>
     /// Reconstructs B44 and B44A compressed scanline blocks.
     /// </summary>
-    internal static class ExrB44Compression
+    public static class ExrB44Compression
     {
         /// <summary>
         /// Encodes a channel-major scanline block using the B44 or B44A HALF block layout.
         /// </summary>
+        /// <param name="rawData">The uncompressed channel-major block data.</param>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <param name="flatFields">Whether to use B44A flat-field mode for constant blocks.</param>
+        /// <returns>The B44-encoded byte array.</returns>
         public static byte[] Encode(ReadOnlySpan<byte> rawData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock, bool flatFields)
         {
             using var output = new MemoryStream();
@@ -41,8 +47,14 @@ namespace RedFox.Graphics2D.Exr
         }
 
         /// <summary>
-        /// Decodes a B44 or B44A block into the standard channel-major byte layout.
+        /// Decodes a B44 or B44A compressed block into channel-major byte layout.
         /// </summary>
+        /// <param name="packedData">The compressed block data.</param>
+        /// <param name="channels">The channel list from the EXR header.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="rowsInBlock">The number of scanlines in the block.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decoded channel-major byte array.</returns>
         public static byte[] Decode(ReadOnlySpan<byte> packedData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock, int expectedSize)
         {
             var scratch = new byte[expectedSize];

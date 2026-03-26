@@ -5,12 +5,25 @@ namespace RedFox.Graphics2D.Exr
     /// <summary>
     /// Provides decompression helpers for OpenEXR scanline blocks.
     /// </summary>
-    internal static class ExrCompression
+    public static class ExrCompression
     {
         /// <summary>
-        /// Compresses EXR block data with zlib.
+        /// Compresses EXR block data with zlib using the smallest output size.
         /// </summary>
-        public static byte[] CompressZlib(ReadOnlySpan<byte> transformedData, CompressionLevel compressionLevel = CompressionLevel.SmallestSize)
+        /// <param name="transformedData">The pre-transformed block data to compress.</param>
+        /// <returns>The zlib-compressed byte array.</returns>
+        public static byte[] CompressZlib(ReadOnlySpan<byte> transformedData)
+        {
+            return CompressZlib(transformedData, CompressionLevel.SmallestSize);
+        }
+
+        /// <summary>
+        /// Compresses EXR block data with zlib using the specified compression level.
+        /// </summary>
+        /// <param name="transformedData">The pre-transformed block data to compress.</param>
+        /// <param name="compressionLevel">The zlib compression level to use.</param>
+        /// <returns>The zlib-compressed byte array.</returns>
+        public static byte[] CompressZlib(ReadOnlySpan<byte> transformedData, CompressionLevel compressionLevel)
         {
             using var output = new MemoryStream();
 
@@ -21,8 +34,11 @@ namespace RedFox.Graphics2D.Exr
         }
 
         /// <summary>
-        /// Applies the OpenEXR byte shuffle and predictor transforms used before ZIP and RLE compression.
+        /// Applies the OpenEXR byte shuffle and predictor transforms
+        /// used before ZIP and RLE compression.
         /// </summary>
+        /// <param name="rawData">The uncompressed block data.</param>
+        /// <returns>The transformed byte array ready for compression.</returns>
         public static byte[] ApplyDataTransform(ReadOnlySpan<byte> rawData)
         {
             var shuffled = new byte[rawData.Length];
@@ -47,8 +63,11 @@ namespace RedFox.Graphics2D.Exr
         }
 
         /// <summary>
-        /// Compresses a ZIP or ZIPS EXR block and falls back to raw block data when compression is not beneficial.
+        /// Compresses a ZIP or ZIPS EXR block and falls back to raw block data
+        /// when compression is not beneficial.
         /// </summary>
+        /// <param name="rawData">The uncompressed block data.</param>
+        /// <returns>The compressed data, or a copy of the raw data if compression increased the size.</returns>
         public static byte[] CompressZip(ReadOnlySpan<byte> rawData)
         {
             byte[] compressed = CompressZlib(ApplyDataTransform(rawData));
@@ -58,6 +77,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Compresses an EXR block using the RLE encoding defined by the file format.
         /// </summary>
+        /// <param name="rawData">The uncompressed block data.</param>
+        /// <returns>The RLE-compressed data, or a copy of the raw data if compression increased the size.</returns>
         public static byte[] CompressRle(ReadOnlySpan<byte> rawData)
         {
             ReadOnlySpan<byte> transformed = ApplyDataTransform(rawData);
@@ -98,6 +119,9 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Decompresses a zlib-compressed EXR block without applying any post-processing.
         /// </summary>
+        /// <param name="packedData">The zlib-compressed block data.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decompressed byte array.</returns>
         public static byte[] DecompressZlib(ReadOnlySpan<byte> packedData, int expectedSize)
         {
             using var source = new MemoryStream(packedData.ToArray(), writable: false);
@@ -114,6 +138,9 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Decompresses a ZIP-compressed EXR block and reverses the EXR byte transforms.
         /// </summary>
+        /// <param name="packedData">The zlib-compressed block data.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decompressed and un-transformed byte array.</returns>
         public static byte[] DecompressZip(ReadOnlySpan<byte> packedData, int expectedSize)
         {
             return ReverseDataTransform(DecompressZlib(packedData, expectedSize));
@@ -122,6 +149,9 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Decompresses an RLE-compressed EXR block and reverses the EXR byte transforms.
         /// </summary>
+        /// <param name="packedData">The RLE-compressed block data.</param>
+        /// <param name="expectedSize">The expected decompressed byte count.</param>
+        /// <returns>The decompressed and un-transformed byte array.</returns>
         public static byte[] DecompressRle(ReadOnlySpan<byte> packedData, int expectedSize)
         {
             var decoded = new byte[expectedSize];
@@ -184,6 +214,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Applies the inverse of the OpenEXR predictor and byte-shuffle transforms.
         /// </summary>
+        /// <param name="data">The predictor-encoded and shuffled data.</param>
+        /// <returns>The restored raw byte array.</returns>
         public static byte[] ReverseDataTransform(ReadOnlySpan<byte> data)
         {
             var predictorDecoded = data.ToArray();

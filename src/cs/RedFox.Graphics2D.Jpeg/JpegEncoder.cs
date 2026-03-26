@@ -8,7 +8,11 @@ using RedFox.Graphics2D.Codecs;
 
 namespace RedFox.Graphics2D.Jpeg;
 
-internal sealed class JpegEncoder
+/// <summary>
+/// JPEG image encoder supporting baseline encoding with configurable quality and chroma subsampling.
+/// Writes a complete JFIF-compliant JPEG bitstream to the output stream.
+/// </summary>
+public sealed class JpegEncoder
 {
     private static ReadOnlySpan<byte> BaseLuminanceQuant =>
     [
@@ -39,6 +43,9 @@ internal sealed class JpegEncoder
     private readonly int[] _luminanceQuant = new int[64];
     private readonly int[] _chrominanceQuant = new int[64];
 
+    /// <summary>Creates a new JPEG encoder that writes to the specified stream.</summary>
+    /// <param name="stream">The output stream to write the JPEG data to.</param>
+    /// <param name="options">Encoding options controlling quality, subsampling, and color space.</param>
     public JpegEncoder(Stream stream, JpegEncoderOptions options)
     {
         _stream = stream;
@@ -46,6 +53,8 @@ internal sealed class JpegEncoder
         BuildQuantizationTables(options.Quality);
     }
 
+    /// <summary>Encodes the given image as a JPEG and writes it to the output stream.</summary>
+    /// <param name="image">The source image to encode.</param>
     public void Encode(Image image)
     {
         int width = image.Width;
@@ -53,34 +62,24 @@ internal sealed class JpegEncoder
         var rgba = ExtractRgba8(image.GetSlice(), image.Format);
         ReadOnlySpan<byte> pixels = rgba;
 
-        // Determine sampling factors
-        GetSamplingFactors(
-            _options.Subsampling,
-            out int yH, out int yV,
-            out int cbH, out int cbV,
-            out int crH, out int crV);
-
-        int maxH = yH;
-        int maxV = yV;
+        var sampling = SamplingFactors.FromSubsampling(_options.Subsampling);
 
         // Convert RGB to YCbCr planes
-        int yWidth = width;
-        int yHeight = height;
-        int cbWidth = (width * cbH + maxH - 1) / maxH;
-        int cbHeight = (height * cbV + maxV - 1) / maxV;
+        int cbWidth = (width * sampling.CbH + sampling.MaxH - 1) / sampling.MaxH;
+        int cbHeight = (height * sampling.CbV + sampling.MaxV - 1) / sampling.MaxV;
 
-        var yPlane = new byte[yWidth * yHeight];
+        var yPlane = new byte[width * height];
         var cbPlane = new byte[cbWidth * cbHeight];
         var crPlane = new byte[cbWidth * cbHeight];
 
-        ConvertRgbaToYCbCr(pixels, yPlane, cbPlane, crPlane, width, height, maxH, maxV, cbH, cbV);
+        ConvertRgbaToYCbCr(pixels, yPlane, cbPlane, crPlane, width, height, sampling);
 
         // Write JFIF headers
         WriteSOI();
         WriteAPP0();
         WriteDQT(0, _luminanceQuant);
         WriteDQT(1, _chrominanceQuant);
-        WriteSOF0(width, height, yH, yV, cbH, cbV, crH, crV);
+        WriteSOF0(width, height, sampling);
         WriteDHT(0, 0, JpegHuffmanEncoder.LuminanceDc);
         WriteDHT(0, 1, JpegHuffmanEncoder.LuminanceAc);
         WriteDHT(1, 0, JpegHuffmanEncoder.ChrominanceDc);
@@ -91,7 +90,7 @@ internal sealed class JpegEncoder
         EncodeScanData(
             yPlane, cbPlane, crPlane,
             width, height,
-            yH, yV, cbH, cbV,
+            sampling,
             cbWidth, cbHeight);
 
         WriteEOI();
@@ -188,13 +187,16 @@ internal sealed class JpegEncoder
 
     private static void ConvertRgbaToYCbCr(
         ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane,
-        int width, int height,
-        int maxH, int maxV, int cbH, int cbV)
+        Span<byte> yPlane,
+        Span<byte> cbPlane,
+        Span<byte> crPlane,
+        int width,
+        int height,
+        SamplingFactors sampling)
     {
-        int hRatio = maxH / cbH;
-        int vRatio = maxV / cbV;
-        int cbWidth = (width * cbH + maxH - 1) / maxH;
+        int hRatio = sampling.MaxH / sampling.CbH;
+        int vRatio = sampling.MaxV / sampling.CbV;
+        int cbWidth = (width * sampling.CbH + sampling.MaxH - 1) / sampling.MaxH;
 
         if (hRatio == 1 && vRatio == 1)
         {
@@ -458,32 +460,15 @@ internal sealed class JpegEncoder
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static byte ClampByte(int value) => (byte)Math.Clamp(value, 0, 255);
 
-    private static void GetSamplingFactors(
-        JpegChromaSubsampling subsampling,
-        out int yH, out int yV,
-        out int cbH, out int cbV,
-        out int crH, out int crV)
-    {
-        switch (subsampling)
-        {
-            case JpegChromaSubsampling.Yuv444:
-                yH = 1; yV = 1; cbH = 1; cbV = 1; crH = 1; crV = 1;
-                break;
-            case JpegChromaSubsampling.Yuv422:
-                yH = 2; yV = 1; cbH = 1; cbV = 1; crH = 1; crV = 1;
-                break;
-            default: // Yuv420
-                yH = 2; yV = 2; cbH = 1; cbV = 1; crH = 1; crV = 1;
-                break;
-        }
-    }
-
-
     private void EncodeScanData(
-        ReadOnlySpan<byte> yPlane, ReadOnlySpan<byte> cbPlane, ReadOnlySpan<byte> crPlane,
-        int width, int height,
-        int yH, int yV, int cbH, int cbV,
-        int cbWidth, int cbHeight)
+        ReadOnlySpan<byte> yPlane,
+        ReadOnlySpan<byte> cbPlane,
+        ReadOnlySpan<byte> crPlane,
+        int width,
+        int height,
+        SamplingFactors sampling,
+        int cbWidth,
+        int cbHeight)
     {
         var writer = new JpegBitWriter(_stream);
         Span<int> block = stackalloc int[64];
@@ -492,8 +477,8 @@ internal sealed class JpegEncoder
         int prevDcY = 0, prevDcCb = 0, prevDcCr = 0;
 
         // MCU dimensions in pixels
-        int mcuPixelW = yH * 8;
-        int mcuPixelH = yV * 8;
+        int mcuPixelW = sampling.YH * 8;
+        int mcuPixelH = sampling.YV * 8;
         int mcuCountX = (width + mcuPixelW - 1) / mcuPixelW;
         int mcuCountY = (height + mcuPixelH - 1) / mcuPixelH;
 
@@ -502,9 +487,9 @@ internal sealed class JpegEncoder
             for (int mcuX = 0; mcuX < mcuCountX; mcuX++)
             {
                 // Encode Y blocks (yH × yV blocks per MCU)
-                for (int bv = 0; bv < yV; bv++)
+                for (int bv = 0; bv < sampling.YV; bv++)
                 {
-                    for (int bh = 0; bh < yH; bh++)
+                    for (int bh = 0; bh < sampling.YH; bh++)
                     {
                         int blockX = mcuX * mcuPixelW + bh * 8;
                         int blockY = mcuY * mcuPixelH + bv * 8;
@@ -523,42 +508,43 @@ internal sealed class JpegEncoder
                 }
 
                 // Encode Cb block
-                {
-                    int blockX = mcuX * 8;
-                    int blockY = mcuY * 8;
-
-                    ExtractBlock(cbPlane, cbWidth, cbHeight, blockX, blockY, block);
-                    LevelShift(block);
-                    JpegFdct.Transform(block);
-                    Quantize(block, _chrominanceQuant);
-                    ZigzagReorder(block, zigzag);
-
-                    int dc = zigzag[0];
-                    JpegHuffmanEncoder.ChrominanceDc.EncodeDc(writer, dc - prevDcCb);
-                    JpegHuffmanEncoder.ChrominanceAc.EncodeAc(writer, zigzag);
-                    prevDcCb = dc;
-                }
+                prevDcCb = EncodeChromaBlock(
+                    writer, cbPlane, cbWidth, cbHeight,
+                    mcuX * 8, mcuY * 8,
+                    prevDcCb, block, zigzag);
 
                 // Encode Cr block
-                {
-                    int blockX = mcuX * 8;
-                    int blockY = mcuY * 8;
-
-                    ExtractBlock(crPlane, cbWidth, cbHeight, blockX, blockY, block);
-                    LevelShift(block);
-                    JpegFdct.Transform(block);
-                    Quantize(block, _chrominanceQuant);
-                    ZigzagReorder(block, zigzag);
-
-                    int dc = zigzag[0];
-                    JpegHuffmanEncoder.ChrominanceDc.EncodeDc(writer, dc - prevDcCr);
-                    JpegHuffmanEncoder.ChrominanceAc.EncodeAc(writer, zigzag);
-                    prevDcCr = dc;
-                }
+                prevDcCr = EncodeChromaBlock(
+                    writer, crPlane, cbWidth, cbHeight,
+                    mcuX * 8, mcuY * 8,
+                    prevDcCr, block, zigzag);
             }
         }
 
         writer.Flush();
+    }
+
+    private int EncodeChromaBlock(
+        JpegBitWriter writer,
+        ReadOnlySpan<byte> plane,
+        int planeWidth,
+        int planeHeight,
+        int blockX,
+        int blockY,
+        int prevDc,
+        Span<int> block,
+        Span<int> zigzag)
+    {
+        ExtractBlock(plane, planeWidth, planeHeight, blockX, blockY, block);
+        LevelShift(block);
+        JpegFdct.Transform(block);
+        Quantize(block, _chrominanceQuant);
+        ZigzagReorder(block, zigzag);
+
+        int dc = zigzag[0];
+        JpegHuffmanEncoder.ChrominanceDc.EncodeDc(writer, dc - prevDc);
+        JpegHuffmanEncoder.ChrominanceAc.EncodeAc(writer, zigzag);
+        return dc;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -665,8 +651,7 @@ internal sealed class JpegEncoder
         _stream.Write(values);
     }
 
-    private void WriteSOF0(int width, int height,
-        int yH, int yV, int cbH, int cbV, int crH, int crV)
+    private void WriteSOF0(int width, int height, SamplingFactors sampling)
     {
         WriteMarker(JpegMarker.SOF0);
 
@@ -682,17 +667,17 @@ internal sealed class JpegEncoder
 
         // Y component
         data[8] = 1; // Component ID
-        data[9] = (byte)((yH << 4) | yV); // Sampling factors
+        data[9] = (byte)((sampling.YH << 4) | sampling.YV); // Sampling factors
         data[10] = 0; // Quantization table ID
 
         // Cb component
         data[11] = 2;
-        data[12] = (byte)((cbH << 4) | cbV);
+        data[12] = (byte)((sampling.CbH << 4) | sampling.CbV);
         data[13] = 1;
 
         // Cr component
         data[14] = 3;
-        data[15] = (byte)((crH << 4) | crV);
+        data[15] = (byte)((sampling.CrH << 4) | sampling.CrV);
         data[16] = 1;
 
         _stream.Write(data);

@@ -97,7 +97,7 @@ public class SemodelTranslator : SceneTranslator
         }
 
         // ---- Build skeleton hierarchy ----
-        var skeleton = scene.RootNode.AddNode<Skeleton>();
+        var skeleton = scene.RootNode.AddNode<Skeleton>($"{name}_Skeleton");
 
         for (int i = 0; i < bones.Length; i++)
         {
@@ -112,7 +112,7 @@ public class SemodelTranslator : SceneTranslator
         bool hasColours = (meshDataPresence & (1 << 2)) != 0;
         bool hasWeights = (meshDataPresence & (1 << 3)) != 0;
 
-        var model = scene.RootNode.AddNode<Model>();
+        var model = scene.RootNode.AddNode<Model>(name);
         var materialIndices = new List<int[]>(meshCount);
 
         for (int i = 0; i < meshCount; i++)
@@ -187,7 +187,27 @@ public class SemodelTranslator : SceneTranslator
         }
 
         // Fix up materials
-        
+        Material[] allMaterials = model.GetDescendants<Material>();
+        Mesh[] allMeshes = model.GetDescendants<Mesh>();
+
+        for (int i = 0; i < allMeshes.Length && i < materialIndices.Count; i++)
+        {
+            int[] matIndices = materialIndices[i];
+            List<Material> meshMaterials = new(matIndices.Length);
+
+            foreach (int matIndex in matIndices)
+            {
+                if (matIndex >= 0 && matIndex < allMaterials.Length)
+                {
+                    meshMaterials.Add(allMaterials[matIndex]);
+                }
+            }
+
+            if (meshMaterials.Count > 0)
+            {
+                allMeshes[i].Materials = meshMaterials;
+            }
+        }
     }
 
     /// <inheritdoc/>

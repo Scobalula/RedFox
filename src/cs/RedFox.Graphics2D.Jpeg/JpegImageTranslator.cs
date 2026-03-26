@@ -118,13 +118,18 @@ namespace RedFox.Graphics2D.Jpeg
 
             int cbWidth = (width * decoded.ComponentHSamples[1] + decoded.MaxHSample - 1) / decoded.MaxHSample;
 
+            var chroma = new ChromaSampling(
+                cbWidth,
+                decoded.MaxHSample,
+                decoded.MaxVSample,
+                decoded.ComponentHSamples[1],
+                decoded.ComponentVSamples[1]);
+
             JpegColorConverter.YCbCrToRgba(
                 yPlane, cbPlane, crPlane,
                 pixels,
                 width, height,
-                cbWidth,
-                decoded.MaxHSample, decoded.MaxVSample,
-                decoded.ComponentHSamples[1], decoded.ComponentVSamples[1]);
+                chroma);
         }
 
         /// <summary>

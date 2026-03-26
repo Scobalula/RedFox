@@ -19,10 +19,7 @@ namespace RedFox.Graphics2D.Codecs
             new(2, 6, 0, 0, 5, 5, 1, 0, 2, 0), // Mode 7
         ];
 
-        internal readonly record struct ModeInfo(
-            int NumSubsets, int PartitionBits, int RotationBits, int IndexSelectionBits,
-            int ColorBits, int AlphaBits, int EndpointPBits, int SharedPBits,
-            int IndexBits, int SecondaryIndexBits);
+        internal readonly record struct ModeInfo(int NumSubsets, int PartitionBits, int RotationBits, int IndexSelectionBits, int ColorBits, int AlphaBits, int EndpointPBits, int SharedPBits, int IndexBits, int SecondaryIndexBits);
 
         // 2-subset partition table: bit i = subset index for pixel i.
         internal static ReadOnlySpan<ushort> Partitions2 =>
