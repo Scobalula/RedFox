@@ -234,11 +234,7 @@ namespace RedFox.Graphics2D.Codecs
         /// Unpacks 16 bytes (4 RGBA pixels) into 4 <see cref="Vector4"/> values via SSE2 widen chain.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Unpack4PixelsToVector4(
-            Vector128<byte> bytes16,
-            Vector128<float> inv255,
-            ref Vector4 dstRef,
-            int dstIndex)
+        private static void Unpack4PixelsToVector4(Vector128<byte> bytes16, Vector128<float> inv255, ref Vector4 dstRef, int dstIndex)
         {
             // byte → ushort (zero extend)
             var lo16 = Sse2.UnpackLow(bytes16, Vector128<byte>.Zero).AsUInt16();
@@ -276,9 +272,7 @@ namespace RedFox.Graphics2D.Codecs
         /// Clamps 4 float vectors to [0,1], scales to [0,255], rounds, and packs to 16 bytes.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> ClampScaleAndPack(
-            Vector128<float> f0, Vector128<float> f1,
-            Vector128<float> f2, Vector128<float> f3)
+        private static Vector128<byte> ClampScaleAndPack(Vector128<float> f0, Vector128<float> f1, Vector128<float> f2, Vector128<float> f3)
         {
             var scale = Vector128.Create(255f);
             var half = Vector128.Create(0.5f);

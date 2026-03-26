@@ -1,6 +1,9 @@
 namespace RedFox.Graphics2D.Jpeg;
 
-internal sealed class JpegBitReader(Stream stream)
+/// <summary>
+/// Reads individual bits from a JPEG entropy-coded data stream, handling byte-stuffing and marker detection.
+/// </summary>
+public sealed class JpegBitReader(Stream stream)
 {
     private readonly Stream _stream = stream;
     private int _bitBuffer;
@@ -8,9 +11,13 @@ internal sealed class JpegBitReader(Stream stream)
     private bool _hitMarker;
     private JpegMarker _pendingMarker;
 
+    /// <summary>Gets a value indicating whether a JPEG marker was encountered during reading.</summary>
     public bool HitMarker => _hitMarker;
+
+    /// <summary>Gets the marker byte that was encountered, if <see cref="HitMarker"/> is <c>true</c>.</summary>
     public JpegMarker PendingMarker => _pendingMarker;
 
+    /// <summary>Resets the bit buffer and clears any pending marker state.</summary>
     public void Reset()
     {
         _bitBuffer = 0;
@@ -19,6 +26,10 @@ internal sealed class JpegBitReader(Stream stream)
         _pendingMarker = default;
     }
 
+    /// <summary>Attempts to read the specified number of bits from the stream.</summary>
+    /// <param name="count">The number of bits to read (1–16).</param>
+    /// <param name="value">When this method returns <c>true</c>, contains the decoded bit value.</param>
+    /// <returns><c>true</c> if the bits were read successfully; <c>false</c> if a marker was hit.</returns>
     public bool TryReadBits(int count, out int value)
     {
         value = 0;
@@ -39,6 +50,9 @@ internal sealed class JpegBitReader(Stream stream)
         return true;
     }
 
+    /// <summary>Attempts to read a single bit from the stream.</summary>
+    /// <param name="value">When this method returns <c>true</c>, contains 0 or 1.</param>
+    /// <returns><c>true</c> if the bit was read successfully; <c>false</c> if a marker was hit.</returns>
     public bool TryReadBit(out int value)
     {
         value = 0;
@@ -101,6 +115,7 @@ internal sealed class JpegBitReader(Stream stream)
         return false;
     }
 
+    /// <summary>Discards any remaining bits in the buffer, aligning the read position to the next byte boundary.</summary>
     public void AlignToByte()
     {
         _bitsRemaining = 0;

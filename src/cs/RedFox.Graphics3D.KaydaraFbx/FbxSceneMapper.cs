@@ -1689,12 +1689,16 @@ public static class FbxSceneMapper
     /// <param name="name">The property name.</param>
     /// <param name="type">The FBX property type string.</param>
     /// <param name="value">The value property.</param>
-    public static void AddGlobalProperty(FbxNode properties, string name, string type, FbxProperty value)
+    public static void AddGlobalProperty(
+        FbxNode properties,
+        string name,
+        string type,
+        FbxProperty value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', name));
         property.Properties.Add(new FbxProperty('S', type));
-        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', GetPropertyAttributeType(type)));
         property.Properties.Add(new FbxProperty('S', string.Empty));
         property.Properties.Add(value);
     }
@@ -1969,7 +1973,7 @@ public static class FbxSceneMapper
     {
         FbxNode poseEntry = new("PoseNode");
         poseEntry.Children.Add(new FbxNode("Node") { Properties = { new FbxProperty('L', nodeId) } });
-        poseEntry.Children.Add(new FbxNode("Matrix") { Properties = { new FbxProperty('d', matrix) } });
+        poseEntry.Children.Add(new FbxNode("Matrix") { Properties = { new FbxProperty('d', MatrixToArray(matrix)) } });
         return poseEntry;
     }
 
@@ -2101,12 +2105,16 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The integer value to write.</param>
-    public static void AddIntProperty(FbxNode properties, string propertyName, string propertyType, int value)
+    public static void AddIntProperty(
+        FbxNode properties,
+        string propertyName,
+        string propertyType,
+        int value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
         property.Properties.Add(new FbxProperty('S', propertyType));
-        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', GetPropertyAttributeType(propertyType)));
         property.Properties.Add(new FbxProperty('S', string.Empty));
         property.Properties.Add(new FbxProperty('I', value));
     }
@@ -2118,12 +2126,16 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The string value to write.</param>
-    public static void AddStringProperty(FbxNode properties, string propertyName, string propertyType, string value)
+    public static void AddStringProperty(
+        FbxNode properties,
+        string propertyName,
+        string propertyType,
+        string value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
         property.Properties.Add(new FbxProperty('S', propertyType));
-        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', GetPropertyAttributeType(propertyType)));
         property.Properties.Add(new FbxProperty('S', string.Empty));
         property.Properties.Add(new FbxProperty('S', value));
     }
@@ -2514,12 +2526,16 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The double value to write.</param>
-    public static void AddDoubleProperty(FbxNode properties, string propertyName, string propertyType, double value)
+    public static void AddDoubleProperty(
+        FbxNode properties,
+        string propertyName,
+        string propertyType,
+        double value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
         property.Properties.Add(new FbxProperty('S', propertyType));
-        property.Properties.Add(new FbxProperty('S', string.Empty));
+        property.Properties.Add(new FbxProperty('S', GetPropertyAttributeType(propertyType)));
         property.Properties.Add(new FbxProperty('S', "A"));
         property.Properties.Add(new FbxProperty('D', value));
     }
@@ -2588,4 +2604,21 @@ public static class FbxSceneMapper
         objectsNode.Children.Add(CreateNullNodeAttribute(nodeAttributeId, nodeAttributeName));
         AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
     }
+
+    /// <summary>
+    /// Returns the FBX Properties70 attribute-type string for the given property data-type.
+    /// Blender's importer asserts this field matches the expected type (e.g. <c>"Number"</c>
+    /// for <c>"double"</c>, <c>"Integer"</c> for <c>"int"</c>).
+    /// </summary>
+    /// <param name="propertyType">The FBX property type string (field [1] of a P node).</param>
+    /// <returns>The attribute-type string for field [2] of the P node.</returns>
+    private static string GetPropertyAttributeType(string propertyType) => propertyType switch
+    {
+        "int" => "Integer",
+        "double" or "float" => "Number",
+        "KTime" => "Time",
+        "ColorRGB" => "Color",
+        "Vector3D" => "Vector",
+        _ => string.Empty,
+    };
 }

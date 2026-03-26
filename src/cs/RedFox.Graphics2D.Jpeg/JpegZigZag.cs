@@ -1,7 +1,13 @@
 namespace RedFox.Graphics2D.Jpeg;
 
-internal static class JpegZigZag
+/// <summary>
+/// Provides the standard JPEG zig-zag scan order for mapping between 8×8 spatial and linear coefficient indices.
+/// </summary>
+public static class JpegZigZag
 {
+    /// <summary>
+    /// Gets the 64-element zig-zag scan order. Index <c>i</c> yields the spatial position of the <c>i</c>-th coefficient.
+    /// </summary>
     public static ReadOnlySpan<byte> Order =>
     [
          0,  1,  8, 16,  9,  2,  3, 10,

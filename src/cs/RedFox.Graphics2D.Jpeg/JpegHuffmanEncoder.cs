@@ -1,11 +1,18 @@
 namespace RedFox.Graphics2D.Jpeg;
 
-internal sealed class JpegHuffmanEncoder
+/// <summary>
+/// A JPEG Huffman encoding table that encodes DC/AC coefficients into variable-length codes via a <see cref="JpegBitWriter"/>.
+/// Includes the four standard Huffman tables for luminance and chrominance.
+/// </summary>
+public sealed class JpegHuffmanEncoder
 {
     private readonly int[] _codes;
     private readonly int[] _sizes;
 
+    /// <summary>The 16-element array of code counts at each bit length, as stored in the DHT segment.</summary>
     public readonly byte[] CodeLengths;
+
+    /// <summary>The Huffman symbol values ordered by code length.</summary>
     public readonly byte[] Values;
 
     private JpegHuffmanEncoder(byte[] codeLengths, byte[] values)
@@ -34,11 +41,17 @@ internal sealed class JpegHuffmanEncoder
         }
     }
 
+    /// <summary>Encodes a single symbol using this Huffman table and writes it to the bit writer.</summary>
+    /// <param name="writer">The bit writer to write the encoded bits to.</param>
+    /// <param name="symbol">The symbol value (0–255) to encode.</param>
     public void Encode(JpegBitWriter writer, int symbol)
     {
         writer.WriteBits(_codes[symbol], _sizes[symbol]);
     }
 
+    /// <summary>Encodes a DC coefficient difference value (category + extra bits).</summary>
+    /// <param name="writer">The bit writer to write the encoded bits to.</param>
+    /// <param name="diff">The DC coefficient difference from the previous block.</param>
     public void EncodeDc(JpegBitWriter writer, int diff)
     {
         int category = GetBitSize(diff);
@@ -51,6 +64,9 @@ internal sealed class JpegHuffmanEncoder
         }
     }
 
+    /// <summary>Encodes the 63 AC coefficients of a zig-zag ordered 8×8 block, including run-length coding and EOB.</summary>
+    /// <param name="writer">The bit writer to write the encoded bits to.</param>
+    /// <param name="zigzagBlock">A 64-element span of quantized DCT coefficients in zig-zag order.</param>
     public void EncodeAc(JpegBitWriter writer, ReadOnlySpan<int> zigzagBlock)
     {
         int zeroRun = 0;
@@ -101,10 +117,12 @@ internal sealed class JpegHuffmanEncoder
         return bits;
     }
 
+    /// <summary>Standard JPEG luminance DC Huffman table (Table K.3).</summary>
     public static readonly JpegHuffmanEncoder LuminanceDc = new(
         [0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
+    /// <summary>Standard JPEG luminance AC Huffman table (Table K.5).</summary>
     public static readonly JpegHuffmanEncoder LuminanceAc = new(
         [0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 0x7D],
         [
@@ -131,10 +149,12 @@ internal sealed class JpegHuffmanEncoder
             0xF9, 0xFA,
         ]);
 
+    /// <summary>Standard JPEG chrominance DC Huffman table (Table K.4).</summary>
     public static readonly JpegHuffmanEncoder ChrominanceDc = new(
         [0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
+    /// <summary>Standard JPEG chrominance AC Huffman table (Table K.6).</summary>
     public static readonly JpegHuffmanEncoder ChrominanceAc = new(
         [0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 0x77],
         [

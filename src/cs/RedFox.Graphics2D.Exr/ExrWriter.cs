@@ -10,6 +10,9 @@ namespace RedFox.Graphics2D.Exr
     /// </summary>
     public static class ExrWriter
     {
+        /// <summary>
+        /// The default RGBA channel definitions used for Half-float output.
+        /// </summary>
         private static readonly ExrChannel[] HalfChannels =
         [
             new("A", ExrPixelType.Half, false, 1, 1),
@@ -18,6 +21,9 @@ namespace RedFox.Graphics2D.Exr
             new("R", ExrPixelType.Half, false, 1, 1),
         ];
 
+        /// <summary>
+        /// The default RGBA channel definitions used for 32-bit float output.
+        /// </summary>
         private static readonly ExrChannel[] FloatChannels =
         [
             new("A", ExrPixelType.Float, false, 1, 1),
@@ -29,7 +35,20 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Writes an image to an EXR file at the specified path.
         /// </summary>
-        public static void Save(string filePath, Image image, ExrWriteOptions? options = null)
+        /// <param name="filePath">The destination file path.</param>
+        /// <param name="image">The source image to export.</param>
+        public static void Save(string filePath, Image image)
+        {
+            Save(filePath, image, null);
+        }
+
+        /// <summary>
+        /// Writes an image to an EXR file at the specified path with the given options.
+        /// </summary>
+        /// <param name="filePath">The destination file path.</param>
+        /// <param name="image">The source image to export.</param>
+        /// <param name="options">Optional write settings controlling compression and pixel type.</param>
+        public static void Save(string filePath, Image image, ExrWriteOptions? options)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -40,7 +59,20 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Writes an image to an EXR stream.
         /// </summary>
-        public static void Save(Stream stream, Image image, ExrWriteOptions? options = null)
+        /// <param name="stream">The destination stream.</param>
+        /// <param name="image">The source image to export.</param>
+        public static void Save(Stream stream, Image image)
+        {
+            Save(stream, image, null);
+        }
+
+        /// <summary>
+        /// Writes an image to an EXR stream with the given options.
+        /// </summary>
+        /// <param name="stream">The destination stream.</param>
+        /// <param name="image">The source image to export.</param>
+        /// <param name="options">Optional write settings controlling compression and pixel type.</param>
+        public static void Save(Stream stream, Image image, ExrWriteOptions? options)
         {
             ArgumentNullException.ThrowIfNull(stream);
             ArgumentNullException.ThrowIfNull(image);

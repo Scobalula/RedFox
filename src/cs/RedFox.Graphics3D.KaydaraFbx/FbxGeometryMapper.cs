@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
 
@@ -360,30 +359,17 @@ public static class FbxGeometryMapper
             return [];
         }
 
+        // FBX stores vertices in bind pose; cluster deformers handle skinning at runtime.
+        // Applying skin transforms here would pre-deform the mesh, causing double-skinning
+        // when the consuming application (Maya, Blender, etc.) applies its own skinning pass.
         double[] result = new double[mesh.VertexCount * 3];
-        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
-        Matrix4x4[]? rentedSkinTransforms = null;
-        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
-
-        try
+        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
         {
-            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
-            {
-                int offset = vertexIndex * 3;
-                Vector3 position = skinTransforms.Length > 0
-                    ? mesh.GetVertexPosition(vertexIndex, skinTransforms)
-                    : mesh.GetVertexPosition(vertexIndex);
-                result[offset] = position.X;
-                result[offset + 1] = position.Y;
-                result[offset + 2] = position.Z;
-            }
-        }
-        finally
-        {
-            if (rentedSkinTransforms is not null)
-            {
-                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
-            }
+            int offset = vertexIndex * 3;
+            Vector3 position = mesh.GetVertexPosition(vertexIndex, raw: true);
+            result[offset] = position.X;
+            result[offset + 1] = position.Y;
+            result[offset + 2] = position.Z;
         }
 
         return result;
@@ -466,30 +452,15 @@ public static class FbxGeometryMapper
             return [];
         }
 
+        // FBX stores normals in bind pose; must match the bind-pose vertex positions.
         double[] result = new double[mesh.VertexCount * 3];
-        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
-        Matrix4x4[]? rentedSkinTransforms = null;
-        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
-
-        try
+        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
         {
-            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
-            {
-                int offset = vertexIndex * 3;
-                Vector3 normal = skinTransforms.Length > 0
-                    ? mesh.GetVertexNormal(vertexIndex, skinTransforms)
-                    : mesh.GetVertexNormal(vertexIndex);
-                result[offset] = normal.X;
-                result[offset + 1] = normal.Y;
-                result[offset + 2] = normal.Z;
-            }
-        }
-        finally
-        {
-            if (rentedSkinTransforms is not null)
-            {
-                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
-            }
+            int offset = vertexIndex * 3;
+            Vector3 normal = mesh.GetVertexNormal(vertexIndex, raw: true);
+            result[offset] = normal.X;
+            result[offset + 1] = normal.Y;
+            result[offset + 2] = normal.Z;
         }
 
         return result;
@@ -532,31 +503,16 @@ public static class FbxGeometryMapper
             return [];
         }
 
+        // FBX stores normals in bind pose; must match the bind-pose vertex positions.
         double[] result = new double[mesh.FaceIndices.ElementCount * 3];
-        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
-        Matrix4x4[]? rentedSkinTransforms = null;
-        ReadOnlySpan<Matrix4x4> skinTransforms = GetSkinTransforms(mesh, stackSkinTransforms, out rentedSkinTransforms);
-
-        try
+        for (int faceIndex = 0; faceIndex < mesh.FaceIndices.ElementCount; faceIndex++)
         {
-            for (int faceIndex = 0; faceIndex < mesh.FaceIndices.ElementCount; faceIndex++)
-            {
-                int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex, 0, 0);
-                Vector3 normal = skinTransforms.Length > 0
-                    ? mesh.GetVertexNormal(vertexIndex, skinTransforms)
-                    : mesh.GetVertexNormal(vertexIndex);
-                int offset = faceIndex * 3;
-                result[offset] = normal.X;
-                result[offset + 1] = normal.Y;
-                result[offset + 2] = normal.Z;
-            }
-        }
-        finally
-        {
-            if (rentedSkinTransforms is not null)
-            {
-                ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
-            }
+            int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex, 0, 0);
+            Vector3 normal = mesh.GetVertexNormal(vertexIndex, raw: true);
+            int offset = faceIndex * 3;
+            result[offset] = normal.X;
+            result[offset + 1] = normal.Y;
+            result[offset + 2] = normal.Z;
         }
 
         return result;
@@ -658,30 +614,5 @@ public static class FbxGeometryMapper
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Resolves precomputed skin transforms aligned to the mesh skin palette for export-time geometry evaluation.
-    /// </summary>
-    /// <param name="mesh">The source mesh.</param>
-    /// <param name="stackSkinTransforms">A caller-provided stack buffer used for small palettes.</param>
-    /// <param name="rentedSkinTransforms">Receives a rented array when the mesh palette exceeds the stack buffer.</param>
-    /// <returns>A span containing the resolved skin transforms, or an empty span when the mesh is not skinned.</returns>
-    public static ReadOnlySpan<Matrix4x4> GetSkinTransforms(Mesh mesh, Span<Matrix4x4> stackSkinTransforms, out Matrix4x4[]? rentedSkinTransforms)
-    {
-        rentedSkinTransforms = null;
-
-        int skinnedBoneCount = mesh.SkinnedBones?.Count ?? 0;
-        if (skinnedBoneCount == 0)
-        {
-            return [];
-        }
-
-        Span<Matrix4x4> skinTransforms = skinnedBoneCount <= stackSkinTransforms.Length
-            ? stackSkinTransforms[..skinnedBoneCount]
-            : (rentedSkinTransforms = ArrayPool<Matrix4x4>.Shared.Rent(skinnedBoneCount)).AsSpan(0, skinnedBoneCount);
-
-        mesh.CopySkinTransforms(skinTransforms);
-        return skinTransforms;
     }
 }

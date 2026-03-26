@@ -1,8 +1,19 @@
 namespace RedFox.Graphics2D.IO
 {
-    internal static class DdsPitchCalculator
+    /// <summary>
+    /// Computes the row-pitch or linear-size values stored in the DDS header
+    /// for the top-level surface.
+    /// </summary>
+    public static class DdsPitchCalculator
     {
-        internal static uint GetTopLevelPitchOrLinearSize(int width, ImageFormat format, bool isBlockCompressed)
+        /// <summary>
+        /// Computes the top-level pitch (uncompressed) or linear size (compressed) for the given format.
+        /// </summary>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="format">The pixel format of the image.</param>
+        /// <param name="isBlockCompressed"><see langword="true"/> if the format uses block compression.</param>
+        /// <returns>The pitch or linear size in bytes.</returns>
+        public static uint GetTopLevelPitchOrLinearSize(int width, ImageFormat format, bool isBlockCompressed)
         {
             if (isBlockCompressed)
             {

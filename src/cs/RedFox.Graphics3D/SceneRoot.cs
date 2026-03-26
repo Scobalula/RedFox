@@ -12,5 +12,15 @@ namespace RedFox.Graphics3D
         {
             Owner = owner;
         }
+
+        public void RemoveAll<T>() where T : SceneNode
+        {
+            var nodesToRemove = GetDescendants<T>();
+
+            foreach (var node in nodesToRemove)
+            {
+                node.MoveTo(null);
+            }
+        }
     }
 }

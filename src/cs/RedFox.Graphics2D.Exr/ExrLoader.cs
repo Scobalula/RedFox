@@ -17,6 +17,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Loads an EXR file from the specified file path.
         /// </summary>
+        /// <param name="filePath">The path to the EXR file.</param>
+        /// <returns>An <see cref="Image"/> containing the decoded pixel data.</returns>
         public static Image Load(string filePath)
         {
             var data = File.ReadAllBytes(filePath);
@@ -26,6 +28,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Loads an EXR file from a stream.
         /// </summary>
+        /// <param name="stream">The stream containing the EXR data.</param>
+        /// <returns>An <see cref="Image"/> containing the decoded pixel data.</returns>
         public static Image Load(Stream stream)
         {
             using var copy = new MemoryStream();
@@ -36,6 +40,8 @@ namespace RedFox.Graphics2D.Exr
         /// <summary>
         /// Loads an EXR file from a byte buffer.
         /// </summary>
+        /// <param name="data">The raw EXR file bytes.</param>
+        /// <returns>An <see cref="Image"/> containing the decoded pixel data.</returns>
         public static Image Load(byte[] data)
         {
             ArgumentNullException.ThrowIfNull(data);

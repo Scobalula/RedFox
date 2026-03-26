@@ -5,7 +5,11 @@ using System.Runtime.Intrinsics.X86;
 
 namespace RedFox.Graphics2D.Jpeg;
 
-internal static class JpegFdct
+/// <summary>
+/// Forward Discrete Cosine Transform for 8×8 blocks using the AAN algorithm.
+/// Supports scalar, SSE2, and AVX2 fast paths.
+/// </summary>
+public static class JpegFdct
 {
     // AAN FDCT fixed-point constants (same butterfly structure as IDCT, reversed flow).
     // These match the constants used in libjpeg's jfdctint.c (scaled by 2^13).
@@ -22,6 +26,8 @@ internal static class JpegFdct
     private const int Fix_2_562915447 = 20995;
     private const int Fix_3_072711026 = 25172;
 
+    /// <summary>Performs a forward DCT on an 8×8 block of spatial-domain samples in-place.</summary>
+    /// <param name="block">A 64-element span of integer samples; on return, contains DCT coefficients.</param>
     public static void Transform(Span<int> block)
     {
         if (Avx2.IsSupported)

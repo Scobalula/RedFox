@@ -7,7 +7,7 @@ namespace RedFox.Graphics2D.Tiff
     /// <summary>
     /// Provides pixel format conversion routines for TIFF image reading and writing.
     /// </summary>
-    internal static class TiffPixelConverter
+    public static class TiffPixelConverter
     {
         /// <summary>
         /// Converts decoded 8-bit TIFF sample data to interleaved RGBA8 output.
@@ -18,7 +18,7 @@ namespace RedFox.Graphics2D.Tiff
         /// <param name="pixelCount">Total number of pixels to convert.</param>
         /// <param name="samplesPerPixel">Number of samples per pixel in the source data.</param>
         /// <param name="photometric">Photometric interpretation (0 = MinIsWhite, 1 = MinIsBlack, 2 = RGB).</param>
-        internal static void ConvertToRgba8(
+        public static void ConvertToRgba8(
             ReadOnlySpan<byte> src,
             Span<byte> dst,
             int pixelCount,
@@ -72,7 +72,7 @@ namespace RedFox.Graphics2D.Tiff
         /// <param name="samplesPerPixel">Number of samples per pixel in the source data.</param>
         /// <param name="photometric">Photometric interpretation.</param>
         /// <param name="le"><see langword="true"/> for little-endian sample byte order.</param>
-        internal static void ConvertToRgba16(
+        public static void ConvertToRgba16(
             ReadOnlySpan<byte> src,
             Span<byte> dst,
             int pixelCount,
@@ -141,7 +141,7 @@ namespace RedFox.Graphics2D.Tiff
         /// <param name="height">Image height in pixels.</param>
         /// <param name="includeAlpha">If <see langword="true"/>, output RGBA; otherwise RGB.</param>
         /// <returns>A byte array containing the extracted pixel data.</returns>
-        internal static byte[] ExtractRgbData(
+        public static byte[] ExtractRgbData(
             in ImageSlice slice,
             ImageFormat format,
             int width,
@@ -179,7 +179,7 @@ namespace RedFox.Graphics2D.Tiff
         /// </summary>
         /// <param name="data">The pixel data with alpha at every 4th byte.</param>
         /// <returns><see langword="true"/> if any alpha byte is less than 255.</returns>
-        internal static bool HasNonOpaqueAlpha(ReadOnlySpan<byte> data)
+        public static bool HasNonOpaqueAlpha(ReadOnlySpan<byte> data)
         {
             for (int i = 3; i < data.Length; i += 4)
             {
@@ -285,7 +285,9 @@ namespace RedFox.Graphics2D.Tiff
             }
         }
 
-        /// <summary>Reads a 16-bit unsigned integer with the specified byte order.</summary>
+        /// <summary>
+        /// Reads a 16-bit unsigned integer with the specified byte order.
+        /// </summary>
         private static ushort Read16(ReadOnlySpan<byte> data, int offset, bool le)
         {
             return le

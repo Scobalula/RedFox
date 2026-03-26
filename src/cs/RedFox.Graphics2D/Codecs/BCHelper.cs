@@ -14,13 +14,7 @@ namespace RedFox.Graphics2D.Codecs
         /// for each block, writing decoded pixels into the destination span row by row.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DecodeBlocks(
-            ReadOnlySpan<byte> source,
-            Span<Vector4> destination,
-            int width,
-            int height,
-            int blockSize,
-            DecodeBlockDelegate decodeBlock)
+        internal static void DecodeBlocks(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height, int blockSize, DecodeBlockDelegate decodeBlock)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);
@@ -63,14 +57,7 @@ namespace RedFox.Graphics2D.Codecs
         /// 16-element stackalloc buffer is used per block.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DecodeBlocksTo(
-            ReadOnlySpan<byte> source,
-            IPixelCodec targetCodec,
-            Span<byte> destination,
-            int width,
-            int height,
-            int blockSize,
-            DecodeBlockDelegate decodeBlock)
+        internal static void DecodeBlocksTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height, int blockSize, DecodeBlockDelegate decodeBlock)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);
@@ -107,13 +94,7 @@ namespace RedFox.Graphics2D.Codecs
         /// Each block is decoded exactly once.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DecodeRows(
-            ReadOnlySpan<byte> source,
-            Span<Vector4> destination,
-            int startRow, int rowCount,
-            int width, int height,
-            int blockSize,
-            DecodeBlockDelegate decodeBlock)
+        internal static void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height, int blockSize, DecodeBlockDelegate decodeBlock)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blockRowStart = startRow / 4;
@@ -153,13 +134,7 @@ namespace RedFox.Graphics2D.Codecs
         /// for each block, reading source pixels and writing encoded data.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void EncodeBlocks(
-            ReadOnlySpan<Vector4> source,
-            Span<byte> destination,
-            int width,
-            int height,
-            int blockSize,
-            EncodeBlockDelegate encodeBlock)
+        internal static void EncodeBlocks(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height, int blockSize, EncodeBlockDelegate encodeBlock)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);

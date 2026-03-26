@@ -1,6 +1,9 @@
 namespace RedFox.Graphics2D.Jpeg;
 
-internal enum JpegMarker : byte
+/// <summary>
+/// JPEG marker byte values that delimit segments in the bitstream.
+/// </summary>
+public enum JpegMarker : byte
 {
     SOI = 0xD8,
     EOI = 0xD9,

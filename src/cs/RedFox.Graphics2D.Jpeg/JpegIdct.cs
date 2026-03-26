@@ -5,7 +5,11 @@ using System.Runtime.Intrinsics.X86;
 
 namespace RedFox.Graphics2D.Jpeg
 {
-    internal static class JpegIdct
+    /// <summary>
+    /// Inverse Discrete Cosine Transform for 8×8 blocks.
+    /// Supports scalar, SSE2, and AVX2 fast paths.
+    /// </summary>
+    public static class JpegIdct
     {
         private const int IdctScaleBits = 12;
         private const int IdctScale = 1 << IdctScaleBits;
@@ -21,6 +25,8 @@ namespace RedFox.Graphics2D.Jpeg
         private const int W6 = 2217;  // cos(6*pi/16)*sqrt(2)*4096 ≈ 0.5412
         private const int W7 = 1130;  // cos(7*pi/16)*sqrt(2)*4096 ≈ 0.2759
 
+        /// <summary>Performs an inverse DCT on an 8×8 block of DCT coefficients in-place, producing spatial-domain samples.</summary>
+        /// <param name="block">A 64-element span of DCT coefficients; on return, contains pixel values.</param>
         public static void Transform(Span<int> block)
         {
             if (Avx2.IsSupported)

@@ -7,7 +7,7 @@ namespace RedFox.Graphics2D.Tiff
     /// Provides decompression methods for TIFF compression schemes:
     /// LZW (Lempel-Ziv-Welch, MSB-first) and PackBits (byte-oriented RLE).
     /// </summary>
-    internal static class TiffDecompressor
+    public static class TiffDecompressor
     {
         /// <summary>
         /// Decompresses PackBits (byte-oriented run-length encoding) data.
@@ -15,7 +15,7 @@ namespace RedFox.Graphics2D.Tiff
         /// <param name="src">The compressed input data.</param>
         /// <param name="expectedSize">The expected uncompressed output size in bytes.</param>
         /// <returns>A byte array containing the decompressed data.</returns>
-        internal static byte[] DecompressPackBits(ReadOnlySpan<byte> src, int expectedSize)
+        public static byte[] DecompressPackBits(ReadOnlySpan<byte> src, int expectedSize)
         {
             var output = new byte[expectedSize];
             int srcPos = 0;
@@ -52,7 +52,7 @@ namespace RedFox.Graphics2D.Tiff
         /// <summary>
         /// Helper type that encapsulates LZW bitstream reading and string-table operations.
         /// The decoder holds references to the working arrays used by the algorithm and
-        /// exposes methods to read codes and reconstruct strings into an internal buffer.
+        /// exposes methods to read codes and reconstruct strings into an public buffer.
         /// </summary>
         private ref struct LzwDecoder
         {
@@ -77,7 +77,7 @@ namespace RedFox.Graphics2D.Tiff
             public int CodeSize { get; set; }
 
             /// <summary>
-            /// Exposes the internal decode buffer as a span for efficient copying.
+            /// Exposes the public decode buffer as a span for efficient copying.
             /// </summary>
             public Span<byte> DecodeBufferSpan => _decodeBuffer;
 
@@ -159,7 +159,7 @@ namespace RedFox.Graphics2D.Tiff
 
             /// <summary>
             /// Reconstructs the byte sequence represented by <paramref name="code"/> into
-            /// the internal decode buffer and returns its length.
+            /// the public decode buffer and returns its length.
             /// </summary>
             /// <param name="code">The string-table code to decode.</param>
             /// <returns>The length of the reconstructed string.</returns>
@@ -180,20 +180,13 @@ namespace RedFox.Graphics2D.Tiff
 
         /// <summary>
         /// Decompresses TIFF LZW data using MSB-first bit packing and variable code widths (9–12 bits).
-        /// Conforms to the TIFF 6.0 specification for LZW decompression with early code-size increase.
-        /// </summary>
-        /// <param name="src">The compressed input data.</param>
-        /// <param name="expectedSize">The expected uncompressed output size in bytes.</param>
-        /// <returns>A byte array containing the decompressed data.</returns>
-        /// <summary>
-        /// Decompresses TIFF LZW data using MSB-first bit packing and variable code widths (9–12 bits).
         /// This implementation follows the TIFF 6.0 LZW variant which expects a Clear code
         /// at the start of the stream and performs the early code-size increase behavior.
         /// </summary>
         /// <param name="src">The compressed input data span.</param>
         /// <param name="expectedSize">The expected size of the decompressed output in bytes.</param>
         /// <returns>A newly allocated byte array containing the decompressed data.</returns>
-        internal static byte[] DecompressLZW(ReadOnlySpan<byte> src, int expectedSize)
+        public static byte[] DecompressLZW(ReadOnlySpan<byte> src, int expectedSize)
         {
             return DecompressLZWCore(src, expectedSize);
         }

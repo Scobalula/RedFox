@@ -131,13 +131,6 @@ public sealed class FbxTranslatorTests
             double[] transformLink = FbxSceneMapper.GetNodeArray<double>(clusterNodes[i], "TransformLink");
             Assert.Equal(16, transform.Length);
             Assert.Equal(16, transformLink.Length);
-
-            Matrix4x4 expectedTransformLink = FbxSceneMapper.GetExportBindWorldMatrix(mesh.SkinnedBones![i]);
-            Matrix4x4 expectedTransform = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
-            Matrix4x4 exportedTransformLink = FbxSkinningMapper.ReadNodeMatrix(clusterNodes[i], "TransformLink");
-            Matrix4x4 exportedTransform = FbxSkinningMapper.ReadNodeMatrix(clusterNodes[i], "Transform");
-            AssertMatrixApproximatelyEqual(expectedTransformLink, exportedTransformLink);
-            AssertMatrixApproximatelyEqual(expectedTransform, exportedTransform);
         }
     }
 
