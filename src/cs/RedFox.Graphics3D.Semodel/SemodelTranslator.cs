@@ -1,6 +1,7 @@
 ﻿using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
+using RedFox.IO;
 using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -54,11 +55,13 @@ public class SemodelTranslator : SceneTranslator
         var meshCount = reader.ReadInt32();
         var matCount  = reader.ReadInt32();
 
-        reader.ReadBytes(3); // reserved
+        reader.ReadByte(); // reserved
+        reader.ReadByte(); // reserved
+        reader.ReadByte(); // reserved
 
         var boneNames = new string[boneCount];
         for (int i = 0; i < boneCount; i++)
-            boneNames[i] = ReadUTF8String(reader);
+            boneNames[i] = reader.ReadUTF8NullTerminatedString();
 
         bool hasWorldTransforms = (boneDataPresence & (1 << 0)) != 0;
         bool hasLocalTransforms = (boneDataPresence & (1 << 1)) != 0;
@@ -78,19 +81,19 @@ public class SemodelTranslator : SceneTranslator
 
             if (hasWorldTransforms)
             {
-                bone.BindTransform.WorldPosition = ReadVector3(reader);
-                bone.BindTransform.WorldRotation = ReadQuaternion(reader);
+                bone.BindTransform.WorldPosition = reader.ReadStruct<Vector3>();
+                bone.BindTransform.WorldRotation = reader.ReadStruct<Quaternion>();
             }
 
             if (hasLocalTransforms)
             {
-                bone.BindTransform.LocalPosition = ReadVector3(reader);
-                bone.BindTransform.LocalRotation = ReadQuaternion(reader);
+                bone.BindTransform.LocalPosition = reader.ReadStruct<Vector3>();
+                bone.BindTransform.LocalRotation = reader.ReadStruct<Quaternion>();
             }
 
             if (hasScaleTransforms)
             {
-                bone.BindTransform.Scale = ReadVector3(reader);
+                bone.BindTransform.Scale = reader.ReadStruct<Vector3>();
             }
 
             bones[i] = bone;
@@ -176,13 +179,13 @@ public class SemodelTranslator : SceneTranslator
         // ---- Materials ----
         for (int m = 0; m < matCount; m++)
         {
-            var material = model.AddNode<Material>(ReadUTF8String(reader));
+            var material = model.AddNode<Material>(reader.ReadUTF8NullTerminatedString());
 
             if (reader.ReadBoolean())
             {
-                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse", ReadUTF8String(reader));
-                material.NormalMapName   = AssignMaterialTexture(material, "normal", ReadUTF8String(reader));
-                material.SpecularMapName = AssignMaterialTexture(material, "specular", ReadUTF8String(reader));
+                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse", reader.ReadUTF8NullTerminatedString());
+                material.NormalMapName   = AssignMaterialTexture(material, "normal", reader.ReadUTF8NullTerminatedString());
+                material.SpecularMapName = AssignMaterialTexture(material, "specular", reader.ReadUTF8NullTerminatedString());
             }
         }
 
@@ -215,11 +218,10 @@ public class SemodelTranslator : SceneTranslator
     {
         using var writer = new BinaryWriter(stream, Encoding.Default, true);
 
-        var skeleton  = scene.TryGetFirstOfType<Skeleton>();
-        var model     = scene.TryGetFirstOfType<Model>();
-        var meshes    = model?.GetDescendants<Mesh>() ?? [];
-        var materials = model?.GetDescendants<Material>() ?? [];
-        var bones     = skeleton?.GetDescendants<SkeletonBone>() ?? [];
+        var meshes    = scene.RootNode.GetDescendants<Mesh>() ?? [];
+        var materials = scene.RootNode.GetDescendants<Material>() ?? [];
+        var bones     = scene.RootNode.GetDescendants<SkeletonBone>() ?? [];
+        var boneTable = new Dictionary<SkeletonBone, int>();
 
         // Determine data presence flags from actual data
         bool hasBones  = bones.Length > 0;
@@ -257,26 +259,20 @@ public class SemodelTranslator : SceneTranslator
         }
 
         // ---- Bone data ----
+        var boneIndex = 0;
+
         foreach (var bone in bones)
         {
             writer.Write((byte)0); // flags
             writer.Write(bone.Parent is SkeletonBone parent ? Array.IndexOf(bones, parent) : -1);
 
-            // World transforms
-            var wp = bone.GetBindWorldPosition();
-            var wr = bone.GetBindWorldRotation();
-            WriteVector3(writer, wp);
-            WriteQuaternion(writer, wr);
+            writer.WriteStruct(bone.GetActiveWorldPosition());
+            writer.WriteStruct(bone.GetActiveWorldRotation());
+            writer.WriteStruct(bone.GetLiveLocalPosition());
+            writer.WriteStruct(bone.GetLiveLocalRotation());
+            writer.WriteStruct(bone.GetLiveLocalScale());
 
-            // Local transforms
-            var lp = bone.GetBindLocalPosition();
-            var lr = bone.GetBindLocalRotation();
-            WriteVector3(writer, lp);
-            WriteQuaternion(writer, lr);
-
-            // Scale
-            var s = bone.GetBindLocalScale();
-            WriteVector3(writer, s);
+            boneTable[bone] = boneIndex++;
         }
 
         bool hasUVs     = (meshDataPresence & (1 << 0)) != 0;
@@ -284,8 +280,6 @@ public class SemodelTranslator : SceneTranslator
         bool hasColours = (meshDataPresence & (1 << 2)) != 0;
         bool hasWeights = (meshDataPresence & (1 << 3)) != 0;
 
-        // ---- Meshes ----
-        Span<Matrix4x4> stackSkinTransforms = stackalloc Matrix4x4[128];
         foreach (var mesh in meshes)
         {
             if (mesh.Positions is null)
@@ -296,137 +290,119 @@ public class SemodelTranslator : SceneTranslator
             int vertexCount = mesh.Positions.ElementCount;
             int faceCount   = mesh.FaceIndices.ElementCount / 3;
             int layerCount  = mesh.UVLayers?.ValueCount ?? 0;
-            int influences  = mesh.BoneIndices is not null && mesh.BoneWeights is not null
-                ? mesh.BoneIndices.ValueCount : 0;
-            int[] globalBoneIndexTable = BuildGlobalBoneIndexTable(mesh, bones);
-            int skinnedBoneCount = options.WriteRawVertices ? 0 : mesh.SkinnedBones?.Count ?? 0;
-            Matrix4x4[]? rentedSkinTransforms = null;
-            Span<Matrix4x4> skinTransforms = skinnedBoneCount == 0
-                ? []
-                : skinnedBoneCount <= stackSkinTransforms.Length
-                    ? stackSkinTransforms[..skinnedBoneCount]
-                    : (rentedSkinTransforms = ArrayPool<Matrix4x4>.Shared.Rent(skinnedBoneCount)).AsSpan(0, skinnedBoneCount);
+            int influences  = mesh.BoneIndices is not null &&
+                              mesh.BoneWeights is not null &&
+                              mesh.SkinnedBones is not null ? mesh.BoneIndices.ValueCount : 0;
 
-            if (skinnedBoneCount > 0)
-                mesh.CopySkinTransforms(skinTransforms);
+            int[] globalBoneIndexTable = influences > 0 ? mesh.GetBoneIndices(boneTable) : [];
 
-            try
+            writer.Write((byte)0); // flags
+            writer.Write((byte)layerCount);
+            writer.Write((byte)influences);
+            writer.Write(vertexCount);
+            writer.Write(faceCount);
+
+            // Positions
+            for (int v = 0; v < vertexCount; v++)
+                writer.WriteStruct(mesh.GetVertexPosition(v, options.WriteRawVertices));
+
+            // UVs
+            if (mesh.UVLayers is not null)
             {
-                writer.Write((byte)0); // flags
-                writer.Write((byte)layerCount);
-                writer.Write((byte)influences);
-                writer.Write(vertexCount);
-                writer.Write(faceCount);
-
-                // Positions
                 for (int v = 0; v < vertexCount; v++)
-                    WriteVector3(writer, mesh.GetVertexPosition(v, skinTransforms));
-
-                // UVs
-                if (mesh.UVLayers is not null)
                 {
-                    for (int v = 0; v < vertexCount; v++)
+                    for (int l = 0; l < layerCount; l++)
                     {
-                        for (int l = 0; l < layerCount; l++)
-                        {
-                            var uv = mesh.UVLayers.GetVector2(v, l);
-                            writer.Write(uv.X);
-                            writer.Write(uv.Y);
-                        }
+                        var uv = mesh.UVLayers.GetVector2(v, l);
+                        writer.Write(uv.X);
+                        writer.Write(uv.Y);
                     }
                 }
-                else if (hasUVs)
-                {
-                    // If no UVs, write zeroes
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        for (int l = 0; l < layerCount; l++)
-                        {
-                            writer.Write(0f);
-                            writer.Write(0f);
-                        }
-                    }
-                }
-
-                // Normals
-                if (mesh.Normals is not null)
-                {
-                    for (int v = 0; v < vertexCount; v++)
-                        WriteVector3(writer, mesh.GetVertexNormal(v, skinTransforms));
-                }
-                else if (hasNormals)
-                {
-                    // If no normals, write zeroes
-                    for (int v = 0; v < vertexCount; v++)
-                        WriteVector3(writer, Vector3.Zero);
-                }
-
-                // Colors
-                if (mesh.ColorLayers is not null)
-                {
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 0));
-                        writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 1));
-                        writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 2));
-                        writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 3));
-                    }
-                }
-                else if (hasColours)
-                {
-                    // If no vertex colors, write white with full alpha
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                        writer.Write((byte)255);
-                    }
-                }
-
-                // Bone influences
-                if (influences > 0 && mesh.BoneWeights is not null)
-                {
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        for (int j = 0; j < influences; j++)
-                        {
-                            int boneIdx = ResolveGlobalBoneIndex(mesh, globalBoneIndexTable, v, j);
-
-                            if (bones.Length <= byte.MaxValue)
-                                writer.Write((byte)boneIdx);
-                            else if (bones.Length <= ushort.MaxValue)
-                                writer.Write((ushort)boneIdx);
-                            else
-                                writer.Write(boneIdx);
-
-                            writer.Write(mesh.BoneWeights!.Get<float>(v, j, 0));
-                        }
-                    }
-                }
-
-                // Face indices
-                for (int f = 0; f < mesh.FaceIndices.ElementCount; f++)
-                {
-                    int idx = mesh.FaceIndices.Get<int>(f, 0, 0);
-
-                    if (vertexCount <= byte.MaxValue)
-                        writer.Write((byte)idx);
-                    else if (vertexCount <= ushort.MaxValue)
-                        writer.Write((ushort)idx);
-                    else
-                        writer.Write(idx);
-                }
-
-                // Material indices per layer (skip for now TODO)
-                for (int l = 0; l < layerCount; l++)
-                    writer.Write(0); // default material index
             }
-            finally
+            else if (hasUVs)
             {
-                if (rentedSkinTransforms is not null)
-                    ArrayPool<Matrix4x4>.Shared.Return(rentedSkinTransforms);
+                // If no UVs, write zeroes
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    for (int l = 0; l < layerCount; l++)
+                    {
+                        writer.Write(0f);
+                        writer.Write(0f);
+                    }
+                }
             }
+
+            // Normals
+            if (mesh.Normals is not null)
+            {
+                for (int v = 0; v < vertexCount; v++)
+                    writer.WriteStruct(mesh.GetVertexNormal(v, true));
+            }
+            else if (hasNormals)
+            {
+                // If no normals, write zeroes
+                for (int v = 0; v < vertexCount; v++)
+                    writer.WriteStruct(Vector3.Zero);
+            }
+
+            // Colors
+            if (mesh.ColorLayers is not null)
+            {
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 0));
+                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 1));
+                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 2));
+                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 3));
+                }
+            }
+            else if (hasColours)
+            {
+                // If no vertex colors, write white with full alpha
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    writer.Write((byte)255);
+                    writer.Write((byte)255);
+                    writer.Write((byte)255);
+                    writer.Write((byte)255);
+                }
+            }
+
+            // Bone influences
+            if (influences > 0 && mesh.BoneWeights is not null && mesh.BoneIndices is not null)
+            {
+                for (int v = 0; v < vertexCount; v++)
+                {
+                    for (int j = 0; j < influences; j++)
+                    {
+                        int boneIdx = mesh.BoneIndices.Get<int>(v, j, 0);
+
+                        if (bones.Length <= byte.MaxValue)
+                            writer.Write((byte)globalBoneIndexTable[boneIdx]);
+                        else if (bones.Length <= ushort.MaxValue)
+                            writer.Write((ushort)globalBoneIndexTable[boneIdx]);
+                        else
+                            writer.Write(globalBoneIndexTable[boneIdx]);
+
+                        writer.Write(mesh.BoneWeights.Get<float>(v, j, 0));
+                    }
+                }
+            }
+
+            // Face indices
+            for (int f = 0; f < mesh.FaceIndices.ElementCount; f++)
+            {
+                if (vertexCount <= byte.MaxValue)
+                    writer.Write(mesh.FaceIndices.Get<byte>(f, 0, 0));
+                else if (vertexCount <= ushort.MaxValue)
+                    writer.Write(mesh.FaceIndices.Get<ushort>(f, 0, 0));
+                else
+                    writer.Write(mesh.FaceIndices.Get<int>(f, 0, 0));
+            }
+
+            // Material indices per layer (skip for now TODO)
+            for (int l = 0; l < layerCount; l++)
+                writer.Write(0); // default material index
         }
 
         // ---- Materials ----
@@ -439,17 +415,15 @@ public class SemodelTranslator : SceneTranslator
             string? normalMapName = ResolveMaterialTextureName(material, material.NormalMapName, "normal");
             string? specularMapName = ResolveMaterialTextureName(material, material.SpecularMapName, "specular");
 
-            bool hasImages = diffuseMapName is not null
-                          || normalMapName is not null
-                          || specularMapName is not null;
+            bool hasImages = diffuseMapName is not null || normalMapName is not null || specularMapName is not null;
 
             writer.Write(hasImages);
 
             if (hasImages)
             {
-                WriteNullTermString(writer, diffuseMapName ?? string.Empty);
-                WriteNullTermString(writer, normalMapName ?? string.Empty);
-                WriteNullTermString(writer, specularMapName ?? string.Empty);
+                writer.WriteNullTerminatedString(diffuseMapName ?? string.Empty);
+                writer.WriteNullTerminatedString(normalMapName ?? string.Empty);
+                writer.WriteNullTerminatedString(specularMapName ?? string.Empty);
             }
         }
     }
@@ -506,87 +480,5 @@ public class SemodelTranslator : SceneTranslator
             return;
 
         mesh.SetSkinBinding(bones);
-    }
-
-    private static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] bones)
-    {
-        var skinnedBones = mesh.SkinnedBones ?? bones;
-        var globalIndices = new Dictionary<SkeletonBone, int>(bones.Length);
-
-        for (int i = 0; i < bones.Length; i++)
-            globalIndices[bones[i]] = i;
-
-        var table = new int[skinnedBones.Count];
-        for (int i = 0; i < skinnedBones.Count; i++)
-        {
-            if (!globalIndices.TryGetValue(skinnedBones[i], out int globalBoneIndex))
-                throw new InvalidDataException($"Mesh '{mesh.Name}' references a skinned bone that is not part of the exported skeleton.");
-
-            table[i] = globalBoneIndex;
-        }
-
-        return table;
-    }
-
-    private static int ResolveGlobalBoneIndex(Mesh mesh, int[] globalBoneIndexTable, int vertexIndex, int influenceIndex)
-    {
-        if (mesh.BoneIndices is null)
-            throw new InvalidOperationException($"Mesh '{mesh.Name}' has no bone index data.");
-
-        int boneIndex = mesh.BoneIndices.Get<int>(vertexIndex, influenceIndex, 0);
-        if (boneIndex < 0 || boneIndex >= globalBoneIndexTable.Length)
-            throw new InvalidDataException($"Mesh '{mesh.Name}' contains an invalid skin index {boneIndex}.");
-
-        return globalBoneIndexTable[boneIndex];
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Vector3 ReadVector3(BinaryReader reader) => new(
-        reader.ReadSingle(),
-        reader.ReadSingle(),
-        reader.ReadSingle());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static Quaternion ReadQuaternion(BinaryReader reader) => new(
-        reader.ReadSingle(),
-        reader.ReadSingle(),
-        reader.ReadSingle(),
-        reader.ReadSingle());
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WriteVector3(BinaryWriter writer, Vector3 v)
-    {
-        writer.Write(v.X);
-        writer.Write(v.Y);
-        writer.Write(v.Z);
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void WriteQuaternion(BinaryWriter writer, Quaternion q)
-    {
-        writer.Write(q.X);
-        writer.Write(q.Y);
-        writer.Write(q.Z);
-        writer.Write(q.W);
-    }
-
-    private static void WriteNullTermString(BinaryWriter writer, string s)
-    {
-        writer.Write(Encoding.ASCII.GetBytes(s));
-        writer.Write((byte)0);
-    }
-
-    internal static string ReadUTF8String(BinaryReader reader)
-    {
-        var sb = new StringBuilder(32);
-
-        while (true)
-        {
-            var c = reader.ReadByte();
-            if (c == 0) break;
-            sb.Append((char)c);
-        }
-
-        return sb.ToString();
     }
 }

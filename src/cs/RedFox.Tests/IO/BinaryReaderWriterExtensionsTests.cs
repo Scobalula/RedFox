@@ -159,6 +159,31 @@ public sealed class BinaryReaderWriterExtensionsTests
     }
 
     [Fact]
+    public void ReadNullTerminatedStrings_AdvanceToByteAfterTerminator()
+    {
+        byte[] utf8 = [.. Encoding.UTF8.GetBytes("fox"), 0, 0x7A];
+        using MemoryStream utf8Stream = new(utf8);
+        using BinaryReader utf8Reader = new(utf8Stream);
+        Assert.Equal("fox", utf8Reader.ReadUTF8NullTerminatedString());
+        Assert.Equal(4L, utf8Stream.Position);
+        Assert.Equal((byte)0x7A, utf8Reader.ReadByte());
+
+        byte[] utf16 = [.. Encoding.Unicode.GetBytes("fox"), 0, 0, 0x7A, 0x00];
+        using MemoryStream utf16Stream = new(utf16);
+        using BinaryReader utf16Reader = new(utf16Stream);
+        Assert.Equal("fox", utf16Reader.ReadUTF16NullTerminatedString());
+        Assert.Equal(8L, utf16Stream.Position);
+        Assert.Equal((short)0x007A, utf16Reader.ReadInt16());
+
+        byte[] utf32 = [.. Encoding.UTF32.GetBytes("fox"), 0, 0, 0, 0, 0x7A, 0x00, 0x00, 0x00];
+        using MemoryStream utf32Stream = new(utf32);
+        using BinaryReader utf32Reader = new(utf32Stream);
+        Assert.Equal("fox", utf32Reader.ReadUTF32NullTerminatedString());
+        Assert.Equal(16L, utf32Stream.Position);
+        Assert.Equal(0x0000007A, utf32Reader.ReadInt32());
+    }
+
+    [Fact]
     public void ReadUtf8NullTerminatedString_ByPosition_WithNoSeek_Throws()
     {
         using NonSeekableStream stream = new([0x41, 0x00]);

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,8 +9,6 @@
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics3D.IO\RedFox.Graphics3D.IO.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
-    <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
-    <ProjectReference Include="..\RedFox\RedFox.csproj" />
   </ItemGroup>
 
 </Project>

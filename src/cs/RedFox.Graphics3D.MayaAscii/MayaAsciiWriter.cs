@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.MayaAscii;
@@ -238,6 +237,7 @@ public sealed class MayaAsciiWriter
 
         string? parentName = GetParentDagName(mesh);
         WriteCreateNode(MayaNodeTypes.Transform, meshTransformName, parentName);
+
         WriteTransformAttributes(mesh);
 
         if (hasSkinning)
@@ -257,11 +257,12 @@ public sealed class MayaAsciiWriter
             _writer.WriteLine("setAttr \".covm[0]\"  0 1 1;");
             _writer.WriteLine("setAttr \".cdvm[0]\"  0 1 1;");
 
-            // Orig shape: intermediate object holding base geometry
+            // Orig shape: intermediate object holding base geometry.
+            // MUST use raw (rest-pose) positions — the skinCluster deforms at load time.
             string meshShapeOrigName = RegisterName(mesh.Name + "ShapeOrig");
             WriteCreateNode(MayaNodeTypes.Mesh, meshShapeOrigName, meshTransformName);
             _writer.WriteLine("setAttr \".io\" yes;");
-            WriteMeshGeometry(mesh);
+            WriteMeshGeometry(mesh, forceRawPositions: true);
             WriteSkinCluster(mesh, meshShapeName, meshShapeOrigName, meshTransformName);
         }
         else
@@ -291,7 +292,7 @@ public sealed class MayaAsciiWriter
     /// attributes for Maya to correctly display the geometry.
     /// </summary>
     /// <param name="mesh">The mesh whose geometry data to write.</param>
-    public void WriteMeshGeometry(Mesh mesh)
+    public void WriteMeshGeometry(Mesh mesh, bool forceRawPositions = false)
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
@@ -325,9 +326,10 @@ public sealed class MayaAsciiWriter
 
         _writer.WriteLine($"setAttr -s {vertexCount} \".vt\";");
         _writer.Write($"setAttr \".vt[0:{vertexCount - 1}]\"");
+        bool useRaw = forceRawPositions || _options.WriteRawVertices;
         for (int i = 0; i < vertexCount; i++)
         {
-            Vector3 position = mesh.Positions.GetVector3(i, 0);
+            Vector3 position = mesh.GetVertexPosition(i, useRaw);
             _writer.Write($" {FormatFloat(position.X)} {FormatFloat(position.Y)} {FormatFloat(position.Z)}");
         }
         _writer.WriteLine(";");
@@ -352,7 +354,7 @@ public sealed class MayaAsciiWriter
 
             if (_options.WriteNormals && mesh.Normals is not null)
             {
-                WriteMeshNormals(mesh);
+                WriteMeshNormals(mesh, null);
             }
 
             _writer.Write($"setAttr -s {faceCount} \".fc[0:{faceCount - 1}]\" -type \"polyFaces\"");
@@ -431,7 +433,8 @@ public sealed class MayaAsciiWriter
     /// using the <c>polyNormal</c> representation.
     /// </summary>
     /// <param name="mesh">The mesh whose normal data to export.</param>
-    public void WriteMeshNormals(Mesh mesh)
+    /// <param name="bakeTransform">Optional uniform transform for baking normals on displaced meshes.</param>
+    public void WriteMeshNormals(Mesh mesh, Matrix4x4? bakeTransform)
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
@@ -453,6 +456,10 @@ public sealed class MayaAsciiWriter
         {
             int vertexIndex = mesh.FaceIndices.Get<int>(i, 0, 0);
             Vector3 normal = mesh.Normals.GetVector3(vertexIndex, 0);
+            if (bakeTransform.HasValue)
+            {
+                normal = Vector3.Normalize(Vector3.TransformNormal(normal, bakeTransform.Value));
+            }
             _writer.Write($" {FormatFloat(normal.X)} {FormatFloat(normal.Y)} {FormatFloat(normal.Z)}");
         }
         _writer.WriteLine(";");
@@ -575,8 +582,7 @@ public sealed class MayaAsciiWriter
         _writer.WriteLine($"setAttr -s {mesh.SkinnedBones.Count} \".pm\";");
         for (int i = 0; i < mesh.SkinnedBones.Count; i++)
         {
-            SkeletonBone pmBone = mesh.SkinnedBones[i];
-            Matrix4x4 boneWorldMatrix = pmBone.GetBindWorldMatrix();
+            Matrix4x4 boneWorldMatrix = mesh.SkinnedBones[i].GetBindWorldMatrix();
             Matrix4x4 bindMatrix = Matrix4x4.Invert(boneWorldMatrix, out Matrix4x4 inverseBoneWorld)
                 ? inverseBoneWorld
                 : Matrix4x4.Identity;
@@ -1012,6 +1018,7 @@ public sealed class MayaAsciiWriter
         return null;
     }
 
+
     /// <summary>
     /// Converts a quaternion rotation to Euler angles expressed in degrees using XYZ rotation order.
     /// The conversion handles gimbal lock edge cases by clamping the pitch component.
@@ -1022,30 +1029,33 @@ public sealed class MayaAsciiWriter
     {
         q = Quaternion.Normalize(q);
 
+        const float radToDeg = 180.0f / MathF.PI;
+
+        // Yaw (Y-axis rotation) — check for gimbal lock first
+        float sinYaw = 2.0f * (q.W * q.Y - q.Z * q.X);
+
+        if (MathF.Abs(sinYaw) >= 0.9999f)
+        {
+            // Gimbal lock: X and Z axes are aligned, only their sum/difference is determined.
+            // Convention: assign the combined rotation to X, set Z = 0.
+            float yaw = MathF.CopySign(MathF.PI / 2.0f, sinYaw);
+            float pitch = 2.0f * MathF.Atan2(q.X, q.W);
+            return new Vector3(pitch * radToDeg, yaw * radToDeg, 0f);
+        }
+
+        float yawNormal = MathF.Asin(sinYaw);
+
         // Pitch (X-axis rotation)
         float sinPitch = 2.0f * (q.W * q.X + q.Y * q.Z);
         float cosPitch = 1.0f - 2.0f * (q.X * q.X + q.Y * q.Y);
-        float pitch = MathF.Atan2(sinPitch, cosPitch);
-
-        // Yaw (Y-axis rotation)
-        float sinYaw = 2.0f * (q.W * q.Y - q.Z * q.X);
-        float yaw;
-        if (MathF.Abs(sinYaw) >= 1.0f)
-        {
-            yaw = MathF.CopySign(MathF.PI / 2.0f, sinYaw);
-        }
-        else
-        {
-            yaw = MathF.Asin(sinYaw);
-        }
+        float pitch2 = MathF.Atan2(sinPitch, cosPitch);
 
         // Roll (Z-axis rotation)
         float sinRoll = 2.0f * (q.W * q.Z + q.X * q.Y);
         float cosRoll = 1.0f - 2.0f * (q.Y * q.Y + q.Z * q.Z);
         float roll = MathF.Atan2(sinRoll, cosRoll);
 
-        const float radToDeg = 180.0f / MathF.PI;
-        return new Vector3(pitch * radToDeg, yaw * radToDeg, roll * radToDeg);
+        return new Vector3(pitch2 * radToDeg, yawNormal * radToDeg, roll * radToDeg);
     }
 
     /// <summary>

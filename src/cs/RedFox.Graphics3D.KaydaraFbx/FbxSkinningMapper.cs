@@ -10,21 +10,6 @@ namespace RedFox.Graphics3D.KaydaraFbx;
 public static class FbxSkinningMapper
 {
     /// <summary>
-    /// Gets the mesh metadata prefix used to store imported cluster Transform matrices.
-    /// </summary>
-    public const string ClusterTransformMetadataPrefix = "fbx.cluster.transform.";
-
-    /// <summary>
-    /// Gets the mesh metadata prefix used to store imported cluster TransformLink matrices.
-    /// </summary>
-    public const string ClusterTransformLinkMetadataPrefix = "fbx.cluster.transformLink.";
-
-    /// <summary>
-    /// Gets the mesh metadata prefix used to store imported cluster TransformAssociateModel matrices.
-    /// </summary>
-    public const string ClusterTransformAssociateModelMetadataPrefix = "fbx.cluster.transformAssociateModel.";
-
-    /// <summary>
     /// Imports skinning deformers into mesh skin palettes and influence buffers.
     /// </summary>
     /// <param name="meshesByModelId">Mesh map keyed by FBX model id.</param>
@@ -116,7 +101,6 @@ public static class FbxSkinningMapper
                 int paletteIndex = palette.Count;
                 palette.Add(bone);
                 inverseBindMatrices.Add(ReadClusterInverseBindMatrix(clusterNode));
-                StoreClusterTransformMetadata(mesh, clusterNode, bone.Name);
 
                 int[] indices = FbxSceneMapper.GetNodeArray<int>(clusterNode, "Indexes");
                 double[] weights = FbxSceneMapper.GetNodeArray<double>(clusterNode, "Weights");
@@ -218,40 +202,47 @@ public static class FbxSkinningMapper
         FbxSceneMapper.AddConnection(connectionsNode, "OO", skinId, geometryId);
 
         int skinnedVertexCount = Math.Min(mesh.VertexCount, Math.Min(mesh.BoneIndices.ElementCount, mesh.BoneWeights.ElementCount));
+        int influenceCount = mesh.SkinInfluenceCount;
+
+        // Single pass over all vertices to collect per-bone influences.
+        Dictionary<int, (List<int> Indices, List<double> Weights)> boneInfluences = [];
+
+        for (int vertexIndex = 0; vertexIndex < skinnedVertexCount; vertexIndex++)
+        {
+            for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
+            {
+                int paletteIndex = mesh.BoneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                float weight = mesh.BoneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+
+                if (weight <= 0f)
+                {
+                    continue;
+                }
+
+                if (!boneInfluences.TryGetValue(paletteIndex, out (List<int> Indices, List<double> Weights) entry))
+                {
+                    entry = ([], []);
+                    boneInfluences[paletteIndex] = entry;
+                }
+
+                entry.Indices.Add(vertexIndex);
+                entry.Weights.Add(weight);
+            }
+        }
+
+        // Pre-compute the mesh world matrix in export (Y-up) space.
+        Matrix4x4 meshWorld = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
 
         for (int paletteIndex = 0; paletteIndex < mesh.SkinnedBones.Count; paletteIndex++)
         {
             SkeletonBone bone = mesh.SkinnedBones[paletteIndex];
+
             if (!boneIds.TryGetValue(bone, out long boneModelId))
             {
                 continue;
             }
 
-            List<int> vertexIndices = [];
-            List<double> vertexWeights = [];
-
-            for (int vertexIndex = 0; vertexIndex < skinnedVertexCount; vertexIndex++)
-            {
-                for (int influenceIndex = 0; influenceIndex < mesh.SkinInfluenceCount; influenceIndex++)
-                {
-                    int sourcePaletteIndex = mesh.BoneIndices.Get<int>(vertexIndex, influenceIndex, 0);
-                    if (sourcePaletteIndex != paletteIndex)
-                    {
-                        continue;
-                    }
-
-                    float weight = mesh.BoneWeights.Get<float>(vertexIndex, influenceIndex, 0);
-                    if (weight <= 0f)
-                    {
-                        continue;
-                    }
-
-                    vertexIndices.Add(vertexIndex);
-                    vertexWeights.Add(weight);
-                }
-            }
-
-            if (vertexIndices.Count == 0)
+            if (!boneInfluences.TryGetValue(paletteIndex, out (List<int> Indices, List<double> Weights) influences) || influences.Indices.Count == 0)
             {
                 continue;
             }
@@ -266,41 +257,25 @@ public static class FbxSkinningMapper
             {
                 Properties = { new FbxProperty('S', string.Empty), new FbxProperty('S', string.Empty) },
             });
-            cluster.Children.Add(new FbxNode("Indexes") { Properties = { new FbxProperty('i', vertexIndices.ToArray()) } });
-            cluster.Children.Add(new FbxNode("Weights") { Properties = { new FbxProperty('d', vertexWeights.ToArray()) } });
+            cluster.Children.Add(new FbxNode("Indexes") { Properties = { new FbxProperty('i', influences.Indices.ToArray()) } });
+            cluster.Children.Add(new FbxNode("Weights") { Properties = { new FbxProperty('d', influences.Weights.ToArray()) } });
 
-            Matrix4x4 inverseBind = Matrix4x4.Identity;
-            if (mesh.InverseBindMatrices is { Count: > 0 } inverseBindMatrices && paletteIndex < inverseBindMatrices.Count)
-            {
-                inverseBind = inverseBindMatrices[paletteIndex];
-            }
+            // FBX files store Transform in bone-local space, not global space.
+            // See: http://area.autodesk.com/forum/autodesk-fbx/fbx-sdk
+            //   Transform (stored) = TransformLink⁻¹ × MeshWorld  (bone-local mesh bind)
+            //   TransformLink       = BoneWorld                    (bone global bind)
+            //   TransformAssociateModel = ArmatureWorld            (armature global bind)
+            Matrix4x4 boneWorld = FbxSceneMapper.GetExportBindWorldMatrix(bone);
 
-            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
-            Matrix4x4 boneBindWorld = Matrix4x4.Invert(inverseBind, out Matrix4x4 inverted) ? inverted : bone.GetBindWorldMatrix();
-            Matrix4x4 armatureBindWorld = GetArmatureBindWorldMatrix(bone);
-            Matrix4x4 boneBindInverse = Matrix4x4.Invert(boneBindWorld, out Matrix4x4 boneInverse) ? boneInverse : Matrix4x4.Identity;
-            Matrix4x4 transformLink = boneBindWorld;
-            Matrix4x4 transform = boneBindInverse * meshBindWorld;
+            Matrix4x4.Invert(boneWorld, out Matrix4x4 boneWorldInverse);
+            Matrix4x4 transform = meshWorld * boneWorldInverse;
 
-            bool hasStoredTransform = TryGetStoredTransformMatrix(mesh, ClusterTransformMetadataPrefix, bone.Name, out double[]? storedTransformArray);
-            bool hasStoredTransformLink = TryGetStoredTransformMatrix(mesh, ClusterTransformLinkMetadataPrefix, bone.Name, out double[]? storedTransformLinkArray);
-            bool hasStoredTransformAssociateModel = TryGetStoredTransformMatrix(mesh, ClusterTransformAssociateModelMetadataPrefix, bone.Name, out double[]? storedTransformAssociateModelArray);
-
-            cluster.Children.Add(new FbxNode("TransformLink")
-            {
-                Properties = { new FbxProperty('d', hasStoredTransformLink ? storedTransformLinkArray! : MatrixToArray(transformLink)) },
-            });
-
-            cluster.Children.Add(new FbxNode("Transform")
-            {
-                Properties = { new FbxProperty('d', hasStoredTransform ? storedTransformArray! : MatrixToArray(transform)) },
-            });
-
+            cluster.Children.Add(new FbxNode("Transform") { Properties = { new FbxProperty('d', MatrixToArray(transform)) } });
+            cluster.Children.Add(new FbxNode("TransformLink") { Properties = { new FbxProperty('d', MatrixToArray(boneWorld)) } });
             cluster.Children.Add(new FbxNode("TransformAssociateModel")
             {
-                Properties = { new FbxProperty('d', hasStoredTransformAssociateModel ? storedTransformAssociateModelArray! : MatrixToArray(armatureBindWorld)) },
+                Properties = { new FbxProperty('d', MatrixToArray(GetArmatureExportBindWorldMatrix(bone))) },
             });
-
             cluster.Children.Add(new FbxNode("Mode") { Properties = { new FbxProperty('S', "Normalize") } });
 
             objectsNode.Children.Add(cluster);
@@ -335,6 +310,10 @@ public static class FbxSkinningMapper
 
     /// <summary>
     /// Reads the inverse bind matrix from a Cluster deformer node.
+    /// Uses the row-vector convention <c>Transform × TransformLink⁻¹</c> which satisfies
+    /// the engine skinning formula <c>v × IBM × boneActive</c>. For displaced meshes
+    /// (multiple bind poses), these IBMs are preserved as-is. For non-displaced meshes,
+    /// the strip phase may rebuild IBMs from the scene graph.
     /// </summary>
     /// <param name="clusterNode">The Cluster FBX node.</param>
     /// <returns>The inverse bind matrix for use in runtime skinning.</returns>
@@ -348,7 +327,7 @@ public static class FbxSkinningMapper
             return Matrix4x4.Identity;
         }
 
-        return inverseLink * transform;
+        return transform * inverseLink;
     }
 
     /// <summary>
@@ -394,6 +373,28 @@ public static class FbxSkinningMapper
     }
 
     /// <summary>
+    /// Returns the export-time world bind matrix of the skeleton (armature) that owns the specified bone,
+    /// including any coordinate-system basis rotations added during FBX export.
+    /// </summary>
+    /// <param name="bone">The bone whose armature export bind world matrix is needed.</param>
+    /// <returns>The armature export world bind matrix, or <see cref="Matrix4x4.Identity"/> when not found.</returns>
+    public static Matrix4x4 GetArmatureExportBindWorldMatrix(SkeletonBone bone)
+    {
+        SceneNode? current = bone.Parent;
+        while (current is not null)
+        {
+            if (current is Skeleton skeleton && current is not SkeletonBone)
+            {
+                return FbxSceneMapper.GetExportBindWorldMatrix(skeleton);
+            }
+
+            current = current.Parent;
+        }
+
+        return Matrix4x4.Identity;
+    }
+
+    /// <summary>
     /// Flattens a <see cref="Matrix4x4"/> into a row-major double array for FBX serialisation.
     /// </summary>
     /// <param name="matrix">The source matrix.</param>
@@ -420,48 +421,4 @@ public static class FbxSkinningMapper
         && node.Properties.Count > 2
         && string.Equals(node.Properties[2].AsString(), deformerType, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Stores the raw cluster Transform, TransformLink, and TransformAssociateModel matrices
-    /// as mesh metadata so they can be round-tripped on export.
-    /// </summary>
-    /// <param name="mesh">The target mesh.</param>
-    /// <param name="clusterNode">The FBX Cluster deformer node.</param>
-    /// <param name="boneName">The bone name used as the metadata key suffix.</param>
-    private static void StoreClusterTransformMetadata(Mesh mesh, FbxNode clusterNode, string boneName)
-    {
-        double[] rawTransform = FbxSceneMapper.GetNodeArray<double>(clusterNode, "Transform");
-        if (rawTransform.Length == 16)
-        {
-            mesh.Metadata[ClusterTransformMetadataPrefix + boneName] = rawTransform;
-        }
-
-        double[] rawTransformLink = FbxSceneMapper.GetNodeArray<double>(clusterNode, "TransformLink");
-        if (rawTransformLink.Length == 16)
-        {
-            mesh.Metadata[ClusterTransformLinkMetadataPrefix + boneName] = rawTransformLink;
-        }
-
-        double[] rawTransformAssociateModel = FbxSceneMapper.GetNodeArray<double>(clusterNode, "TransformAssociateModel");
-        if (rawTransformAssociateModel.Length == 16)
-        {
-            mesh.Metadata[ClusterTransformAssociateModelMetadataPrefix + boneName] = rawTransformAssociateModel;
-        }
-    }
-
-    /// <summary>
-    /// Attempts to retrieve a stored 4×4 transform matrix from mesh metadata.
-    /// </summary>
-    /// <param name="mesh">The mesh whose metadata is inspected.</param>
-    /// <param name="metadataPrefix">The metadata key prefix.</param>
-    /// <param name="boneName">The bone name used as the metadata key suffix.</param>
-    /// <param name="array">When successful, receives the stored sixteen-element double array.</param>
-    /// <returns><c>true</c> when a valid sixteen-element array was found in metadata.</returns>
-    private static bool TryGetStoredTransformMatrix(Mesh mesh, string metadataPrefix, string boneName, out double[]? array)
-    {
-        array = null;
-        return mesh.Metadata.TryGetValue(metadataPrefix + boneName, out object? value)
-            && value is double[] raw
-            && raw.Length == 16
-            && (array = raw) is not null;
-    }
 }

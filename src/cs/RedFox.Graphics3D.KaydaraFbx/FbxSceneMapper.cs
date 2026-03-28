@@ -24,85 +24,7 @@ public static class FbxSceneMapper
     /// </summary>
     public const string DefaultFileCreationTime = "2026-03-24 15:33:49:359";
 
-    /// <summary>
-    /// Gets the metadata key used to mark synthetic FBX helper roots.
-    /// </summary>
-    public const string MetadataSyntheticRootKey = "fbx.syntheticRoot";
 
-    /// <summary>
-    /// Gets the metadata key indicating whether a model should export a Null node attribute.
-    /// </summary>
-    public const string MetadataHasNullNodeAttributeKey = "fbx.model.hasNullNodeAttribute";
-
-    /// <summary>
-    /// Gets the metadata key storing the original Null node-attribute name.
-    /// </summary>
-    public const string MetadataNullNodeAttributeNameKey = "fbx.model.nullNodeAttributeName";
-
-    /// <summary>
-    /// Gets the metadata key storing imported local translation values.
-    /// </summary>
-    public const string MetadataLclTranslationKey = "fbx.model.lclTranslation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported local rotation values.
-    /// </summary>
-    public const string MetadataLclRotationKey = "fbx.model.lclRotation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported local scaling values.
-    /// </summary>
-    public const string MetadataLclScalingKey = "fbx.model.lclScaling";
-
-    /// <summary>
-    /// Gets the metadata key storing imported pre-rotation values.
-    /// </summary>
-    public const string MetadataPreRotationKey = "fbx.model.preRotation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported post-rotation values.
-    /// </summary>
-    public const string MetadataPostRotationKey = "fbx.model.postRotation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported rotation-offset values.
-    /// </summary>
-    public const string MetadataRotationOffsetKey = "fbx.model.rotationOffset";
-
-    /// <summary>
-    /// Gets the metadata key storing imported rotation-pivot values.
-    /// </summary>
-    public const string MetadataRotationPivotKey = "fbx.model.rotationPivot";
-
-    /// <summary>
-    /// Gets the metadata key storing imported scaling-offset values.
-    /// </summary>
-    public const string MetadataScalingOffsetKey = "fbx.model.scalingOffset";
-
-    /// <summary>
-    /// Gets the metadata key storing imported scaling-pivot values.
-    /// </summary>
-    public const string MetadataScalingPivotKey = "fbx.model.scalingPivot";
-
-    /// <summary>
-    /// Gets the metadata key storing imported geometric translation values.
-    /// </summary>
-    public const string MetadataGeometricTranslationKey = "fbx.model.geometricTranslation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported geometric rotation values.
-    /// </summary>
-    public const string MetadataGeometricRotationKey = "fbx.model.geometricRotation";
-
-    /// <summary>
-    /// Gets the metadata key storing imported geometric scaling values.
-    /// </summary>
-    public const string MetadataGeometricScalingKey = "fbx.model.geometricScaling";
-
-    /// <summary>
-    /// Gets the metadata key storing imported FBX rotation-order values.
-    /// </summary>
-    public const string MetadataRotationOrderKey = "fbx.model.rotationOrder";
 
     /// <summary>
     /// Gets the pre-rotation applied to authored top-level export roots.
@@ -115,6 +37,11 @@ public static class FbxSceneMapper
     public static readonly Matrix4x4 s_authoredRootBasis = Matrix4x4.CreateRotationX(-MathF.PI / 2f);
 
     /// <summary>
+    /// Gets the FBX import basis that converts FBX Y-up world transforms into RedFox Z-up.
+    /// </summary>
+    public static readonly Matrix4x4 s_importBasis = Matrix4x4.CreateRotationX(MathF.PI / 2f);
+
+    /// <summary>
     /// Gets the default scene FileId used for RedFox-authored exports.
     /// </summary>
     public static readonly byte[] s_fileId =
@@ -124,86 +51,39 @@ public static class FbxSceneMapper
     ];
 
     /// <summary>
-    /// Reads a <see cref="Vector3"/> metadata value from a scene node.
-    /// </summary>
-    /// <param name="node">The node whose metadata should be queried.</param>
-    /// <param name="key">The metadata key.</param>
-    /// <param name="fallback">The fallback value returned when the key is absent or incompatible.</param>
-    /// <returns>The stored vector value or <paramref name="fallback"/>.</returns>
-    public static Vector3 GetMetadataVector3(SceneNode node, string key, Vector3 fallback)
-        => node.Metadata.TryGetValue(key, out object? value) && value is Vector3 vector ? vector : fallback;
-
-    /// <summary>
-    /// Reads an integer metadata value from a scene node.
-    /// </summary>
-    /// <param name="node">The node whose metadata should be queried.</param>
-    /// <param name="key">The metadata key.</param>
-    /// <param name="fallback">The fallback value returned when the key is absent or incompatible.</param>
-    /// <returns>The stored integer value or <paramref name="fallback"/>.</returns>
-    public static int GetMetadataInt(SceneNode node, string key, int fallback)
-        => node.Metadata.TryGetValue(key, out object? value) && value is int intValue ? intValue : fallback;
-
-    /// <summary>
-    /// Determines whether a node carries imported FBX transform metadata.
+    /// Determines whether a node is a top-level root container (direct child of <see cref="SceneRoot"/>,
+    /// not a bone or mesh) whose transform is approximately identity, indicating it was stripped of
+    /// the FBX coordinate-system basis rotation during import. On export these nodes receive
+    /// <see cref="s_authoredRootPreRotation"/> so the FBX file correctly converts to Y-up.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
-    /// <returns><see langword="true"/> when any imported FBX transform metadata keys are present.</returns>
-    public static bool HasImportedTransformMetadata(SceneNode node)
-        => node.Metadata.ContainsKey(MetadataLclTranslationKey)
-            || node.Metadata.ContainsKey(MetadataLclRotationKey)
-            || node.Metadata.ContainsKey(MetadataLclScalingKey)
-            || node.Metadata.ContainsKey(MetadataPreRotationKey)
-            || node.Metadata.ContainsKey(MetadataPostRotationKey)
-            || node.Metadata.ContainsKey(MetadataRotationOrderKey);
+    /// <returns><see langword="true"/> when the node is a stripped or identity root container.</returns>
+    public static bool IsIdentityRootContainer(SceneNode node)
+    {
+        if (node.Parent is not SceneRoot || node is SkeletonBone or Mesh)
+        {
+            return false;
+        }
+
+        return IsNearlyZero(node.GetBindLocalPosition())
+            && Vector3.DistanceSquared(node.GetBindLocalScale(), Vector3.One) <= 1e-6f
+            && MathF.Abs(Quaternion.Dot(node.GetBindLocalRotation(), Quaternion.Identity)) > 0.9999f;
+    }
 
     /// <summary>
-    /// Determines whether a node is marked as a synthetic FBX helper root.
-    /// </summary>
-    /// <param name="node">The node to inspect.</param>
-    /// <returns><see langword="true"/> when the synthetic-root metadata flag is set.</returns>
-    public static bool IsSyntheticRootNode(SceneNode node)
-        => node.Metadata.TryGetValue(MetadataSyntheticRootKey, out object? syntheticRootValue)
-            && syntheticRootValue is bool isSyntheticRoot
-            && isSyntheticRoot;
-
-    /// <summary>
-    /// Resolves the top-level authored export root for a node.
+    /// Resolves the top-level container ancestor for a node by walking up to the first child of <see cref="SceneRoot"/>.
     /// </summary>
     /// <param name="node">The node whose export root should be located.</param>
     /// <returns>The top-level export root, or <see langword="null"/> when none can be resolved.</returns>
     public static SceneNode? GetTopLevelExportRoot(SceneNode node)
     {
         SceneNode current = node;
-        while (current.Parent is not null && current.Parent is not SceneRoot && !IsSyntheticRootNode(current.Parent))
+        while (current.Parent is not null and not SceneRoot)
         {
             current = current.Parent;
         }
 
-        return current.Parent is SceneRoot || (current.Parent is not null && IsSyntheticRootNode(current.Parent)) ? current : null;
-    }
-
-    /// <summary>
-    /// Determines whether the node is a top-level authored export root.
-    /// </summary>
-    /// <param name="node">The node to inspect.</param>
-    /// <returns><see langword="true"/> when the node is an authored top-level model or skeleton root.</returns>
-    public static bool IsTopLevelAuthoredExportRoot(SceneNode node)
-    {
-        SceneNode? topLevelRoot = GetTopLevelExportRoot(node);
-        return ReferenceEquals(topLevelRoot, node)
-            && (node is Model || (node is Skeleton && node is not SkeletonBone))
-            && !HasImportedTransformMetadata(node);
-    }
-
-    /// <summary>
-    /// Determines whether the authored root basis should be applied during export.
-    /// </summary>
-    /// <param name="node">The node to inspect.</param>
-    /// <returns><see langword="true"/> when the node belongs to an authored top-level export root.</returns>
-    public static bool ShouldApplyAuthoredRootBasis(SceneNode node)
-    {
-        SceneNode? topLevelRoot = GetTopLevelExportRoot(node);
-        return topLevelRoot is not null && IsTopLevelAuthoredExportRoot(topLevelRoot);
+        return current.Parent is SceneRoot ? current : null;
     }
 
     /// <summary>
@@ -214,52 +94,43 @@ public static class FbxSceneMapper
     public static Matrix4x4 GetExportBindWorldMatrix(SceneNode node)
     {
         Matrix4x4 localMatrix = GetExportLocalBindMatrix(node);
-        return node.Parent is not null && node.Parent is not SceneRoot
+        return node.Parent is not null and not SceneRoot
             ? localMatrix * GetExportBindWorldMatrix(node.Parent)
             : localMatrix;
     }
 
     /// <summary>
+    /// Computes the world matrix implied by exported Model transform properties for the specified node.
+    /// </summary>
+    /// <param name="node">The node to evaluate.</param>
+    /// <returns>The exported active/world matrix implied by serialized model properties.</returns>
+    public static Matrix4x4 GetExportActiveWorldMatrix(SceneNode node)
+    {
+        Matrix4x4 localMatrix = GetExportLocalModelMatrix(node);
+        return node.Parent is not null and not SceneRoot
+            ? localMatrix * GetExportActiveWorldMatrix(node.Parent)
+            : localMatrix;
+    }
+
+    /// <summary>
     /// Computes the bind-local matrix that will be exported for the specified node.
+    /// Derives all FBX properties from the scene graph — no stored metadata is required.
+    /// Identity root containers receive <see cref="s_authoredRootPreRotation"/> for Y-up conversion.
+    /// Skeleton bones have their rotation promoted to PreRotation (rest pose) for Maya compatibility.
     /// </summary>
     /// <param name="node">The node to evaluate.</param>
     /// <returns>The exported bind-local matrix.</returns>
     public static Matrix4x4 GetExportLocalBindMatrix(SceneNode node)
     {
-        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(node);
-        Vector3 exportedLocalTranslation = GetMetadataVector3(node, MetadataLclTranslationKey, localTranslation);
-        Vector3 exportedLocalRotation = GetMetadataVector3(node, MetadataLclRotationKey, FbxRotation.ToEulerDegreesXyz(localRotation));
-        Vector3 exportedLocalScale = GetMetadataVector3(node, MetadataLclScalingKey, localScale);
-        Vector3 exportedPreRotation = GetMetadataVector3(node, MetadataPreRotationKey, Vector3.Zero);
-        Vector3 exportedPostRotation = GetMetadataVector3(node, MetadataPostRotationKey, Vector3.Zero);
-        Vector3 exportedRotationOffset = GetMetadataVector3(node, MetadataRotationOffsetKey, Vector3.Zero);
-        Vector3 exportedRotationPivot = GetMetadataVector3(node, MetadataRotationPivotKey, Vector3.Zero);
-        Vector3 exportedScalingOffset = GetMetadataVector3(node, MetadataScalingOffsetKey, Vector3.Zero);
-        Vector3 exportedScalingPivot = GetMetadataVector3(node, MetadataScalingPivotKey, Vector3.Zero);
-        int exportedRotationOrder = GetMetadataInt(node, MetadataRotationOrderKey, 0);
-
-        if (IsTopLevelAuthoredExportRoot(node) && IsNearlyZero(exportedPreRotation))
+        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportBindLocalTransform(node);
+        if (IsIdentityRootContainer(node))
         {
-            exportedPreRotation = s_authoredRootPreRotation;
+            return s_authoredRootBasis;
         }
 
-        if (node is SkeletonBone && !HasImportedTransformMetadata(node) && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
-        {
-            exportedPreRotation = exportedLocalRotation;
-            exportedLocalRotation = Vector3.Zero;
-        }
-
-        return ComposeNodeLocalTransform(
-            exportedLocalTranslation,
-            exportedLocalRotation,
-            exportedLocalScale,
-            exportedPreRotation,
-            exportedPostRotation,
-            exportedRotationOffset,
-            exportedRotationPivot,
-            exportedScalingOffset,
-            exportedScalingPivot,
-            exportedRotationOrder);
+        return Matrix4x4.CreateScale(localScale)
+            * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(localRotation))
+            * Matrix4x4.CreateTranslation(localTranslation);
     }
 
     /// <summary>
@@ -279,31 +150,428 @@ public static class FbxSceneMapper
         => Vector3.DistanceSquared(value, Vector3.One) <= 1e-10f;
 
     /// <summary>
+    /// Strips coordinate-system conversion rotations from top-level imported containers.
+    /// FBX files authored from Z-up sources embed a <c>-90°X</c> <see cref="s_authoredRootPreRotation"/>
+    /// on every root container to convert into Y-up. This residual rotation is an FBX artifact
+    /// that should not propagate into the format-neutral scene graph. The method detects top-level
+    /// children of <paramref name="rootNode"/> whose only transform component is the authored
+    /// pre-rotation, resets the container to identity, and rebuilds inverse-bind matrices on
+    /// descendant meshes so that skin bindings remain consistent.
+    /// </summary>
+    /// <param name="rootNode">The scene root whose direct children should be inspected.</param>
+    public static void StripImportedRootBasisTransforms(SceneNode rootNode, IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints = null)
+    {
+        Quaternion basisRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
+        SceneNode[] topLevelChildren = [.. rootNode.EnumerateChildren()];
+        List<SceneNode> strippedContainers = [];
+
+        for (int i = 0; i < topLevelChildren.Length; i++)
+        {
+            SceneNode child = topLevelChildren[i];
+
+            if (child is SkeletonBone || child is Mesh)
+            {
+                continue;
+            }
+
+            // Detect containers whose only transform is the FBX basis rotation Rx(-90°).
+            if (!IsNearlyZero(child.GetBindLocalPosition()))
+            {
+                continue;
+            }
+
+            if (!IsNearlyOne(child.GetBindLocalScale()))
+            {
+                continue;
+            }
+
+            if (MathF.Abs(Quaternion.Dot(child.GetBindLocalRotation(), basisRotation)) < 0.9999f)
+            {
+                continue;
+            }
+
+            strippedContainers.Add(child);
+        }
+
+        if (strippedContainers.Count == 0)
+        {
+            return;
+        }
+
+        // Capture every bone's current model-pose world matrix BEFORE stripping
+        // the root basis transforms. Multiplying by s_importBasis cancels the
+        // ImportedRoot's Rx(-90°), giving the bone's world in the stripped space.
+        // This must be unconditional: when no BindPose exists, reconstruction from
+        // explicit IBMs will overwrite BindTransform locals and the original
+        // model-pose would be lost without this snapshot.
+        Dictionary<SceneNode, Matrix4x4> importedLiveWorldHints = [];
+        foreach (SceneNode strippedContainer in strippedContainers)
+        {
+            foreach (SkeletonBone bone in strippedContainer.EnumerateDescendants().OfType<SkeletonBone>())
+            {
+                Matrix4x4 importedWorld = bone.GetBindWorldMatrix() * s_importBasis;
+                importedLiveWorldHints[bone] = importedWorld;
+            }
+        }
+
+        foreach (SceneNode strippedContainer in strippedContainers)
+        {
+            strippedContainer.BindTransform.LocalPosition = Vector3.Zero;
+            strippedContainer.BindTransform.LocalRotation = Quaternion.Identity;
+            strippedContainer.BindTransform.Scale = Vector3.One;
+        }
+
+        // Invalidate cached world transforms so bones recompute through identity containers.
+        foreach (SceneNode child in topLevelChildren)
+        {
+            child.BindTransform.WorldPosition = null;
+            child.BindTransform.WorldRotation = null;
+            foreach (SceneNode descendant in child.EnumerateDescendants())
+            {
+                descendant.BindTransform.WorldPosition = null;
+                descendant.BindTransform.WorldRotation = null;
+            }
+        }
+
+        ApplyBoneBindWorldHints(boneBindWorldHints);
+
+        // When no bind-pose hints were provided, reconstruct bone locals from
+        // explicit IBMs so bones are at their correct world positions.
+        if (boneBindWorldHints is null || boneBindWorldHints.Count == 0)
+        {
+            ReconstructBoneLocalsFromExplicitSkinning(rootNode);
+        }
+
+        // Apply live overrides AFTER both bind-hint application and IBM reconstruction
+        // so the comparison is against the final bind locals, not the pre-strip ones.
+        if (importedLiveWorldHints.Count > 0)
+        {
+            ApplyImportedLiveWorldHints(importedLiveWorldHints);
+        }
+
+        // Rebuild IBMs for ALL skinned meshes from the current scene graph.
+        // Imported cluster IBMs are in FBX Y-up world space, but after stripping
+        // and applying BindPose hints the bone bind-world matrices are in the
+        // engine's Z-up space.  Keeping the original Y-up IBMs would cause
+        // v × IBM_yup × boneActiveWorld_zup — a coordinate-space mismatch that
+        // produces wrong vertex positions.  Rebuilding makes IBMs consistent:
+        // IBM = meshBindWorld × inv(boneBindWorld), both in the same post-strip space.
+        foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
+        {
+            if (mesh.HasSkinning)
+            {
+                mesh.RebuildInverseBindMatrices();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies transient imported bone bind-world hints by reconstructing each hinted bone's
+    /// local transform from its parent bind world. Parents are applied before children.
+    /// </summary>
+    /// <param name="boneBindWorldHints">Bone bind-world hints resolved from raw FBX skin clusters.</param>
+    private static void ApplyBoneBindWorldHints(IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints)
+    {
+        if (boneBindWorldHints is null || boneBindWorldHints.Count == 0)
+        {
+            return;
+        }
+
+        List<(SkeletonBone bone, Matrix4x4 world, int depth)> sorted = [];
+        foreach ((SkeletonBone bone, Matrix4x4 world) in boneBindWorldHints)
+        {
+            int depth = 0;
+            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((bone, world, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        foreach ((SkeletonBone bone, Matrix4x4 bindWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = bone.Parent is not null ? bone.Parent.GetBindWorldMatrix() : Matrix4x4.Identity;
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
+                ? bindWorld * invParent
+                : bindWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                bone.BindTransform.LocalPosition = translation;
+                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
+                bone.BindTransform.Scale = scale;
+            }
+            else
+            {
+                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                bone.BindTransform.LocalRotation = Quaternion.Identity;
+            }
+
+            bone.BindTransform.WorldPosition = null;
+            bone.BindTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
+    /// Applies imported authored world-pose hints into live transforms so active pose keeps
+    /// pre-export adjustments after root-basis stripping while bind transforms remain skin-aligned.
+    /// Parent worlds come from the same imported dictionary so that each bone's live local is
+    /// computed in a consistent coordinate space (FBX Model chain), cancelling per-bone euler
+    /// decomposition drift. Only TRS components that genuinely differ from bind are stored.
+    /// </summary>
+    /// <param name="importedLiveWorldHints">Imported live-world hints keyed by scene node.</param>
+    private static void ApplyImportedLiveWorldHints(IReadOnlyDictionary<SceneNode, Matrix4x4> importedLiveWorldHints)
+    {
+        List<(SceneNode node, Matrix4x4 world, int depth)> sorted = [];
+        foreach ((SceneNode node, Matrix4x4 world) in importedLiveWorldHints)
+        {
+            int depth = 0;
+            for (SceneNode? p = node.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((node, world, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        foreach ((SceneNode node, Matrix4x4 liveWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = Matrix4x4.Identity;
+            if (node.Parent is not null)
+            {
+                if (!importedLiveWorldHints.TryGetValue(node.Parent, out parentWorld))
+                {
+                    parentWorld = node.Parent.GetActiveWorldMatrix();
+                }
+            }
+
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
+                ? liveWorld * invParent
+                : liveWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                rotation = Quaternion.Normalize(rotation);
+
+                bool positionDiffers = Vector3.DistanceSquared(translation, node.GetBindLocalPosition()) > 1e-4f;
+                bool rotationDiffers = MathF.Abs(Quaternion.Dot(rotation, node.GetBindLocalRotation())) < 0.9999f;
+                bool scaleDiffers = Vector3.DistanceSquared(scale, node.GetBindLocalScale()) > 1e-4f;
+
+                if (!positionDiffers && !rotationDiffers && !scaleDiffers)
+                {
+                    continue;
+                }
+
+                if (positionDiffers)
+                {
+                    node.LiveTransform.LocalPosition = translation;
+                }
+
+                if (rotationDiffers)
+                {
+                    node.LiveTransform.LocalRotation = rotation;
+                }
+
+                if (scaleDiffers)
+                {
+                    node.LiveTransform.Scale = scale;
+                }
+            }
+            else
+            {
+                Vector3 fallbackPosition = new(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                if (Vector3.DistanceSquared(fallbackPosition, node.GetBindLocalPosition()) < 1e-4f)
+                {
+                    continue;
+                }
+
+                node.LiveTransform.LocalPosition = fallbackPosition;
+            }
+
+            node.LiveTransform.WorldPosition = null;
+            node.LiveTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
+    /// Builds per-bone bind-world hints from FBX BindPose nodes.
+    /// The bind-pose matrix is authored in FBX Y-up world space and converted to
+    /// RedFox Z-up world space using <see cref="s_importBasis"/>.
+    /// </summary>
+    /// <param name="objectsById">All FBX objects keyed by id.</param>
+    /// <param name="bonesByModelId">Imported bones keyed by FBX model id.</param>
+    /// <returns>A map of bones to converted bind-world matrices.</returns>
+    private static Dictionary<SkeletonBone, Matrix4x4> BuildBindPoseBoneWorldHints(Dictionary<long, FbxNode> objectsById, Dictionary<long, SkeletonBone> bonesByModelId)
+    {
+        Dictionary<SkeletonBone, Matrix4x4> hints = [];
+
+        foreach ((_, FbxNode objectNode) in objectsById)
+        {
+            if (!string.Equals(objectNode.Name, "Pose", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            FbxNode? typeNode = objectNode.FirstChild("Type");
+            if (typeNode is null || typeNode.Properties.Count == 0 || !string.Equals(typeNode.Properties[0].AsString(), "BindPose", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (FbxNode poseNode in objectNode.ChildrenNamed("PoseNode"))
+            {
+                FbxNode? nodeIdNode = poseNode.FirstChild("Node");
+                if (nodeIdNode is null || nodeIdNode.Properties.Count == 0)
+                {
+                    continue;
+                }
+
+                long modelId = nodeIdNode.Properties[0].AsInt64();
+                if (!bonesByModelId.TryGetValue(modelId, out SkeletonBone? bone))
+                {
+                    continue;
+                }
+
+                Matrix4x4 poseWorld = FbxSkinningMapper.ReadNodeMatrix(poseNode, "Matrix");
+                Matrix4x4 convertedWorld = poseWorld * s_importBasis;
+
+                if (!hints.ContainsKey(bone))
+                {
+                    hints[bone] = convertedWorld;
+                }
+            }
+        }
+
+        return hints;
+    }
+
+    /// <summary>
+    /// Reconstructs bind-local transforms for bones that participate in meshes with
+    /// explicit inverse-bind matrices. For each bone influence this solves:
+    /// <c>IBM = meshBindWorld × inv(boneBindWorld)</c>, therefore
+    /// <c>boneBindWorld = inv(IBM) × meshBindWorld</c>. Using mesh bind WORLD (not local)
+    /// keeps reconstruction correct for nested mesh parents.
+    /// </summary>
+    /// <param name="rootNode">The scene root whose descendant meshes and bones should be inspected.</param>
+    private static void ReconstructBoneLocalsFromExplicitSkinning(SceneNode rootNode)
+    {
+        Dictionary<SkeletonBone, Matrix4x4> corrections = [];
+
+        foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
+        {
+            if (!mesh.HasSkinning
+                || !mesh.HasExplicitInverseBindMatrices
+                || mesh.InverseBindMatrices is not { Count: > 0 } inverseBindMatrices
+                || mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+            {
+                continue;
+            }
+            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
+
+            for (int i = 0; i < skinnedBones.Count; i++)
+            {
+                SkeletonBone bone = skinnedBones[i];
+
+                if (!Matrix4x4.Invert(inverseBindMatrices[i], out Matrix4x4 invIbm))
+                {
+                    continue;
+                }
+
+                Matrix4x4 candidateWorld = invIbm * meshBindWorld;
+                if (corrections.TryGetValue(bone, out Matrix4x4 existingWorld))
+                {
+                    Vector3 existingTranslation = new(existingWorld.M41, existingWorld.M42, existingWorld.M43);
+                    Vector3 candidateTranslation = new(candidateWorld.M41, candidateWorld.M42, candidateWorld.M43);
+                    Vector3 currentTranslation = bone.GetBindWorldPosition();
+
+                    float existingDelta = Vector3.DistanceSquared(existingTranslation, currentTranslation);
+                    float candidateDelta = Vector3.DistanceSquared(candidateTranslation, currentTranslation);
+
+                    if (candidateDelta < existingDelta)
+                    {
+                        corrections[bone] = candidateWorld;
+                    }
+
+                    continue;
+                }
+
+                corrections[bone] = candidateWorld;
+            }
+        }
+
+        if (corrections.Count == 0)
+        {
+            return;
+        }
+
+        // Sort corrected bones top-down (by ancestor depth) so that parents are processed
+        // before children. This ensures GetBindWorldMatrix() on a parent already reflects
+        // any prior correction when we compute the child's local.
+        List<(SkeletonBone bone, Matrix4x4 correctWorld, int depth)> sorted = [];
+        foreach ((SkeletonBone bone, Matrix4x4 correctWorld) in corrections)
+        {
+            int depth = 0;
+            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((bone, correctWorld, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        // Apply corrections: compute local = correctWorld × inv(parentWorld), decompose,
+        // and replace the bone's local transform. Clear cached world so it recomputes.
+        foreach ((SkeletonBone bone, Matrix4x4 correctWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = bone.Parent is not null
+                ? bone.Parent.GetBindWorldMatrix()
+                : Matrix4x4.Identity;
+
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
+                ? correctWorld * invParent
+                : correctWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                bone.BindTransform.LocalPosition = translation;
+                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
+                bone.BindTransform.Scale = scale;
+            }
+            else
+            {
+                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                bone.BindTransform.LocalRotation = Quaternion.Identity;
+            }
+
+            // Clear cached worlds so GetBindWorldMatrix re-derives from the corrected local chain.
+            bone.BindTransform.WorldPosition = null;
+            bone.BindTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
     /// Determines whether a node should export an FBX Null node attribute.
+    /// Container-type nodes (non-bone, non-mesh, non-light, non-camera) always get one.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
     /// <returns><see langword="true"/> when a Null node attribute should be written.</returns>
     public static bool ShouldExportNullNodeAttribute(SceneNode node)
-    {
-        if (node.Metadata.TryGetValue(MetadataHasNullNodeAttributeKey, out object? hasNullNodeAttributeValue)
-            && hasNullNodeAttributeValue is bool hasNullNodeAttribute)
-        {
-            return hasNullNodeAttribute;
-        }
-
-        return !HasImportedTransformMetadata(node);
-    }
+        => node is not (SkeletonBone or Mesh or Camera or Light);
 
     /// <summary>
     /// Resolves the FBX Null node-attribute name for a node.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
-    /// <returns>The stored Null node-attribute name, or an empty string when none is present.</returns>
+    /// <returns>The generated Null node-attribute name.</returns>
     public static string GetNullNodeAttributeName(SceneNode node)
-        => node.Metadata.TryGetValue(MetadataNullNodeAttributeNameKey, out object? nodeAttributeNameValue)
-            && nodeAttributeNameValue is string storedNodeAttributeName
-            ? storedNodeAttributeName
-            : string.Empty;
+        => $"{node.Name}\0\u0001NodeAttribute";
 
     /// <summary>
     /// Imports a scene from an FBX document.
@@ -332,7 +600,7 @@ public static class FbxSceneMapper
         Dictionary<long, SkeletonBone> bonesByModelId = [];
         Dictionary<long, Camera> camerasByModelId = [];
         Dictionary<long, Light> lightsByModelId = [];
-    Dictionary<long, FbxNode> constraintNodes = [];
+        Dictionary<long, FbxNode> constraintNodes = [];
         Dictionary<Mesh, int[]> perTriangleMaterials = [];
 
         foreach ((long objectId, FbxNode objectNode) in objectsById)
@@ -386,6 +654,8 @@ public static class FbxSceneMapper
         AttachNullNodeAttributes(modelNodes, objectsById, connections);
         AttachCameraAndLightNodeAttributes(camerasByModelId, lightsByModelId, objectsById, connections);
         ImportConstraints(scene.RootNode, modelNodes, constraintNodes, connections);
+        Dictionary<SkeletonBone, Matrix4x4> bindPoseBoneHints = BuildBindPoseBoneWorldHints(objectsById, bonesByModelId);
+        StripImportedRootBasisTransforms(scene.RootNode, bindPoseBoneHints);
         return scene;
     }
 
@@ -423,11 +693,6 @@ public static class FbxSceneMapper
         for (int i = 0; i < models.Length; i++)
         {
             Model model = models[i];
-            if (IsSyntheticRootNode(model))
-            {
-                continue;
-            }
-
             long id = nextId++;
             modelIds[model] = id;
             objectsNode.Children.Add(CreateModelObject(id, model.Name, "Null", model));
@@ -437,11 +702,6 @@ public static class FbxSceneMapper
         for (int i = 0; i < groups.Length; i++)
         {
             Group group = groups[i];
-            if (IsSyntheticRootNode(group))
-            {
-                continue;
-            }
-
             long id = nextId++;
             modelIds[group] = id;
             objectsNode.Children.Add(CreateModelObject(id, group.Name, "Null", group));
@@ -452,11 +712,6 @@ public static class FbxSceneMapper
         {
             Skeleton skeleton = skeletons[i];
             if (skeleton is SkeletonBone)
-            {
-                continue;
-            }
-
-            if (IsSyntheticRootNode(skeleton))
             {
                 continue;
             }
@@ -777,11 +1032,6 @@ public static class FbxSceneMapper
                 splitMesh.Materials = [materials[materialIndex]];
                 splitMesh.FaceIndices = new DataBuffer<int>(triangleIndices.ToArray(), 1, 1);
 
-                foreach ((string key, object value) in mesh.Metadata)
-                {
-                    splitMesh.Metadata[key] = value;
-                }
-
                 if (mesh.SkinnedBones is not null)
                 {
                     if (mesh.HasExplicitInverseBindMatrices)
@@ -963,7 +1213,7 @@ public static class FbxSceneMapper
     }
 
     /// <summary>
-    /// Replaces an imported generic group node with a specialized scene-node type while preserving transforms, metadata, and children.
+    /// Replaces an imported generic group node with a specialized scene-node type while preserving transforms and children.
     /// </summary>
     /// <param name="source">The source group being replaced.</param>
     /// <param name="replacement">The replacement node.</param>
@@ -987,7 +1237,7 @@ public static class FbxSceneMapper
     }
 
     /// <summary>
-    /// Copies transform and metadata state between two scene nodes during importer-driven node replacement.
+    /// Copies transform state between two scene nodes during importer-driven node replacement.
     /// </summary>
     /// <param name="source">The source scene node.</param>
     /// <param name="destination">The destination scene node.</param>
@@ -997,11 +1247,6 @@ public static class FbxSceneMapper
         source.LiveTransform.CopyTo(destination.LiveTransform);
         destination.Flags = source.Flags;
         destination.GraphicsHandle = source.GraphicsHandle;
-
-        foreach ((string key, object value) in source.Metadata)
-        {
-            destination.Metadata[key] = value;
-        }
     }
 
     /// <summary>
@@ -1344,20 +1589,6 @@ public static class FbxSceneMapper
         Vector3 geometricScaling = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
         int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
 
-        node.Metadata[MetadataLclTranslationKey] = localTranslation;
-        node.Metadata[MetadataLclRotationKey] = localRotation;
-        node.Metadata[MetadataLclScalingKey] = localScale;
-        node.Metadata[MetadataPreRotationKey] = preRotation;
-        node.Metadata[MetadataPostRotationKey] = postRotation;
-        node.Metadata[MetadataRotationOffsetKey] = rotationOffset;
-        node.Metadata[MetadataRotationPivotKey] = rotationPivot;
-        node.Metadata[MetadataScalingOffsetKey] = scalingOffset;
-        node.Metadata[MetadataScalingPivotKey] = scalingPivot;
-        node.Metadata[MetadataGeometricTranslationKey] = geometricTranslation;
-        node.Metadata[MetadataGeometricRotationKey] = geometricRotation;
-        node.Metadata[MetadataGeometricScalingKey] = geometricScaling;
-        node.Metadata[MetadataRotationOrderKey] = rotationOrder;
-
         Matrix4x4 localMatrix = ComposeNodeLocalTransform(localTranslation, localRotation, localScale, preRotation, postRotation, rotationOffset, rotationPivot, scalingOffset, scalingPivot, rotationOrder);
         if (node is Mesh)
         {
@@ -1368,7 +1599,11 @@ public static class FbxSceneMapper
         if (!Matrix4x4.Decompose(localMatrix, out Vector3 resolvedScale, out Quaternion resolvedRotation, out Vector3 resolvedTranslation))
         {
             resolvedScale = localScale;
-            resolvedRotation = ComposeEulerRotation(localRotation, rotationOrder);
+            Quaternion preQuat = ComposeEulerRotation(preRotation, 0);
+            Quaternion localQuat = ComposeEulerRotation(localRotation, rotationOrder);
+            Quaternion postQuat = ComposeEulerRotation(postRotation, 0);
+            Quaternion postInvQuat = Quaternion.Inverse(postQuat);
+            resolvedRotation = Quaternion.Normalize(postInvQuat * localQuat * preQuat);
             resolvedTranslation = localTranslation;
         }
 
@@ -1720,25 +1955,22 @@ public static class FbxSceneMapper
         modelNode.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 232) } });
         FbxNode properties = modelNode.AddChild("Properties70");
         (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(sourceNode);
-        Vector3 exportedLocalTranslation = GetMetadataVector3(sourceNode, MetadataLclTranslationKey, localTranslation);
-        Vector3 exportedLocalRotation = GetMetadataVector3(sourceNode, MetadataLclRotationKey, FbxRotation.ToEulerDegreesXyz(localRotation));
-        Vector3 exportedLocalScale = GetMetadataVector3(sourceNode, MetadataLclScalingKey, localScale);
-        Vector3 exportedPreRotation = GetMetadataVector3(sourceNode, MetadataPreRotationKey, Vector3.Zero);
-        Vector3 exportedPostRotation = GetMetadataVector3(sourceNode, MetadataPostRotationKey, Vector3.Zero);
-        Vector3 exportedRotationOffset = GetMetadataVector3(sourceNode, MetadataRotationOffsetKey, Vector3.Zero);
-        Vector3 exportedRotationPivot = GetMetadataVector3(sourceNode, MetadataRotationPivotKey, Vector3.Zero);
-        Vector3 exportedScalingOffset = GetMetadataVector3(sourceNode, MetadataScalingOffsetKey, Vector3.Zero);
-        Vector3 exportedScalingPivot = GetMetadataVector3(sourceNode, MetadataScalingPivotKey, Vector3.Zero);
-        Vector3 exportedGeometricTranslation = GetMetadataVector3(sourceNode, MetadataGeometricTranslationKey, Vector3.Zero);
-        Vector3 exportedGeometricRotation = GetMetadataVector3(sourceNode, MetadataGeometricRotationKey, Vector3.Zero);
-        Vector3 exportedGeometricScaling = GetMetadataVector3(sourceNode, MetadataGeometricScalingKey, Vector3.One);
-        int exportedRotationOrder = GetMetadataInt(sourceNode, MetadataRotationOrderKey, 0);
-        if (IsTopLevelAuthoredExportRoot(sourceNode) && IsNearlyZero(exportedPreRotation))
+        Vector3 exportedLocalTranslation = localTranslation;
+        Vector3 exportedLocalRotation = FbxRotation.ToEulerDegreesXyz(localRotation);
+        Vector3 exportedLocalScale = localScale;
+        Vector3 exportedPreRotation = Vector3.Zero;
+
+        if (IsIdentityRootContainer(sourceNode))
         {
             exportedPreRotation = s_authoredRootPreRotation;
+            exportedLocalTranslation = Vector3.Zero;
+            exportedLocalRotation = Vector3.Zero;
+            exportedLocalScale = Vector3.One;
         }
-
-        if (sourceNode is SkeletonBone && !HasImportedTransformMetadata(sourceNode) && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
+        else if (sourceNode is SkeletonBone
+            && sourceNode.LiveTransform.LocalRotation is null
+            && IsNearlyZero(exportedPreRotation)
+            && !IsNearlyZero(exportedLocalRotation))
         {
             exportedPreRotation = exportedLocalRotation;
             exportedLocalRotation = Vector3.Zero;
@@ -1780,51 +2012,6 @@ public static class FbxSceneMapper
             if (!IsNearlyOne(exportedLocalScale))
             {
                 AddVectorProperty(properties, "Lcl Scaling", "Lcl Scaling", exportedLocalScale);
-            }
-
-            if (!IsNearlyZero(exportedPostRotation))
-            {
-                AddVectorProperty(properties, "PostRotation", "Vector3D", exportedPostRotation);
-            }
-
-            if (!IsNearlyZero(exportedRotationOffset))
-            {
-                AddVectorProperty(properties, "RotationOffset", "Vector3D", exportedRotationOffset);
-            }
-
-            if (!IsNearlyZero(exportedRotationPivot))
-            {
-                AddVectorProperty(properties, "RotationPivot", "Vector3D", exportedRotationPivot);
-            }
-
-            if (!IsNearlyZero(exportedScalingOffset))
-            {
-                AddVectorProperty(properties, "ScalingOffset", "Vector3D", exportedScalingOffset);
-            }
-
-            if (!IsNearlyZero(exportedScalingPivot))
-            {
-                AddVectorProperty(properties, "ScalingPivot", "Vector3D", exportedScalingPivot);
-            }
-
-            if (!IsNearlyZero(exportedGeometricTranslation))
-            {
-                AddVectorProperty(properties, "GeometricTranslation", "Vector3D", exportedGeometricTranslation);
-            }
-
-            if (!IsNearlyZero(exportedGeometricRotation))
-            {
-                AddVectorProperty(properties, "GeometricRotation", "Vector3D", exportedGeometricRotation);
-            }
-
-            if (!IsNearlyOne(exportedGeometricScaling))
-            {
-                AddVectorProperty(properties, "GeometricScaling", "Vector3D", exportedGeometricScaling);
-            }
-
-            if (exportedRotationOrder != 0)
-            {
-                AddIntProperty(properties, "RotationOrder", "enum", exportedRotationOrder);
             }
         }
 
@@ -1984,6 +2171,83 @@ public static class FbxSceneMapper
     /// <returns>A tuple of translation, rotation, and scale in local space.</returns>
     public static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ResolveExportLocalTransform(SceneNode sourceNode)
     {
+        if (sourceNode is Mesh)
+        {
+            return ResolveExportBindLocalTransform(sourceNode);
+        }
+
+        Vector3? livePosition = sourceNode.LiveTransform.LocalPosition;
+        Quaternion? liveRotation = sourceNode.LiveTransform.LocalRotation;
+        Vector3? liveScale = sourceNode.LiveTransform.Scale;
+
+        if (livePosition is not null || liveRotation is not null || liveScale is not null)
+        {
+            return
+            (
+                livePosition ?? sourceNode.GetBindLocalPosition(),
+                Quaternion.Normalize(liveRotation ?? sourceNode.GetBindLocalRotation()),
+                liveScale ?? sourceNode.GetBindLocalScale()
+            );
+        }
+
+        return
+        (
+            sourceNode.GetBindLocalPosition(),
+            Quaternion.Normalize(sourceNode.GetBindLocalRotation()),
+            sourceNode.GetBindLocalScale()
+        );
+    }
+
+    /// <summary>
+    /// Computes the local matrix implied by exported Model transform properties for the specified node.
+    /// </summary>
+    /// <param name="node">The node to evaluate.</param>
+    /// <returns>The exported local matrix implied by serialized model properties.</returns>
+    public static Matrix4x4 GetExportLocalModelMatrix(SceneNode node)
+    {
+        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(node);
+        Vector3 exportedLocalTranslation = localTranslation;
+        Vector3 exportedLocalRotation = FbxRotation.ToEulerDegreesXyz(localRotation);
+        Vector3 exportedLocalScale = localScale;
+        Vector3 exportedPreRotation = Vector3.Zero;
+
+        if (IsIdentityRootContainer(node))
+        {
+            exportedPreRotation = s_authoredRootPreRotation;
+            exportedLocalTranslation = Vector3.Zero;
+            exportedLocalRotation = Vector3.Zero;
+            exportedLocalScale = Vector3.One;
+        }
+        else if (node is SkeletonBone
+            && node.LiveTransform.LocalRotation is null
+            && IsNearlyZero(exportedPreRotation)
+            && !IsNearlyZero(exportedLocalRotation))
+        {
+            exportedPreRotation = exportedLocalRotation;
+            exportedLocalRotation = Vector3.Zero;
+        }
+
+        return ComposeNodeLocalTransform(
+            exportedLocalTranslation,
+            exportedLocalRotation,
+            exportedLocalScale,
+            exportedPreRotation,
+            Vector3.Zero,
+            Vector3.Zero,
+            Vector3.Zero,
+            Vector3.Zero,
+            Vector3.Zero,
+            0);
+    }
+
+    /// <summary>
+    /// Resolves the bind-local transform used for bind-space export data such as
+    /// cluster Transform/TransformLink and BindPose matrices.
+    /// </summary>
+    /// <param name="sourceNode">The scene node to query.</param>
+    /// <returns>A tuple of bind translation, rotation, and scale in local space.</returns>
+    public static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ResolveExportBindLocalTransform(SceneNode sourceNode)
+    {
         return
         (
             sourceNode.GetBindLocalPosition(),
@@ -2088,11 +2352,20 @@ public static class FbxSceneMapper
     /// <param name="value">The XYZ value to write.</param>
     public static void AddVectorProperty(FbxNode properties, string propertyName, string propertyType, Vector3 value)
     {
+        // "Lcl Translation/Rotation/Scaling" and "Color" type properties are animatable
+        // with empty attribute type and "A" flags. Other vector types like "Vector3D" and
+        // "ColorRGB" use the standard attribute type mapping with empty flags.
+        bool isAnimatableType = propertyType.StartsWith("Lcl ", StringComparison.Ordinal)
+            || string.Equals(propertyType, "Color", StringComparison.Ordinal)
+            || string.Equals(propertyType, "Visibility", StringComparison.Ordinal);
+        string attributeType = isAnimatableType ? string.Empty : GetPropertyAttributeType(propertyType);
+        string flags = isAnimatableType ? "A" : string.Empty;
+
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
         property.Properties.Add(new FbxProperty('S', propertyType));
-        property.Properties.Add(new FbxProperty('S', string.Empty));
-        property.Properties.Add(new FbxProperty('S', "A"));
+        property.Properties.Add(new FbxProperty('S', attributeType));
+        property.Properties.Add(new FbxProperty('S', flags));
         property.Properties.Add(new FbxProperty('D', value.X));
         property.Properties.Add(new FbxProperty('D', value.Y));
         property.Properties.Add(new FbxProperty('D', value.Z));
@@ -2293,9 +2566,9 @@ public static class FbxSceneMapper
         Matrix4x4 soff = Matrix4x4.CreateTranslation(scalingOffset);
         Matrix4x4 sp = Matrix4x4.CreateTranslation(scalingPivot);
         Matrix4x4 spInv = Matrix4x4.CreateTranslation(-scalingPivot);
-        Matrix4x4 pre = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(preRotation, rotationOrder));
+        Matrix4x4 pre = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(preRotation, 0));
         Matrix4x4 localRot = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(rotation, rotationOrder));
-        Matrix4x4 post = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(postRotation, rotationOrder));
+        Matrix4x4 post = Matrix4x4.CreateFromQuaternion(ComposeEulerRotation(postRotation, 0));
         Matrix4x4 postInv = Matrix4x4.Invert(post, out Matrix4x4 invertedPost) ? invertedPost : Matrix4x4.Identity;
         Matrix4x4 s = Matrix4x4.CreateScale(scaling);
         return spInv * s * sp * soff * rpInv * postInv * localRot * pre * rp * roff * t;
@@ -2469,32 +2742,13 @@ public static class FbxSceneMapper
         }
     }
 
+    /// <summary>
+    /// No-op during import — null node attribute information is derived from node type on export.
+    /// </summary>
     public static void AttachNullNodeAttributes(Dictionary<long, SceneNode> modelNodes, Dictionary<long, FbxNode> objectsById, IReadOnlyList<FbxConnection> connections)
     {
-        for (int i = 0; i < connections.Count; i++)
-        {
-            FbxConnection connection = connections[i];
-            if (!string.Equals(connection.ConnectionType, "OO", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            if (!objectsById.TryGetValue(connection.ChildId, out FbxNode? nodeAttribute)
-                || !string.Equals(nodeAttribute.Name, "NodeAttribute", StringComparison.Ordinal)
-                || nodeAttribute.Properties.Count < 3
-                || !string.Equals(nodeAttribute.Properties[2].AsString(), "Null", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (!modelNodes.TryGetValue(connection.ParentId, out SceneNode? node) || node is Mesh or Camera or Light or SkeletonBone)
-            {
-                continue;
-            }
-
-            node.Metadata[MetadataHasNullNodeAttributeKey] = true;
-            node.Metadata[MetadataNullNodeAttributeNameKey] = nodeAttribute.Properties[1].AsString();
-        }
+        // Null node attribute metadata is no longer stored. On export, ShouldExportNullNodeAttribute
+        // determines eligibility from node type, and GetNullNodeAttributeName generates the name.
     }
 
     /// <summary>
