@@ -110,20 +110,27 @@ public static class FbxRotation
     public static Vector3 CreateSeedFromMatrix(Quaternion rotation, bool useAlternateSolution)
     {
         Matrix4x4 m = Matrix4x4.CreateFromQuaternion(rotation);
+
+        // Row-major XYZ intrinsic: M = Rx(x) * Ry(y) * Rz(z)
+        // M13 = -sin(y), so y = asin(-M13)
+        float sinY = Math.Clamp(-m.M13, -1f, 1f);
         float y = useAlternateSolution
-            ? MathF.PI - MathF.Asin(Math.Clamp(m.M13, -1f, 1f))
-            : MathF.Asin(Math.Clamp(m.M13, -1f, 1f));
+            ? MathF.PI - MathF.Asin(sinY)
+            : MathF.Asin(sinY);
         float cosY = MathF.Cos(y);
         float x;
         float z;
 
         if (MathF.Abs(cosY) > 0.00001f)
         {
-            x = MathF.Atan2(-m.M23 / cosY, m.M33 / cosY);
-            z = MathF.Atan2(-m.M12 / cosY, m.M11 / cosY);
+            // M23 = sin(x)*cos(y), M33 = cos(x)*cos(y)
+            x = MathF.Atan2(m.M23 / cosY, m.M33 / cosY);
+            // M12 = cos(y)*sin(z), M11 = cos(y)*cos(z)
+            z = MathF.Atan2(m.M12 / cosY, m.M11 / cosY);
         }
         else
         {
+            // Gimbal lock: sin(y) ≈ ±1, only (x ± z) can be determined
             x = MathF.Atan2(m.M32, m.M22);
             z = 0f;
         }

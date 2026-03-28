@@ -64,11 +64,27 @@ public static class NullTerminatedStringReader
     /// <returns>The bytes before the null terminator.</returns>
     public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing)
     {
+        return ReadNullTerminatedBytes(encoding, maxBytes, chunkSize, readChunk, onMissing, out int _);
+    }
+
+    /// <summary>
+    /// Reads null-terminated bytes using the provided encoding and chunk reader callback.
+    /// </summary>
+    /// <param name="encoding">The text encoding used to determine terminator width and character alignment.</param>
+    /// <param name="maxBytes">The maximum number of bytes to inspect while searching for the terminator.</param>
+    /// <param name="chunkSize">The requested chunk size passed to the reader callback per iteration.</param>
+    /// <param name="readChunk">The callback used to read bytes from the source.</param>
+    /// <param name="onMissing">Factory used when no terminator is found before reaching <paramref name="maxBytes"/>.</param>
+    /// <param name="overReadBytes">The number of bytes read beyond the null terminator.</param>
+    /// <returns>The bytes before the null terminator.</returns>
+    public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing, out int overReadBytes)
+    {
         ArgumentNullException.ThrowIfNull(encoding);
         int terminatorLength = GetTerminatorLength(encoding);
         int characterWidth = GetCharacterWidth(encoding);
         ValidateReadArguments(maxBytes, chunkSize, readChunk, onMissing);
         ValidateEncodingDerivedValues(encoding, terminatorLength, characterWidth);
+        overReadBytes = 0;
 
         int effectiveChunkSize = Math.Min(chunkSize, maxBytes);
         byte[] outputBuffer = new byte[Math.Min(Math.Max(effectiveChunkSize * 2, effectiveChunkSize), maxBytes)];
@@ -91,6 +107,8 @@ public static class NullTerminatedStringReader
             int searchEndExclusive = newTotalBytesRead - terminatorLength + 1;
             if (TryFindTerminator(outputBuffer, searchStartIndex, searchEndExclusive, terminatorLength, characterWidth, out int terminatorIndex))
             {
+                int consumedBytes = terminatorIndex + terminatorLength;
+                overReadBytes = newTotalBytesRead - consumedBytes;
                 byte[] result = new byte[terminatorIndex];
                 Buffer.BlockCopy(outputBuffer, 0, result, 0, terminatorIndex);
                 return result;

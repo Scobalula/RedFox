@@ -211,6 +211,36 @@ namespace RedFox.Graphics3D
         }
 
         /// <summary>
+        /// Rebuilds the inverse bind matrices using the specified mesh bind world matrix
+        /// instead of the current scene graph transform. This preserves bind-time positioning
+        /// transforms that the scene graph may not capture (e.g., FBX cluster geometric offsets).
+        /// </summary>
+        /// <param name="meshBindWorld">The mesh's world matrix at bind time.</param>
+        public void RebuildInverseBindMatrices(Matrix4x4 meshBindWorld)
+        {
+            if (_skinnedBones is not { Length: > 0 } skinnedBones)
+            {
+                _inverseBindMatrices = null;
+                _hasExplicitInverseBindMatrices = false;
+                return;
+            }
+
+            var result = new Matrix4x4[skinnedBones.Length];
+            Dictionary<SceneNode, Matrix4x4> cache = [];
+
+            for (int i = 0; i < skinnedBones.Length; i++)
+            {
+                Matrix4x4 boneBindWorld = ComputeCachedBindWorldMatrix(skinnedBones[i], cache);
+                result[i] = Matrix4x4.Invert(boneBindWorld, out Matrix4x4 inverseBoneBindWorld)
+                    ? meshBindWorld * inverseBoneBindWorld
+                    : Matrix4x4.Identity;
+            }
+
+            _inverseBindMatrices = result;
+            _hasExplicitInverseBindMatrices = false;
+        }
+
+        /// <summary>
         /// Adds a skinned bone and appends a matching inverse bind matrix.
         /// </summary>
         /// <param name="bone">The bone to add.</param>
@@ -943,6 +973,24 @@ namespace RedFox.Graphics3D
 
             cache[node] = world;
             return world;
+        }
+
+        public int[] GetBoneIndices(Dictionary<SkeletonBone, int> boneTable)
+        {
+            if (SkinnedBones is null)
+                throw new NullReferenceException($"Mesh '{Name}' has no skinned bones.");
+
+            var table = new int[SkinnedBones.Count];
+
+            for (int i = 0; i < SkinnedBones.Count; i++)
+            {
+                if (!boneTable.TryGetValue(SkinnedBones[i], out int globalBoneIndex))
+                    throw new KeyNotFoundException($"Mesh '{Name}' references a skinned bone that is not part of the bone table.");
+
+                table[i] = globalBoneIndex;
+            }
+
+            return table;
         }
     }
 }

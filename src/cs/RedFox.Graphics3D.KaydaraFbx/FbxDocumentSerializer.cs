@@ -12,12 +12,12 @@ public static class FbxDocumentSerializer
     /// <summary>
     /// Gets the RedFox-authored creator string written into top-level FBX metadata.
     /// </summary>
-    public const string RedFoxTopLevelCreator = "RedFox Graphics3D Kaydara FBX";
+    public const string Creator = "RedFox Graphics3D Kaydara FBX";
 
     /// <summary>
     /// Gets the Maya-compatible RedFox creation time written into top-level metadata.
     /// </summary>
-    public const string RedFoxCompatibleCreationTime = "2026-03-24 15:33:49:359";
+    public const string CreationTime = "2026-03-24 15:33:49:359";
 
     /// <summary>
     /// Gets the Maya-compatible FileId used for RedFox-authored exports.
@@ -699,7 +699,7 @@ public static class FbxDocumentSerializer
         ArgumentNullException.ThrowIfNull(document);
 
         FbxNode? creatorNode = document.Nodes.FirstOrDefault(static node => node.Name == "Creator" && node.Properties.Count > 0);
-        if (creatorNode is null || !string.Equals(creatorNode.Properties[0].AsString(), RedFoxTopLevelCreator, StringComparison.Ordinal))
+        if (creatorNode is null || !string.Equals(creatorNode.Properties[0].AsString(), Creator, StringComparison.Ordinal))
         {
             return;
         }
@@ -724,7 +724,7 @@ public static class FbxDocumentSerializer
         }
 
         creationTimeNode.Properties.Clear();
-        creationTimeNode.Properties.Add(new FbxProperty('S', RedFoxCompatibleCreationTime));
+        creationTimeNode.Properties.Add(new FbxProperty('S', CreationTime));
     }
 
     /// <summary>

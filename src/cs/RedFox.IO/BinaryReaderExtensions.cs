@@ -9,7 +9,6 @@
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-using RedFox;
 
 namespace RedFox.IO;
 
@@ -333,6 +332,56 @@ public static class BinaryReaderExtensions
         return ReadNullTerminatedString(reader, Encoding.UTF32);
     }
 
+    private static string ReadNullTerminatedString(BinaryReader reader, Encoding encoding)
+    {
+        int characterWidth = GetCharacterWidth(encoding);
+
+        List<byte> bytes = [];
+        Span<byte> characterBuffer = stackalloc byte[4];
+
+        while (true)
+        {
+            Span<byte> readWindow = characterBuffer[..characterWidth];
+
+            if (reader.Read(readWindow) < readWindow.Length)
+                throw new EndOfStreamException("Null-terminated string was not found before the end of the stream.");
+            if (IsAllZero(readWindow))
+                break;
+            for (int i = 0; i < readWindow.Length; i++)
+                bytes.Add(readWindow[i]);
+        }
+
+        return bytes.Count == 0 ? string.Empty : encoding.GetString([.. bytes]);
+    }
+
+    private static int GetCharacterWidth(Encoding encoding)
+    {
+        if (encoding is UnicodeEncoding)
+        {
+            return 2;
+        }
+
+        if (encoding is UTF32Encoding)
+        {
+            return 4;
+        }
+
+        return 1;
+    }
+
+    private static bool IsAllZero(ReadOnlySpan<byte> value)
+    {
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (value[i] != 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// Reads a UTF-8 string from the reader terminated by a null byte (also known as C string)
     /// </summary>
@@ -388,38 +437,6 @@ public static class BinaryReaderExtensions
     {
         ArgumentNullException.ThrowIfNull(reader);
         return reader.BaseStream.Scan(hexString, startPosition, endPosition);
-    }
-
-    private static string ReadNullTerminatedString(BinaryReader reader, Encoding encoding)
-    {
-        ArgumentNullException.ThrowIfNull(reader);
-        ArgumentNullException.ThrowIfNull(encoding);
-        int maxBytes = GetMaxReadableBytes(reader);
-
-        string result = NullTerminatedStringReader.ReadNullTerminatedString(
-            encoding,
-            maxBytes,
-            chunkSize: 128,
-            readChunk: destination => reader.Read(destination),
-            onMissing: () => new EndOfStreamException("Null-terminated string was not found before the end of the stream."));
-        return result;
-    }
-
-    private static int GetMaxReadableBytes(BinaryReader reader)
-    {
-        Stream baseStream = reader.BaseStream;
-        if (!baseStream.CanSeek)
-        {
-            return int.MaxValue;
-        }
-
-        long remainingBytes = baseStream.Length - baseStream.Position;
-        if (remainingBytes <= 0)
-        {
-            return 1;
-        }
-
-        return remainingBytes > int.MaxValue ? int.MaxValue : (int)remainingBytes;
     }
 
     /// <summary>

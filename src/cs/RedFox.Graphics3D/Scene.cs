@@ -7,12 +7,9 @@ namespace RedFox.Graphics3D
 {
     public class Scene : IUpdatable
     {
-
         public string Name { get; set; }
 
         public SceneRoot RootNode { get; internal set; }
-
-        public Dictionary<string, object> Metadata { get; set; } = [];
 
         public Scene(string name)
         {

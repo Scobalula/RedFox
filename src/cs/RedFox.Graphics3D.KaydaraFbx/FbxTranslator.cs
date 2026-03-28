@@ -20,9 +20,6 @@ public sealed class FbxTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".fbx"];
 
     /// <inheritdoc/>
-    public override ReadOnlySpan<byte> MagicValue => "Kaydara FBX Binary  \0\x1A\0"u8;
-
-    /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
         ArgumentNullException.ThrowIfNull(scene);
@@ -74,11 +71,6 @@ public sealed class FbxTranslator : SceneTranslator
         foreach (SceneNode child in source.RootNode.EnumerateChildren().ToArray())
         {
             child.MoveTo(target.RootNode, ReparentTransformMode.PreserveExisting);
-        }
-
-        foreach ((string key, object value) in source.Metadata)
-        {
-            target.Metadata[key] = value;
         }
     }
 }

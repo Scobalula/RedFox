@@ -12,6 +12,7 @@ namespace RedFox.Graphics3D
     public abstract class SceneNode : IUpdatable
     {
         private List<SceneNode>? _children = null;
+        private Scene? _scene = null;
 
         /// <summary>
         /// Gets or sets the name associated with the node.
@@ -19,9 +20,9 @@ namespace RedFox.Graphics3D
         public string Name { get; set; }
 
         /// <summary>
-        /// Gets or sets the scene that owns this object.
+        /// Gets or sets the scene this this object is apart of.
         /// </summary>
-        public Scene? Owner { get; set; }
+        public Scene? Scene => _scene;
 
         /// <summary>
         /// Gets or Sets the parent of this node.
@@ -53,11 +54,6 @@ namespace RedFox.Graphics3D
         /// Gets or sets the flags that define the properties and behaviors of the scene node.
         /// </summary>
         public SceneNodeFlags Flags { get; set; }
-
-        /// <summary>
-        /// Gets arbitrary node metadata used by importers and exporters to preserve format-specific state.
-        /// </summary>
-        public Dictionary<string, object> Metadata { get; } = [];
 
         /// <summary>
         /// Initializes a new instance of <see cref="SceneNode"/> with a generated name.
@@ -504,6 +500,17 @@ namespace RedFox.Graphics3D
         /// </summary>
         protected virtual void OnChildRemoved(SceneNode child) { }
 
+        /// <summary>
+        /// Adds the specified node as a child of this scene node.
+        /// </summary>
+        /// <remarks>After the node is added, its Parent property is set to this node and its scene
+        /// reference is updated. The method returns the same instance that was added.</remarks>
+        /// <typeparam name="T">The type of the scene node to add. Must derive from SceneNode.</typeparam>
+        /// <param name="node">The node to add as a child. The node must not already have a parent, and its name must be unique among this
+        /// node's children.</param>
+        /// <returns>The node that was added as a child.</returns>
+        /// <exception cref="SceneNodeParentException">Thrown if the specified node already has a parent.</exception>
+        /// <exception cref="SceneNodeDuplicateException">Thrown if a child node with the same name already exists in this node.</exception>
         public T AddNode<T>(T node) where T : SceneNode
         {
             if (node.Parent != null)
@@ -514,7 +521,7 @@ namespace RedFox.Graphics3D
             _children.Add(node);
 
             node.Parent = this;
-            node.Owner = Owner;
+            node._scene = _scene;
 
             OnChildAdded(node);
             return node;
