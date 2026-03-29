@@ -115,6 +115,13 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Initializes a new <see cref="Image"/> with the given dimensions and format, without initial data.
         /// </summary>
+        /// <param name="width">Width of the top-level image in pixels.</param>
+        /// <param name="height">Height of the top-level image in pixels.</param>
+        /// <param name="depth">Depth of the image (1 for 2D textures).</param>
+        /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+        /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
+        /// <param name="format">The pixel format.</param>
+        /// <param name="isCubemap">Whether this image is a cube map texture.</param>
         public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap)
             : this(width, height, depth, arraySize, mipLevels, format, isCubemap, null)
         {
@@ -123,6 +130,12 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Initializes a new <see cref="Image"/> with the given dimensions and format.
         /// </summary>
+        /// <param name="width">Width of the top-level image in pixels.</param>
+        /// <param name="height">Height of the top-level image in pixels.</param>
+        /// <param name="depth">Depth of the image (1 for 2D textures).</param>
+        /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+        /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
+        /// <param name="format">The pixel format.</param>
         public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format)
             : this(width, height, depth, arraySize, mipLevels, format, false, null)
         {
@@ -131,6 +144,13 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Initializes a new <see cref="Image"/> with the given dimensions and initial data.
         /// </summary>
+        /// <param name="width">Width of the top-level image in pixels.</param>
+        /// <param name="height">Height of the top-level image in pixels.</param>
+        /// <param name="depth">Depth of the image (1 for 2D textures).</param>
+        /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+        /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
+        /// <param name="format">The pixel format.</param>
+        /// <param name="data">Initial pixel data.</param>
         public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, byte[] data)
             : this(width, height, depth, arraySize, mipLevels, format, false, data)
         {
@@ -139,6 +159,10 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Creates a simple 2D image with no mip maps and array size 1.
         /// </summary>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="format">The pixel format.</param>
+        /// <param name="data">Initial pixel data.</param>
         public Image(int width, int height, ImageFormat format, byte[] data) : this(width, height, 1, 1, 1, format, false, data)
         {
         }
@@ -146,6 +170,9 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Creates a simple 2D image with no mip maps and array size 1.
         /// </summary>
+        /// <param name="width">Width of the image in pixels.</param>
+        /// <param name="height">Height of the image in pixels.</param>
+        /// <param name="format">The pixel format.</param>
         public Image(int width, int height, ImageFormat format) : this(width, height, 1, 1, 1, format, false, null)
         {
         }
@@ -153,7 +180,6 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Gets the <see cref="ImageSlice"/> for the specified mip level and array element.
         /// </summary>
-        /// <param name="mipLevel">The mip level (0 is the largest).</param>
         /// <param name="mipLevel">The mip level (0 is the largest).</param>
         /// <param name="arrayIndex">The array element index.</param>
         /// <param name="depthSlice">The depth slice index (for 3D textures).</param>
@@ -173,6 +199,7 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Gets the first slice of the image.
         /// </summary>
+        /// <returns>The first <see cref="ImageSlice"/> in the image.</returns>
         public ref readonly ImageSlice GetSlice()
         {
             return ref GetSlice(0, 0, 0);
@@ -181,6 +208,9 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Gets the first depth slice for the specified mip level and array element.
         /// </summary>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="arrayIndex">The array element index.</param>
+        /// <returns>The first depth slice for the requested mip and array entry.</returns>
         public ref readonly ImageSlice GetSlice(int mipLevel, int arrayIndex)
         {
             return ref GetSlice(mipLevel, arrayIndex, 0);
@@ -189,6 +219,8 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Gets the first array/depth slice for the specified mip level.
         /// </summary>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <returns>The first slice for the requested mip level.</returns>
         public ref readonly ImageSlice GetSlice(int mipLevel)
         {
             return ref GetSlice(mipLevel, 0, 0);
@@ -233,6 +265,8 @@ namespace RedFox.Graphics2D
         /// This is a zero-copy operation — no allocation or data conversion is performed.
         /// The caller is responsible for ensuring the format's byte layout matches <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The unmanaged element type to reinterpret the pixel buffer as.</typeparam>
+        /// <returns>A span over the underlying pixel buffer reinterpreted as <typeparamref name="T"/> values.</returns>
         public Span<T> GetPixelData<T>() where T : unmanaged
         {
             return MemoryMarshal.Cast<byte, T>((Span<byte>)_pixels);
@@ -241,6 +275,10 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values.
         /// </summary>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="arrayIndex">The array element index.</param>
+        /// <param name="depthSlice">The depth slice index (for 3D textures).</param>
+        /// <returns>An array containing one decoded <see cref="Vector4"/> per pixel.</returns>
         public Vector4[] DecodeSlice(int mipLevel, int arrayIndex, int depthSlice)
         {
             ref readonly var slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
@@ -253,6 +291,7 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels of the first slice to <see cref="Vector4"/> values.
         /// </summary>
+        /// <returns>An array containing one decoded <see cref="Vector4"/> per pixel.</returns>
         public Vector4[] DecodeSlice()
         {
             return DecodeSlice(0, 0, 0);
@@ -261,6 +300,9 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels for the specified mip level and array index.
         /// </summary>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="arrayIndex">The array element index.</param>
+        /// <returns>An array containing one decoded <see cref="Vector4"/> per pixel.</returns>
         public Vector4[] DecodeSlice(int mipLevel, int arrayIndex)
         {
             return DecodeSlice(mipLevel, arrayIndex, 0);
@@ -269,6 +311,8 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels for the specified mip level.
         /// </summary>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <returns>An array containing one decoded <see cref="Vector4"/> per pixel.</returns>
         public Vector4[] DecodeSlice(int mipLevel)
         {
             return DecodeSlice(mipLevel, 0, 0);
@@ -278,6 +322,11 @@ namespace RedFox.Graphics2D
         /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/>.
         /// Each pixel produces 4 component values (RGBA).
         /// </summary>
+        /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="arrayIndex">The array element index.</param>
+        /// <param name="depthSlice">The depth slice index (for 3D textures).</param>
+        /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
         public T[] DecodeSlice<T>(int mipLevel, int arrayIndex, int depthSlice) where T : INumber<T>
         {
             var vec4Data = DecodeSlice(mipLevel, arrayIndex, depthSlice);
@@ -299,6 +348,8 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels of the first slice to values of type <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
+        /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
         public T[] DecodeSlice<T>() where T : INumber<T>
         {
             return DecodeSlice<T>(0, 0, 0);
@@ -307,6 +358,10 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels for the specified mip level and array index to values of type <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <param name="arrayIndex">The array element index.</param>
+        /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
         public T[] DecodeSlice<T>(int mipLevel, int arrayIndex) where T : INumber<T>
         {
             return DecodeSlice<T>(mipLevel, arrayIndex, 0);
@@ -315,6 +370,9 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Decodes all pixels for the specified mip level to values of type <typeparamref name="T"/>.
         /// </summary>
+        /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
+        /// <param name="mipLevel">The mip level (0 is the largest).</param>
+        /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
         public T[] DecodeSlice<T>(int mipLevel) where T : INumber<T>
         {
             return DecodeSlice<T>(mipLevel, 0, 0);

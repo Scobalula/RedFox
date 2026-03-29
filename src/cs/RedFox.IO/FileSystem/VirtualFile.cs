@@ -12,102 +12,106 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RedFox.IO.FileSystem
+namespace RedFox.IO.FileSystem;
+
+/// <summary>
+/// An abstract class that defines methods and properties to manilpulate a virtual file.
+/// </summary>
+public abstract class VirtualFile
 {
     /// <summary>
-    /// An abstract class that defines methods and properties to manilpulate a virtual file.
+    /// Gets the parent directory.
     /// </summary>
-    public abstract class VirtualFile
+    public VirtualDirectory? Parent { get; internal set; }
+
+    /// <summary>
+    /// Gets or Sets the name of the file.
+    /// </summary>
+    public string Name { get; set; }
+
+    /// <summary>
+    /// Gets the extension of the file.
+    /// </summary>
+    public string Extension => Path.GetExtension(Name);
+
+    /// <summary>
+    /// Gets the full path of the file.
+    /// </summary>
+    public string FullPath => Parent == null ? Name : Path.Combine(Parent.FullPath, Name);
+
+    /// <summary>
+    /// Gets the full directory path where the file is stored.
+    /// </summary>
+    public string? DirectoryPath => Parent?.FullPath;
+
+    /// <summary>
+    /// Gets the size of the file.
+    /// </summary>
+    public long Size { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the custom data associated with the file.
+    /// </summary>
+    public object? Data { get; set; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="VirtualFile"/> class with the given name and size.
+    /// </summary>
+    /// <param name="name">The name of the file.</param>
+    /// <param name="size">The size of the file in bytes.</param>
+    protected VirtualFile(string name, long size)
     {
-        /// <summary>
-        /// Gets the parent directory.
-        /// </summary>
-        public VirtualDirectory? Parent { get; internal set; }
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentNullException(nameof(name), "Empty name provided.");
+        if (name.IndexOfAny(VirtualFileSystem.InvalidFileNameChars) > -1)
+            throw new ArgumentException("Name contains invalid characters.", nameof(name));
 
-        /// <summary>
-        /// Gets or Sets the name of the file.
-        /// </summary>
-        public string Name { get; set; }
+        Name = name;
+        Size = size;
+    }
 
-        /// <summary>
-        /// Gets the extension of the file.
-        /// </summary>
-        public string Extension => Path.GetExtension(Name);
+    /// <summary>
+    /// Moves the this file into the provided directory.
+    /// </summary>
+    /// <param name="newParent">The directory to move this file into.</param>
+    public void MoveTo(VirtualDirectory? newParent)
+    {
+        if (newParent == Parent)
+            return;
 
-        /// <summary>
-        /// Gets the full path of the file.
-        /// </summary>
-        public string FullPath => Parent == null ? Name : Path.Combine(Parent.FullPath, Name);
+        Parent?._files.Remove(this);
+        Parent = newParent;
 
-        /// <summary>
-        /// Gets the full directory path where the file is stored.
-        /// </summary>
-        public string? DirectoryPath => Parent?.FullPath;
-
-        /// <summary>
-        /// Gets the size of the file.
-        /// </summary>
-        public long Size { get; private set; }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="VirtualFile"/> class with the given name and size.
-        /// </summary>
-        /// <param name="name">The name of the file.</param>
-        /// <param name="size">The size of the file in bytes.</param>
-        protected VirtualFile(string name, long size)
+        if (newParent is not null && !newParent._files.Add(this))
         {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentNullException(nameof(name), "Empty name provided.");
-            if (name.IndexOfAny(VirtualFileSystem.InvalidFileNameChars) > -1)
-                throw new ArgumentException("Name contains invalid characters.", nameof(name));
-
-            Name = name;
-            Size = size;
+            throw new IOException($"Directory: {newParent.FullPath} already contains a file with the name: {Name}");
         }
+    }
 
-        /// <summary>
-        /// Moves the this file into the provided directory.
-        /// </summary>
-        /// <param name="newParent">The directory to move this file into.</param>
-        public void MoveTo(VirtualDirectory? newParent)
-        {
-            if (newParent == Parent)
-                return;
+    /// <summary>
+    /// Opens the file as a <see cref="Stream"/>.
+    /// </summary>
+    /// <returns>Resulting stream of bytes.</returns>
+    public abstract Stream Open();
 
-            Parent?._files.Remove(this);
-            Parent = newParent;
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        return Name.ToLower().GetHashCode();
+    }
 
-            if (newParent is not null && !newParent._files.Add(this))
-            {
-                throw new IOException($"Directory: {newParent.FullPath} already contains a file with the name: {Name}");
-            }
-        }
+    /// <inheritdoc/>
+    public override bool Equals(object? obj)
+    {
+        if (obj is VirtualFile directory)
+            return directory.Name.Equals(Name, StringComparison.OrdinalIgnoreCase);
 
-        /// <summary>
-        /// Opens the file as a <see cref="Stream"/>.
-        /// </summary>
-        /// <returns>Resulting stream of bytes.</returns>
-        public abstract Stream Open();
+        return base.Equals(obj);
+    }
 
-        /// <inheritdoc/>
-        public override int GetHashCode()
-        {
-            return Name.ToLower().GetHashCode();
-        }
-
-        /// <inheritdoc/>
-        public override bool Equals(object? obj)
-        {
-            if (obj is VirtualFile directory)
-                return directory.Name.Equals(Name, StringComparison.OrdinalIgnoreCase);
-
-            return base.Equals(obj);
-        }
-
-        /// <inheritdoc/>
-        public override string ToString()
-        {
-            return Name;
-        }
+    /// <inheritdoc/>
+    public override string ToString()
+    {
+        return Name;
     }
 }

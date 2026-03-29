@@ -12,5 +12,11 @@ namespace RedFox.Graphics2D.Tiff
         /// Defaults to <see cref="TiffCompression.None"/> (uncompressed).
         /// </summary>
         public TiffCompression Compression { get; set; } = TiffCompression.None;
+
+        /// <summary>
+        /// Gets or sets the predictor used when compressing TIFF sample data.
+        /// Defaults to <see cref="TiffPredictor.None"/>.
+        /// </summary>
+        public TiffPredictor Predictor { get; set; } = TiffPredictor.None;
     }
 }

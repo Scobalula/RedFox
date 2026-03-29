@@ -28,6 +28,7 @@ internal static class SampleRegistry
             new VirtualFileSystemSample(),
             new MurMur3Sample(),
             new CompressionSample(),
+            new ImageTranslationSample(),
             new ProcessFinderSample(),
             new ProcessReadWriteSample()
         ];

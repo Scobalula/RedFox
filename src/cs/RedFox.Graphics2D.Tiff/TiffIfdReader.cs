@@ -187,10 +187,13 @@ namespace RedFox.Graphics2D.Tiff
         }
 
         /// <summary>
-        /// Extracts a packed 16-bit value from a 32-bit IFD value field.
-        /// When two SHORTs are packed inline, their byte order depends on the file's endianness.
+        /// Extracts one of two inline 16-bit values packed into a 32-bit IFD value field.
         /// </summary>
-        private static ushort ReadUInt16Inline(uint valueField, int index, bool le)
+        /// <param name="valueField">The packed 32-bit IFD value field.</param>
+        /// <param name="index">The inline SHORT index to read, either 0 or 1.</param>
+        /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+        /// <returns>The requested 16-bit value extracted from <paramref name="valueField"/>.</returns>
+        public static ushort ReadUInt16Inline(uint valueField, int index, bool le)
         {
             // Inline SHORTs: In LE, first value is in low 16 bits. In BE, first is in high 16 bits.
             if (le)

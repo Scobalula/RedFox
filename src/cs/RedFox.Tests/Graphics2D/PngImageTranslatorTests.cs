@@ -1,62 +1,58 @@
 using RedFox.Graphics2D;
+using RedFox.Graphics2D.IO;
 using RedFox.Graphics2D.Png;
 
 namespace RedFox.Tests.Graphics2D;
 
 public sealed class PngImageTranslatorTests
 {
-    [Fact]
-    public void PngTranslator_RoundTripSmallPattern_PreservesPixels()
+    [Theory]
+    [InlineData(64, 64, ImageCompressionPreference.Fast)]
+    [InlineData(600, 500, ImageCompressionPreference.SmallestSize)]
+    public void PngTranslator_RoundTripPattern_PreservesPixels(int width, int height, ImageCompressionPreference compressionPreference)
     {
-        Image source = CreatePatternImage(64, 64);
-        PngImageTranslator translator = new();
-
-        using MemoryStream stream = new();
-        translator.Write(stream, source);
-        stream.Position = 0;
-
-        Image decoded = translator.Read(stream);
-
-        Assert.Equal(source.Width, decoded.Width);
-        Assert.Equal(source.Height, decoded.Height);
-        Assert.Equal(source.Format, decoded.Format);
-        Assert.Equal(source.PixelData.ToArray(), decoded.PixelData.ToArray());
-    }
-
-    [Fact]
-    public void PngTranslator_RoundTripLargePattern_PreservesPixels()
-    {
-        Image source = CreatePatternImage(600, 500);
-        PngImageTranslator translator = new();
-
-        using MemoryStream stream = new();
-        translator.Write(stream, source);
-        stream.Position = 0;
-
-        Image decoded = translator.Read(stream);
-
-        Assert.Equal(source.Width, decoded.Width);
-        Assert.Equal(source.Height, decoded.Height);
-        Assert.Equal(source.Format, decoded.Format);
-        Assert.Equal(source.PixelData.ToArray(), decoded.PixelData.ToArray());
-    }
-
-    private static Image CreatePatternImage(int width, int height)
-    {
-        byte[] pixels = new byte[width * height * 4];
-
-        for (int y = 0; y < height; y++)
+        Image source = ImageTranslatorTestHarness.CreatePatternImage(width, height, includeTransparency: true);
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new PngImageTranslator());
+        ImageTranslatorOptions options = new()
         {
-            for (int x = 0; x < width; x++)
+            Compression = compressionPreference,
+        };
+        byte[] encoded = ImageTranslatorTestHarness.WriteImageWithManager(manager, source, "pattern.png", options);
+        Image decoded = ImageTranslatorTestHarness.ReadImageWithManager(manager, encoded, "pattern.png");
+
+        Assert.Equal(source.Width, decoded.Width);
+        Assert.Equal(source.Height, decoded.Height);
+        Assert.Equal(source.Format, decoded.Format);
+        Assert.Equal(source.PixelData.ToArray(), decoded.PixelData.ToArray());
+    }
+
+    [Fact]
+    public void PngSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
+    {
+        string[] pngFiles = ImageTranslatorTestHarness.GetInputFiles("Png", ".png");
+        if (pngFiles.Length == 0)
+            return;
+
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new PngImageTranslator());
+        List<string> failures = [];
+
+        foreach (string pngFile in pngFiles)
+        {
+            try
             {
-                int offset = (y * width + x) * 4;
-                pixels[offset + 0] = (byte)((x * 37 + y * 11) & 0xFF);
-                pixels[offset + 1] = (byte)((x * 17 + y * 29) & 0xFF);
-                pixels[offset + 2] = (byte)((x * 7 + y * 43) & 0xFF);
-                pixels[offset + 3] = (byte)(255 - ((x * 5 + y * 3) & 0x3F));
+                using FileStream inputFileStream = File.OpenRead(pngFile);
+                Image image = manager.Read(inputFileStream, pngFile);
+
+                Assert.True(image.Width > 0, $"Expected positive width for '{pngFile}'.");
+                Assert.True(image.Height > 0, $"Expected positive height for '{pngFile}'.");
+                Assert.True(image.PixelData.Length > 0, $"Expected pixel data for '{pngFile}'.");
+            }
+            catch (Exception exception)
+            {
+                failures.Add($"{Path.GetFileName(pngFile)} :: {exception.GetType().Name}: {exception.Message}");
             }
         }
 
-        return new Image(width, height, ImageFormat.R8G8B8A8Unorm, pixels);
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 }

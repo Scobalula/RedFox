@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../RedFox.IO/RedFox.IO.csproj" />
+  </ItemGroup>
+
 </Project>

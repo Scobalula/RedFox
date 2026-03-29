@@ -4,7 +4,6 @@ applyTo: "**/*.cs"
 # C#/.NET 10 Copilot Instructions - These must be strictly followed when generating, editing, or reviewing C# code for this project. Adhere to these guidelines for consistency and maintainability.
 
 ## Formatting & Style
-- Keep line length under 150 characters; strictly do not split lines, prefer longer line counts if necessary
 - Use consistent indentation (spaces preferred) and always use braces, even for single-line blocks
 - Organize using directives alphabetically, grouping System namespaces first
 - Do not use default parameters

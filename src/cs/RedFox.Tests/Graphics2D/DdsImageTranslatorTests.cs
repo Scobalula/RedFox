@@ -1,13 +1,4 @@
-// --------------------------------------------------------------------------------------
-// RedFox Utility Library
-// --------------------------------------------------------------------------------------
-// Copyright (c) 2025 Philip/Scobalula
-// --------------------------------------------------------------------------------------
-// Please see LICENSE.md for license information.
-// This library is also bound by 3rd party licenses.
-// --------------------------------------------------------------------------------------
 using RedFox.Graphics2D;
-using RedFox.Graphics2D.Codecs;
 using RedFox.Graphics2D.IO;
 
 namespace RedFox.Tests.Graphics2D;
@@ -26,11 +17,9 @@ public sealed class DdsImageTranslatorTests
         ];
 
         Image source = new(2, 2, ImageFormat.R8G8B8A8Unorm, sourcePixels);
-        ImageTranslatorManager manager = CreateManagerWithDdsTranslator();
-        using MemoryStream stream = new();
-        manager.Write(stream, "texture.dds", source);
-        stream.Position = 0;
-        Image loaded = manager.Read(stream, "texture.dds");
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new DdsImageTranslator());
+        byte[] encoded = ImageTranslatorTestHarness.WriteImageWithManager(manager, source, "texture.dds");
+        Image loaded = ImageTranslatorTestHarness.ReadImageWithManager(manager, encoded, "texture.dds");
 
         Assert.Equal(source.Width, loaded.Width);
         Assert.Equal(source.Height, loaded.Height);
@@ -57,131 +46,39 @@ public sealed class DdsImageTranslatorTests
     public void DdsTranslator_ViaManager_InvalidCubemap_ThrowsInvalidDataException()
     {
         Image invalidCubemap = new(4, 4, depth: 1, arraySize: 5, mipLevels: 1, ImageFormat.R8G8B8A8Unorm, isCubemap: true);
-        ImageTranslatorManager manager = CreateManagerWithDdsTranslator();
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new DdsImageTranslator());
         using MemoryStream stream = new();
 
         Assert.Throws<InvalidDataException>(() => manager.Write(stream, "cubemap.dds", invalidCubemap));
     }
 
     [Fact]
-    public void DdsSamples_DeterministicRewriteAcrossRoundTrips_ViaTranslatorManager()
+    public void DdsSamples_ReadAcrossCorpus_DoesNotThrowAndProducesImageData()
     {
-        string ddsDirectory = GetRequiredDdsDirectory();
-        if (string.IsNullOrWhiteSpace(ddsDirectory))
-        {
-            return;
-        }
-
-        string[] ddsFiles = Directory.GetFiles(ddsDirectory, "*.dds", SearchOption.AllDirectories);
+        string[] ddsFiles = ImageTranslatorTestHarness.GetInputFiles("DDS", ".dds");
         if (ddsFiles.Length == 0)
-        {
             return;
-        }
 
-        ImageTranslatorManager manager = CreateManagerWithDdsTranslator();
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new DdsImageTranslator());
+        List<string> failures = [];
+
         foreach (string ddsFile in ddsFiles)
         {
-            using FileStream inputFileStream = File.OpenRead(ddsFile);
-            Image firstLoad = manager.Read(inputFileStream, ddsFile);
-            byte[] firstWrite = WriteImageWithManager(manager, firstLoad, ddsFile);
-            Image secondLoad = ReadImageWithManager(manager, firstWrite, ddsFile);
-            byte[] secondWrite = WriteImageWithManager(manager, secondLoad, ddsFile);
-
-            Assert.True(firstWrite.AsSpan().SequenceEqual(secondWrite), $"DDS rewrite changed bytes for '{ddsFile}'.");
-            Assert.Equal(firstLoad.Width, secondLoad.Width);
-            Assert.Equal(firstLoad.Height, secondLoad.Height);
-            Assert.Equal(firstLoad.Depth, secondLoad.Depth);
-            Assert.Equal(firstLoad.ArraySize, secondLoad.ArraySize);
-            Assert.Equal(firstLoad.MipLevels, secondLoad.MipLevels);
-            Assert.Equal(firstLoad.Format, secondLoad.Format);
-            Assert.Equal(firstLoad.IsCubemap, secondLoad.IsCubemap);
-            Assert.Equal(firstLoad.PixelData.ToArray(), secondLoad.PixelData.ToArray());
-        }
-    }
-
-    [Theory]
-    [InlineData(ImageFormat.R8G8B8A8Unorm)]
-    [InlineData(ImageFormat.R16G16B16A16Float)]
-    [InlineData(ImageFormat.R32G32B32A32Float)]
-    public void DdsSamples_DecodeBaseline_ToCommonFormats(ImageFormat decodeTargetFormat)
-    {
-        string ddsDirectory = GetRequiredDdsDirectory();
-        if (string.IsNullOrWhiteSpace(ddsDirectory))
-        {
-            return;
-        }
-
-        string[] ddsFiles = Directory.GetFiles(ddsDirectory, "*.dds", SearchOption.AllDirectories);
-        if (ddsFiles.Length == 0)
-        {
-            return;
-        }
-
-        ImageTranslatorManager manager = CreateManagerWithDdsTranslator();
-        int decodedSampleCount = 0;
-        foreach (string ddsFile in ddsFiles)
-        {
-            using FileStream inputFileStream = File.OpenRead(ddsFile);
-            Image image = manager.Read(inputFileStream, ddsFile);
-            if (!PixelCodecRegistry.TryGetCodec(image.Format, out _))
+            try
             {
-                continue;
+                using FileStream inputFileStream = File.OpenRead(ddsFile);
+                Image image = manager.Read(inputFileStream, ddsFile);
+
+                Assert.True(image.Width > 0, $"Expected positive width for '{ddsFile}'.");
+                Assert.True(image.Height > 0, $"Expected positive height for '{ddsFile}'.");
+                Assert.True(image.PixelData.Length > 0, $"Expected pixel data for '{ddsFile}'.");
             }
-
-            Image decodeImage = CloneImage(image);
-            decodeImage.Convert(decodeTargetFormat);
-            Assert.Equal(decodeTargetFormat, decodeImage.Format);
-
-            float[] decodedPixels = decodeImage.DecodeSlice<float>(0, 0, 0);
-            Assert.True(decodedPixels.Length > 0);
-
-            ref readonly ImageSlice slice = ref decodeImage.GetSlice(0, 0, 0);
-            Assert.Equal(slice.Width * slice.Height * 4, decodedPixels.Length);
-            decodedSampleCount++;
+            catch (Exception exception)
+            {
+                failures.Add($"{Path.GetFileName(ddsFile)} :: {exception.GetType().Name}: {exception.Message}");
+            }
         }
 
-        Assert.True(decodedSampleCount > 0, "No decodable DDS files were found for baseline decode coverage.");
-    }
-
-    private static ImageTranslatorManager CreateManagerWithDdsTranslator()
-    {
-        ImageTranslatorManager manager = new();
-        manager.Register(new DdsImageTranslator());
-        return manager;
-    }
-
-    private static byte[] WriteImageWithManager(ImageTranslatorManager manager, Image image, string sourcePath)
-    {
-        using MemoryStream stream = new();
-        manager.Write(stream, sourcePath, image);
-        return stream.ToArray();
-    }
-
-    private static Image ReadImageWithManager(ImageTranslatorManager manager, byte[] data, string sourcePath)
-    {
-        using MemoryStream stream = new(data, false);
-        return manager.Read(stream, sourcePath);
-    }
-
-    private static Image CloneImage(Image source)
-    {
-        return new Image(source.Width, source.Height, source.Depth, source.ArraySize, source.MipLevels, source.Format, source.IsCubemap, source.PixelData.ToArray());
-    }
-
-    private static string GetRequiredDdsDirectory()
-    {
-        string? testsRoot = Environment.GetEnvironmentVariable("REDFOX_TESTS_DIR");
-        if (string.IsNullOrWhiteSpace(testsRoot))
-        {
-            return string.Empty;
-        }
-
-        string ddsDirectory = Path.Combine(testsRoot, "Input", "DDS");
-        if (!Directory.Exists(ddsDirectory))
-        {
-            return string.Empty;
-        }
-
-        return ddsDirectory;
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 }

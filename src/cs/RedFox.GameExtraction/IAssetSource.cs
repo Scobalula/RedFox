@@ -1,26 +1,22 @@
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Represents a loaded asset source owned by a manager.
+/// Represents an opened game asset source: a file archive, VFS bundle, or memory-mapped region.
+/// Provides a flat enumeration of all contained <see cref="IAssetEntry"/> items.
 /// </summary>
-/// <remarks>
-/// A source can represent a file archive, an in-memory asset pool, a container,
-/// or any other backing store that contributes assets.
-/// </remarks>
 public interface IAssetSource : IDisposable
 {
-    /// <summary>
-    /// Gets the stable identifier for this source.
-    /// </summary>
-    Guid Id { get; }
+    /// <summary>Display name for this source (e.g., archive file name or process name).</summary>
+    string Name { get; }
+
+    /// <summary>All asset entries contained in this source.</summary>
+    IReadOnlyList<IAssetEntry> Entries { get; }
 
     /// <summary>
-    /// Gets the display name for this source.
+    /// Attempts to locate an entry by its full virtual path.
     /// </summary>
-    string DisplayName { get; }
-
-    /// <summary>
-    /// Gets the backing location for this source, if any.
-    /// </summary>
-    string? Location { get; }
+    /// <param name="path">The full virtual path to look up.</param>
+    /// <param name="entry">The matching entry, or <see langword="null"/> if not found.</param>
+    /// <returns><see langword="true"/> if a matching entry was found; otherwise <see langword="false"/>.</returns>
+    bool TryGetEntry(string path, out IAssetEntry? entry);
 }

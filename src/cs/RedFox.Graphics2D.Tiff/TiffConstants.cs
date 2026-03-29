@@ -32,6 +32,11 @@ namespace RedFox.Graphics2D.Tiff
         public const ushort TagCompression = 259;
 
         /// <summary>
+        /// Bit fill order for compressed data.
+        /// </summary>
+        public const ushort TagFillOrder = 266;
+
+        /// <summary>
         /// The color space of the image data.
         /// </summary>
         public const ushort TagPhotometric = 262;
@@ -72,9 +77,39 @@ namespace RedFox.Graphics2D.Tiff
         public const ushort TagResolutionUnit = 296;
 
         /// <summary>
+        /// Predictor used by certain compression schemes such as LZW and Deflate.
+        /// </summary>
+        public const ushort TagPredictor = 317;
+
+        /// <summary>
+        /// Tile width for tiled TIFF images.
+        /// </summary>
+        public const ushort TagTileWidth = 322;
+
+        /// <summary>
+        /// Tile length for tiled TIFF images.
+        /// </summary>
+        public const ushort TagTileLength = 323;
+
+        /// <summary>
+        /// Byte offsets for each tile.
+        /// </summary>
+        public const ushort TagTileOffsets = 324;
+
+        /// <summary>
+        /// Byte counts for each tile.
+        /// </summary>
+        public const ushort TagTileByteCounts = 325;
+
+        /// <summary>
         /// Describes the meaning of extra components (e.g., alpha channel).
         /// </summary>
         public const ushort TagExtraSamples = 338;
+
+        /// <summary>
+        /// Planar configuration for multi-sample TIFF images.
+        /// </summary>
+        public const ushort TagPlanarConfiguration = 284;
 
         // ──────────────────────────────────────────────
         // Compression Codes
@@ -89,6 +124,16 @@ namespace RedFox.Graphics2D.Tiff
         /// LZW (Lempel-Ziv-Welch) compression.
         /// </summary>
         public const ushort CompressionLZW = 5;
+
+        /// <summary>
+        /// Deflate/ZIP compression.
+        /// </summary>
+        public const ushort CompressionDeflate = 8;
+
+        /// <summary>
+        /// Legacy Adobe Deflate compression.
+        /// </summary>
+        public const ushort CompressionAdobeDeflate = 32946;
 
         /// <summary>
         /// PackBits run-length compression.

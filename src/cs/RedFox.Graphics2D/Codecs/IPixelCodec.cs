@@ -5,7 +5,7 @@ namespace RedFox.Graphics2D.Codecs
     /// <summary>
     /// Defines a codec capable of decoding and encoding pixel data for a specific <see cref="ImageFormat"/>.
     /// <see cref="Vector4"/> is used as the canonical per-pixel representation for HDR-safe conversion,
-    /// but the primary conversion path (<see cref="ConvertFrom"/>) avoids bulk intermediate allocations
+    /// but the primary conversion path (<see cref="ConvertFrom(ReadOnlySpan{byte}, IPixelCodec, Span{byte}, int, int)"/>) avoids bulk intermediate allocations
     /// by writing each pixel directly into the target byte layout.
     /// </summary>
     public interface IPixelCodec
@@ -23,25 +23,39 @@ namespace RedFox.Graphics2D.Codecs
 
         /// <summary>
         /// Decodes raw pixel/block data into <see cref="Vector4"/> pixels (RGBA, 0–1 for LDR, unbounded for HDR).
-        /// Use this when you explicitly need <see cref="Vector4"/> output (e.g. HDR processing).
-        /// For format-to-format conversion prefer <see cref="ConvertFrom"/>.
+        /// Use this when you explicitly need <see cref="Vector4"/> output (for example, HDR processing).
+        /// For format-to-format conversion prefer <see cref="ConvertFrom(ReadOnlySpan{byte}, IPixelCodec, Span{byte}, int, int)"/>.
         /// </summary>
+        /// <param name="source">The source pixel or block data in this codec's native format.</param>
+        /// <param name="destination">The destination span that receives decoded RGBA pixels.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
         void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height);
 
         /// <summary>
         /// Encodes <see cref="Vector4"/> pixels into the raw format.
         /// </summary>
+        /// <param name="source">The source RGBA pixels to encode.</param>
+        /// <param name="destination">The destination span that receives encoded bytes in this codec's native format.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
         void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height);
 
         /// <summary>
         /// Writes a single <see cref="Vector4"/> pixel into the destination buffer at the given pixel index.
         /// This is the per-pixel conversion hot path used by block decoders to avoid intermediate arrays.
         /// </summary>
+        /// <param name="pixel">The pixel value to write.</param>
+        /// <param name="destination">The destination buffer in this codec's native byte layout.</param>
+        /// <param name="pixelIndex">The zero-based pixel index to write.</param>
         void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex);
 
         /// <summary>
         /// Reads a single pixel from the source buffer at the given pixel index and returns it as <see cref="Vector4"/>.
         /// </summary>
+        /// <param name="source">The source buffer in this codec's native byte layout.</param>
+        /// <param name="pixelIndex">The zero-based pixel index to read.</param>
+        /// <returns>The decoded pixel value.</returns>
         Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex);
 
         /// <summary>
@@ -49,6 +63,11 @@ namespace RedFox.Graphics2D.Codecs
         /// For uncompressed formats this computes the flat index. For block-compressed formats
         /// this decodes the containing 4×4 block and returns the requested pixel.
         /// </summary>
+        /// <param name="source">The source buffer in this codec's native byte layout.</param>
+        /// <param name="x">The zero-based X coordinate of the pixel to read.</param>
+        /// <param name="y">The zero-based Y coordinate of the pixel to read.</param>
+        /// <param name="width">The full image width in pixels.</param>
+        /// <returns>The decoded pixel value.</returns>
         Vector4 ReadPixel(ReadOnlySpan<byte> source, int x, int y, int width)
         {
             return ReadPixel(source, y * width + x);
@@ -59,6 +78,9 @@ namespace RedFox.Graphics2D.Codecs
         /// The default loops per-pixel; uncompressed codecs may override with SIMD-accelerated paths.
         /// Used by <see cref="BCHelper"/> to write 4 pixels per block row efficiently.
         /// </summary>
+        /// <param name="pixels">The pixels to write.</param>
+        /// <param name="destination">The destination buffer in this codec's native byte layout.</param>
+        /// <param name="startPixelIndex">The zero-based destination pixel index for the first pixel.</param>
         void WritePixels(ReadOnlySpan<Vector4> pixels, Span<byte> destination, int startPixelIndex)
         {
             for (int i = 0; i < pixels.Length; i++)
@@ -70,6 +92,12 @@ namespace RedFox.Graphics2D.Codecs
         /// The default implementation uses <see cref="ReadPixel(ReadOnlySpan{byte}, int, int, int)"/> per pixel.
         /// Block-compressed codecs override this to decode block-rows efficiently.
         /// </summary>
+        /// <param name="source">The source pixel or block data in this codec's native format.</param>
+        /// <param name="destination">The destination span that receives decoded RGBA pixels for the requested rows.</param>
+        /// <param name="startRow">The first row to decode.</param>
+        /// <param name="rowCount">The number of rows to decode.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
         void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height)
         {
             for (int row = 0; row < rowCount; row++)
@@ -85,10 +113,15 @@ namespace RedFox.Graphics2D.Codecs
         /// <summary>
         /// Source-driven conversion: decodes pixels from this codec's format and writes them
         /// into the <paramref name="targetCodec"/>'s byte layout. The default implementation
-        /// uses per-pixel <see cref="ReadPixel"/>→<see cref="IPixelCodec.WritePixel"/>.
+        /// uses per-pixel <see cref="ReadPixel(ReadOnlySpan{byte}, int)"/> to <see cref="WritePixel(Vector4, Span{byte}, int)"/> conversion.
         /// Block-compressed codecs override this to iterate blocks with only a stackalloc
         /// <see cref="Vector4"/> buffer per block (16 pixels), achieving zero heap allocation.
         /// </summary>
+        /// <param name="source">The source pixel or block data in this codec's native format.</param>
+        /// <param name="targetCodec">The codec describing the destination byte layout.</param>
+        /// <param name="destination">The destination buffer that receives encoded bytes in <paramref name="targetCodec"/>'s format.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
         void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height)
         {
             int pixelCount = width * height;
@@ -99,10 +132,15 @@ namespace RedFox.Graphics2D.Codecs
 
         /// <summary>
         /// Converts raw pixel data from a source format directly into this codec's format.
-        /// The default delegates to the source codec's <see cref="DecodeTo"/> which handles
+        /// The default delegates to the source codec's <see cref="DecodeTo(ReadOnlySpan{byte}, IPixelCodec, Span{byte}, int, int)"/> which handles
         /// both uncompressed (per-pixel) and block-compressed (per-block) sources efficiently.
         /// Codecs may override this for fast byte-to-byte paths (memcopy, swizzle, etc.).
         /// </summary>
+        /// <param name="source">The source pixel or block data in <paramref name="sourceCodec"/>'s native format.</param>
+        /// <param name="sourceCodec">The codec describing the source byte layout.</param>
+        /// <param name="destination">The destination buffer in this codec's native format.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
         void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
         {
             sourceCodec.DecodeTo(source, this, destination, width, height);
