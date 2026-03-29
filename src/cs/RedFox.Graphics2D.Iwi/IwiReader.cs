@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace RedFox.Graphics2D.Iwi
+﻿namespace RedFox.Graphics2D.Iwi
 {
-    publix
-        class IwiReader
+    /// <summary>
+    /// Placeholder entry point for future IWI decoding support.
+    /// </summary>
+    public sealed class IwiReader
     {
     }
 }

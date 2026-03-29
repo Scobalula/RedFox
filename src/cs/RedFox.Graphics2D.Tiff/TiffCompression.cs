@@ -16,6 +16,11 @@ namespace RedFox.Graphics2D.Tiff
         LZW = 5,
 
         /// <summary>
+        /// Deflate/ZIP compression.
+        /// </summary>
+        Deflate = 8,
+
+        /// <summary>
         /// PackBits byte-oriented run-length encoding.
         /// </summary>
         PackBits = 32773

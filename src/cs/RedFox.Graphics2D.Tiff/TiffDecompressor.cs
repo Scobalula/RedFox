@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.IO.Compression;
 using static RedFox.Graphics2D.Tiff.TiffConstants;
 
 namespace RedFox.Graphics2D.Tiff
@@ -7,7 +8,7 @@ namespace RedFox.Graphics2D.Tiff
     /// Provides decompression methods for TIFF compression schemes:
     /// LZW (Lempel-Ziv-Welch, MSB-first) and PackBits (byte-oriented RLE).
     /// </summary>
-    public static class TiffDecompressor
+    public static partial class TiffDecompressor
     {
         /// <summary>
         /// Decompresses PackBits (byte-oriented run-length encoding) data.
@@ -50,132 +51,19 @@ namespace RedFox.Graphics2D.Tiff
         }
 
         /// <summary>
-        /// Helper type that encapsulates LZW bitstream reading and string-table operations.
-        /// The decoder holds references to the working arrays used by the algorithm and
-        /// exposes methods to read codes and reconstruct strings into an public buffer.
+        /// Decompresses TIFF Deflate/ZIP data.
+        /// Supports both zlib-wrapped and raw deflate streams.
         /// </summary>
-        private ref struct LzwDecoder
+        /// <param name="src">The compressed input data.</param>
+        /// <param name="expectedSize">The expected uncompressed output size in bytes.</param>
+        /// <returns>A byte array containing the decompressed data.</returns>
+        public static byte[] DecompressDeflate(ReadOnlySpan<byte> src, int expectedSize)
         {
-            private readonly ReadOnlySpan<byte> _src;
-            private int _bytePos;
-            private uint _bitBuffer;
-            private int _bitsInBuffer;
-            private readonly int _totalBytes;
-            private readonly int[] _prefixes;
-            private readonly byte[] _suffixes;
-            private readonly int[] _lengths;
-            private readonly byte[] _decodeBuffer;
+            bool usesZlibWrapper = UsesZlibWrapper(src);
+            if (TryDecompressDeflate(src, expectedSize, usesZlibWrapper, out byte[]? output) && output is not null)
+                return output;
 
-            /// <summary>
-            /// Gets or sets the next available string-table code index.
-            /// </summary>
-            public int NextCode { get; set; }
-
-            /// <summary>
-            /// Gets or sets the current code bit width.
-            /// </summary>
-            public int CodeSize { get; set; }
-
-            /// <summary>
-            /// Exposes the public decode buffer as a span for efficient copying.
-            /// </summary>
-            public Span<byte> DecodeBufferSpan => _decodeBuffer;
-
-            /// <summary>
-            /// Initializes a new decoder instance bound to the provided input span and working arrays.
-            /// </summary>
-            /// <param name="src">Compressed input span.</param>
-            /// <param name="prefixes">String-table prefix array (shared).</param>
-            /// <param name="suffixes">String-table suffix array (shared).</param>
-            /// <param name="lengths">String-table lengths array (shared).</param>
-            /// <param name="decodeBuffer">Temporary buffer used to reconstruct strings.</param>
-            public LzwDecoder(ReadOnlySpan<byte> src, int[] prefixes, byte[] suffixes, int[] lengths, byte[] decodeBuffer)
-            {
-                _src = src;
-                _bytePos = 0;
-                _bitBuffer = 0;
-                _bitsInBuffer = 0;
-                _totalBytes = src.Length;
-                _prefixes = prefixes;
-                _suffixes = suffixes;
-                _lengths = lengths;
-                _decodeBuffer = decodeBuffer;
-                NextCode = LzwFirstCode;
-                CodeSize = LzwInitialCodeSize;
-            }
-
-            /// <summary>
-            /// Resets the string table to the initial state containing single-byte entries 0..255
-            /// and sets the next code and code-size to their initial values.
-            /// </summary>
-            public void ResetTable()
-            {
-                for (int i = 0; i < 256; i++)
-                {
-                    _prefixes[i] = -1;
-                    _suffixes[i] = (byte)i;
-                    _lengths[i] = 1;
-                }
-                NextCode = LzwFirstCode;
-                CodeSize = LzwInitialCodeSize;
-            }
-
-            /// <summary>
-            /// Reads the next code from the bitstream using MSB-first (big-endian) packing.
-            /// Returns <c>LzwEoiCode</c> if there are insufficient bits remaining.
-            /// </summary>
-            /// <returns>The next code value or <c>LzwEoiCode</c> when the stream ends.</returns>
-            public int ReadCode()
-            {
-                // Calculate remaining bits available in the stream (including bits in buffer).
-                int remainingBits = (_totalBytes - _bytePos) * 8 + _bitsInBuffer;
-                if (remainingBits < CodeSize)
-                    return LzwEoiCode;
-
-                // Ensure we have at least CodeSize bits in the buffer.
-                while (_bitsInBuffer < CodeSize)
-                {
-                    _bitBuffer = (_bitBuffer << 8) | _src[_bytePos++];
-                    _bitsInBuffer += 8;
-                }
-
-                int shift = _bitsInBuffer - CodeSize;
-                uint mask = (uint)((1 << CodeSize) - 1);
-                int code = (int)((_bitBuffer >> shift) & mask);
-
-                // Remove the consumed bits from the buffer, keeping the lower bits.
-                _bitsInBuffer -= CodeSize;
-                if (_bitsInBuffer == 0)
-                {
-                    _bitBuffer = 0;
-                }
-                else
-                {
-                    _bitBuffer &= (uint)((1 << _bitsInBuffer) - 1);
-                }
-
-                return code;
-            }
-
-            /// <summary>
-            /// Reconstructs the byte sequence represented by <paramref name="code"/> into
-            /// the public decode buffer and returns its length.
-            /// </summary>
-            /// <param name="code">The string-table code to decode.</param>
-            /// <returns>The length of the reconstructed string.</returns>
-            public int DecodeString(int code)
-            {
-                int len = _lengths[code];
-                int pos = len - 1;
-                int c = code;
-                while (c >= LzwFirstCode)
-                {
-                    _decodeBuffer[pos--] = _suffixes[c];
-                    c = _prefixes[c];
-                }
-                _decodeBuffer[pos] = _suffixes[c];
-                return len;
-            }
+            throw new InvalidDataException("Unable to decompress TIFF Deflate data.");
         }
 
         /// <summary>
@@ -188,117 +76,144 @@ namespace RedFox.Graphics2D.Tiff
         /// <returns>A newly allocated byte array containing the decompressed data.</returns>
         public static byte[] DecompressLZW(ReadOnlySpan<byte> src, int expectedSize)
         {
-            return DecompressLZWCore(src, expectedSize);
+            if (TryDecompressLZWCore(src, expectedSize, leastSignificantBitFirst: false, codeSizeThresholdOffset: -1, out byte[]? standardOutput) && standardOutput is not null)
+                return standardOutput;
+
+            if (TryDecompressLZWCore(src, expectedSize, leastSignificantBitFirst: true, codeSizeThresholdOffset: 0, out byte[]? legacyOutput) && legacyOutput is not null)
+                return legacyOutput;
+
+            throw new InvalidDataException("Unable to decompress TIFF LZW data.");
         }
 
         /// <summary>
-        /// Core LZW decompression operating on a <see cref="ReadOnlySpan{Byte}"/>.
-        /// The method implements the decode loop, maintains the string table and handles Clear/EOI codes.
+        /// Attempts TIFF LZW decompression using the specified bit-order and code-size strategy.
         /// </summary>
         /// <param name="src">The compressed input span.</param>
         /// <param name="expectedSize">The expected size of the decompressed output.</param>
-        /// <returns>A newly allocated byte array containing the decompressed data.</returns>
-        private static byte[] DecompressLZWCore(ReadOnlySpan<byte> src, int expectedSize)
+        /// <param name="leastSignificantBitFirst"><see langword="true"/> to interpret codes as LSB-first; otherwise MSB-first.</param>
+        /// <param name="codeSizeThresholdOffset">The offset applied when advancing to the next code width.</param>
+        /// <param name="output">Receives the decompressed bytes when decoding succeeds.</param>
+        /// <returns><see langword="true"/> when decoding succeeded; otherwise <see langword="false"/>.</returns>
+        public static bool TryDecompressLZWCore(ReadOnlySpan<byte> src, int expectedSize, bool leastSignificantBitFirst, int codeSizeThresholdOffset, out byte[]? output)
         {
-            var output = new byte[expectedSize];
+            byte[] decodedOutput = new byte[expectedSize];
             int dstPos = 0;
 
             // String table: each entry stores (prefix index, suffix byte, total length).
             // Rent working arrays from the shared ArrayPool to reduce GC pressure for
             // repeated decompression operations.
-            var prefixes = ArrayPool<int>.Shared.Rent(LzwMaxTableSize);
-            var suffixes = ArrayPool<byte>.Shared.Rent(LzwMaxTableSize);
-            var lengths = ArrayPool<int>.Shared.Rent(LzwMaxTableSize);
-            var decodeBuffer = ArrayPool<byte>.Shared.Rent(LzwMaxTableSize);
+            int[] prefixes = ArrayPool<int>.Shared.Rent(LzwMaxTableSize);
+            byte[] suffixes = ArrayPool<byte>.Shared.Rent(LzwMaxTableSize);
+            int[] lengths = ArrayPool<int>.Shared.Rent(LzwMaxTableSize);
+            byte[] decodeBuffer = ArrayPool<byte>.Shared.Rent(LzwMaxTableSize + 1);
 
             try
             {
-                // Use a helper decoder instance to encapsulate bit-reading and
-                // string-table operations. This avoids repeated parameter passing
-                // and keeps the hot decode loop compact.
-                var decoder = new LzwDecoder(src, prefixes, suffixes, lengths, decodeBuffer);
+                LzwDecoder decoder = new(src, prefixes, suffixes, lengths, decodeBuffer, LzwFirstCode, leastSignificantBitFirst);
 
                 decoder.ResetTable();
 
-            // First code must be ClearCode per TIFF spec.
-            int prevCode = decoder.ReadCode();
-            if (prevCode == LzwClearCode)
-            {
-                decoder.ResetTable();
-                prevCode = decoder.ReadCode();
-            }
+                int prevCode = -1;
 
-            if (prevCode == LzwEoiCode)
-                return output;
-
-            // Output the first code.
-            {
-                int len = decoder.DecodeString(prevCode);
-                decoder.DecodeBufferSpan.Slice(0, len).CopyTo(output.AsSpan(dstPos));
-                dstPos += len;
-            }
-
-            while (dstPos < expectedSize)
-            {
-                int code = decoder.ReadCode();
-
-                if (code == LzwEoiCode)
-                    break;
-
-                if (code == LzwClearCode)
+                while (dstPos < expectedSize)
                 {
-                    decoder.ResetTable();
-                    prevCode = decoder.ReadCode();
-                    if (prevCode == LzwEoiCode)
+                    if (!decoder.TryReadCode(out int code) || code == LzwEoiCode)
                         break;
-                    int len = decoder.DecodeString(prevCode);
-                    int toCopy = Math.Min(len, expectedSize - dstPos);
-                    decoder.DecodeBufferSpan.Slice(0, toCopy).CopyTo(output.AsSpan(dstPos));
-                    dstPos += toCopy;
-                    continue;
+
+                    if (code == LzwClearCode)
+                    {
+                        decoder.ResetTable();
+                        prevCode = -1;
+                        continue;
+                    }
+
+                    if ((uint)code >= LzwMaxTableSize)
+                        throw new InvalidDataException($"Invalid TIFF LZW code: {code}.");
+
+                    if (prevCode < 0)
+                    {
+                        if (!decoder.TryDecodeString(code, out int len))
+                        {
+                            output = null;
+                            return false;
+                        }
+
+                        int toCopy = Math.Min(len, expectedSize - dstPos);
+                        decoder.DecodeBufferSpan.Slice(0, toCopy).CopyTo(decodedOutput.AsSpan(dstPos));
+                        dstPos += toCopy;
+                        prevCode = code;
+                        continue;
+                    }
+
+                    byte firstByte;
+                    int decodedLength;
+
+                    if (code < decoder.NextCode)
+                    {
+                        if (!decoder.TryDecodeString(code, out decodedLength))
+                        {
+                            output = null;
+                            return false;
+                        }
+
+                        firstByte = decoder.DecodeBufferSpan[0];
+                    }
+                    else if (code == decoder.NextCode)
+                    {
+                        if (!decoder.TryDecodeString(prevCode, out decodedLength))
+                        {
+                            output = null;
+                            return false;
+                        }
+
+                        if ((uint)decodedLength >= (uint)decoder.DecodeBufferSpan.Length)
+                        {
+                            output = null;
+                            return false;
+                        }
+
+                        firstByte = decoder.DecodeBufferSpan[0];
+                        decoder.DecodeBufferSpan[decodedLength] = firstByte;
+                        decodedLength++;
+                    }
+                    else
+                    {
+                        output = null;
+                        return false;
+                    }
+
+                    int bytesToCopy = Math.Min(decodedLength, expectedSize - dstPos);
+                    decoder.DecodeBufferSpan.Slice(0, bytesToCopy).CopyTo(decodedOutput.AsSpan(dstPos));
+                    dstPos += bytesToCopy;
+
+                    if (decoder.NextCode < LzwMaxTableSize)
+                    {
+                        int previousLength = lengths[prevCode];
+                        if (previousLength <= 0 || previousLength >= decodeBuffer.Length)
+                        {
+                            output = null;
+                            return false;
+                        }
+
+                        prefixes[decoder.NextCode] = prevCode;
+                        suffixes[decoder.NextCode] = firstByte;
+                        lengths[decoder.NextCode] = previousLength + 1;
+                        decoder.NextCode++;
+
+                        AdjustCodeSize(ref decoder, codeSizeThresholdOffset);
+                    }
+
+                    prevCode = code;
                 }
 
-                byte firstByte;
-
-                if (code < decoder.NextCode)
+                if (dstPos != expectedSize)
                 {
-                    // Code already exists in the string table.
-                    int len = decoder.DecodeString(code);
-                    firstByte = decoder.DecodeBufferSpan[0];
-                    int toCopy = Math.Min(len, expectedSize - dstPos);
-                    decoder.DecodeBufferSpan.Slice(0, toCopy).CopyTo(output.AsSpan(dstPos));
-                    dstPos += toCopy;
-                }
-                else
-                {
-                    // KwKwK special case: code not yet in the table.
-                    int len = decoder.DecodeString(prevCode);
-                    firstByte = decoder.DecodeBufferSpan[0];
-                    decoder.DecodeBufferSpan[len] = firstByte;
-                    len++;
-                    int toCopy = Math.Min(len, expectedSize - dstPos);
-                    decoder.DecodeBufferSpan.Slice(0, toCopy).CopyTo(output.AsSpan(dstPos));
-                    dstPos += toCopy;
+                    output = null;
+                    return false;
                 }
 
-                // Add new entry to the string table.
-                if (decoder.NextCode < LzwMaxTableSize)
-                {
-                    prefixes[decoder.NextCode] = prevCode;
-                    suffixes[decoder.NextCode] = firstByte;
-                    lengths[decoder.NextCode] = lengths[prevCode] + 1;
-                    decoder.NextCode++;
-
-                    // TIFF 6.0 early code-size increase: bump when the next code
-                    // to be assigned would require more bits than the current size.
-                    if (decoder.NextCode >= (1 << decoder.CodeSize) && decoder.CodeSize < LzwMaxCodeSize)
-                        decoder.CodeSize++;
-                }
-
-                prevCode = code;
-            }
-
-                return output;
+                output = decodedOutput;
+                return true;
             }
             finally
             {
@@ -306,6 +221,91 @@ namespace RedFox.Graphics2D.Tiff
                 ArrayPool<byte>.Shared.Return(suffixes);
                 ArrayPool<int>.Shared.Return(lengths);
                 ArrayPool<byte>.Shared.Return(decodeBuffer);
+            }
+        }
+
+        /// <summary>
+        /// Adjusts the active LZW code size when the decoder reaches the next threshold.
+        /// </summary>
+        /// <param name="decoder">The decoder whose active code width may be increased.</param>
+        /// <param name="codeSizeThresholdOffset">The offset applied to the next-code threshold.</param>
+        public static void AdjustCodeSize(ref LzwDecoder decoder, int codeSizeThresholdOffset)
+        {
+            if (decoder.CodeSize >= LzwMaxCodeSize)
+                return;
+
+            int threshold = (1 << decoder.CodeSize) + codeSizeThresholdOffset;
+            if (decoder.NextCode >= threshold)
+                decoder.CodeSize++;
+        }
+
+        /// <summary>
+        /// Determines whether a Deflate-compressed TIFF payload appears to use a zlib wrapper.
+        /// </summary>
+        /// <param name="src">The compressed TIFF Deflate payload to inspect.</param>
+        /// <returns><see langword="true"/> when the payload appears to have a zlib wrapper; otherwise <see langword="false"/>.</returns>
+        public static bool UsesZlibWrapper(ReadOnlySpan<byte> src)
+        {
+            if (src.Length < 2)
+                return false;
+
+            int cmf = src[0];
+            int flg = src[1];
+
+            if ((cmf & 0x0F) != 8)
+                return false;
+
+            if ((cmf >> 4) > 7)
+                return false;
+
+            return ((cmf << 8) + flg) % 31 == 0;
+        }
+
+        /// <summary>
+        /// Attempts to decompress TIFF Deflate data using either zlib-wrapped or raw Deflate input.
+        /// </summary>
+        /// <param name="src">The compressed TIFF Deflate payload.</param>
+        /// <param name="expectedSize">The expected uncompressed size in bytes.</param>
+        /// <param name="usesZlibWrapper"><see langword="true"/> to decode using a zlib wrapper; otherwise raw Deflate.</param>
+        /// <param name="result">Receives the decompressed bytes when decoding succeeds.</param>
+        /// <returns><see langword="true"/> when decompression succeeded; otherwise <see langword="false"/>.</returns>
+        public static bool TryDecompressDeflate(
+            ReadOnlySpan<byte> src,
+            int expectedSize,
+            bool usesZlibWrapper,
+            out byte[]? result)
+        {
+            try
+            {
+                using MemoryStream input = new(src.ToArray(), writable: false);
+                using Stream inflater = usesZlibWrapper
+                    ? new ZLibStream(input, CompressionMode.Decompress)
+                    : new DeflateStream(input, CompressionMode.Decompress);
+                byte[] output = new byte[expectedSize];
+                int totalRead = 0;
+
+                while (totalRead < expectedSize)
+                {
+                    int bytesRead = inflater.Read(output, totalRead, expectedSize - totalRead);
+                    if (bytesRead == 0)
+                        break;
+
+                    totalRead += bytesRead;
+                }
+
+                if (totalRead != expectedSize)
+                {
+                    result = null;
+                    return false;
+                }
+
+                result = output;
+                return true;
+            }
+            catch (InvalidDataException)
+            {
+                result = null;
+                return false;
             }
         }
     }

@@ -1,32 +1,28 @@
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Represents one loaded source and the assets it contributed.
+/// Represents a successfully opened and enumerated asset source, tracking its origin
+/// and providing convenient access to its entries.
 /// </summary>
-public class LoadedSource
+public sealed class LoadedSource
 {
-    /// <summary>
-    /// Gets the identifier of the underlying source managed by the game source.
-    /// </summary>
-    public required Guid SourceId { get; init; }
+    /// <summary>The opened asset source.</summary>
+    public required IAssetSource Source { get; init; }
 
     /// <summary>
-    /// Gets the display name shown in the UI.
+    /// The file path from which this source was opened, or an empty string for
+    /// memory-based sources.
     /// </summary>
-    public required string DisplayName { get; init; }
+    public string Location { get; init; } = string.Empty;
 
     /// <summary>
-    /// Gets the backing location for this source, if any.
+    /// Display name: the file name portion of <see cref="Location"/> for file sources,
+    /// or <see cref="IAssetSource.Name"/> for memory sources.
     /// </summary>
-    public string? Location { get; init; }
+    public string DisplayName => string.IsNullOrEmpty(Location)
+        ? Source.Name
+        : Path.GetFileName(Location);
 
-    /// <summary>
-    /// Gets the number of assets loaded from this source.
-    /// </summary>
-    public int AssetCount { get; init; }
-
-    /// <summary>
-    /// Gets the assets contributed by this source.
-    /// </summary>
-    public required IReadOnlyList<IAssetEntry> Assets { get; init; }
+    /// <summary>All asset entries provided by this source.</summary>
+    public IReadOnlyList<IAssetEntry> Assets => Source.Entries;
 }

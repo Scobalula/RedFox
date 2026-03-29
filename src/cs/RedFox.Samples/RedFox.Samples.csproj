@@ -7,6 +7,13 @@
     <ProjectReference Include="..\RedFox.Compression.ZStandard\RedFox.Compression.ZStandard.csproj" />
     <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Bmp\RedFox.Graphics2D.Bmp.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Jpeg\RedFox.Graphics2D.Jpeg.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Png\RedFox.Graphics2D.Png.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Tga\RedFox.Graphics2D.Tga.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
   </ItemGroup>

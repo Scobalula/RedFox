@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.IO.Compression;
 using static RedFox.Graphics2D.Tiff.TiffConstants;
 
 namespace RedFox.Graphics2D.Tiff
@@ -164,8 +165,8 @@ namespace RedFox.Graphics2D.Tiff
                         // w + k is new — emit code for w.
                         writer.Write(w, codeSize);
 
-                        // Check for code size increase (early change per TIFF 6.0).
-                        if (nextCode >= (1 << codeSize) && codeSize < LzwMaxCodeSize)
+                        // TIFF LZW uses the historical Aldus off-by-one code-size transition.
+                        if (nextCode >= ((1 << codeSize) - 1) && codeSize < LzwMaxCodeSize)
                             codeSize++;
 
                         // Reset when table is full.
@@ -198,19 +199,77 @@ namespace RedFox.Graphics2D.Tiff
         }
 
         /// <summary>
-        /// Helper that writes MSB-first variable-width codes into a byte buffer using
-        /// an public bit-accumulator. Designed as a ref struct for stack-only use.
+        /// Compresses data using Deflate/ZIP compression.
         /// </summary>
-        private ref struct BitWriter(byte[] buffer)
+        /// <param name="src">The uncompressed input data.</param>
+        /// <returns>A byte array containing the Deflate-compressed data.</returns>
+        public static byte[] CompressDeflate(ReadOnlySpan<byte> src)
         {
-            private byte[] _buffer = buffer;
+            using MemoryStream output = new();
+            using (ZLibStream compressor = new(output, CompressionLevel.Optimal, leaveOpen: true))
+            {
+                compressor.Write(src);
+            }
+
+            return output.ToArray();
+        }
+
+        /// <summary>
+        /// Writes MSB-first variable-width codes into a byte buffer.
+        /// </summary>
+        public ref struct BitWriter
+        {
+            private byte[] _buffer;
             private int _bytePos = 0;
             private ulong _bitBuffer = 0ul;
             private int _bitsInBuffer = 0;
 
             /// <summary>
+            /// Gets the destination buffer that receives written bytes.
+            /// </summary>
+            public byte[] Buffer => _buffer;
+
+            /// <summary>
+            /// Gets or sets the current byte position in <see cref="Buffer"/>.
+            /// </summary>
+            public int BytePosition
+            {
+                get => _bytePos;
+                set => _bytePos = value;
+            }
+
+            /// <summary>
+            /// Gets or sets the current bit accumulator contents.
+            /// </summary>
+            public ulong BitBuffer
+            {
+                get => _bitBuffer;
+                set => _bitBuffer = value;
+            }
+
+            /// <summary>
+            /// Gets or sets the number of valid bits currently stored in <see cref="BitBuffer"/>.
+            /// </summary>
+            public int BitsInBuffer
+            {
+                get => _bitsInBuffer;
+                set => _bitsInBuffer = value;
+            }
+
+            /// <summary>
+            /// Initializes a bit writer over the specified destination buffer.
+            /// </summary>
+            /// <param name="buffer">The destination buffer that receives encoded bytes.</param>
+            public BitWriter(byte[] buffer)
+            {
+                _buffer = buffer;
+            }
+
+            /// <summary>
             /// Writes the <paramref name="code"/> using <paramref name="codeSize"/> bits (MSB-first).
             /// </summary>
+            /// <param name="code">The code value to write.</param>
+            /// <param name="codeSize">The number of bits from <paramref name="code"/> to write.</param>
             public void Write(int code, int codeSize)
             {
                 // Append bits to the buffer: shift existing bits left and OR-in the new code.
@@ -240,6 +299,7 @@ namespace RedFox.Graphics2D.Tiff
             /// <summary>
             /// Flushes any remaining partial byte and returns the total number of bytes written.
             /// </summary>
+            /// <returns>The total number of bytes written into <see cref="Buffer"/>.</returns>
             public int Flush()
             {
                 if (_bitsInBuffer > 0)

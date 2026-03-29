@@ -56,11 +56,37 @@ namespace RedFox.Graphics2D.IO
         }
 
         /// <summary>
+        /// Writes an image to the specified file path using the provided translation options.
+        /// </summary>
+        /// <param name="filePath">The destination file path.</param>
+        /// <param name="image">The image to write.</param>
+        /// <param name="options">Per-call translation hints such as quality, compression preference, and bit depth.</param>
+        public virtual void Write(string filePath, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            Write(stream, image, options);
+        }
+
+        /// <summary>
         /// Writes an image to a stream.
         /// </summary>
         /// <param name="stream">The destination stream.</param>
         /// <param name="image">The image to write.</param>
         public abstract void Write(Stream stream, Image image);
+
+        /// <summary>
+        /// Writes an image to a stream using the provided translation options.
+        /// </summary>
+        /// <param name="stream">The destination stream.</param>
+        /// <param name="image">The image to write.</param>
+        /// <param name="options">Per-call translation hints such as quality, compression preference, and bit depth.</param>
+        public virtual void Write(Stream stream, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            Write(stream, image);
+        }
 
         /// <summary>
         /// Determines whether this translator can handle the given file based on extension.

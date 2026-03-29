@@ -48,6 +48,7 @@ namespace RedFox.Graphics2D.Codecs
             return blockPixels[(y % 4) * 4 + (x % 4)];
         }
 
+        /// <inheritdoc/>
         public void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height)
         {
             bool signed = IsSigned;

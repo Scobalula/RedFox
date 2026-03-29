@@ -9,6 +9,11 @@ namespace RedFox.Graphics2D.Exr
     /// </summary>
     public sealed class ExrImageTranslator : ImageTranslator
     {
+        /// <summary>
+        /// Gets or sets the default encoder options used when writing EXR files.
+        /// </summary>
+        public ExrWriteOptions EncoderOptions { get; set; } = new();
+
         /// <inheritdoc/>
         public override string Name => "EXR";
 
@@ -27,7 +32,14 @@ namespace RedFox.Graphics2D.Exr
         /// <inheritdoc/>
         public override void Write(Stream stream, Image image)
         {
-            ExrWriter.Save(stream, image);
+            WriteCore(stream, image, EncoderOptions);
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            WriteCore(stream, image, ResolveEncoderOptions(options));
         }
 
         /// <inheritdoc/>
@@ -37,6 +49,42 @@ namespace RedFox.Graphics2D.Exr
                 return false;
 
             return BinaryPrimitives.ReadUInt32LittleEndian(header) == ExrFileLayout.Magic;
+        }
+
+        private ExrWriteOptions ResolveEncoderOptions(ImageTranslatorOptions options)
+        {
+            return new ExrWriteOptions
+            {
+                Compression = ResolveCompression(EncoderOptions.Compression, options.Compression),
+                PixelType = ResolvePixelType(EncoderOptions.PixelType, options.BitsPerChannel),
+            };
+        }
+
+        private static ExrWriteCompression ResolveCompression(ExrWriteCompression defaultCompression, ImageCompressionPreference compressionPreference)
+        {
+            return compressionPreference switch
+            {
+                ImageCompressionPreference.None => ExrWriteCompression.None,
+                ImageCompressionPreference.Fast => ExrWriteCompression.Rle,
+                ImageCompressionPreference.Balanced => ExrWriteCompression.Zip,
+                ImageCompressionPreference.SmallestSize => ExrWriteCompression.Pxr24,
+                _ => defaultCompression,
+            };
+        }
+
+        private static ExrWritePixelType ResolvePixelType(ExrWritePixelType defaultPixelType, int? bitsPerChannel)
+        {
+            return bitsPerChannel switch
+            {
+                16 => ExrWritePixelType.Half,
+                32 => ExrWritePixelType.Float,
+                _ => defaultPixelType,
+            };
+        }
+
+        private static void WriteCore(Stream stream, Image image, ExrWriteOptions encoderOptions)
+        {
+            ExrWriter.Save(stream, image, encoderOptions);
         }
     }
 }

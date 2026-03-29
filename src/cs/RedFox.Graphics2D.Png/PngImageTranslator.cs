@@ -111,6 +111,21 @@ namespace RedFox.Graphics2D.Png
         /// <inheritdoc/>
         public override void Write(Stream stream, Image image)
         {
+            WriteCore(stream, image, fastPathCompressionLevel: CompressionLevel.Fastest, adaptiveCompressionLevel: CompressionLevel.Optimal);
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            CompressionLevel compressionLevel = ResolveCompressionLevel(options.Compression, CompressionLevel.Optimal);
+            CompressionLevel fastPathCompressionLevel = ResolveCompressionLevel(options.Compression, CompressionLevel.Fastest);
+            WriteCore(stream, image, fastPathCompressionLevel, compressionLevel);
+        }
+
+        private static void WriteCore(Stream stream, Image image, CompressionLevel fastPathCompressionLevel, CompressionLevel adaptiveCompressionLevel)
+        {
             ref readonly var slice = ref image.GetSlice(0, 0, 0);
             int width = slice.Width;
             int height = slice.Height;
@@ -127,7 +142,7 @@ namespace RedFox.Graphics2D.Png
                 if (ImageFormatInfo.IsSrgb(image.Format))
                 PngChunkWriter.WriteSRGB(stream, renderingIntent: 0);
 
-                PngChunkWriter.WriteCompressedIdatFilterNoneRgba(stream, rgba, width, height, CompressionLevel.Fastest);
+                PngChunkWriter.WriteCompressedIdatFilterNoneRgba(stream, rgba, width, height, fastPathCompressionLevel);
                 PngChunkWriter.WriteChunk(stream, "IEND", []);
                 return;
             }
@@ -155,7 +170,7 @@ namespace RedFox.Graphics2D.Png
 
             var scanlineData = PngEncoderHelper.BuildScanlineData(rgba, width, height, selection);
             var filtered = PngScanlineProcessor.ApplyAdaptiveFiltering(scanlineData, width, height, selection.ColorType, selection.BitDepth);
-            PngChunkWriter.WriteCompressedIdat(stream, filtered, CompressionLevel.Optimal);
+            PngChunkWriter.WriteCompressedIdat(stream, filtered, adaptiveCompressionLevel);
             PngChunkWriter.WriteChunk(stream, "IEND", []);
         }
 
@@ -166,6 +181,18 @@ namespace RedFox.Graphics2D.Png
                 return false;
 
             return header.Length >= PngConstants.PngSignature.Length && header[..PngConstants.PngSignature.Length].SequenceEqual(PngConstants.PngSignature);
+        }
+
+        private static CompressionLevel ResolveCompressionLevel(ImageCompressionPreference compressionPreference, CompressionLevel defaultLevel)
+        {
+            return compressionPreference switch
+            {
+                ImageCompressionPreference.None => CompressionLevel.NoCompression,
+                ImageCompressionPreference.Fast => CompressionLevel.Fastest,
+                ImageCompressionPreference.Balanced => CompressionLevel.Optimal,
+                ImageCompressionPreference.SmallestSize => CompressionLevel.SmallestSize,
+                _ => defaultLevel,
+            };
         }
     }
 }

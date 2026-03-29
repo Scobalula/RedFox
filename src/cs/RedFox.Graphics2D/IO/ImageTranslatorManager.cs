@@ -141,6 +141,24 @@ namespace RedFox.Graphics2D.IO
         }
 
         /// <summary>
+        /// Writes an image to a file using the specified per-call translation options.
+        /// </summary>
+        /// <param name="filePath">The destination file path.</param>
+        /// <param name="image">The image to write.</param>
+        /// <param name="options">Per-call translation hints such as quality, compression preference, and bit depth.</param>
+        public void Write(string filePath, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            string extension = Path.GetExtension(filePath);
+
+            if (!TryGetTranslator(filePath, extension, out var translator))
+                throw new NotSupportedException($"No suitable image translator found for file: {filePath}");
+
+            translator.Write(filePath, image, options);
+        }
+
+        /// <summary>
         /// Writes an image to a stream, using the file path for extension-based translator selection.
         /// </summary>
         /// <param name="stream">The destination stream.</param>
@@ -154,6 +172,25 @@ namespace RedFox.Graphics2D.IO
                 throw new NotSupportedException($"No suitable image translator found for file: {filePath}");
 
             translator.Write(stream, image);
+        }
+
+        /// <summary>
+        /// Writes an image to a stream using the specified per-call translation options.
+        /// </summary>
+        /// <param name="stream">The destination stream.</param>
+        /// <param name="filePath">The file path (used for extension matching).</param>
+        /// <param name="image">The image to write.</param>
+        /// <param name="options">Per-call translation hints such as quality, compression preference, and bit depth.</param>
+        public void Write(Stream stream, string filePath, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            string extension = Path.GetExtension(filePath);
+
+            if (!TryGetTranslator(filePath, extension, out var translator))
+                throw new NotSupportedException($"No suitable image translator found for file: {filePath}");
+
+            translator.Write(stream, image, options);
         }
     }
 }

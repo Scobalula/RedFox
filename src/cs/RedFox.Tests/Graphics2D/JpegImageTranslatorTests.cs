@@ -1,29 +1,25 @@
 using RedFox.Graphics2D;
+using RedFox.Graphics2D.IO;
 using RedFox.Graphics2D.Jpeg;
 
 namespace RedFox.Tests.Graphics2D;
 
 public sealed class JpegImageTranslatorTests
 {
-    [Fact]
-    public void JpegTranslator_RoundTripSolidImage_PreservesPixels()
+    [Theory]
+    [InlineData(100, ImageCompressionPreference.None)]
+    [InlineData(100, ImageCompressionPreference.SmallestSize)]
+    public void JpegTranslator_RoundTripSolidImage_PreservesPixels(int quality, ImageCompressionPreference compressionPreference)
     {
-        byte[] sourcePixels = CreateSolidRgbaPixels(16, 16, 128, 128, 128, 255);
-        Image source = new(16, 16, ImageFormat.R8G8B8A8Unorm, sourcePixels);
-        JpegImageTranslator translator = new()
+        Image source = ImageTranslatorTestHarness.CreateSolidRgbaImage(16, 16, 128, 128, 128, 255);
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new JpegImageTranslator());
+        ImageTranslatorOptions options = new()
         {
-            EncoderOptions = new JpegEncoderOptions
-            {
-                Quality = 100,
-                Subsampling = JpegChromaSubsampling.Yuv444,
-            },
+            Quality = quality,
+            Compression = compressionPreference,
         };
-
-        using MemoryStream stream = new();
-        translator.Write(stream, source);
-        stream.Position = 0;
-
-        Image decoded = translator.Read(stream);
+        byte[] encoded = ImageTranslatorTestHarness.WriteImageWithManager(manager, source, "solid.jpg", options);
+        Image decoded = ImageTranslatorTestHarness.ReadImageWithManager(manager, encoded, "solid.jpg");
 
         Assert.Equal(source.Width, decoded.Width);
         Assert.Equal(source.Height, decoded.Height);
@@ -31,17 +27,34 @@ public sealed class JpegImageTranslatorTests
         Assert.Equal(source.PixelData.ToArray(), decoded.PixelData.ToArray());
     }
 
-    private static byte[] CreateSolidRgbaPixels(int width, int height, byte r, byte g, byte b, byte a)
+    [Fact]
+    public void JpegSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        byte[] pixels = new byte[width * height * 4];
-        for (int offset = 0; offset < pixels.Length; offset += 4)
+        string[] jpegFiles = ImageTranslatorTestHarness.GetInputFiles("Jpeg", ".jpg", ".jpeg", ".jpe", ".jfif");
+        if (jpegFiles.Length == 0)
+            return;
+
+        ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new JpegImageTranslator());
+        List<string> failures = [];
+
+        foreach (string jpegFile in jpegFiles)
         {
-            pixels[offset] = r;
-            pixels[offset + 1] = g;
-            pixels[offset + 2] = b;
-            pixels[offset + 3] = a;
+            try
+            {
+                using FileStream inputFileStream = File.OpenRead(jpegFile);
+                Image image = manager.Read(inputFileStream, jpegFile);
+
+                Assert.True(image.Width > 0, $"Expected positive width for '{jpegFile}'.");
+                Assert.True(image.Height > 0, $"Expected positive height for '{jpegFile}'.");
+                Assert.Equal(ImageFormat.R8G8B8A8Unorm, image.Format);
+                Assert.Equal(image.Width * image.Height * 4, image.PixelData.Length);
+            }
+            catch (Exception exception)
+            {
+                failures.Add($"{Path.GetFileName(jpegFile)} :: {exception.GetType().Name}: {exception.Message}");
+            }
         }
 
-        return pixels;
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
     }
 }

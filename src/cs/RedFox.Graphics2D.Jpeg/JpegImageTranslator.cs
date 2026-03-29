@@ -36,8 +36,14 @@ namespace RedFox.Graphics2D.Jpeg
         /// <inheritdoc/>
         public override void Write(Stream stream, Image image)
         {
-            var encoder = new JpegEncoder(stream, EncoderOptions);
-            encoder.Encode(image);
+            WriteCore(stream, image, EncoderOptions);
+        }
+
+        /// <inheritdoc/>
+        public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+            WriteCore(stream, image, ResolveEncoderOptions(options));
         }
 
         /// <inheritdoc/>
@@ -55,6 +61,44 @@ namespace RedFox.Graphics2D.Jpeg
                 && header[0] == 0xFF
                 && header[1] == 0xD8
                 && header[2] == 0xFF;
+        }
+
+        private JpegEncoderOptions ResolveEncoderOptions(ImageTranslatorOptions options)
+        {
+            return new JpegEncoderOptions
+            {
+                Quality = options.Quality ?? EncoderOptions.Quality,
+                Subsampling = ResolveSubsampling(EncoderOptions.Subsampling, options.Compression),
+                OptimizeHuffmanTables = ResolveOptimizeHuffmanTables(EncoderOptions.OptimizeHuffmanTables, options.Compression),
+            };
+        }
+
+        private static JpegChromaSubsampling ResolveSubsampling(JpegChromaSubsampling defaultSubsampling, ImageCompressionPreference compressionPreference)
+        {
+            return compressionPreference switch
+            {
+                ImageCompressionPreference.None => JpegChromaSubsampling.Yuv444,
+                ImageCompressionPreference.Fast => JpegChromaSubsampling.Yuv420,
+                ImageCompressionPreference.Balanced => JpegChromaSubsampling.Yuv422,
+                ImageCompressionPreference.SmallestSize => JpegChromaSubsampling.Yuv420,
+                _ => defaultSubsampling,
+            };
+        }
+
+        private static bool ResolveOptimizeHuffmanTables(bool defaultOptimizeHuffmanTables, ImageCompressionPreference compressionPreference)
+        {
+            return compressionPreference switch
+            {
+                ImageCompressionPreference.Fast => false,
+                ImageCompressionPreference.SmallestSize => true,
+                _ => defaultOptimizeHuffmanTables,
+            };
+        }
+
+        private static void WriteCore(Stream stream, Image image, JpegEncoderOptions encoderOptions)
+        {
+            JpegEncoder encoder = new(stream, encoderOptions);
+            encoder.Encode(image);
         }
 
         /// <summary>
