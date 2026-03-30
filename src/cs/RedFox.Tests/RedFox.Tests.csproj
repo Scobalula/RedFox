@@ -44,6 +44,9 @@
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.WavefrontObj\RedFox.Graphics3D.WavefrontObj.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Smd\RedFox.Graphics3D.Smd.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Gltf\RedFox.Graphics3D.Gltf.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Md5\RedFox.Graphics3D.Md5.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Bvh\RedFox.Graphics3D.Bvh.csproj" />
   </ItemGroup>
 
 </Project>
