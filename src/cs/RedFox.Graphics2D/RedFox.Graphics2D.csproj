@@ -7,4 +7,10 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.Graphics2D.Primitives\RedFox.Graphics2D.Primitives.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Codecs\RedFox.Graphics2D.Codecs.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.BC\RedFox.Graphics2D.BC.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -10,7 +10,7 @@ namespace RedFox.Graphics2D.Codecs
         private const float Inv255 = 1.0f / 255.0f;
 
         /// <inheritdoc/>
-        public ImageFormat Format { get; } = format;
+        public ImageFormat Format { get; } = ValidateFormat(format);
 
         /// <inheritdoc/>
         public int BytesPerPixel => 4;
@@ -72,6 +72,16 @@ namespace RedFox.Graphics2D.Codecs
         public void WritePixels(ReadOnlySpan<Vector4> pixels, Span<byte> destination, int startPixelIndex)
         {
             PixelSimd.EncodeToBgra8(pixels, destination[(startPixelIndex * 4)..], pixels.Length);
+        }
+
+        private static ImageFormat ValidateFormat(ImageFormat format)
+        {
+            return format switch
+            {
+                ImageFormat.B8G8R8A8Unorm => format,
+                ImageFormat.B8G8R8A8UnormSrgb => format,
+                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "B8G8R8A8Codec supports only B8G8R8A8Unorm and B8G8R8A8UnormSrgb."),
+            };
         }
     }
 }

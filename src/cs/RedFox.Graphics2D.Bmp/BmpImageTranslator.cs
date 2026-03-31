@@ -156,6 +156,11 @@ namespace RedFox.Graphics2D.Bmp
         /// <inheritdoc/>
         public override void Write(Stream stream, Image image)
         {
+            WriteCore(stream, image);
+        }
+
+        private static void WriteCore(Stream stream, Image image)
+        {
             ref readonly var slice = ref image.GetSlice(0, 0, 0);
             int width = slice.Width;
             int height = slice.Height;
@@ -231,7 +236,7 @@ namespace RedFox.Graphics2D.Bmp
             }
 
             // General path: per-pixel decode via codec
-            if (!PixelCodecRegistry.Default.TryGetCodec(format, out var codec) || codec is null)
+            if (!PixelCodec.TryGetCodec(format, out var codec) || codec is null)
                 throw new NotSupportedException($"BMP writing is not supported for format {format}.");
 
             WriteBmpRowsDecoded(stream, slice, width, height, rowStride, bpp, codec);

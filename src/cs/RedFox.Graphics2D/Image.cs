@@ -227,9 +227,9 @@ namespace RedFox.Graphics2D
         }
 
         /// <summary>
-        /// Converts this image in-place to the specified target format.
+        /// Converts this image in-place to the specified target format using the built-in codec resolver.
         /// Uses direct byte-to-byte conversion when possible, falling back to <see cref="Vector4"/>
-        /// intermediate only when needed.
+        /// intermediates only when needed.
         /// </summary>
         /// <param name="targetFormat">The target format.</param>
         public void Convert(ImageFormat targetFormat)
@@ -240,17 +240,17 @@ namespace RedFox.Graphics2D
             if (ImageFormatInfo.IsBlockCompressed(targetFormat))
                 throw new ArgumentException("Target format must not be block-compressed.", nameof(targetFormat));
 
-            var sourceCodec = PixelCodecRegistry.Default.GetCodec(Format);
-            var targetCodec = PixelCodecRegistry.Default.GetCodec(targetFormat);
+            IPixelCodec sourceCodec = PixelCodec.GetCodec(Format);
+            IPixelCodec targetCodec = PixelCodec.GetCodec(targetFormat);
 
-            var totalSize = CalculateTotalSize(Width, Height, Depth, ArraySize, MipLevels, targetFormat);
-            var newPixels = new byte[totalSize];
-            var newSlices = BuildSlices(Width, Height, Depth, ArraySize, MipLevels, targetFormat, newPixels);
+            int totalSize = CalculateTotalSize(Width, Height, Depth, ArraySize, MipLevels, targetFormat);
+            byte[] newPixels = new byte[totalSize];
+            ImageSlice[] newSlices = BuildSlices(Width, Height, Depth, ArraySize, MipLevels, targetFormat, newPixels);
 
             for (int i = 0; i < _slices.Length; i++)
             {
-                ref readonly var srcSlice = ref _slices[i];
-                ref readonly var dstSlice = ref newSlices[i];
+                ref readonly ImageSlice srcSlice = ref _slices[i];
+                ref readonly ImageSlice dstSlice = ref newSlices[i];
 
                 targetCodec.ConvertFrom(srcSlice.PixelSpan, sourceCodec, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
             }
@@ -273,7 +273,7 @@ namespace RedFox.Graphics2D
         }
 
         /// <summary>
-        /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values.
+        /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values using the built-in codec resolver.
         /// </summary>
         /// <param name="mipLevel">The mip level (0 is the largest).</param>
         /// <param name="arrayIndex">The array element index.</param>
@@ -281,9 +281,9 @@ namespace RedFox.Graphics2D
         /// <returns>An array containing one decoded <see cref="Vector4"/> per pixel.</returns>
         public Vector4[] DecodeSlice(int mipLevel, int arrayIndex, int depthSlice)
         {
-            ref readonly var slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
-            var codec = PixelCodecRegistry.Default.GetCodec(Format);
-            var result = new Vector4[slice.Width * slice.Height];
+            ref readonly ImageSlice slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
+            IPixelCodec codec = PixelCodec.GetCodec(Format);
+            Vector4[] result = new Vector4[slice.Width * slice.Height];
             codec.Decode(slice.PixelSpan, result, slice.Width, slice.Height);
             return result;
         }
@@ -319,7 +319,7 @@ namespace RedFox.Graphics2D
         }
 
         /// <summary>
-        /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/>.
+        /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/> using the built-in codec resolver.
         /// Each pixel produces 4 component values (RGBA).
         /// </summary>
         /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
@@ -329,13 +329,13 @@ namespace RedFox.Graphics2D
         /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
         public T[] DecodeSlice<T>(int mipLevel, int arrayIndex, int depthSlice) where T : INumber<T>
         {
-            var vec4Data = DecodeSlice(mipLevel, arrayIndex, depthSlice);
-            var result = new T[vec4Data.Length * 4];
+            Vector4[] vec4Data = DecodeSlice(mipLevel, arrayIndex, depthSlice);
+            T[] result = new T[vec4Data.Length * 4];
 
             for (int i = 0; i < vec4Data.Length; i++)
             {
-                ref var v = ref vec4Data[i];
-                var offset = i * 4;
+                ref Vector4 v = ref vec4Data[i];
+                int offset = i * 4;
                 result[offset + 0] = T.CreateSaturating(v.X);
                 result[offset + 1] = T.CreateSaturating(v.Y);
                 result[offset + 2] = T.CreateSaturating(v.Z);

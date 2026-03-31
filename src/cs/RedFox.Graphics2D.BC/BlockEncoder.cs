@@ -8,5 +8,5 @@ namespace RedFox.Graphics2D.BC
     /// </summary>
     /// <param name="pixels">The 16 source RGBA pixels.</param>
     /// <param name="block">The destination span receiving the compressed block data.</param>
-    public delegate void BlockEncoder(ReadOnlySpan<Vector4> pixels, Span<byte> block);
+    internal delegate void BlockEncoder(ReadOnlySpan<Vector4> pixels, Span<byte> block);
 }

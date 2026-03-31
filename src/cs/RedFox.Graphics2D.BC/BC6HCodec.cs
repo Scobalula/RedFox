@@ -38,10 +38,16 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Initializes a new instance of the <see cref="BC6HCodec"/> class for the specified format variant.
         /// </summary>
-        /// <param name="format">The image format (BC6HUF16 for unsigned or BC6HSF16 for signed).</param>
+        /// <param name="format">The image format (BC6HTypeless, BC6HUF16, or BC6HSF16).</param>
         public BC6HCodec(ImageFormat format)
         {
-            Format = format;
+            Format = format switch
+            {
+                ImageFormat.BC6HTypeless => format,
+                ImageFormat.BC6HUF16 => format,
+                ImageFormat.BC6HSF16 => format,
+                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC6HCodec supports only BC6HTypeless, BC6HUF16, and BC6HSF16."),
+            };
         }
 
         /// <inheritdoc/>
@@ -563,31 +569,30 @@ namespace RedFox.Graphics2D.BC
             // Try 1-subset modes and pick the lowest error.
             Span<byte> bestBlock = stackalloc byte[16];
             float bestError = float.MaxValue;
-
-            // Mode 11: 11-bit base, 9-bit delta, transformed, 4-bit indices.
             Span<byte> candidate = stackalloc byte[16];
-            float error = TryEncodeMode11(rHalf, gHalf, bHalf, candidate, signed);
-            if (error < bestError)
-            {
-                bestError = error;
-                candidate.CopyTo(bestBlock);
-            }
 
-            // Mode 12: 12-bit base, 8-bit delta, transformed, 4-bit indices.
-            candidate.Clear();
-            error = TryEncodeMode12(rHalf, gHalf, bHalf, candidate, signed);
-            if (error < bestError)
-            {
-                bestError = error;
-                candidate.CopyTo(bestBlock);
-            }
+            // Mode 10 is the most stable option for the current encoder and avoids
+            // transformed-endpoint wraparound on unsigned HDR gradients.
+            float error = TryEncodeMode10(rHalf, gHalf, bHalf, candidate, signed);
+            bestError = error;
+            candidate.CopyTo(bestBlock);
 
-            // Mode 10: 10-bit base, non-transformed, 4-bit indices.
-            candidate.Clear();
-            error = TryEncodeMode10(rHalf, gHalf, bHalf, candidate, signed);
-            if (error < bestError)
+            if (signed)
             {
-                candidate.CopyTo(bestBlock);
+                // The transformed 1-subset modes are still worthwhile for signed HDR data,
+                // where negative ranges benefit from the higher endpoint precision.
+                candidate.Clear();
+                error = TryEncodeMode11(rHalf, gHalf, bHalf, candidate, signed);
+                if (error < bestError)
+                {
+                    bestError = error;
+                    candidate.CopyTo(bestBlock);
+                }
+
+                candidate.Clear();
+                error = TryEncodeMode12(rHalf, gHalf, bHalf, candidate, signed);
+                if (error < bestError)
+                    candidate.CopyTo(bestBlock);
             }
 
             bestBlock.CopyTo(block);
@@ -642,47 +647,38 @@ namespace RedFox.Graphics2D.BC
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int HalfToQuantized(ushort h, int epBits, bool signed)
         {
-            // Get the half as a 16-bit integer representation for quantization.
-            // For signed: interpret as signed 16-bit.
-            // For unsigned: use the raw half bits and scale appropriately.
+            return Quantize(ExpandToInterpolationDomain(h, signed), epBits, signed);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ExpandToInterpolationDomain(ushort halfValue, bool signed)
+        {
             if (signed)
             {
-                int signBit = (h >> 15) & 1;
-                int mantissa = h & 0x7FFF;
-                int val = signBit != 0 ? -mantissa : mantissa;
-                return Quantize(val, epBits, true);
+                int magnitude = halfValue & 0x7FFF;
+                int expandedMagnitude = (magnitude * 32 + 15) / 31;
+                return (halfValue & 0x8000) != 0
+                    ? -expandedMagnitude
+                    : expandedMagnitude;
             }
-            return Quantize(h & 0x7FFF, epBits, false);
+
+            return (halfValue * 64 + 15) / 31;
         }
 
         private static void FindMinMaxEndpoints(ReadOnlySpan<ushort> channel, bool signed, out int minVal, out int maxVal)
         {
-            if (signed)
+            int lo = int.MaxValue;
+            int hi = int.MinValue;
+
+            for (int i = 0; i < channel.Length; i++)
             {
-                int lo = int.MaxValue, hi = int.MinValue;
-                for (int i = 0; i < channel.Length; i++)
-                {
-                    int signBit = (channel[i] >> 15) & 1;
-                    int m = channel[i] & 0x7FFF;
-                    int v = signBit != 0 ? -m : m;
-                    if (v < lo) lo = v;
-                    if (v > hi) hi = v;
-                }
-                minVal = lo;
-                maxVal = hi;
+                int value = ExpandToInterpolationDomain(channel[i], signed);
+                if (value < lo) lo = value;
+                if (value > hi) hi = value;
             }
-            else
-            {
-                int lo = int.MaxValue, hi = int.MinValue;
-                for (int i = 0; i < channel.Length; i++)
-                {
-                    int v = channel[i] & 0x7FFF;
-                    if (v < lo) lo = v;
-                    if (v > hi) hi = v;
-                }
-                minVal = lo;
-                maxVal = hi;
-            }
+
+            minVal = lo;
+            maxVal = hi;
         }
 
         private static float MeasureBlockError(
@@ -800,7 +796,6 @@ namespace RedFox.Graphics2D.BC
             if (indices[0] >= (1 << 3))
             {
                 (rBase, rE1) = (rE1, rBase);
-                (gBase, gE1) = (gBase, gE1); // Intentional: swap all
                 (gBase, gE1) = (gE1, gBase);
                 (bBase, bE1) = (bE1, bBase);
                 for (int i = 0; i < 16; i++)

@@ -9,7 +9,7 @@ namespace RedFox.Graphics2D.BC
     /// All BC formats operate on 4×4 pixel blocks; this class centralizes the block walk,
     /// boundary clamping, and pixel scatter/gather operations.
     /// </summary>
-    public static class BlockProcessor
+    internal static class BlockProcessor
     {
         /// <summary>
         /// Iterates over 4×4 blocks in the image, invoking <paramref name="decoder"/> for each block

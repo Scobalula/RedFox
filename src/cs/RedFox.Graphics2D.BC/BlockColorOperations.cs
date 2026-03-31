@@ -7,7 +7,7 @@ namespace RedFox.Graphics2D.BC
     /// Provides color packing, unpacking, interpolation, and palette operations
     /// used by the BC1–BC5 block-compressed codec families.
     /// </summary>
-    public static class BlockColorOperations
+    internal static class BlockColorOperations
     {
         /// <summary>
         /// Decodes a 5:6:5 RGB565 packed color into a <see cref="Vector4"/> with alpha set to 1.

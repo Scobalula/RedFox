@@ -309,7 +309,7 @@ namespace RedFox.Graphics2D.Tiff
                 return output;
             }
 
-            if (!PixelCodecRegistry.Default.TryGetCodec(format, out IPixelCodec? codec) || codec is null)
+            if (!PixelCodec.TryGetCodec(format, out IPixelCodec? codec) || codec is null)
                 throw new NotSupportedException($"TIFF writing is not supported for format {format}.");
 
             ExtractViaCodec(codec, source, output, width, height, rowBytes, channels, includeAlpha);

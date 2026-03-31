@@ -15,7 +15,7 @@ namespace RedFox.Graphics2D.BC
     /// <param name="SharedPBits">1 if each subset pair shares a P-bit, 0 otherwise.</param>
     /// <param name="IndexBits">Bit width for primary interpolation indices.</param>
     /// <param name="SecondaryIndexBits">Bit width for secondary indices (0 if single index set).</param>
-    public readonly record struct BC7ModeDescriptor(
+    internal readonly record struct BC7ModeDescriptor(
         int NumSubsets,
         int PartitionBits,
         int RotationBits,

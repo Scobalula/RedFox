@@ -14,7 +14,7 @@ namespace RedFox.Graphics2D.Tga
         /// Writes an <see cref="Image"/> to the given stream in uncompressed TGA format.
         /// Chooses the most efficient write path based on the source pixel format:
         /// BGRA sources write with zero swizzle, RGBA sources perform an inline
-        /// R/B swap, and all other formats are decoded through the codec registry.
+        /// R/B swap, and all other formats are decoded through <see cref="PixelCodec"/>.
         /// </summary>
         /// <param name="stream">The destination stream.</param>
         /// <param name="image">The image to write.</param>
@@ -80,7 +80,7 @@ namespace RedFox.Graphics2D.Tga
         }
 
         /// <summary>
-        /// General fallback: decodes pixels through the codec registry in 4-row strips
+        /// General fallback: decodes pixels through <see cref="PixelCodec"/> in 4-row strips
         /// to match block-compressed block height, then writes BGRA to the stream.
         /// </summary>
         /// <param name="stream">The destination stream.</param>
@@ -90,7 +90,7 @@ namespace RedFox.Graphics2D.Tga
         /// <param name="format">The pixel format to decode from.</param>
         public static void WriteDecoded(Stream stream, in ImageSlice slice, int width, int height, ImageFormat format)
         {
-            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(format);
+            IPixelCodec codec = PixelCodec.GetCodec(format);
             WriteHeaderToStream(stream, width, height, hasAlpha: true);
 
             const int StripHeight = 4;

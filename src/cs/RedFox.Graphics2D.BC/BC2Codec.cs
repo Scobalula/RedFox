@@ -19,7 +19,13 @@ namespace RedFox.Graphics2D.BC
         /// <param name="format">The image format this codec instance handles.</param>
         public BC2Codec(ImageFormat format)
         {
-            Format = format;
+            Format = format switch
+            {
+                ImageFormat.BC2Typeless => format,
+                ImageFormat.BC2Unorm => format,
+                ImageFormat.BC2UnormSrgb => format,
+                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC2Codec supports only BC2Typeless, BC2Unorm, and BC2UnormSrgb."),
+            };
         }
 
         /// <inheritdoc/>
