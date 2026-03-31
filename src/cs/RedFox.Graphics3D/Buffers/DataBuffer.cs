@@ -28,6 +28,11 @@ namespace RedFox.Graphics3D.Buffers
         public abstract bool IsReadOnly { get; }
 
         /// <summary>
+        /// Gets the total number of scalar components stored in the buffer.
+        /// </summary>
+        public int TotalComponentCount => ElementCount * ValueCount * ComponentCount;
+
+        /// <summary>
         /// Gets the specified component value from a buffer based on the provided indices.
         /// </summary>
         /// <typeparam name="T">The type of the value to retrieve, which must implement the INumber<T> interface.</typeparam>
@@ -100,7 +105,7 @@ namespace RedFox.Graphics3D.Buffers
         public Vector2 GetVector2(int elementIndex, int valueIndex)
         {
             if (ComponentCount < 2)
-                throw new InvalidOperationException($"Cannot retrieve a Vector4 from a buffer with only {ComponentCount} components per value.");
+                throw new InvalidOperationException($"Cannot retrieve a Vector2 from a buffer with only {ComponentCount} components per value.");
 
             Span<float> buffer = stackalloc float[2];
             Get(elementIndex, valueIndex, buffer);
