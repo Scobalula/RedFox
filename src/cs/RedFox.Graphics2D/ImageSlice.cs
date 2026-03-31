@@ -58,11 +58,11 @@ namespace RedFox.Graphics2D
 
         /// <summary>
         /// Reads a single pixel at the given (x, y) coordinate and returns it as <see cref="Vector4"/>.
-        /// Works for all formats including block-compressed.
+        /// Works for all built-in formats, including block-compressed formats, by using the built-in codec resolver.
         /// </summary>
         public Vector4 GetPixel(int x, int y)
         {
-            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(Format);
+            IPixelCodec codec = PixelCodec.GetCodec(Format);
             return codec.ReadPixel(PixelSpan, x, y, Width);
         }
     }

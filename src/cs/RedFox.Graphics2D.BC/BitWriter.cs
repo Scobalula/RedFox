@@ -6,7 +6,7 @@ namespace RedFox.Graphics2D.BC
     /// Lightweight sequential bit writer for block-compressed format encoding.
     /// Writes bits LSB-first into a byte span, maintaining a running position.
     /// </summary>
-    public ref struct BitWriter
+    internal ref struct BitWriter
     {
         private readonly Span<byte> _data;
         private int _position;

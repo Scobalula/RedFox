@@ -12,7 +12,7 @@ namespace RedFox.Graphics2D.Tga
     /// <para><b>Writing:</b> Outputs uncompressed true-color TGA files.
     /// Writes 32-bit BGRA when the source has non-opaque alpha, or 24-bit BGR otherwise.
     /// Fast paths exist for BGRA and RGBA source formats; all other formats are decoded
-    /// through the <see cref="RedFox.Graphics2D.Codecs.PixelCodecRegistry"/>.</para>
+    /// through <see cref="PixelCodec"/>.</para>
     /// </remarks>
     public sealed class TgaImageTranslator : ImageTranslator
     {

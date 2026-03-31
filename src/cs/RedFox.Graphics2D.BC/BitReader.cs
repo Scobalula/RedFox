@@ -6,7 +6,7 @@ namespace RedFox.Graphics2D.BC
     /// Lightweight sequential bit reader for block-compressed format decoding.
     /// Reads bits LSB-first from a byte span, maintaining a running position.
     /// </summary>
-    public ref struct BitReader
+    internal ref struct BitReader
     {
         private readonly ReadOnlySpan<byte> _data;
         private int _position;

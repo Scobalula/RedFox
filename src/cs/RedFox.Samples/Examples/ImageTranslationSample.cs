@@ -4,6 +4,7 @@ using RedFox.Graphics2D.Bmp;
 using RedFox.Graphics2D.Exr;
 using RedFox.Graphics2D.IO;
 using RedFox.Graphics2D.Jpeg;
+using RedFox.Graphics2D.Ktx;
 using RedFox.Graphics2D.Png;
 using RedFox.Graphics2D.Tga;
 using RedFox.Graphics2D.Tiff;
@@ -43,6 +44,7 @@ internal sealed class ImageTranslationSample : ISample
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern-balanced.tiff"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.Balanced });
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern-smallest.tiff"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.SmallestSize });
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern.bmp"), new ImageTranslatorOptions());
+        WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern.ktx"), new ImageTranslatorOptions());
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern.tga"), new ImageTranslatorOptions());
         WriteVariant(manager, highDynamicRangeImage, Path.Combine(outputDirectory, "pattern-half.exr"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.Balanced, BitsPerChannel = 16 });
         WriteVariant(manager, highDynamicRangeImage, Path.Combine(outputDirectory, "pattern-float.exr"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.SmallestSize, BitsPerChannel = 32 });
@@ -57,6 +59,7 @@ internal sealed class ImageTranslationSample : ISample
         manager.Register(new BmpImageTranslator());
         manager.Register(new ExrImageTranslator());
         manager.Register(new JpegImageTranslator());
+        manager.Register(new KtxImageTranslator());
         manager.Register(new PngImageTranslator());
         manager.Register(new TgaImageTranslator());
         manager.Register(new TiffImageTranslator());

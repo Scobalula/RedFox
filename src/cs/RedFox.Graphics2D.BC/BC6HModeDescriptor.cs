@@ -11,7 +11,7 @@ namespace RedFox.Graphics2D.BC
     /// <param name="DeltaBitsG">Bit width for the green channel delta values.</param>
     /// <param name="DeltaBitsB">Bit width for the blue channel delta values.</param>
     /// <param name="IndexBits">Number of bits per interpolation index (3 or 4).</param>
-    public readonly record struct BC6HModeDescriptor(
+    internal readonly record struct BC6HModeDescriptor(
         int NumSubsets,
         bool Transformed,
         int EndpointBits,

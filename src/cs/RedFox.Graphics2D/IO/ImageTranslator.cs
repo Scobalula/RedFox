@@ -1,8 +1,7 @@
 namespace RedFox.Graphics2D.IO
 {
     /// <summary>
-    /// Provides an abstract base class for image translators, defining the contract
-    /// for reading and writing <see cref="Image"/> data to and from various file formats.
+    /// Provides the base contract for reading and writing <see cref="Image"/> data in a file format.
     /// </summary>
     public abstract class ImageTranslator
     {
@@ -12,17 +11,17 @@ namespace RedFox.Graphics2D.IO
         public abstract string Name { get; }
 
         /// <summary>
-        /// Gets whether this translator supports reading (loading) images.
+        /// Gets whether this translator supports reading images.
         /// </summary>
         public abstract bool CanRead { get; }
 
         /// <summary>
-        /// Gets whether this translator supports writing (saving) images.
+        /// Gets whether this translator supports writing images.
         /// </summary>
         public abstract bool CanWrite { get; }
 
         /// <summary>
-        /// Gets the file extensions this translator handles (e.g. ".dds", ".tga").
+        /// Gets the file extensions this translator handles.
         /// </summary>
         public abstract IReadOnlyList<string> Extensions { get; }
 
@@ -92,8 +91,8 @@ namespace RedFox.Graphics2D.IO
         /// Determines whether this translator can handle the given file based on extension.
         /// </summary>
         /// <param name="filePath">The file path.</param>
-        /// <param name="extension">The file extension (including the leading dot).</param>
-        /// <returns><c>true</c> if this translator supports the extension.</returns>
+        /// <param name="extension">The file extension, including the leading dot.</param>
+        /// <returns><see langword="true"/> when this translator supports the extension; otherwise <see langword="false"/>.</returns>
         public virtual bool IsValid(string filePath, string extension) =>
             Extensions.Contains(extension);
 
@@ -102,8 +101,8 @@ namespace RedFox.Graphics2D.IO
         /// </summary>
         /// <param name="header">The first bytes of the file for magic number validation.</param>
         /// <param name="filePath">The file path.</param>
-        /// <param name="extension">The file extension (including the leading dot).</param>
-        /// <returns><c>true</c> if this translator supports the file.</returns>
+        /// <param name="extension">The file extension, including the leading dot.</param>
+        /// <returns><see langword="true"/> when this translator supports the file; otherwise <see langword="false"/>.</returns>
         public virtual bool IsValid(ReadOnlySpan<byte> header, string filePath, string extension) =>
             IsValid(filePath, extension);
     }

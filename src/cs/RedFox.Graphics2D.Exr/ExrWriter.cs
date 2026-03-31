@@ -38,9 +38,7 @@ namespace RedFox.Graphics2D.Exr
         /// <param name="filePath">The destination file path.</param>
         /// <param name="image">The source image to export.</param>
         public static void Save(string filePath, Image image)
-        {
-            Save(filePath, image, null);
-        }
+            => Save(filePath, image, null);
 
         /// <summary>
         /// Writes an image to an EXR file at the specified path with the given options.
@@ -62,9 +60,7 @@ namespace RedFox.Graphics2D.Exr
         /// <param name="stream">The destination stream.</param>
         /// <param name="image">The source image to export.</param>
         public static void Save(Stream stream, Image image)
-        {
-            Save(stream, image, null);
-        }
+            => Save(stream, image, null);
 
         /// <summary>
         /// Writes an image to an EXR stream with the given options.
@@ -134,7 +130,7 @@ namespace RedFox.Graphics2D.Exr
         /// </summary>
         private static Vector4[] DecodePixels(ImageSlice slice, ImageFormat format)
         {
-            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(format);
+            IPixelCodec codec = PixelCodec.GetCodec(format);
             var pixels = new Vector4[checked(slice.Width * slice.Height)];
             codec.Decode(slice.PixelSpan, pixels, slice.Width, slice.Height);
             return pixels;

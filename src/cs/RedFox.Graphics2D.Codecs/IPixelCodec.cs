@@ -76,7 +76,7 @@ namespace RedFox.Graphics2D.Codecs
         /// <summary>
         /// Batch-writes contiguous <see cref="Vector4"/> pixels into the destination buffer.
         /// The default loops per-pixel; uncompressed codecs may override with SIMD-accelerated paths.
-        /// Used by <see cref="BCHelper"/> to write 4 pixels per block row efficiently.
+        /// Used by block-compressed codecs to write contiguous pixels efficiently.
         /// </summary>
         /// <param name="pixels">The pixels to write.</param>
         /// <param name="destination">The destination buffer in this codec's native byte layout.</param>

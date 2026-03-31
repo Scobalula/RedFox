@@ -33,6 +33,8 @@
     <ProjectReference Include="..\RedFox.Graphics2D.Tga\RedFox.Graphics2D.Tga.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.BC\RedFox.Graphics2D.BC.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Ktx\RedFox.Graphics2D.Ktx.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.KaydaraFbx\RedFox.Graphics3D.KaydaraFbx.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.MayaAscii\RedFox.Graphics3D.MayaAscii.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.IO\RedFox.Graphics3D.IO.csproj" />

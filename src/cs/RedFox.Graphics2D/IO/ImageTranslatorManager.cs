@@ -23,8 +23,22 @@ namespace RedFox.Graphics2D.IO
         /// <param name="translator">The translator to register.</param>
         public void Register(ImageTranslator translator)
         {
+            ArgumentNullException.ThrowIfNull(translator);
+
             _translators.RemoveAll(t => t.Name == translator.Name);
             _translators.Add(translator);
+        }
+
+        /// <summary>
+        /// Registers multiple image translators.
+        /// </summary>
+        /// <param name="translators">The translators to register.</param>
+        public void RegisterRange(IEnumerable<ImageTranslator> translators)
+        {
+            ArgumentNullException.ThrowIfNull(translators);
+
+            foreach (ImageTranslator translator in translators)
+                Register(translator);
         }
 
         /// <summary>

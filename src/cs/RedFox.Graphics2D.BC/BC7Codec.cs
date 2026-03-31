@@ -29,10 +29,16 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Initializes a new instance of the <see cref="BC7Codec"/> class for the specified format variant.
         /// </summary>
-        /// <param name="format">The image format (BC7Unorm or BC7UnormSRGB).</param>
+        /// <param name="format">The image format (BC7Typeless, BC7Unorm, or BC7UnormSrgb).</param>
         public BC7Codec(ImageFormat format)
         {
-            Format = format;
+            Format = format switch
+            {
+                ImageFormat.BC7Typeless => format,
+                ImageFormat.BC7Unorm => format,
+                ImageFormat.BC7UnormSrgb => format,
+                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC7Codec supports only BC7Typeless, BC7Unorm, and BC7UnormSrgb."),
+            };
         }
 
         /// <inheritdoc/>
@@ -427,48 +433,109 @@ namespace RedFox.Graphics2D.BC
             }
 
             // Quantize to 6 bits + shared P-bit (effective 7 bits).
-            // Shared P-bit means both endpoints in a subset share the same P-bit.
-            Span<int> rE = stackalloc int[4]; // [0]=s0e0, [1]=s0e1, [2]=s1e0, [3]=s1e1
+            // Shared P-bits apply to both endpoints in a subset, so evaluate both choices.
+            Span<int> rE = stackalloc int[4];
             Span<int> gE = stackalloc int[4];
             Span<int> bE = stackalloc int[4];
             Span<int> pbits = stackalloc int[2];
-
-            for (int s = 0; s < 2; s++)
-            {
-                int avgMin = (rMinS[s] + gMinS[s] + bMinS[s]) / 3;
-                pbits[s] = (avgMin >> 0) & 1; // Use average LSB as shared P-bit.
-                rE[s * 2] = rMinS[s] >> 1;
-                rE[s * 2 + 1] = rMaxS[s] >> 1;
-                gE[s * 2] = gMinS[s] >> 1;
-                gE[s * 2 + 1] = gMaxS[s] >> 1;
-                bE[s * 2] = bMinS[s] >> 1;
-                bE[s * 2 + 1] = bMaxS[s] >> 1;
-            }
-
-            // Reconstruct 8-bit endpoints.
+            Span<int> candidateRE = stackalloc int[4];
+            Span<int> candidateGE = stackalloc int[4];
+            Span<int> candidateBE = stackalloc int[4];
+            Span<int> candidatePbits = stackalloc int[2];
+            Span<int> candidateIndices = stackalloc int[16];
             Span<int> rU = stackalloc int[4];
             Span<int> gU = stackalloc int[4];
             Span<int> bU = stackalloc int[4];
+            var wt = BC7PartitionTable.Weights3;
+            float totalError = float.MaxValue;
 
-            for (int s = 0; s < 2; s++)
+            for (int p0 = 0; p0 <= 1; p0++)
             {
-                for (int ep = 0; ep < 2; ep++)
+                for (int p1 = 0; p1 <= 1; p1++)
                 {
-                    int idx = s * 2 + ep;
-                    rU[idx] = Unquantize((rE[idx] << 1) | pbits[s], 7);
-                    gU[idx] = Unquantize((gE[idx] << 1) | pbits[s], 7);
-                    bU[idx] = Unquantize((bE[idx] << 1) | pbits[s], 7);
+                    candidatePbits[0] = p0;
+                    candidatePbits[1] = p1;
+
+                    for (int s = 0; s < 2; s++)
+                    {
+                        int pbit = candidatePbits[s];
+                        int baseIndex = s * 2;
+
+                        candidateRE[baseIndex] = QuantizeSharedPBitEndpoint(rMinS[s], pbit);
+                        candidateRE[baseIndex + 1] = QuantizeSharedPBitEndpoint(rMaxS[s], pbit);
+                        candidateGE[baseIndex] = QuantizeSharedPBitEndpoint(gMinS[s], pbit);
+                        candidateGE[baseIndex + 1] = QuantizeSharedPBitEndpoint(gMaxS[s], pbit);
+                        candidateBE[baseIndex] = QuantizeSharedPBitEndpoint(bMinS[s], pbit);
+                        candidateBE[baseIndex + 1] = QuantizeSharedPBitEndpoint(bMaxS[s], pbit);
+
+                        for (int ep = 0; ep < 2; ep++)
+                        {
+                            int index = baseIndex + ep;
+                            rU[index] = Unquantize((candidateRE[index] << 1) | pbit, 7);
+                            gU[index] = Unquantize((candidateGE[index] << 1) | pbit, 7);
+                            bU[index] = Unquantize((candidateBE[index] << 1) | pbit, 7);
+                        }
+                    }
+
+                    float candidateError = 0f;
+
+                    for (int i = 0; i < 16; i++)
+                    {
+                        int s = subsetIdx[i];
+                        int e0 = s * 2;
+                        int e1 = e0 + 1;
+
+                        float bestErr = float.MaxValue;
+                        int bestIdx = 0;
+
+                        for (int j = 0; j < wt.Length; j++)
+                        {
+                            int w = wt[j];
+                            int ri = Interpolate(rU[e0], rU[e1], w);
+                            int gi = Interpolate(gU[e0], gU[e1], w);
+                            int bi = Interpolate(bU[e0], bU[e1], w);
+
+                            float dr = ri - rPix[i];
+                            float dg = gi - gPix[i];
+                            float db = bi - bPix[i];
+                            float err = dr * dr + dg * dg + db * db;
+
+                            if (err < bestErr)
+                            {
+                                bestErr = err;
+                                bestIdx = j;
+                            }
+                        }
+
+                        candidateIndices[i] = bestIdx;
+                        candidateError += bestErr;
+                    }
+
+                    if (candidateError < totalError)
+                    {
+                        totalError = candidateError;
+                        candidateRE.CopyTo(rE);
+                        candidateGE.CopyTo(gE);
+                        candidateBE.CopyTo(bE);
+                        candidatePbits.CopyTo(pbits);
+                    }
                 }
             }
 
-            var wt = BC7PartitionTable.Weights3;
             Span<int> indices = stackalloc int[16];
-            float totalError = 0;
-
             for (int i = 0; i < 16; i++)
             {
                 int s = subsetIdx[i];
-                int e0 = s * 2, e1 = e0 + 1;
+                int e0 = s * 2;
+                int e1 = e0 + 1;
+                int pbit = pbits[s];
+
+                rU[e0] = Unquantize((rE[e0] << 1) | pbit, 7);
+                rU[e1] = Unquantize((rE[e1] << 1) | pbit, 7);
+                gU[e0] = Unquantize((gE[e0] << 1) | pbit, 7);
+                gU[e1] = Unquantize((gE[e1] << 1) | pbit, 7);
+                bU[e0] = Unquantize((bE[e0] << 1) | pbit, 7);
+                bU[e1] = Unquantize((bE[e1] << 1) | pbit, 7);
 
                 float bestErr = float.MaxValue;
                 int bestIdx = 0;
@@ -493,7 +560,6 @@ namespace RedFox.Graphics2D.BC
                 }
 
                 indices[i] = bestIdx;
-                totalError += bestErr;
             }
 
             // Fix anchor indices for both subsets.
@@ -591,6 +657,26 @@ namespace RedFox.Graphics2D.BC
                 totalError += bestErr;
             }
             return totalError;
+        }
+
+        private static int QuantizeSharedPBitEndpoint(int value, int pbit)
+        {
+            int bestValue = 0;
+            int bestError = int.MaxValue;
+            int estimated = Math.Clamp((value - pbit + 1) >> 1, 0, 63);
+
+            for (int candidate = Math.Max(0, estimated - 1); candidate <= Math.Min(63, estimated + 1); candidate++)
+            {
+                int reconstructed = Unquantize((candidate << 1) | pbit, 7);
+                int error = Math.Abs(reconstructed - value);
+                if (error < bestError)
+                {
+                    bestError = error;
+                    bestValue = candidate;
+                }
+            }
+
+            return bestValue;
         }
 
         #endregion
