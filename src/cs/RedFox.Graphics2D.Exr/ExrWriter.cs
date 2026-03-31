@@ -134,7 +134,7 @@ namespace RedFox.Graphics2D.Exr
         /// </summary>
         private static Vector4[] DecodePixels(ImageSlice slice, ImageFormat format)
         {
-            IPixelCodec codec = PixelCodecRegistry.GetCodec(format);
+            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(format);
             var pixels = new Vector4[checked(slice.Width * slice.Height)];
             codec.Decode(slice.PixelSpan, pixels, slice.Width, slice.Height);
             return pixels;

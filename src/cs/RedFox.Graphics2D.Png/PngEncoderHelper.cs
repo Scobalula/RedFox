@@ -45,7 +45,7 @@ internal static class PngEncoderHelper
             return rgba;
         }
 
-        if (!PixelCodecRegistry.TryGetCodec(format, out var codec) || codec is null)
+        if (!PixelCodecRegistry.Default.TryGetCodec(format, out var codec) || codec is null)
             throw new NotSupportedException($"PNG writing is not supported for format {format}.");
 
         const int stripHeight = 4;

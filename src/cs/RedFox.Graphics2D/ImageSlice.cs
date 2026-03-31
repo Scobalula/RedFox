@@ -62,7 +62,7 @@ namespace RedFox.Graphics2D
         /// </summary>
         public Vector4 GetPixel(int x, int y)
         {
-            IPixelCodec codec = PixelCodecRegistry.GetCodec(Format);
+            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(Format);
             return codec.ReadPixel(PixelSpan, x, y, Width);
         }
     }
