@@ -134,7 +134,7 @@ public sealed class JpegEncoder
             return rgba;
         }
 
-        if (!PixelCodecRegistry.TryGetCodec(format, out var codec) || codec is null)
+        if (!PixelCodecRegistry.Default.TryGetCodec(format, out var codec) || codec is null)
             throw new NotSupportedException($"JPEG writing is not supported for format {format}.");
 
         const int stripHeight = 4;

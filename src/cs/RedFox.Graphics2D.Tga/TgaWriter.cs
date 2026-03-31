@@ -90,7 +90,7 @@ namespace RedFox.Graphics2D.Tga
         /// <param name="format">The pixel format to decode from.</param>
         public static void WriteDecoded(Stream stream, in ImageSlice slice, int width, int height, ImageFormat format)
         {
-            IPixelCodec codec = PixelCodecRegistry.GetCodec(format);
+            IPixelCodec codec = PixelCodecRegistry.Default.GetCodec(format);
             WriteHeaderToStream(stream, width, height, hasAlpha: true);
 
             const int StripHeight = 4;

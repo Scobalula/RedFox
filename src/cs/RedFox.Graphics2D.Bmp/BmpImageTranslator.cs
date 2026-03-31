@@ -231,7 +231,7 @@ namespace RedFox.Graphics2D.Bmp
             }
 
             // General path: per-pixel decode via codec
-            if (!PixelCodecRegistry.TryGetCodec(format, out var codec) || codec is null)
+            if (!PixelCodecRegistry.Default.TryGetCodec(format, out var codec) || codec is null)
                 throw new NotSupportedException($"BMP writing is not supported for format {format}.");
 
             WriteBmpRowsDecoded(stream, slice, width, height, rowStride, bpp, codec);
