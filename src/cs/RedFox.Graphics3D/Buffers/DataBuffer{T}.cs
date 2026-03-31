@@ -30,6 +30,54 @@ namespace RedFox.Graphics3D.Buffers
         public override bool IsReadOnly => false;
 
         /// <summary>
+        /// Gets a mutable span over the populated component storage.
+        /// </summary>
+        /// <returns>A span covering all initialized scalar components.</returns>
+        public Span<T> AsSpan() => _items.AsSpan(0, TotalComponentCount);
+
+        /// <summary>
+        /// Gets a read-only span over the populated component storage.
+        /// </summary>
+        /// <returns>A read-only span covering all initialized scalar components.</returns>
+        public ReadOnlySpan<T> AsReadOnlySpan() => AsSpan();
+
+        /// <summary>
+        /// Copies the populated component storage into the provided destination span.
+        /// </summary>
+        /// <param name="destination">The destination span.</param>
+        public void CopyTo(Span<T> destination)
+        {
+            if (destination.Length < TotalComponentCount)
+                throw new ArgumentException($"Destination span must be at least {TotalComponentCount} elements.", nameof(destination));
+
+            AsReadOnlySpan().CopyTo(destination);
+        }
+
+        /// <summary>
+        /// Copies the populated component storage into the provided array.
+        /// </summary>
+        /// <param name="destination">The destination array.</param>
+        /// <param name="destinationIndex">The index in the destination array at which copying begins.</param>
+        public void CopyTo(T[] destination, int destinationIndex = 0)
+        {
+            ArgumentNullException.ThrowIfNull(destination);
+
+            if (destinationIndex < 0 || destinationIndex > destination.Length)
+                throw new ArgumentOutOfRangeException(nameof(destinationIndex));
+
+            if (destination.Length - destinationIndex < TotalComponentCount)
+                throw new ArgumentException($"Destination array must have space for at least {TotalComponentCount} elements from index {destinationIndex}.", nameof(destination));
+
+            AsReadOnlySpan().CopyTo(destination.AsSpan(destinationIndex));
+        }
+
+        /// <summary>
+        /// Returns a copy of the populated component storage.
+        /// </summary>
+        /// <returns>An array containing the initialized component data.</returns>
+        public T[] ToArray() => AsReadOnlySpan().ToArray();
+
+        /// <summary>
         /// Initializes a new instance of the DataBuffer class.
         /// </summary>
         public DataBuffer() : this(0, 1, 1)
@@ -138,7 +186,7 @@ namespace RedFox.Graphics3D.Buffers
             if (valueIndex >= _valueCount || valueIndex < 0)
                 throw new ArgumentOutOfRangeException(nameof(valueIndex), $"Value index must be between 0 and {_valueCount}.");
             if (componentIndex >= _componentCount || componentIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_valueCount}.");
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_componentCount}.");
 
             var value = _items[(elementIndex * _valueCount * _componentCount) + (valueIndex * _componentCount) + componentIndex];
 
@@ -156,7 +204,7 @@ namespace RedFox.Graphics3D.Buffers
             if (valueIndex >= _valueCount || valueIndex < 0)
                 throw new ArgumentOutOfRangeException(nameof(valueIndex), $"Value index must be between 0 and {_valueCount}.");
             if (componentIndex >= _componentCount || componentIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_valueCount}.");
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_componentCount}.");
 
             var index = (elementIndex * _valueCount * _componentCount) + (valueIndex * _componentCount) + componentIndex;
 
@@ -179,7 +227,7 @@ namespace RedFox.Graphics3D.Buffers
             if (valueIndex >= _valueCount || valueIndex < 0)
                 throw new ArgumentOutOfRangeException(nameof(valueIndex), $"Value index must be between 0 and {_valueCount}.");
             if (componentIndex >= _componentCount || componentIndex < 0)
-                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_valueCount}.");
+                throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {_componentCount}.");
 
             var index = (elementIndex * _valueCount * _componentCount) + (valueIndex * _componentCount) + componentIndex;
 
