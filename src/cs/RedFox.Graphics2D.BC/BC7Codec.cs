@@ -89,6 +89,17 @@ namespace RedFox.Graphics2D.BC
             BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
         }
 
+        /// <inheritdoc/>
+        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+        {
+            // Decode source pixels to Vector4 buffer
+            Vector4[] pixels = new Vector4[width * height];
+            sourceCodec.Decode(source, pixels, width, height);
+
+            // Encode to BC blocks
+            BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock, EncodeBlock);
+        }
+
         #region Decode Helpers
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
