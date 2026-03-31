@@ -68,6 +68,17 @@ namespace RedFox.Graphics2D.BC
         public void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height) =>
             BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
 
+        /// <inheritdoc/>
+        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+        {
+            // Decode source pixels to Vector4 buffer
+            Vector4[] pixels = new Vector4[width * height];
+            sourceCodec.Decode(source, pixels, width, height);
+
+            // Encode to BC blocks
+            BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock, EncodeBlock);
+        }
+
         /// <summary>
         /// Decodes a single 16-byte BC2 block into 16 RGBA <see cref="Vector4"/> pixels.
         /// </summary>

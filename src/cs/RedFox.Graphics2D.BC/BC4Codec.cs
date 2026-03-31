@@ -86,6 +86,19 @@ namespace RedFox.Graphics2D.BC
                 (ReadOnlySpan<byte> block, Span<Vector4> pixels) => DecodeBlockInner(block, pixels, signed));
         }
 
+        /// <inheritdoc/>
+        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+        {
+            // Decode source pixels to Vector4 buffer
+            Vector4[] pixels = new Vector4[width * height];
+            sourceCodec.Decode(source, pixels, width, height);
+
+            // Encode to BC blocks
+            bool signed = IsSigned;
+            BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock,
+                (ReadOnlySpan<Vector4> pixels, Span<byte> block) => EncodeBlockInner(pixels, block, signed));
+        }
+
         private static void DecodeBlockInner(ReadOnlySpan<byte> block, Span<Vector4> pixels, bool signed)
         {
             Span<float> values = stackalloc float[16];

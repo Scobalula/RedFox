@@ -229,16 +229,13 @@ namespace RedFox.Graphics2D
         /// <summary>
         /// Converts this image in-place to the specified target format using the built-in codec resolver.
         /// Uses direct byte-to-byte conversion when possible, falling back to <see cref="Vector4"/>
-        /// intermediates only when needed.
+        /// intermediates only when needed. Supports conversion to and from block-compressed (BCn) formats.
         /// </summary>
         /// <param name="targetFormat">The target format.</param>
         public void Convert(ImageFormat targetFormat)
         {
             if (Format == targetFormat)
                 return;
-
-            if (ImageFormatInfo.IsBlockCompressed(targetFormat))
-                throw new ArgumentException("Target format must not be block-compressed.", nameof(targetFormat));
 
             IPixelCodec sourceCodec = PixelCodec.GetCodec(Format);
             IPixelCodec targetCodec = PixelCodec.GetCodec(targetFormat);
