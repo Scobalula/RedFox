@@ -59,6 +59,19 @@ namespace RedFox.Graphics2D.BC
             BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlock);
         }
 
+        /// <summary>
+        /// Encodes pixels into BC7 using a reduced CPU search intended to favor throughput over quality.
+        /// The fast path currently restricts encoding to the single-subset mode 6 candidate.
+        /// </summary>
+        /// <param name="source">The source RGBA pixels to encode.</param>
+        /// <param name="destination">The destination span that receives BC7 blocks.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
+        public void EncodeFast(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+        {
+            BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlockFast);
+        }
+
         /// <inheritdoc/>
         public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) =>
             throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
@@ -208,6 +221,11 @@ namespace RedFox.Graphics2D.BC
                     secondaryIdx[i] = (int)reader.Read(i == 0 ? info.SecondaryIndexBits - 1 : info.SecondaryIndexBits);
             }
 
+            Span<int> outR = stackalloc int[16];
+            Span<int> outG = stackalloc int[16];
+            Span<int> outB = stackalloc int[16];
+            Span<int> outA = stackalloc int[16];
+
             for (int i = 0; i < 16; i++)
             {
                 int subset = BC7PartitionTable.GetSubset(info.NumSubsets, partition, i);
@@ -217,15 +235,28 @@ namespace RedFox.Graphics2D.BC
 
                 if (hasDualIndices)
                 {
-                    int cIdx, aIdx;
-                    ReadOnlySpan<byte> cw, aw;
+                    int cIdx;
+                    int aIdx;
+                    ReadOnlySpan<byte> cw;
+                    ReadOnlySpan<byte> aw;
 
                     if (indexSelection != 0)
-                    { cIdx = secondaryIdx[i]; aIdx = primaryIdx[i]; cw = secondaryWeights; aw = primaryWeights; }
+                    {
+                        cIdx = secondaryIdx[i];
+                        aIdx = primaryIdx[i];
+                        cw = secondaryWeights;
+                        aw = primaryWeights;
+                    }
                     else
-                    { cIdx = primaryIdx[i]; aIdx = secondaryIdx[i]; cw = primaryWeights; aw = secondaryWeights; }
+                    {
+                        cIdx = primaryIdx[i];
+                        aIdx = secondaryIdx[i];
+                        cw = primaryWeights;
+                        aw = secondaryWeights;
+                    }
 
-                    int cwt = cw[cIdx], awt = aw[aIdx];
+                    int cwt = cw[cIdx];
+                    int awt = aw[aIdx];
                     pr = Interpolate(r[e0], r[e1], cwt);
                     pg = Interpolate(g[e0], g[e1], cwt);
                     pb = Interpolate(b[e0], b[e1], cwt);
@@ -247,8 +278,13 @@ namespace RedFox.Graphics2D.BC
                     case 3: (pa, pb) = (pb, pa); break;
                 }
 
-                pixels[i] = new Vector4(pr / 255f, pg / 255f, pb / 255f, pa / 255f);
+                outR[i] = pr;
+                outG[i] = pg;
+                outB[i] = pb;
+                outA[i] = pa;
             }
+
+            BcSimd.StoreNormalizedRgba8(outR, outG, outB, outA, pixels);
         }
 
         #endregion
@@ -265,19 +301,29 @@ namespace RedFox.Graphics2D.BC
         /// <param name="block">The destination 16-byte span for the compressed block.</param>
         public static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block)
         {
+            EncodeBlockCore(pixels, block, fastMode: false);
+        }
+
+        /// <summary>
+        /// Encodes 16 <see cref="Vector4"/> RGBA pixels into a single 16-byte BC7 block using a
+        /// reduced CPU search intended to favor throughput over quality.
+        /// </summary>
+        /// <param name="pixels">The 16 source RGBA pixels.</param>
+        /// <param name="block">The destination 16-byte span for the compressed block.</param>
+        public static void EncodeBlockFast(ReadOnlySpan<Vector4> pixels, Span<byte> block)
+        {
+            EncodeBlockCore(pixels, block, fastMode: true);
+        }
+
+        private static void EncodeBlockCore(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool fastMode)
+        {
             // Convert to 8-bit RGBA.
             Span<int> rPix = stackalloc int[16];
             Span<int> gPix = stackalloc int[16];
             Span<int> bPix = stackalloc int[16];
             Span<int> aPix = stackalloc int[16];
 
-            for (int i = 0; i < 16; i++)
-            {
-                rPix[i] = Math.Clamp((int)(pixels[i].X * 255f + 0.5f), 0, 255);
-                gPix[i] = Math.Clamp((int)(pixels[i].Y * 255f + 0.5f), 0, 255);
-                bPix[i] = Math.Clamp((int)(pixels[i].Z * 255f + 0.5f), 0, 255);
-                aPix[i] = Math.Clamp((int)(pixels[i].W * 255f + 0.5f), 0, 255);
-            }
+            BcSimd.QuantizeToRgba8Channels(pixels, rPix, gPix, bPix, aPix);
 
             Span<byte> bestBlock = stackalloc byte[16];
             float bestError = float.MaxValue;
@@ -299,7 +345,7 @@ namespace RedFox.Graphics2D.BC
                 if (aPix[i] < 255) { allOpaque = false; break; }
             }
 
-            if (allOpaque)
+            if (allOpaque && !fastMode)
             {
                 // Try a subset of partitions for mode 1.
                 for (int p = 0; p < 64; p++)
@@ -457,6 +503,12 @@ namespace RedFox.Graphics2D.BC
             Span<int> rU = stackalloc int[4];
             Span<int> gU = stackalloc int[4];
             Span<int> bU = stackalloc int[4];
+            Span<float> rCandidates0 = stackalloc float[8];
+            Span<float> gCandidates0 = stackalloc float[8];
+            Span<float> bCandidates0 = stackalloc float[8];
+            Span<float> rCandidates1 = stackalloc float[8];
+            Span<float> gCandidates1 = stackalloc float[8];
+            Span<float> bCandidates1 = stackalloc float[8];
             var wt = BC7PartitionTable.Weights3;
             float totalError = float.MaxValue;
 
@@ -488,39 +540,29 @@ namespace RedFox.Graphics2D.BC
                         }
                     }
 
-                    float candidateError = 0f;
-
-                    for (int i = 0; i < 16; i++)
+                    for (int j = 0; j < wt.Length; j++)
                     {
-                        int s = subsetIdx[i];
-                        int e0 = s * 2;
-                        int e1 = e0 + 1;
-
-                        float bestErr = float.MaxValue;
-                        int bestIdx = 0;
-
-                        for (int j = 0; j < wt.Length; j++)
-                        {
-                            int w = wt[j];
-                            int ri = Interpolate(rU[e0], rU[e1], w);
-                            int gi = Interpolate(gU[e0], gU[e1], w);
-                            int bi = Interpolate(bU[e0], bU[e1], w);
-
-                            float dr = ri - rPix[i];
-                            float dg = gi - gPix[i];
-                            float db = bi - bPix[i];
-                            float err = dr * dr + dg * dg + db * db;
-
-                            if (err < bestErr)
-                            {
-                                bestErr = err;
-                                bestIdx = j;
-                            }
-                        }
-
-                        candidateIndices[i] = bestIdx;
-                        candidateError += bestErr;
+                        int w = wt[j];
+                        rCandidates0[j] = Interpolate(rU[0], rU[1], w);
+                        gCandidates0[j] = Interpolate(gU[0], gU[1], w);
+                        bCandidates0[j] = Interpolate(bU[0], bU[1], w);
+                        rCandidates1[j] = Interpolate(rU[2], rU[3], w);
+                        gCandidates1[j] = Interpolate(gU[2], gU[3], w);
+                        bCandidates1[j] = Interpolate(bU[2], bU[3], w);
                     }
+
+                    float candidateError = BcSimd.FindBestIndicesPartitioned3Channel(
+                        subsetIdx,
+                        rPix,
+                        gPix,
+                        bPix,
+                        rCandidates0,
+                        gCandidates0,
+                        bCandidates0,
+                        rCandidates1,
+                        gCandidates1,
+                        bCandidates1,
+                        candidateIndices);
 
                     if (candidateError < totalError)
                     {
@@ -533,45 +575,43 @@ namespace RedFox.Graphics2D.BC
                 }
             }
 
-            Span<int> indices = stackalloc int[16];
-            for (int i = 0; i < 16; i++)
+            rU[0] = Unquantize((rE[0] << 1) | pbits[0], 7);
+            rU[1] = Unquantize((rE[1] << 1) | pbits[0], 7);
+            gU[0] = Unquantize((gE[0] << 1) | pbits[0], 7);
+            gU[1] = Unquantize((gE[1] << 1) | pbits[0], 7);
+            bU[0] = Unquantize((bE[0] << 1) | pbits[0], 7);
+            bU[1] = Unquantize((bE[1] << 1) | pbits[0], 7);
+            rU[2] = Unquantize((rE[2] << 1) | pbits[1], 7);
+            rU[3] = Unquantize((rE[3] << 1) | pbits[1], 7);
+            gU[2] = Unquantize((gE[2] << 1) | pbits[1], 7);
+            gU[3] = Unquantize((gE[3] << 1) | pbits[1], 7);
+            bU[2] = Unquantize((bE[2] << 1) | pbits[1], 7);
+            bU[3] = Unquantize((bE[3] << 1) | pbits[1], 7);
+
+            for (int j = 0; j < wt.Length; j++)
             {
-                int s = subsetIdx[i];
-                int e0 = s * 2;
-                int e1 = e0 + 1;
-                int pbit = pbits[s];
-
-                rU[e0] = Unquantize((rE[e0] << 1) | pbit, 7);
-                rU[e1] = Unquantize((rE[e1] << 1) | pbit, 7);
-                gU[e0] = Unquantize((gE[e0] << 1) | pbit, 7);
-                gU[e1] = Unquantize((gE[e1] << 1) | pbit, 7);
-                bU[e0] = Unquantize((bE[e0] << 1) | pbit, 7);
-                bU[e1] = Unquantize((bE[e1] << 1) | pbit, 7);
-
-                float bestErr = float.MaxValue;
-                int bestIdx = 0;
-
-                for (int j = 0; j < wt.Length; j++)
-                {
-                    int w = wt[j];
-                    int ri = Interpolate(rU[e0], rU[e1], w);
-                    int gi = Interpolate(gU[e0], gU[e1], w);
-                    int bi = Interpolate(bU[e0], bU[e1], w);
-
-                    float dr = ri - rPix[i];
-                    float dg = gi - gPix[i];
-                    float db = bi - bPix[i];
-                    float err = dr * dr + dg * dg + db * db;
-
-                    if (err < bestErr)
-                    {
-                        bestErr = err;
-                        bestIdx = j;
-                    }
-                }
-
-                indices[i] = bestIdx;
+                int w = wt[j];
+                rCandidates0[j] = Interpolate(rU[0], rU[1], w);
+                gCandidates0[j] = Interpolate(gU[0], gU[1], w);
+                bCandidates0[j] = Interpolate(bU[0], bU[1], w);
+                rCandidates1[j] = Interpolate(rU[2], rU[3], w);
+                gCandidates1[j] = Interpolate(gU[2], gU[3], w);
+                bCandidates1[j] = Interpolate(bU[2], bU[3], w);
             }
+
+            Span<int> indices = stackalloc int[16];
+            BcSimd.FindBestIndicesPartitioned3Channel(
+                subsetIdx,
+                rPix,
+                gPix,
+                bPix,
+                rCandidates0,
+                gCandidates0,
+                bCandidates0,
+                rCandidates1,
+                gCandidates1,
+                bCandidates1,
+                indices);
 
             // Fix anchor indices for both subsets.
             int anchor0 = 0;
@@ -645,29 +685,30 @@ namespace RedFox.Graphics2D.BC
             int r0, int r1, int g0, int g1, int b0, int b1, int a0, int a1,
             ReadOnlySpan<byte> weights, Span<int> indices)
         {
-            float totalError = 0;
-            for (int i = 0; i < 16; i++)
+            Span<float> rCandidates = stackalloc float[16];
+            Span<float> gCandidates = stackalloc float[16];
+            Span<float> bCandidates = stackalloc float[16];
+            Span<float> aCandidates = stackalloc float[16];
+
+            for (int j = 0; j < weights.Length; j++)
             {
-                float bestErr = float.MaxValue;
-                int bestIdx = 0;
-                for (int j = 0; j < weights.Length; j++)
-                {
-                    int w = weights[j];
-                    float dr = Interpolate(r0, r1, w) - rPix[i];
-                    float dg = Interpolate(g0, g1, w) - gPix[i];
-                    float db = Interpolate(b0, b1, w) - bPix[i];
-                    float da = Interpolate(a0, a1, w) - aPix[i];
-                    float err = dr * dr + dg * dg + db * db + da * da;
-                    if (err < bestErr)
-                    {
-                        bestErr = err;
-                        bestIdx = j;
-                    }
-                }
-                indices[i] = bestIdx;
-                totalError += bestErr;
+                int w = weights[j];
+                rCandidates[j] = Interpolate(r0, r1, w);
+                gCandidates[j] = Interpolate(g0, g1, w);
+                bCandidates[j] = Interpolate(b0, b1, w);
+                aCandidates[j] = Interpolate(a0, a1, w);
             }
-            return totalError;
+
+            return BcSimd.FindBestIndices4Channel(
+                rPix,
+                gPix,
+                bPix,
+                aPix,
+                rCandidates[..weights.Length],
+                gCandidates[..weights.Length],
+                bCandidates[..weights.Length],
+                aCandidates[..weights.Length],
+                indices);
         }
 
         private static int QuantizeSharedPBitEndpoint(int value, int pbit)

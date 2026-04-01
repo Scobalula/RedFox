@@ -84,6 +84,50 @@ public sealed class ObjTranslatorTests
     }
 
     [Fact]
+    public void ObjTranslator_ManagerRead_ResolvesMtlAndTexturePathsRelativeToObj()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"RedFoxObj_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            string objPath = Path.Combine(tempDirectory, "sample.obj");
+            string mtlPath = Path.Combine(tempDirectory, "sample.mtl");
+            File.WriteAllText(objPath, """
+                mtllib sample.mtl
+                v 0 0 0
+                v 1 0 0
+                v 0 1 0
+                usemtl TestMat
+                f 1 2 3
+                """, Encoding.UTF8);
+            File.WriteAllText(mtlPath, """
+                newmtl TestMat
+                map_Kd textures/diffuse.tga
+                """, Encoding.UTF8);
+
+            SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+            Scene loadedScene = manager.Read(objPath, new SceneTranslatorOptions(), token: null);
+
+            Mesh mesh = loadedScene.GetDescendants<Mesh>().Single();
+            Assert.NotNull(mesh.Materials);
+            Assert.Single(mesh.Materials!);
+            Assert.Equal("TestMat", mesh.Materials![0].Name);
+
+            Material material = mesh.Materials[0];
+            Assert.True(material.TryGetDiffuseMap(out Texture? diffuseTexture));
+            Assert.NotNull(diffuseTexture);
+            Assert.Equal("textures/diffuse.tga", diffuseTexture!.FilePath);
+            Assert.Equal(Path.GetFullPath(Path.Combine(tempDirectory, "textures/diffuse.tga")), diffuseTexture.ResolvedFilePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+                Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ObjTranslator_RoundTrip_DeterministicRewriteAndStructuralMatch()
     {
         Scene sourceScene = CreateTriangleScene();

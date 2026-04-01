@@ -20,6 +20,7 @@ public sealed class GltfReader
     private readonly GltfDocument _doc;
     private readonly string _name;
     private readonly SceneTranslatorOptions _options;
+    private readonly string? _baseDirectory;
 
     /// <summary>
     /// Node-index to <see cref="SkeletonBone"/> mapping, populated during skeleton construction.
@@ -37,11 +38,12 @@ public sealed class GltfReader
     /// <param name="doc">The parsed glTF document with buffer data loaded.</param>
     /// <param name="name">The scene/file name used for the root model node.</param>
     /// <param name="options">Translation options.</param>
-    public GltfReader(GltfDocument doc, string name, SceneTranslatorOptions options)
+    public GltfReader(GltfDocument doc, string name, SceneTranslatorOptions options, string? baseDirectory = null)
     {
         _doc = doc ?? throw new ArgumentNullException(nameof(doc));
         _name = name ?? throw new ArgumentNullException(nameof(name));
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _baseDirectory = baseDirectory;
     }
 
     /// <summary>
@@ -624,16 +626,34 @@ public sealed class GltfReader
 
         GltfImage image = _doc.Images[tex.Source];
         string imagePath = image.Uri ?? image.Name ?? $"image_{tex.Source}";
-
-        setMapName(imagePath);
-
         string texName = $"{slot}_{Path.GetFileNameWithoutExtension(imagePath)}";
+        string? resolvedPath = ResolveTexturePath(imagePath);
+
+        setMapName(texName);
 
         // Avoid duplicate texture names
         if (mat.Children?.Any(c => c.Name.Equals(texName, StringComparison.OrdinalIgnoreCase)) != true)
         {
-            mat.AddNode(new Texture(imagePath, slot));
+            mat.AddNode(new Texture(imagePath, slot)
+            {
+                Name = texName,
+                ResolvedFilePath = resolvedPath,
+            });
         }
+    }
+
+    private string? ResolveTexturePath(string imagePath)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath) || imagePath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (Path.IsPathRooted(imagePath))
+            return Path.GetFullPath(imagePath);
+
+        if (!string.IsNullOrWhiteSpace(_baseDirectory))
+            return Path.GetFullPath(Path.Combine(_baseDirectory, imagePath));
+
+        return null;
     }
 
     /// <summary>

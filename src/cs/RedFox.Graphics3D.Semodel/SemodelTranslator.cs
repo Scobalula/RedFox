@@ -31,6 +31,12 @@ public class SemodelTranslator : SceneTranslator
 
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+        => ReadInternal(scene, stream, name, options, options.SourceDirectoryPath, token);
+
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+        => ReadInternal(scene, stream, context.Name, context.Options, context.SourceDirectoryPath, token);
+
+    private void ReadInternal(Scene scene, Stream stream, string name, SceneTranslatorOptions options, string? sourceDirectoryPath, CancellationToken? token)
     {
         using var reader = new BinaryReader(stream, Encoding.Default, true);
 
@@ -183,9 +189,9 @@ public class SemodelTranslator : SceneTranslator
 
             if (reader.ReadBoolean())
             {
-                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse", reader.ReadUTF8NullTerminatedString());
-                material.NormalMapName   = AssignMaterialTexture(material, "normal", reader.ReadUTF8NullTerminatedString());
-                material.SpecularMapName = AssignMaterialTexture(material, "specular", reader.ReadUTF8NullTerminatedString());
+                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
+                material.NormalMapName   = AssignMaterialTexture(material, "normal", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
+                material.SpecularMapName = AssignMaterialTexture(material, "specular", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
             }
         }
 
@@ -215,6 +221,12 @@ public class SemodelTranslator : SceneTranslator
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+        => WriteInternal(scene, stream, name, options, targetDirectoryPath: null, token);
+
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+        => WriteInternal(scene, stream, context.Name, context.Options, context.TargetDirectoryPath, token);
+
+    private void WriteInternal(Scene scene, Stream stream, string name, SceneTranslatorOptions options, string? targetDirectoryPath, CancellationToken? token)
     {
         using var writer = new BinaryWriter(stream, Encoding.Default, true);
 
@@ -336,7 +348,7 @@ public class SemodelTranslator : SceneTranslator
             if (mesh.Normals is not null)
             {
                 for (int v = 0; v < vertexCount; v++)
-                    writer.WriteStruct(mesh.GetVertexNormal(v, true));
+                    writer.WriteStruct(mesh.GetVertexNormal(v, options.WriteRawVertices));
             }
             else if (hasNormals)
             {
@@ -411,9 +423,9 @@ public class SemodelTranslator : SceneTranslator
             writer.Write(Encoding.ASCII.GetBytes(material.Name));
             writer.Write((byte)0);
 
-            string? diffuseMapName = ResolveMaterialTextureName(material, material.DiffuseMapName, "diffuse");
-            string? normalMapName = ResolveMaterialTextureName(material, material.NormalMapName, "normal");
-            string? specularMapName = ResolveMaterialTextureName(material, material.SpecularMapName, "specular");
+            string? diffuseMapName = ResolveMaterialTextureName(material, material.DiffuseMapName, "diffuse", targetDirectoryPath);
+            string? normalMapName = ResolveMaterialTextureName(material, material.NormalMapName, "normal", targetDirectoryPath);
+            string? specularMapName = ResolveMaterialTextureName(material, material.SpecularMapName, "specular", targetDirectoryPath);
 
             bool hasImages = diffuseMapName is not null || normalMapName is not null || specularMapName is not null;
 
@@ -441,37 +453,65 @@ public class SemodelTranslator : SceneTranslator
         return flags;
     }
 
-    private static string? AssignMaterialTexture(Material material, string slot, string? textureNodeName)
+    private static string? AssignMaterialTexture(Material material, string slot, string? textureReference, string? sourceDirectoryPath)
     {
-        if (string.IsNullOrWhiteSpace(textureNodeName))
+        if (string.IsNullOrWhiteSpace(textureReference))
             return null;
 
-        if (material.TryFindChild<Texture>(textureNodeName, StringComparison.OrdinalIgnoreCase, out var existingTexture))
+        string textureName = Path.GetFileNameWithoutExtension(textureReference);
+        if (string.IsNullOrWhiteSpace(textureName))
+            textureName = textureReference;
+
+        string? resolvedPath = ResolveTexturePath(textureReference, sourceDirectoryPath);
+
+        if (material.TryFindChild<Texture>(textureName, StringComparison.OrdinalIgnoreCase, out var existingTexture))
         {
             existingTexture.Slot = slot;
-            existingTexture.FilePath = textureNodeName;
-            existingTexture.Name = textureNodeName;
+            existingTexture.FilePath = textureReference;
+            existingTexture.ResolvedFilePath = resolvedPath;
+            existingTexture.Name = textureName;
             return existingTexture.Name;
         }
 
-        var texture = material.AddNode(new Texture(textureNodeName, slot)
+        var texture = material.AddNode(new Texture(textureReference, slot)
         {
-            Name = textureNodeName,
-            FilePath = textureNodeName,
+            Name = textureName,
+            FilePath = textureReference,
+            ResolvedFilePath = resolvedPath,
         });
 
         return texture.Name;
     }
 
-    private static string? ResolveMaterialTextureName(Material material, string? fallbackName, string slot)
+    private static string? ResolveTexturePath(string textureReference, string? sourceDirectoryPath)
+    {
+        if (Path.IsPathRooted(textureReference))
+            return Path.GetFullPath(textureReference);
+
+        if (!string.IsNullOrWhiteSpace(sourceDirectoryPath))
+            return Path.GetFullPath(Path.Combine(sourceDirectoryPath, textureReference));
+
+        return null;
+    }
+
+    private static string? ResolveMaterialTextureName(Material material, string? fallbackName, string slot, string? targetDirectoryPath)
     {
         foreach (var texture in material.EnumerateChildren<Texture>())
         {
             if (texture.Slot.Equals(slot, StringComparison.OrdinalIgnoreCase))
-                return texture.FilePath;
+                return GetPortableTextureReference(texture, targetDirectoryPath);
         }
 
         return string.IsNullOrWhiteSpace(fallbackName) ? null : fallbackName;
+    }
+
+    private static string GetPortableTextureReference(Texture texture, string? targetDirectoryPath)
+    {
+        string effectivePath = texture.EffectiveFilePath;
+        if (Path.IsPathRooted(effectivePath) && !string.IsNullOrWhiteSpace(targetDirectoryPath))
+            return Path.GetRelativePath(targetDirectoryPath, effectivePath);
+
+        return texture.FilePath;
     }
 
     private static void AssignSkinBinding(Mesh mesh, Skeleton skeleton, SkeletonBone[] bones)

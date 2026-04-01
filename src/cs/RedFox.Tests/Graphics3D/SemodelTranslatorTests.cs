@@ -156,7 +156,7 @@ public sealed class SemodelTranslatorTests
         ], 2, 1);
 
         mesh.SetSkinBinding([rootBone, childBone]);
-        mesh.FaceIndices = new DataBuffer<ushort>([0, 1, 2], 1, 1);
+        mesh.FaceIndices = new DataBuffer<ushort>(new ushort[] { 0, 1, 2 }, 1, 1);
 
         Material material = model.AddNode(new Material("material_0")
         {
@@ -215,7 +215,7 @@ public sealed class SemodelTranslatorTests
         ], 1, 1);
 
         mesh.SetSkinBinding([childBone]);
-        mesh.FaceIndices = new DataBuffer<ushort>([0, 1, 2], 1, 1);
+        mesh.FaceIndices = new DataBuffer<ushort>(new ushort[] { 0, 1, 2 }, 1, 1);
         return scene;
     }
 
@@ -290,6 +290,74 @@ public sealed class SemodelTranslatorTests
         Assert.Equal((byte)0, mesh.BoneIndices!.Get<byte>(0, 0, 0));
         Assert.Equal(1f, mesh.BoneWeights!.Get<float>(0, 0, 0));
         AssertVector3Equal(new Vector3(3f, 0f, 0f), mesh.GetVertexPosition(0), 1e-5f);
+    }
+
+    [Fact]
+    public void SemodelTranslator_Read_ResolvesRelativeTexturePathsAgainstSourceFile()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"RedFoxSemodel_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            string filePath = Path.Combine(tempDirectory, "textured.semodel");
+            Scene scene = CreateSemodelSampleScene();
+            SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+
+            manager.Write(filePath, scene, CreateDefaultOptions(), token: null);
+
+            Scene loadedScene = manager.Read(filePath, CreateDefaultOptions(), token: null);
+            Material material = loadedScene.GetDescendants<Material>().Single();
+
+            Assert.True(material.TryGetDiffuseMap(out Texture? diffuseTexture));
+            Assert.NotNull(diffuseTexture);
+            Assert.Equal("textures\\diffuse_a.dds", diffuseTexture!.FilePath);
+            Assert.Equal(Path.GetFullPath(Path.Combine(tempDirectory, "textures\\diffuse_a.dds")), diffuseTexture.ResolvedFilePath);
+            Assert.Equal("diffuse_a", material.DiffuseMapName);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+                Directory.Delete(tempDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void SemodelTranslator_Write_RelativizesResolvedTexturePathsAgainstOutputFile()
+    {
+        string tempDirectory = Path.Combine(Path.GetTempPath(), $"RedFoxSemodelWrite_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            string texturesDirectory = Path.Combine(tempDirectory, "textures");
+            Directory.CreateDirectory(texturesDirectory);
+
+            string outputPath = Path.Combine(tempDirectory, "portable.semodel");
+            string absoluteTexturePath = Path.Combine(texturesDirectory, "diffuse_a.dds");
+
+            Scene scene = CreateSemodelSampleScene();
+            Material material = scene.GetDescendants<Material>().Single();
+            Texture texture = material.GetDiffuseMap();
+            texture.FilePath = absoluteTexturePath;
+            texture.ResolvedFilePath = absoluteTexturePath;
+
+            SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+            manager.Write(outputPath, scene, CreateDefaultOptions(), token: null);
+
+            Scene loadedScene = manager.Read(outputPath, CreateDefaultOptions(), token: null);
+            Material loadedMaterial = loadedScene.GetDescendants<Material>().Single();
+
+            Assert.True(loadedMaterial.TryGetDiffuseMap(out Texture? loadedTexture));
+            Assert.NotNull(loadedTexture);
+            Assert.Equal(Path.Combine("textures", "diffuse_a.dds"), loadedTexture!.FilePath);
+            Assert.Equal(absoluteTexturePath, loadedTexture.ResolvedFilePath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+                Directory.Delete(tempDirectory, recursive: true);
+        }
     }
 
     private static void AssertSceneStructureEquivalent(Scene expectedScene, Scene actualScene)

@@ -45,13 +45,7 @@ public sealed class GltfTranslator : SceneTranslator
     public override void Read(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
     {
         using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        string baseDir = Path.GetDirectoryName(filePath) ?? string.Empty;
-        string name = Path.GetFileNameWithoutExtension(filePath);
-
-        GltfDocument doc = IsGlb(stream) ? GltfReader.ParseGlb(stream) : GltfReader.ParseGltf(stream, baseDir);
-
-        GltfReader reader = new(doc, name, options);
-        reader.Read(scene);
+        Read(scene, stream, CreateReadContext(filePath, options), token);
     }
 
     /// <summary>
@@ -66,9 +60,20 @@ public sealed class GltfTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
-        GltfDocument doc = IsGlb(stream) ? GltfReader.ParseGlb(stream) : GltfReader.ParseGltf(stream, null);
+        Read(scene, stream, new SceneTranslationContext(Path.GetFileNameWithoutExtension(name), options)
+        {
+            SourceDirectoryPath = options.SourceDirectoryPath,
+            SourceFilePath = options.SourceFilePath,
+        }, token);
+    }
 
-        GltfReader reader = new(doc, Path.GetFileNameWithoutExtension(name), options);
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+    {
+        GltfDocument doc = IsGlb(stream)
+            ? GltfReader.ParseGlb(stream)
+            : GltfReader.ParseGltf(stream, context.SourceDirectoryPath);
+
+        GltfReader reader = new(doc, context.Name, context.Options, context.SourceDirectoryPath);
         reader.Read(scene);
     }
 
@@ -82,8 +87,7 @@ public sealed class GltfTranslator : SceneTranslator
     public override void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
     {
         using FileStream stream = new(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 4096);
-        GltfWriter writer = new(options);
-        writer.Write(scene, stream, Path.GetFileNameWithoutExtension(filePath));
+        Write(scene, stream, CreateWriteContext(filePath, options), token);
     }
 
     /// <summary>
@@ -96,8 +100,13 @@ public sealed class GltfTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
-        GltfWriter writer = new(options);
-        writer.Write(scene, stream, name);
+        Write(scene, stream, new SceneTranslationContext(name, options), token);
+    }
+
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+    {
+        GltfWriter writer = new(context.Options, context.TargetDirectoryPath);
+        writer.Write(scene, stream, context.Name);
     }
 
     /// <summary>

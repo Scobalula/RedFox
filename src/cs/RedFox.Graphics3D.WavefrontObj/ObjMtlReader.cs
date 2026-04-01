@@ -16,6 +16,13 @@ public static class ObjMtlReader
     /// <param name="stream">The input stream containing MTL data.</param>
     /// <param name="materials">A dictionary of materials keyed by name. New materials are added; existing ones are updated.</param>
     public static void Read(Stream stream, Dictionary<string, Material> materials)
+        => Read(stream, materials, baseDirectory: null);
+
+    /// <summary>
+    /// Reads materials from the specified MTL stream and resolves relative texture paths
+    /// against the supplied base directory when available.
+    /// </summary>
+    public static void Read(Stream stream, Dictionary<string, Material> materials, string? baseDirectory)
     {
         using StreamReader reader = new(stream, leaveOpen: true);
 
@@ -44,39 +51,39 @@ public static class ObjMtlReader
                 {
                     string texPath = ExtractTexturePath(span[7..]);
                     current.DiffuseMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "diffuse");
+                    EnsureTexture(current, texPath, "diffuse", baseDirectory);
                 }
                 else if (span.StartsWith("map_Ks "))
                 {
                     string texPath = ExtractTexturePath(span[7..]);
                     current.SpecularMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "specular");
+                    EnsureTexture(current, texPath, "specular", baseDirectory);
                 }
                 else if (span.StartsWith("map_Bump ") || span.StartsWith("bump "))
                 {
                     int offset = span.StartsWith("map_Bump ") ? 9 : 5;
                     string texPath = ExtractTexturePath(span[offset..]);
                     current.NormalMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "normal");
+                    EnsureTexture(current, texPath, "normal", baseDirectory);
                 }
                 else if (span.StartsWith("map_Ke "))
                 {
                     string texPath = ExtractTexturePath(span[7..]);
                     current.EmissiveMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "emissive");
+                    EnsureTexture(current, texPath, "emissive", baseDirectory);
                 }
                 else if (span.StartsWith("map_Ns "))
                 {
                     string texPath = ExtractTexturePath(span[7..]);
                     current.GlossMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "gloss");
+                    EnsureTexture(current, texPath, "gloss", baseDirectory);
                 }
                 else if (span.StartsWith("map_d "))
                 {
                     // Opacity map — treat as cavity since OBJ has no dedicated slot
                     string texPath = ExtractTexturePath(span[6..]);
                     current.CavityMapName = Path.GetFileNameWithoutExtension(texPath);
-                    EnsureTexture(current, texPath, "cavity");
+                    EnsureTexture(current, texPath, "cavity", baseDirectory);
                 }
             }
         }
@@ -120,15 +127,34 @@ public static class ObjMtlReader
         return value.ToString();
     }
 
-    private static void EnsureTexture(Material material, string texturePath, string slot)
+    private static void EnsureTexture(Material material, string texturePath, string slot, string? baseDirectory)
     {
         string texName = Path.GetFileNameWithoutExtension(texturePath);
+        string? resolvedPath = ResolveTexturePath(texturePath, baseDirectory);
 
-        if (material.TryFindTexture(texName, StringComparison.OrdinalIgnoreCase, out _))
+        if (material.TryFindTexture(texName, StringComparison.OrdinalIgnoreCase, out Texture? texture))
         {
+            texture.ResolvedFilePath = resolvedPath;
             return;
         }
 
-        material.AddNode(new Texture(texturePath, slot));
+        material.AddNode(new Texture(texturePath, slot)
+        {
+            ResolvedFilePath = resolvedPath,
+        });
+    }
+
+    private static string? ResolveTexturePath(string texturePath, string? baseDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(texturePath) || texturePath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (Path.IsPathRooted(texturePath))
+            return Path.GetFullPath(texturePath);
+
+        if (!string.IsNullOrWhiteSpace(baseDirectory))
+            return Path.GetFullPath(Path.Combine(baseDirectory, texturePath));
+
+        return null;
     }
 }

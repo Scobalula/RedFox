@@ -17,4 +17,12 @@
     <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Shaders\*.glsl">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>Shaders\%(Filename)%(Extension)</TargetPath>
+    </Content>
+  </ItemGroup>
+
 </Project>

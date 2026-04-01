@@ -45,7 +45,20 @@ namespace RedFox.Graphics3D.IO
         public virtual void Read(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
         {
             using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
-            Read(scene, stream, Path.GetFileName(filePath), options, token);
+            Read(scene, stream, CreateReadContext(filePath, options), token);
+        }
+
+        /// <summary>
+        /// Reads scene data from the specified stream using the supplied translation context.
+        /// </summary>
+        /// <param name="scene">The scene object to populate with data read from the stream.</param>
+        /// <param name="stream">The input stream containing scene data.</param>
+        /// <param name="context">The translation context for this operation.</param>
+        /// <param name="token">An optional cancellation token that can be used to cancel the read operation.</param>
+        public virtual void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            Read(scene, stream, context.Name, context.Options, token);
         }
 
         /// <summary>
@@ -67,7 +80,20 @@ namespace RedFox.Graphics3D.IO
         public virtual void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
         {
             using var stream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.Asynchronous);
-            Write(scene, stream, Path.GetFileNameWithoutExtension(filePath), options, token);
+            Write(scene, stream, CreateWriteContext(filePath, options), token);
+        }
+
+        /// <summary>
+        /// Writes the scene data to the specified stream using the supplied translation context.
+        /// </summary>
+        /// <param name="scene">The scene object to write to the stream.</param>
+        /// <param name="stream">The stream to write the scene data to.</param>
+        /// <param name="context">The translation context for this operation.</param>
+        /// <param name="token">An optional cancellation token that can be used to cancel the write operation.</param>
+        public virtual void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            Write(scene, stream, context.Name, context.Options, token);
         }
 
         /// <summary>
@@ -85,10 +111,31 @@ namespace RedFox.Graphics3D.IO
         /// </summary>
         /// <param name="filePath">The path of the file to validate.</param>
         /// <param name="ext">The file extension to validate, including the leading period (for example, ".obj").</param>
+        /// <param name="context">The translation context.</param>
+        /// <returns>true if the specified extension is supported; otherwise, false.</returns>
+        public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context) =>
+            IsValid(filePath, ext, context.Options);
+
+        /// <summary>
+        /// Determines whether the specified file extension is supported for translation.
+        /// </summary>
+        /// <param name="filePath">The path of the file to validate.</param>
+        /// <param name="ext">The file extension to validate, including the leading period (for example, ".obj").</param>
         /// <param name="options">The options to use when validating the file.</param>
         /// <returns>true if the specified extension is supported; otherwise, false.</returns>
         public virtual bool IsValid(string filePath, string ext, SceneTranslatorOptions options) =>
             Extensions.Contains(ext);
+
+        /// <summary>
+        /// Determines whether the specified file extension is supported for translation.
+        /// </summary>
+        /// <param name="filePath">The path of the file to validate.</param>
+        /// <param name="ext">The file extension to validate, including the leading period (for example, ".obj").</param>
+        /// <param name="context">The translation context.</param>
+        /// <param name="startOfFile">A buffer of initial data from the start of the file.</param>
+        /// <returns>true if the specified extension is supported; otherwise, false.</returns>
+        public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
+            IsValid(filePath, ext, context.Options, startOfFile);
 
         /// <summary>
         /// Determines whether the specified file extension is supported for translation.
@@ -100,5 +147,32 @@ namespace RedFox.Graphics3D.IO
         /// <returns>true if the specified extension is supported; otherwise, false.</returns>
         public virtual bool IsValid(string filePath, string ext, SceneTranslatorOptions options, ReadOnlySpan<byte> startOfFile) =>
             IsValid(filePath, ext, options);
+
+        protected internal static SceneTranslationContext CreateReadContext(string filePath, SceneTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            string fullPath = Path.GetFullPath(filePath);
+            options.SourceFilePath = fullPath;
+            options.SourceDirectoryPath = Path.GetDirectoryName(fullPath);
+
+            return new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options)
+            {
+                SourceFilePath = fullPath,
+                SourceDirectoryPath = Path.GetDirectoryName(fullPath),
+            };
+        }
+
+        protected internal static SceneTranslationContext CreateWriteContext(string filePath, SceneTranslatorOptions options)
+        {
+            ArgumentNullException.ThrowIfNull(options);
+
+            string fullPath = Path.GetFullPath(filePath);
+            return new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options)
+            {
+                TargetFilePath = fullPath,
+                TargetDirectoryPath = Path.GetDirectoryName(fullPath),
+            };
+        }
     }
 }

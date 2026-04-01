@@ -1,3 +1,4 @@
+using System.Numerics;
 using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL.Shaders;
@@ -20,7 +21,7 @@ public sealed class GLShader : IDisposable
         gl.AttachShader(ProgramId, fs);
         gl.LinkProgram(ProgramId);
 
-        gl.GetProgram(ProgramId, ProgramPropertyPName.LinkStatus, out int linkStatus);
+        gl.GetProgram(ProgramId, ProgramPropertyARB.LinkStatus, out int linkStatus);
         if (linkStatus == 0)
         {
             string log = gl.GetProgramInfoLog(ProgramId);
@@ -117,11 +118,36 @@ public sealed class GLShader : IDisposable
         }
     }
 
+    public unsafe void SetUniform(string name, Matrix3x3 value)
+    {
+        int loc = GetUniformLocation(name);
+        if (loc < 0)
+            return;
+
+        Span<float> data =
+        [
+            value.M11, value.M12, value.M13,
+            value.M21, value.M22, value.M23,
+            value.M31, value.M32, value.M33,
+        ];
+
+        fixed (float* ptr = data)
+        {
+            _gl.UniformMatrix3(loc, 1, false, ptr);
+        }
+    }
+
     public void Dispose()
     {
         if (ProgramId != 0)
         {
-            _gl.DeleteProgram(ProgramId);
+            try
+            {
+                _gl.DeleteProgram(ProgramId);
+            }
+            catch
+            {
+            }
         }
         _uniformCache.Clear();
     }

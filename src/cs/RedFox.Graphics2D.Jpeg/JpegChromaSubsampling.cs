@@ -10,5 +10,7 @@ public enum JpegChromaSubsampling
 
     /// <summary>Horizontal chroma subsampling (4:2:2).</summary>
     Yuv422,
+
+    /// <summary>Horizontal and vertical chroma subsampling (4:2:0).</summary>
     Yuv420,
 }
