@@ -66,6 +66,61 @@ public sealed class BcCodecTests
         AssertBlockErrorWithinTolerance(sourcePixels, decodedPixels, maxAbsoluteError: 0.80f, maxAverageAbsoluteError: 0.24f);
     }
 
+    [Fact]
+    public void BcPartitionTables_ArePubliclyAccessible()
+    {
+        Assert.Equal(32, BC6HPartitionTable.Partitions2.Length);
+        Assert.Equal(32, BC6HPartitionTable.AnchorTable.Length);
+        Assert.Equal(64, BC7PartitionTable.Partitions2.Length);
+        Assert.Equal(64, BC7PartitionTable.Partitions3.Length);
+        Assert.Equal(16, BC7PartitionTable.Weights4.Length);
+    }
+
+    [Fact]
+    public void ImageConvert_WithFastBc7Flag_ProducesBc7Output()
+    {
+        const int width = 6;
+        const int height = 5;
+
+        Vector4[] sourcePixels = CreateOpaqueColorPattern(width, height);
+        byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R8G8B8A8Unorm, width, height).SlicePitch];
+        PixelCodec.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
+
+        Image image = new(width, height, ImageFormat.R8G8B8A8Unorm, sourceBytes);
+        image.Convert(ImageFormat.BC7Unorm, ImageConvertFlags.PreferFastBc7Encoding);
+
+        Assert.Equal(ImageFormat.BC7Unorm, image.Format);
+        Assert.Equal(ImageFormatInfo.CalculatePitch(ImageFormat.BC7Unorm, width, height).SlicePitch, image.PixelData.Length);
+
+        Vector4[] decodedPixels = new Vector4[width * height];
+        PixelCodec.Bc7Unorm.Decode(image.PixelData, decodedPixels, width, height);
+        AssertBlockErrorWithinTolerance(sourcePixels, decodedPixels, maxAbsoluteError: 0.42f, maxAverageAbsoluteError: 0.12f);
+    }
+
+    [Fact]
+    public void ImageConvert_WithFastBc6HFlag_ProducesBc6HOutput()
+    {
+        const int width = 4;
+        const int height = 4;
+
+        Vector4[] sourcePixels = CreateSignedHdrGradient();
+        byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R16G16B16A16Float, width, height).SlicePitch];
+        PixelCodec.R16G16B16A16Float.Encode(sourcePixels, sourceBytes, width, height);
+
+        Image image = new(width, height, ImageFormat.R16G16B16A16Float, sourceBytes);
+        image.Convert(ImageFormat.BC6HSF16, ImageConvertFlags.PreferFastBc6HEncoding);
+
+        Assert.Equal(ImageFormat.BC6HSF16, image.Format);
+        Assert.Equal(ImageFormatInfo.CalculatePitch(ImageFormat.BC6HSF16, width, height).SlicePitch, image.PixelData.Length);
+
+        Vector4[] decodedPixels = new Vector4[width * height];
+        PixelCodec.Bc6HSf16.Decode(image.PixelData, decodedPixels, width, height);
+
+        Assert.True(decodedPixels[0].X < 0f, "Expected fast BC6H conversion to preserve negative values.");
+        Assert.True(decodedPixels[^1].X > 0f, "Expected fast BC6H conversion to preserve positive values.");
+        AssertBlockErrorWithinTolerance(sourcePixels, decodedPixels, maxAbsoluteError: 0.90f, maxAverageAbsoluteError: 0.30f);
+    }
+
     private static Vector4[] CreateOpaqueColorPattern(int width, int height)
     {
         Vector4[] pixels = new Vector4[width * height];

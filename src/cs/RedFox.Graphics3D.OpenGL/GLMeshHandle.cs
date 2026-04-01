@@ -8,8 +8,9 @@ public sealed class GLMeshHandle
     public uint PositionVBO { get; }
     public uint NormalVBO { get; }
     public uint UVVBO { get; }
-    public uint BoneIndexVBO { get; }
-    public uint BoneWeightVBO { get; }
+    public uint InfluenceRangeVBO { get; }
+    public uint InfluenceTexture { get; }
+    public uint BoneMatrixTexture { get; }
     public uint EBO { get; }
     public int VertexCount { get; }
     public int IndexCount { get; }
@@ -17,20 +18,37 @@ public sealed class GLMeshHandle
     public bool HasNormals { get; }
     public bool HasUVs { get; }
     public bool HasSkinning { get; }
-    public int SkinInfluenceCount { get; }
+    public int BoneCount { get; }
+    public int InfluenceTextureWidth { get; }
+    public int InfluenceTextureHeight { get; }
+    public int BoneMatrixTextureWidth { get; }
+    public int BoneMatrixTextureHeight { get; }
+    public bool HasMorphTargets { get; }
+    public int MorphTargetCount { get; }
+    public float[]? BasePositions { get; }
+    public float[]? BaseNormals { get; }
+    public float[]? PositionMorphDeltas { get; }
+    public float[]? NormalMorphDeltas { get; }
 
     public GLMeshHandle(
         uint vao, uint positionVbo, uint normalVbo, uint uvVbo,
-        uint boneIndexVbo, uint boneWeightVbo, uint ebo,
+        uint influenceRangeVbo, uint influenceTexture, uint boneMatrixTexture, uint ebo,
         int vertexCount, int indexCount, bool isIndexed,
-        bool hasNormals, bool hasUVs, bool hasSkinning, int skinInfluenceCount)
+        bool hasNormals, bool hasUVs, bool hasSkinning,
+        int boneCount,
+        int influenceTextureWidth, int influenceTextureHeight,
+        int boneMatrixTextureWidth, int boneMatrixTextureHeight,
+        bool hasMorphTargets, int morphTargetCount,
+        float[]? basePositions, float[]? baseNormals,
+        float[]? positionMorphDeltas, float[]? normalMorphDeltas)
     {
         VAO = vao;
         PositionVBO = positionVbo;
         NormalVBO = normalVbo;
         UVVBO = uvVbo;
-        BoneIndexVBO = boneIndexVbo;
-        BoneWeightVBO = boneWeightVbo;
+        InfluenceRangeVBO = influenceRangeVbo;
+        InfluenceTexture = influenceTexture;
+        BoneMatrixTexture = boneMatrixTexture;
         EBO = ebo;
         VertexCount = vertexCount;
         IndexCount = indexCount;
@@ -38,17 +56,34 @@ public sealed class GLMeshHandle
         HasNormals = hasNormals;
         HasUVs = hasUVs;
         HasSkinning = hasSkinning;
-        SkinInfluenceCount = skinInfluenceCount;
+        BoneCount = boneCount;
+        InfluenceTextureWidth = influenceTextureWidth;
+        InfluenceTextureHeight = influenceTextureHeight;
+        BoneMatrixTextureWidth = boneMatrixTextureWidth;
+        BoneMatrixTextureHeight = boneMatrixTextureHeight;
+        HasMorphTargets = hasMorphTargets;
+        MorphTargetCount = morphTargetCount;
+        BasePositions = basePositions;
+        BaseNormals = baseNormals;
+        PositionMorphDeltas = positionMorphDeltas;
+        NormalMorphDeltas = normalMorphDeltas;
     }
 
     public void Delete(GL gl)
     {
-        if (VAO != 0) gl.DeleteVertexArray(VAO);
-        if (PositionVBO != 0) gl.DeleteBuffer(PositionVBO);
-        if (NormalVBO != 0) gl.DeleteBuffer(NormalVBO);
-        if (UVVBO != 0) gl.DeleteBuffer(UVVBO);
-        if (BoneIndexVBO != 0) gl.DeleteBuffer(BoneIndexVBO);
-        if (BoneWeightVBO != 0) gl.DeleteBuffer(BoneWeightVBO);
-        if (EBO != 0) gl.DeleteBuffer(EBO);
+        try
+        {
+            if (VAO != 0) gl.DeleteVertexArray(VAO);
+            if (PositionVBO != 0) gl.DeleteBuffer(PositionVBO);
+            if (NormalVBO != 0) gl.DeleteBuffer(NormalVBO);
+            if (UVVBO != 0) gl.DeleteBuffer(UVVBO);
+            if (InfluenceRangeVBO != 0) gl.DeleteBuffer(InfluenceRangeVBO);
+            if (InfluenceTexture != 0) gl.DeleteTexture(InfluenceTexture);
+            if (BoneMatrixTexture != 0) gl.DeleteTexture(BoneMatrixTexture);
+            if (EBO != 0) gl.DeleteBuffer(EBO);
+        }
+        catch
+        {
+        }
     }
 }

@@ -74,6 +74,21 @@ namespace RedFox.Graphics2D.BC
                 (ReadOnlySpan<Vector4> pixels, Span<byte> block) => EncodeBlock(pixels, block, signed));
         }
 
+        /// <summary>
+        /// Encodes pixels into BC6H using a reduced CPU search intended to favor throughput over quality.
+        /// The fast path currently restricts encoding to the stable single-subset mode 10 candidate.
+        /// </summary>
+        /// <param name="source">The source HDR RGBA pixels to encode. Alpha is ignored.</param>
+        /// <param name="destination">The destination span that receives BC6H blocks.</param>
+        /// <param name="width">The image width in pixels.</param>
+        /// <param name="height">The image height in pixels.</param>
+        public void EncodeFast(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+        {
+            bool signed = IsSigned;
+            BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock,
+                (ReadOnlySpan<Vector4> pixels, Span<byte> block) => EncodeBlockFast(pixels, block, signed));
+        }
+
         /// <inheritdoc/>
         public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) =>
             throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
@@ -280,6 +295,31 @@ namespace RedFox.Graphics2D.BC
             int totalIdxBits = info.IndexBits * 16 - (info.NumSubsets == 1 ? 1 : 2);
             int idxStart = 128 - totalIdxBits;
             var wt = info.IndexBits == 3 ? BC6HPartitionTable.Weights3 : BC6HPartitionTable.Weights4;
+            Span<float> rSubset0 = stackalloc float[16];
+            Span<float> gSubset0 = stackalloc float[16];
+            Span<float> bSubset0 = stackalloc float[16];
+            Span<float> rSubset1 = stackalloc float[16];
+            Span<float> gSubset1 = stackalloc float[16];
+            Span<float> bSubset1 = stackalloc float[16];
+
+            for (int j = 0; j < wt.Length; j++)
+            {
+                int w = wt[j];
+                rSubset0[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(r[0], r[1], w), signed));
+                gSubset0[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(g[0], g[1], w), signed));
+                bSubset0[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(b[0], b[1], w), signed));
+
+                if (info.NumSubsets > 1)
+                {
+                    rSubset1[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(r[2], r[3], w), signed));
+                    gSubset1[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(g[2], g[3], w), signed));
+                    bSubset1[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(b[2], b[3], w), signed));
+                }
+            }
+
+            Span<float> outR = stackalloc float[16];
+            Span<float> outG = stackalloc float[16];
+            Span<float> outB = stackalloc float[16];
 
             int bp = idxStart;
             for (int i = 0; i < 16; i++)
@@ -292,15 +332,21 @@ namespace RedFox.Graphics2D.BC
                 bp += nbits;
 
                 int subset = info.NumSubsets == 1 ? 0 : (BC6HPartitionTable.Partitions2[partition] >> i) & 1;
-                int e0 = subset * 2, e1 = e0 + 1;
-                int w = wt[idx];
-
-                pixels[i] = new Vector4(
-                    HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(r[e0], r[e1], w), signed)),
-                    HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(g[e0], g[e1], w), signed)),
-                    HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(b[e0], b[e1], w), signed)),
-                    1.0f);
+                if (subset == 0)
+                {
+                    outR[i] = rSubset0[idx];
+                    outG[i] = gSubset0[idx];
+                    outB[i] = bSubset0[idx];
+                }
+                else
+                {
+                    outR[i] = rSubset1[idx];
+                    outG[i] = gSubset1[idx];
+                    outB[i] = bSubset1[idx];
+                }
             }
+
+            BcSimd.StoreRgbFloatWithAlphaOne(outR, outG, outB, pixels);
         }
 
         #endregion
@@ -573,6 +619,23 @@ namespace RedFox.Graphics2D.BC
         /// <param name="signed">True for signed half-float encoding, false for unsigned.</param>
         public static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed)
         {
+            EncodeBlockCore(pixels, block, signed, fastMode: false);
+        }
+
+        /// <summary>
+        /// Encodes 16 HDR <see cref="Vector4"/> pixels into a single 16-byte BC6H block using a
+        /// reduced CPU search intended to favor throughput over quality.
+        /// </summary>
+        /// <param name="pixels">The 16 source RGBA pixels (alpha is ignored).</param>
+        /// <param name="block">The destination 16-byte span for the compressed block.</param>
+        /// <param name="signed">True for signed half-float encoding, false for unsigned.</param>
+        public static void EncodeBlockFast(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed)
+        {
+            EncodeBlockCore(pixels, block, signed, fastMode: true);
+        }
+
+        private static void EncodeBlockCore(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed, bool fastMode)
+        {
             // Convert float pixels to 16-bit half values.
             Span<ushort> rHalf = stackalloc ushort[16];
             Span<ushort> gHalf = stackalloc ushort[16];
@@ -590,7 +653,7 @@ namespace RedFox.Graphics2D.BC
             bestError = error;
             candidate.CopyTo(bestBlock);
 
-            if (signed)
+            if (signed && !fastMode)
             {
                 // The transformed 1-subset modes are still worthwhile for signed HDR data,
                 // where negative ranges benefit from the higher endpoint precision.
@@ -708,49 +771,37 @@ namespace RedFox.Graphics2D.BC
             int bU0 = Unquantize(bE0, epBits, signed);
             int bU1 = Unquantize(bE1, epBits, signed);
 
-            float totalError = 0;
+            Span<float> rOriginal = stackalloc float[16];
+            Span<float> gOriginal = stackalloc float[16];
+            Span<float> bOriginal = stackalloc float[16];
+
             for (int i = 0; i < 16; i++)
             {
-                int rTarget = signed ? ((rHalf[i] >> 15) != 0 ? -(rHalf[i] & 0x7FFF) : (rHalf[i] & 0x7FFF)) : (rHalf[i] & 0x7FFF);
-                int gTarget = signed ? ((gHalf[i] >> 15) != 0 ? -(gHalf[i] & 0x7FFF) : (gHalf[i] & 0x7FFF)) : (gHalf[i] & 0x7FFF);
-                int bTarget = signed ? ((bHalf[i] >> 15) != 0 ? -(bHalf[i] & 0x7FFF) : (bHalf[i] & 0x7FFF)) : (bHalf[i] & 0x7FFF);
-
-                float bestPixErr = float.MaxValue;
-                int bestIdx = 0;
-
-                for (int j = 0; j < weights.Length; j++)
-                {
-                    int w = weights[j];
-                    int rI = FinishUnquantize(InterpolateHalf(rU0, rU1, w), signed);
-                    int gI = FinishUnquantize(InterpolateHalf(gU0, gU1, w), signed);
-                    int bI = FinishUnquantize(InterpolateHalf(bU0, bU1, w), signed);
-
-                    // Compare in half-float domain.
-                    float rInterp = HalfToFloat((ushort)rI);
-                    float gInterp = HalfToFloat((ushort)gI);
-                    float bInterp = HalfToFloat((ushort)bI);
-
-                    float rOrig = HalfToFloat(rHalf[i]);
-                    float gOrig = HalfToFloat(gHalf[i]);
-                    float bOrig = HalfToFloat(bHalf[i]);
-
-                    float dr = rInterp - rOrig;
-                    float dg = gInterp - gOrig;
-                    float db = bInterp - bOrig;
-                    float err = dr * dr + dg * dg + db * db;
-
-                    if (err < bestPixErr)
-                    {
-                        bestPixErr = err;
-                        bestIdx = j;
-                    }
-                }
-
-                bestIndices[i] = bestIdx;
-                totalError += bestPixErr;
+                rOriginal[i] = HalfToFloat(rHalf[i]);
+                gOriginal[i] = HalfToFloat(gHalf[i]);
+                bOriginal[i] = HalfToFloat(bHalf[i]);
             }
 
-            return totalError;
+            Span<float> rCandidates = stackalloc float[16];
+            Span<float> gCandidates = stackalloc float[16];
+            Span<float> bCandidates = stackalloc float[16];
+
+            for (int j = 0; j < weights.Length; j++)
+            {
+                int w = weights[j];
+                rCandidates[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(rU0, rU1, w), signed));
+                gCandidates[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(gU0, gU1, w), signed));
+                bCandidates[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(bU0, bU1, w), signed));
+            }
+
+            return BcSimd.FindBestIndices3Channel(
+                rOriginal,
+                gOriginal,
+                bOriginal,
+                rCandidates[..weights.Length],
+                gCandidates[..weights.Length],
+                bCandidates[..weights.Length],
+                bestIndices);
         }
 
         // Encodes using mode 11: 5-bit mode (00111), 11:9:9:9, 1 subset, transformed, 4-bit indices.

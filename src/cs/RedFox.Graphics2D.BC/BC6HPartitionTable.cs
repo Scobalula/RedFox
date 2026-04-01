@@ -4,7 +4,7 @@ namespace RedFox.Graphics2D.BC
     /// Provides partition, anchor, and interpolation weight tables for BC6H block compression.
     /// BC6H uses 32 two-subset partitions and two weight table sizes (3-bit and 4-bit indices).
     /// </summary>
-    internal static class BC6HPartitionTable
+    public static class BC6HPartitionTable
     {
         /// <summary>
         /// Two-subset partition table (32 entries). Each <see cref="ushort"/> encodes 16 pixels

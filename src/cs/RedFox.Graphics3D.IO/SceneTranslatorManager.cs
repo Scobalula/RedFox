@@ -50,10 +50,16 @@ namespace RedFox.Graphics3D.IO
         /// <param name="translator">The translator if found, otherwise null.</param>
         /// <returns>true if found, otherwise false.</returns>
         public bool TryGetTranslator(string filePath, string extension, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
+            => TryGetTranslator(filePath, extension, new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options), out translator);
+
+        /// <summary>
+        /// Attempts to find a suitable scene translator for the specified file and translation context.
+        /// </summary>
+        public bool TryGetTranslator(string filePath, string extension, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
         {
             foreach (var potentialTranslator in Translators)
             {
-                if (potentialTranslator.IsValid(filePath, extension, options))
+                if (potentialTranslator.IsValid(filePath, extension, context))
                 {
                     translator = potentialTranslator;
                     return true;
@@ -74,10 +80,16 @@ namespace RedFox.Graphics3D.IO
         /// <param name="translator">The translator if found, otherwise null.</param>
         /// <returns>true if found, otherwise false.</returns>
         public bool TryGetTranslator(string filePath, string extension, ReadOnlySpan<byte> header, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
+            => TryGetTranslator(filePath, extension, header, new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options), out translator);
+
+        /// <summary>
+        /// Attempts to find a suitable scene translator for the specified file and translation context.
+        /// </summary>
+        public bool TryGetTranslator(string filePath, string extension, ReadOnlySpan<byte> header, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
         {
             foreach (var potentialTranslator in Translators)
             {
-                if (potentialTranslator.IsValid(filePath, extension, options, header))
+                if (potentialTranslator.IsValid(filePath, extension, context, header))
                 {
                     translator = potentialTranslator;
                     return true;
@@ -126,38 +138,43 @@ namespace RedFox.Graphics3D.IO
             if (!stream.CanSeek)
                 throw new IOException("The supplied stream must support seeking.");
 
+            ArgumentNullException.ThrowIfNull(options);
+
             var extension = Path.GetExtension(filePath);
             var readStart = stream.Position;
+            SceneTranslationContext context = SceneTranslator.CreateReadContext(filePath, options);
 
             Span<byte> header = stackalloc byte[DefaultHeaderSize];
             var headerSize = stream.Read(header);
 
-            if (!TryGetTranslator(filePath, extension, header[..headerSize], options, out var translator))
+            if (!TryGetTranslator(filePath, extension, header[..headerSize], context, out var translator))
                 throw new IOException($"No suitable translator found for file: {filePath}");
 
             stream.Position = readStart;
-            translator.Read(scene, stream, Path.GetFileNameWithoutExtension(filePath), options, token);
+            translator.Read(scene, stream, context, token);
         }
 
         public void Write(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken? token)
         {
             var extension = Path.GetExtension(filePath);
+            SceneTranslationContext context = SceneTranslator.CreateWriteContext(filePath, options);
 
-            if (!TryGetTranslator(filePath, extension, options, out var translator))
+            if (!TryGetTranslator(filePath, extension, context, out var translator))
                 throw new IOException($"No suitable translator found for file: {filePath}");
 
             using var stream = File.Create(filePath);
-            translator.Write(scene, stream, Path.GetFileNameWithoutExtension(filePath), options, token);
+            translator.Write(scene, stream, context, token);
         }
 
         public void Write(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken? token)
         {
             var extension = Path.GetExtension(filePath);
+            SceneTranslationContext context = SceneTranslator.CreateWriteContext(filePath, options);
 
-            if (!TryGetTranslator(filePath, extension, options, out var translator))
+            if (!TryGetTranslator(filePath, extension, context, out var translator))
                 throw new IOException($"No suitable translator found for file: {filePath}");
 
-            translator.Write(scene, stream, Path.GetFileNameWithoutExtension(filePath), options, token);
+            translator.Write(scene, stream, context, token);
         }
     }
 }

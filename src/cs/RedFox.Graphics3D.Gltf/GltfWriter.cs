@@ -17,6 +17,7 @@ namespace RedFox.Graphics3D.Gltf;
 public sealed class GltfWriter
 {
     private readonly SceneTranslatorOptions _options;
+    private readonly string? _targetDirectoryPath;
     private readonly GltfDocument _doc = new();
     private readonly MemoryStream _binBuffer = new();
 
@@ -34,9 +35,10 @@ public sealed class GltfWriter
     /// Initializes a new <see cref="GltfWriter"/> with the specified translation options.
     /// </summary>
     /// <param name="options">Options that control how the scene data is written.</param>
-    public GltfWriter(SceneTranslatorOptions options)
+    public GltfWriter(SceneTranslatorOptions options, string? targetDirectoryPath = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _targetDirectoryPath = targetDirectoryPath;
     }
 
     /// <summary>
@@ -155,20 +157,20 @@ public sealed class GltfWriter
         }
 
         // Write texture references
-        if (mat.DiffuseMapName is not null)
-            gltfMat.BaseColorTextureIndex = WriteImageTexture(mat.DiffuseMapName);
+        if (TryResolveTexturePath(mat, mat.DiffuseMapName, out string? diffuseTexturePath) && diffuseTexturePath is not null)
+            gltfMat.BaseColorTextureIndex = WriteImageTexture(diffuseTexturePath);
 
-        if (mat.NormalMapName is not null)
-            gltfMat.NormalTextureIndex = WriteImageTexture(mat.NormalMapName);
+        if (TryResolveTexturePath(mat, mat.NormalMapName, out string? normalTexturePath) && normalTexturePath is not null)
+            gltfMat.NormalTextureIndex = WriteImageTexture(normalTexturePath);
 
-        if (mat.MetallicMapName is not null)
-            gltfMat.MetallicRoughnessTextureIndex = WriteImageTexture(mat.MetallicMapName);
+        if (TryResolveTexturePath(mat, mat.MetallicMapName, out string? metallicTexturePath) && metallicTexturePath is not null)
+            gltfMat.MetallicRoughnessTextureIndex = WriteImageTexture(metallicTexturePath);
 
-        if (mat.AmbientOcclusionMapName is not null)
-            gltfMat.OcclusionTextureIndex = WriteImageTexture(mat.AmbientOcclusionMapName);
+        if (TryResolveTexturePath(mat, mat.AmbientOcclusionMapName, out string? ambientOcclusionTexturePath) && ambientOcclusionTexturePath is not null)
+            gltfMat.OcclusionTextureIndex = WriteImageTexture(ambientOcclusionTexturePath);
 
-        if (mat.EmissiveMapName is not null)
-            gltfMat.EmissiveTextureIndex = WriteImageTexture(mat.EmissiveMapName);
+        if (TryResolveTexturePath(mat, mat.EmissiveMapName, out string? emissiveTexturePath) && emissiveTexturePath is not null)
+            gltfMat.EmissiveTextureIndex = WriteImageTexture(emissiveTexturePath);
 
         _materialIndices[mat] = _doc.Materials.Count;
         _doc.Materials.Add(gltfMat);
@@ -189,6 +191,36 @@ public sealed class GltfWriter
 
         return texIdx;
     }
+
+    private bool TryResolveTexturePath(Material material, string? mapName, out string? imagePath)
+    {
+        imagePath = null;
+        if (string.IsNullOrWhiteSpace(mapName))
+            return false;
+
+        if (material.TryFindTexture(mapName, StringComparison.OrdinalIgnoreCase, out Texture? texture))
+        {
+            imagePath = GetPortableTexturePath(texture);
+            return !string.IsNullOrWhiteSpace(imagePath);
+        }
+
+        imagePath = NormalizePath(mapName);
+        return true;
+    }
+
+    private string GetPortableTexturePath(Texture texture)
+    {
+        string effectivePath = texture.EffectiveFilePath;
+        if (string.IsNullOrWhiteSpace(effectivePath))
+            return NormalizePath(texture.FilePath);
+
+        if (Path.IsPathRooted(effectivePath) && !string.IsNullOrWhiteSpace(_targetDirectoryPath))
+            return NormalizePath(Path.GetRelativePath(_targetDirectoryPath, effectivePath));
+
+        return NormalizePath(texture.FilePath);
+    }
+
+    private static string NormalizePath(string path) => path.Replace('\\', '/');
 
     /// <summary>
     /// Writes a <see cref="Mesh"/> to the glTF document, returning the node index.

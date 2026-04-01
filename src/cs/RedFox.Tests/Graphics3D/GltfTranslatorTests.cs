@@ -87,6 +87,60 @@ public sealed class GltfTranslatorTests
     }
 
     [Fact]
+    public void GltfReader_BuildMaterials_UsesTextureNodeNamesAndResolvesRelativeTexturePaths()
+    {
+        GltfDocument doc = new();
+        doc.Images.Add(new GltfImage
+        {
+            Uri = "textures/diffuse.png",
+            Name = "DiffuseImage",
+        });
+        doc.Textures.Add(new GltfTexture
+        {
+            Source = 0,
+        });
+        doc.Materials.Add(new GltfMaterial
+        {
+            Name = "Textured",
+            BaseColorTextureIndex = 0,
+        });
+
+        Scene scene = new("GltfMaterials");
+        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        GltfReader reader = new(doc, "TexturedScene", new SceneTranslatorOptions(), @"C:\Temp\Model");
+
+        Material material = reader.BuildMaterials(model).Single();
+
+        Assert.Equal("diffuse_diffuse", material.DiffuseMapName);
+        Assert.True(material.TryGetDiffuseMap(out Texture? diffuseTexture));
+        Assert.NotNull(diffuseTexture);
+        Assert.Equal("textures/diffuse.png", diffuseTexture!.FilePath);
+        Assert.Equal(Path.GetFullPath(@"C:\Temp\Model\textures\diffuse.png"), diffuseTexture.ResolvedFilePath);
+    }
+
+    [Fact]
+    public void GltfWriter_UsesTextureFilePathInsteadOfTextureNodeName()
+    {
+        Scene scene = CreateSceneWithMaterials();
+        Material material = scene.GetDescendants<Material>().Single();
+        material.DiffuseMapName = "diffuse_tex";
+        material.AddNode(new Texture("textures/diffuse.png", "diffuse")
+        {
+            Name = "diffuse_tex",
+        });
+
+        using MemoryStream stream = new();
+        GltfWriter writer = new(new SceneTranslatorOptions());
+        writer.Write(scene, stream, "TexturedScene");
+
+        stream.Position = 0;
+        GltfDocument doc = GltfReader.ParseGlb(stream);
+
+        Assert.Single(doc.Images);
+        Assert.Equal("textures/diffuse.png", doc.Images[0].Uri);
+    }
+
+    [Fact]
     public void GltfTranslator_RoundTrip_PreservesSkeleton()
     {
         Scene sourceScene = CreateSkinnedScene();

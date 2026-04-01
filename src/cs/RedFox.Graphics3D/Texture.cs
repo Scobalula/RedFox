@@ -23,6 +23,17 @@ public class Texture(string filePath, string slot) : SceneNode(Path.GetFileNameW
     public string FilePath { get; set; } = filePath;
 
     /// <summary>
+    /// Gets or sets the resolved on-disk path for this texture.
+    /// This can differ from <see cref="FilePath"/> when the source scene stores a relative reference.
+    /// </summary>
+    public string? ResolvedFilePath { get; set; }
+
+    /// <summary>
+    /// Gets the best path to use when loading the texture from disk.
+    /// </summary>
+    public string EffectiveFilePath => string.IsNullOrWhiteSpace(ResolvedFilePath) ? FilePath : ResolvedFilePath;
+
+    /// <summary>
     /// Gets or sets the image data associated with this texture. This may be <see langword="null"/> if the image data has not been loaded yet.
     /// </summary>
     public Image? Data { get; set; }

@@ -1,9 +1,9 @@
 using System.Numerics;
-using System.Runtime.InteropServices;
+using RedFox.Graphics2D;
+using RedFox.Graphics2D.IO;
 using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.OpenGL.Passes;
 using RedFox.Graphics3D.OpenGL.Shaders;
-using RedFox.Graphics2D;
 using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL;
@@ -12,59 +12,90 @@ public sealed class GLRenderer : IDisposable
 {
     private readonly GL _gl;
     private readonly List<IRenderPass> _passes = [];
-    private readonly Dictionary<Mesh, GLMeshHandle> _meshHandles = [];
-    private readonly Dictionary<Texture, GLTextureHandle> _textureHandles = [];
 
     private GLShader? _lineShader;
-    private uint _boneLineVAO;
-    private uint _boneLineVBO;
-    private int _boneLineVertexCount;
+    private uint _boneLineVao;
+    private uint _boneLineVbo;
+    private bool _isInitialized;
+    private int _maxTextureSize = 2048;
+
+    public GLRenderer(GL gl)
+    {
+        _gl = gl ?? throw new ArgumentNullException(nameof(gl));
+    }
 
     public GL GL => _gl;
     public Camera? ActiveCamera { get; set; }
     public bool ShowBones { get; set; } = true;
     public bool ShowWireframe { get; set; }
+    public bool EnableBackFaceCulling { get; set; }
+    public bool IsOpenGles { get; private set; }
     public RendererColor BackgroundColor { get; set; } = new(0.12f, 0.12f, 0.14f, 1.0f);
-    public IReadOnlyList<IRenderPass> Passes => _passes;
     public ImageTranslatorManager? ImageTranslatorManager { get; set; }
+    public Matrix4x4 SceneTransform { get; set; } = Matrix4x4.Identity;
+    public IReadOnlyList<IRenderPass> Passes => _passes;
+    public Matrix3x3 SceneNormalMatrix => ComputeNormalMatrix(SceneTransform);
 
-    public GLRenderer(GL gl)
+    public Vector3 TransformPoint(Vector3 value) => Vector3.Transform(value, SceneTransform);
+
+    public Vector3 TransformDirection(Vector3 value)
     {
-        _gl = gl;
+        Vector3 transformed = Vector3.TransformNormal(value, SceneTransform);
+        return transformed.LengthSquared() > 1e-12f
+            ? Vector3.Normalize(transformed)
+            : value;
     }
 
     public void Initialize()
     {
+        if (_isInitialized)
+            return;
+
+        IsOpenGles = ShaderSource.GetProfile(_gl) == ShaderProfile.OpenGles;
+        _gl.GetInteger(GLEnum.MaxTextureSize, out _maxTextureSize);
+        _maxTextureSize = Math.Max(_maxTextureSize, 1);
+
         _gl.Enable(EnableCap.DepthTest);
-        _gl.Enable(EnableCap.CullFace);
-        _gl.CullFace(CullFaceMode.Back);
-        _gl.FrontFace(FrontFaceDirection.CounterClockwise);
-        _gl.Enable(EnableCap.LineSmooth);
-        _gl.Hint(HintTarget.LineSmoothHint, HintMode.Nicest);
+        _gl.FrontFace(FrontFaceDirection.Ccw);
 
-        _lineShader = new GLShader(_gl, ShaderSource.LineVertex, ShaderSource.LineFragment);
-        _boneLineVAO = _gl.GenVertexArray();
-        _boneLineVBO = _gl.GenBuffer();
+        (string lineVertex, string lineFragment) = ShaderSource.LoadProgram(_gl, "line");
+        _lineShader = new GLShader(_gl, lineVertex, lineFragment);
+        _boneLineVao = _gl.GenVertexArray();
+        _boneLineVbo = _gl.GenBuffer();
 
-        AddPass(new GeometryPass());
+        if (_passes.Count == 0)
+        {
+            AddPass(new GridPass());
+            AddPass(new GeometryPass());
+        }
 
-        foreach (var pass in _passes)
+        foreach (IRenderPass pass in _passes)
             pass.Initialize(this);
+
+        _isInitialized = true;
     }
 
-    public void AddPass(IRenderPass pass) => _passes.Add(pass);
+    public void AddPass(IRenderPass pass)
+    {
+        ArgumentNullException.ThrowIfNull(pass);
+        _passes.Add(pass);
+
+        if (_isInitialized)
+            pass.Initialize(this);
+    }
 
     public bool RemovePass(string name)
     {
         for (int i = 0; i < _passes.Count; i++)
         {
-            if (_passes[i].Name == name)
-            {
-                _passes[i].Dispose();
-                _passes.RemoveAt(i);
-                return true;
-            }
+            if (!_passes[i].Name.Equals(name, StringComparison.Ordinal))
+                continue;
+
+            _passes[i].Dispose();
+            _passes.RemoveAt(i);
+            return true;
         }
+
         return false;
     }
 
@@ -72,13 +103,25 @@ public sealed class GLRenderer : IDisposable
 
     public void Render(Scene scene, float deltaTime)
     {
+        ArgumentNullException.ThrowIfNull(scene);
+
         _gl.ClearColor(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, BackgroundColor.A);
         _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
-        if (ShowWireframe)
-            _gl.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
+        if (EnableBackFaceCulling)
+        {
+            _gl.Enable(EnableCap.CullFace);
+            _gl.CullFace(GLEnum.Back);
+        }
+        else
+        {
+            _gl.Disable(EnableCap.CullFace);
+        }
 
-        foreach (var pass in _passes)
+        if (ShowWireframe && !IsOpenGles)
+            _gl.PolygonMode(GLEnum.FrontAndBack, PolygonMode.Line);
+
+        foreach (IRenderPass pass in _passes)
         {
             if (pass.Enabled)
                 pass.Render(this, scene, deltaTime);
@@ -87,343 +130,598 @@ public sealed class GLRenderer : IDisposable
         if (ShowBones)
             RenderBones(scene);
 
-        if (ShowWireframe)
-            _gl.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill);
+        if (ShowWireframe && !IsOpenGles)
+            _gl.PolygonMode(GLEnum.FrontAndBack, PolygonMode.Fill);
     }
 
     public GLMeshHandle? GetOrCreateMeshHandle(Mesh mesh)
     {
-        if (_meshHandles.TryGetValue(mesh, out var existing))
-            return existing;
+        ArgumentNullException.ThrowIfNull(mesh);
 
-        var handle = UploadMesh(mesh);
-        if (handle == null) return null;
+        GLMeshHandle? handle = mesh.GraphicsHandle as GLMeshHandle;
+        if (handle is not null)
+            return handle;
 
-        _meshHandles[mesh] = handle;
-        mesh.GraphicsHandle = handle;
-        return handle;
+        GLMeshHandle? uploadedHandle = UploadMesh(mesh);
+        mesh.GraphicsHandle = uploadedHandle;
+        return uploadedHandle;
     }
 
     public GLTextureHandle? GetOrCreateTextureHandle(Texture texture)
     {
-        if (_textureHandles.TryGetValue(texture, out var existing))
-            return existing;
+        ArgumentNullException.ThrowIfNull(texture);
 
-        var handle = UploadTexture(texture);
-        if (handle == null) return null;
+        GLTextureHandle? handle = texture.GraphicsHandle as GLTextureHandle;
+        if (handle is not null)
+            return handle;
 
-        _textureHandles[texture] = handle;
-        texture.GraphicsHandle = handle;
-        return handle;
+        GLTextureHandle? uploadedHandle = UploadTexture(texture);
+        texture.GraphicsHandle = uploadedHandle;
+        return uploadedHandle;
     }
 
     public void UnloadMesh(Mesh mesh)
     {
-        if (_meshHandles.TryGetValue(mesh, out var handle))
+        if (mesh.GraphicsHandle is GLMeshHandle handle)
         {
             handle.Delete(_gl);
-            _meshHandles.Remove(mesh);
             mesh.GraphicsHandle = null;
         }
     }
 
+    public void UnloadTexture(Texture texture)
+    {
+        if (texture.GraphicsHandle is GLTextureHandle handle)
+        {
+            handle.Dispose();
+            texture.GraphicsHandle = null;
+        }
+    }
+
+    public void UpdateDynamicMeshData(Mesh mesh, GLMeshHandle handle)
+    {
+        if (!handle.HasMorphTargets || handle.MorphTargetCount == 0 || handle.BasePositions is null)
+            return;
+
+        float[] weights = ResolveMorphWeights(mesh, handle.MorphTargetCount);
+        if (weights.All(static weight => MathF.Abs(weight) < 1e-6f))
+        {
+            UploadFloatBuffer(handle.PositionVBO, handle.BasePositions);
+
+            if (handle.HasNormals && handle.BaseNormals is not null)
+                UploadFloatBuffer(handle.NormalVBO, handle.BaseNormals);
+
+            return;
+        }
+
+        float[] morphedPositions = new float[handle.BasePositions.Length];
+        Array.Copy(handle.BasePositions, morphedPositions, morphedPositions.Length);
+        ApplyMorphTargets(morphedPositions, handle.PositionMorphDeltas, handle.VertexCount, 3, weights);
+        UploadFloatBuffer(handle.PositionVBO, morphedPositions);
+
+        if (!handle.HasNormals || handle.BaseNormals is null)
+            return;
+
+        float[] morphedNormals = new float[handle.BaseNormals.Length];
+        Array.Copy(handle.BaseNormals, morphedNormals, morphedNormals.Length);
+        ApplyMorphTargets(morphedNormals, handle.NormalMorphDeltas, handle.VertexCount, 3, weights);
+        NormalizeVectors(morphedNormals, 3);
+        UploadFloatBuffer(handle.NormalVBO, morphedNormals);
+    }
+
+    public void UpdateSkinningData(Mesh mesh, GLMeshHandle handle)
+    {
+        if (!handle.HasSkinning || handle.BoneMatrixTexture == 0 || handle.BoneCount <= 0)
+            return;
+
+        Matrix4x4[] matrices = new Matrix4x4[handle.BoneCount];
+        int count = mesh.CopySkinTransforms(matrices);
+        if (count == 0)
+            return;
+
+        float[] textureData = new float[handle.BoneMatrixTextureWidth * handle.BoneMatrixTextureHeight * 4];
+        for (int boneIndex = 0; boneIndex < count; boneIndex++)
+            WriteMatrixTexels(matrices[boneIndex], textureData, boneIndex * 4);
+
+        UploadFloatTexture(handle.BoneMatrixTexture, handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight, textureData);
+    }
+
     private unsafe GLMeshHandle? UploadMesh(Mesh mesh)
     {
-        if (mesh.Positions == null || mesh.VertexCount == 0)
+        if (mesh.Positions is null || mesh.VertexCount == 0)
             return null;
 
         uint vao = _gl.GenVertexArray();
         _gl.BindVertexArray(vao);
 
-        uint posVbo = UploadAttributeBuffer(mesh.Positions, 3);
+        float[] positions = ExtractVertexFloatBuffer(mesh.Positions, 0, 3);
+        uint positionVbo = UploadFloatAttributeBuffer(positions, mesh.HasMorphTargets ? BufferUsageARB.DynamicDraw : BufferUsageARB.StaticDraw);
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
 
-        uint normVbo = 0;
-        if (mesh.Normals != null)
+        float[]? normals = null;
+        uint normalVbo = 0;
+        if (mesh.Normals is not null)
         {
-            normVbo = UploadAttributeBuffer(mesh.Normals, 3);
+            normals = ExtractVertexFloatBuffer(mesh.Normals, 0, 3);
+            normalVbo = UploadFloatAttributeBuffer(normals, mesh.HasMorphTargets ? BufferUsageARB.DynamicDraw : BufferUsageARB.StaticDraw);
             _gl.EnableVertexAttribArray(1);
             _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, 0);
         }
 
         uint uvVbo = 0;
-        if (mesh.UVLayers != null)
+        if (mesh.UVLayers is not null)
         {
-            uvVbo = UploadAttributeBuffer(mesh.UVLayers, 2);
+            uvVbo = UploadFloatAttributeBuffer(ExtractVertexFloatBuffer(mesh.UVLayers, 0, 2), BufferUsageARB.StaticDraw);
             _gl.EnableVertexAttribArray(2);
             _gl.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, 0, 0);
         }
 
-        uint boneIdxVbo = 0;
-        uint boneWeightVbo = 0;
-        int skinInfluenceCount = 0;
-        bool hasSkinning = mesh.HasSkinning && mesh.SkinnedBones != null;
+        uint influenceRangeVbo = 0;
+        uint influenceTexture = 0;
+        uint boneMatrixTexture = 0;
+        int boneCount = 0;
+        int influenceTextureWidth = 1;
+        int influenceTextureHeight = 1;
+        int boneMatrixTextureWidth = 1;
+        int boneMatrixTextureHeight = 1;
+        bool hasSkinning = mesh.HasSkinning && mesh.SkinnedBones is not null;
 
-        if (hasSkinning && mesh.BoneIndices != null)
+        if (hasSkinning && mesh.BoneIndices is not null && mesh.BoneWeights is not null)
         {
-            skinInfluenceCount = mesh.SkinInfluenceCount;
-            var indexData = ExtractIntBuffer(mesh.BoneIndices, skinInfluenceCount);
-            boneIdxVbo = _gl.GenBuffer();
-            _gl.BindBuffer(BufferTarget.ArrayBuffer, boneIdxVbo);
-            fixed (int* ptr = indexData)
-            {
-                _gl.BufferData(BufferTarget.ArrayBuffer, (nuint)(indexData.Length * sizeof(int)), ptr, BufferUsage.StaticDraw);
-            }
-            _gl.EnableVertexAttribArray(3);
-            _gl.VertexAttribIPointer(3, skinInfluenceCount, VertexAttribIPointerType.Int, 0, 0);
+            boneCount = mesh.SkinnedBones!.Count;
+            (int[] influenceRanges, float[] influenceTextureData, int influenceEntryCount) =
+                BuildSkinInfluenceTextureData(mesh.BoneIndices, mesh.BoneWeights, boneCount);
 
-            if (mesh.BoneWeights != null)
+            influenceRangeVbo = _gl.GenBuffer();
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, influenceRangeVbo);
+            fixed (int* ptr = influenceRanges)
             {
-                var weightData = ExtractFloatBuffer(mesh.BoneWeights, skinInfluenceCount);
-                boneWeightVbo = _gl.GenBuffer();
-                _gl.BindBuffer(BufferTarget.ArrayBuffer, boneWeightVbo);
-                fixed (float* ptr = weightData)
-                {
-                    _gl.BufferData(BufferTarget.ArrayBuffer, (nuint)(weightData.Length * sizeof(float)), ptr, BufferUsage.StaticDraw);
-                }
-                _gl.EnableVertexAttribArray(4);
-                _gl.VertexAttribPointer(4, skinInfluenceCount, VertexAttribPointerType.Float, false, 0, 0);
+                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(influenceRanges.Length * sizeof(int)), ptr, BufferUsageARB.StaticDraw);
             }
+
+            _gl.EnableVertexAttribArray(3);
+            _gl.VertexAttribIPointer(3, 2, VertexAttribIType.Int, 0, 0);
+
+            (influenceTextureWidth, influenceTextureHeight) = ComputeTextureDimensions(Math.Max(influenceEntryCount, 1));
+            influenceTexture = CreateFloatTexture(
+                influenceTextureWidth,
+                influenceTextureHeight,
+                PadTextureData(influenceTextureData, influenceTextureWidth * influenceTextureHeight * 4));
+
+            (boneMatrixTextureWidth, boneMatrixTextureHeight) = ComputeTextureDimensions(Math.Max(boneCount * 4, 1));
+            boneMatrixTexture = CreateFloatTexture(
+                boneMatrixTextureWidth,
+                boneMatrixTextureHeight,
+                new float[boneMatrixTextureWidth * boneMatrixTextureHeight * 4]);
         }
 
-        uint ebo = 0;
+        uint elementBuffer = 0;
         int indexCount = 0;
-        bool isIndexed = mesh.FaceIndices != null;
-
-        if (isIndexed)
+        if (mesh.IsIndexed && mesh.FaceIndices is not null)
         {
-            var faceData = ExtractIntBuffer(mesh.FaceIndices!, 1);
-            indexCount = faceData.Length;
-            ebo = _gl.GenBuffer();
-            _gl.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
-            fixed (int* ptr = faceData)
+            uint[] indices = ExtractIndexBuffer(mesh.FaceIndices);
+            indexCount = indices.Length;
+            elementBuffer = _gl.GenBuffer();
+            _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, elementBuffer);
+            fixed (uint* ptr = indices)
             {
-                _gl.BufferData(BufferTarget.ElementArrayBuffer, (nuint)(faceData.Length * sizeof(int)), ptr, BufferUsage.StaticDraw);
+                _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint)(indices.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
             }
         }
 
         _gl.BindVertexArray(0);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
         return new GLMeshHandle(
-            vao, posVbo, normVbo, uvVbo, boneIdxVbo, boneWeightVbo, ebo,
-            mesh.VertexCount, indexCount, isIndexed,
-            mesh.Normals != null, mesh.UVLayers != null, hasSkinning, skinInfluenceCount);
-    }
-
-    private unsafe uint UploadAttributeBuffer(DataBuffer buffer, int componentsPerVertex)
-    {
-        var data = ExtractFloatBuffer(buffer, componentsPerVertex);
-        uint vbo = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTarget.ArrayBuffer, vbo);
-        fixed (float* ptr = data)
-        {
-            _gl.BufferData(BufferTarget.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsage.StaticDraw);
-        }
-        return vbo;
-    }
-
-    private static float[] ExtractFloatBuffer(DataBuffer buffer, int valuesPerElement)
-    {
-        int elementCount = buffer.ElementCount;
-        int componentCount = Math.Max(buffer.ComponentCount, 1);
-        int actualValues = Math.Max(valuesPerElement, componentCount);
-        var data = new float[elementCount * actualValues];
-
-        for (int i = 0; i < elementCount; i++)
-        {
-            for (int v = 0; v < actualValues; v++)
-            {
-                for (int c = 0; c < componentCount; c++)
-                {
-                    int srcIdx = i * valuesPerElement * componentCount + v * componentCount + c;
-                    int dstIdx = i * actualValues + v;
-                    if (c == 0)
-                        data[dstIdx] = buffer.Get<float>(i, Math.Min(v, Math.Max(0, buffer.ValueCount - 1)), c);
-                }
-            }
-        }
-        return data;
-    }
-
-    private static int[] ExtractIntBuffer(DataBuffer buffer, int valuesPerElement)
-    {
-        int elementCount = buffer.ElementCount;
-        int actualValues = Math.Max(valuesPerElement, 1);
-        var data = new int[elementCount * actualValues];
-
-        for (int i = 0; i < elementCount; i++)
-        {
-            for (int v = 0; v < actualValues; v++)
-            {
-                data[i * actualValues + v] = buffer.Get<int>(i, Math.Min(v, Math.Max(0, buffer.ValueCount - 1)), 0);
-            }
-        }
-        return data;
+            vao,
+            positionVbo,
+            normalVbo,
+            uvVbo,
+            influenceRangeVbo,
+            influenceTexture,
+            boneMatrixTexture,
+            elementBuffer,
+            mesh.VertexCount,
+            indexCount,
+            mesh.IsIndexed,
+            mesh.Normals is not null,
+            mesh.UVLayers is not null,
+            hasSkinning,
+            boneCount,
+            influenceTextureWidth,
+            influenceTextureHeight,
+            boneMatrixTextureWidth,
+            boneMatrixTextureHeight,
+            mesh.HasMorphTargets,
+            mesh.MorphTargetCount,
+            positions,
+            normals,
+            mesh.DeltaPositions is null ? null : ExtractMorphFloatBuffer(mesh.DeltaPositions, 3),
+            mesh.DeltaNormals is null ? null : ExtractMorphFloatBuffer(mesh.DeltaNormals, 3));
     }
 
     private unsafe GLTextureHandle? UploadTexture(Texture texture)
     {
         Image? image = texture.Data;
 
-        if (image == null && texture.ImageLoader != null)
-        {
+        if (image is null && texture.ImageLoader is not null)
             image = texture.ImageLoader.Load();
-        }
 
-        if (image == null && !string.IsNullOrEmpty(texture.FilePath) && File.Exists(texture.FilePath))
-        {
-            image = ImageTranslatorManager?.Read(texture.FilePath);
-        }
+        string texturePath = texture.EffectiveFilePath;
+        if (image is null && !string.IsNullOrWhiteSpace(texturePath) && File.Exists(texturePath))
+            image = ImageTranslatorManager?.Read(texturePath);
 
-        if (image == null) return null;
+        if (image is null)
+            return null;
 
-        byte[] rgbaData = ConvertToRGBA(image);
-        return new GLTextureHandle(_gl, rgbaData, image.Width, image.Height);
+        return new GLTextureHandle(_gl, ConvertToRgba(image), image.Width, image.Height);
     }
 
-    private static byte[] ConvertToRGBA(Image image)
+    private unsafe uint UploadFloatAttributeBuffer(float[] data, BufferUsageARB usage)
     {
-        var slice = image.GetSlice(0, 0, 0);
-        int pixelCount = image.Width * image.Height;
-        byte[] data = new byte[pixelCount * 4];
+        uint buffer = _gl.GenBuffer();
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, buffer);
 
-        int bpp = image.Format.BitsPerPixel();
-        int srcStride = bpp / 8;
-
-        var srcData = image.PixelData;
-        int srcOffset = slice.Offset;
-
-        for (int i = 0; i < pixelCount; i++)
+        fixed (float* ptr = data)
         {
-            int src = srcOffset + i * srcStride;
-            int dst = i * 4;
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, usage);
+        }
 
-            if (srcStride >= 4)
+        return buffer;
+    }
+
+    private unsafe void UploadFloatBuffer(uint bufferId, float[] data)
+    {
+        if (bufferId == 0)
+            return;
+
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, bufferId);
+        fixed (float* ptr = data)
+        {
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsageARB.DynamicDraw);
+        }
+    }
+
+    private unsafe uint CreateFloatTexture(int width, int height, float[] data)
+    {
+        uint texture = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, texture);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+
+        fixed (float* ptr = data)
+        {
+            _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba32f, (uint)width, (uint)height, 0, PixelFormat.Rgba, PixelType.Float, ptr);
+        }
+
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        return texture;
+    }
+
+    private unsafe void UploadFloatTexture(uint textureId, int width, int height, float[] data)
+    {
+        if (textureId == 0)
+            return;
+
+        _gl.BindTexture(TextureTarget.Texture2D, textureId);
+        fixed (float* ptr = data)
+        {
+            _gl.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, (uint)width, (uint)height, PixelFormat.Rgba, PixelType.Float, ptr);
+        }
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+    }
+
+    private (int Width, int Height) ComputeTextureDimensions(int texelCount)
+    {
+        int safeTexelCount = Math.Max(texelCount, 1);
+        int width = Math.Min(_maxTextureSize, Math.Max(1, (int)MathF.Ceiling(MathF.Sqrt(safeTexelCount))));
+        int height = (safeTexelCount + width - 1) / width;
+
+        if (height > _maxTextureSize)
+            throw new InvalidOperationException($"Texture data requires {height} rows, exceeding the maximum texture size {_maxTextureSize}.");
+
+        return (width, height);
+    }
+
+    private static float[] PadTextureData(float[] source, int targetLength)
+    {
+        if (source.Length == targetLength)
+            return source;
+
+        float[] result = new float[targetLength];
+        Array.Copy(source, result, source.Length);
+        return result;
+    }
+
+    private static (int[] InfluenceRanges, float[] InfluenceTextureData, int InfluenceEntryCount) BuildSkinInfluenceTextureData(
+        DataBuffer boneIndices,
+        DataBuffer boneWeights,
+        int boneCount)
+    {
+        int vertexCount = boneIndices.ElementCount;
+        int influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+        int[] influenceRanges = new int[vertexCount * 2];
+        List<float> influenceTextureData = [];
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            int startIndex = influenceTextureData.Count / 4;
+            float totalWeight = 0.0f;
+            List<(int BoneIndex, float Weight)> vertexInfluences = [];
+
+            for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
             {
-                data[dst + 0] = srcData[src + 0];
-                data[dst + 1] = srcData[src + 1];
-                data[dst + 2] = srcData[src + 2];
-                data[dst + 3] = srcData[src + 3];
+                float weight = boneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+                if (weight <= 1e-6f)
+                    continue;
+
+                int boneIndex = boneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                if ((uint)boneIndex >= (uint)boneCount)
+                    continue;
+
+                vertexInfluences.Add((boneIndex, weight));
+                totalWeight += weight;
             }
-            else if (srcStride == 3)
+
+            influenceRanges[vertexIndex * 2] = startIndex;
+            influenceRanges[(vertexIndex * 2) + 1] = vertexInfluences.Count;
+
+            if (totalWeight <= 1e-6f)
+                continue;
+
+            float inverseTotalWeight = 1.0f / totalWeight;
+            foreach ((int boneIndex, float weight) in vertexInfluences)
             {
-                data[dst + 0] = srcData[src + 0];
-                data[dst + 1] = srcData[src + 1];
-                data[dst + 2] = srcData[src + 2];
-                data[dst + 3] = 255;
-            }
-            else
-            {
-                data[dst + 0] = 200;
-                data[dst + 1] = 200;
-                data[dst + 2] = 200;
-                data[dst + 3] = 255;
+                influenceTextureData.Add(boneIndex);
+                influenceTextureData.Add(weight * inverseTotalWeight);
+                influenceTextureData.Add(0.0f);
+                influenceTextureData.Add(0.0f);
             }
         }
 
-        return data;
+        return (influenceRanges, [.. influenceTextureData], influenceTextureData.Count / 4);
+    }
+
+    private static void WriteMatrixTexels(Matrix4x4 matrix, float[] destination, int texelBaseIndex)
+    {
+        WriteTexel(destination, texelBaseIndex + 0, matrix.M11, matrix.M12, matrix.M13, matrix.M14);
+        WriteTexel(destination, texelBaseIndex + 1, matrix.M21, matrix.M22, matrix.M23, matrix.M24);
+        WriteTexel(destination, texelBaseIndex + 2, matrix.M31, matrix.M32, matrix.M33, matrix.M34);
+        WriteTexel(destination, texelBaseIndex + 3, matrix.M41, matrix.M42, matrix.M43, matrix.M44);
+    }
+
+    private static void WriteTexel(float[] destination, int texelIndex, float x, float y, float z, float w)
+    {
+        int baseIndex = texelIndex * 4;
+        destination[baseIndex] = x;
+        destination[baseIndex + 1] = y;
+        destination[baseIndex + 2] = z;
+        destination[baseIndex + 3] = w;
+    }
+
+    private static float[] ExtractVertexFloatBuffer(DataBuffer buffer, int valueIndex, int componentCount)
+    {
+        float[] result = new float[buffer.ElementCount * componentCount];
+
+        for (int elementIndex = 0; elementIndex < buffer.ElementCount; elementIndex++)
+        {
+            for (int componentIndex = 0; componentIndex < componentCount; componentIndex++)
+            {
+                result[elementIndex * componentCount + componentIndex] = componentIndex < buffer.ComponentCount
+                    ? buffer.Get<float>(elementIndex, Math.Min(valueIndex, buffer.ValueCount - 1), componentIndex)
+                    : componentIndex == 3 ? 1.0f : 0.0f;
+            }
+        }
+
+        return result;
+    }
+
+    private static float[] ExtractMorphFloatBuffer(DataBuffer buffer, int componentCount)
+    {
+        float[] result = new float[buffer.ElementCount * buffer.ValueCount * componentCount];
+
+        for (int elementIndex = 0; elementIndex < buffer.ElementCount; elementIndex++)
+        {
+            for (int valueIndex = 0; valueIndex < buffer.ValueCount; valueIndex++)
+            {
+                int destinationBase = ((elementIndex * buffer.ValueCount) + valueIndex) * componentCount;
+                for (int componentIndex = 0; componentIndex < componentCount; componentIndex++)
+                {
+                    result[destinationBase + componentIndex] = componentIndex < buffer.ComponentCount
+                        ? buffer.Get<float>(elementIndex, valueIndex, componentIndex)
+                        : 0.0f;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static uint[] ExtractIndexBuffer(DataBuffer buffer)
+    {
+        uint[] result = new uint[buffer.ElementCount];
+
+        for (int elementIndex = 0; elementIndex < buffer.ElementCount; elementIndex++)
+            result[elementIndex] = uint.CreateChecked(buffer.Get<int>(elementIndex, 0, 0));
+
+        return result;
+    }
+
+    private static float[] ResolveMorphWeights(Mesh mesh, int morphTargetCount)
+    {
+        float[] result = new float[morphTargetCount];
+
+        foreach (BlendShape blendShape in EnumerateBlendShapes(mesh))
+        {
+            if ((uint)blendShape.TargetIndex >= (uint)result.Length)
+                continue;
+
+            result[blendShape.TargetIndex] = blendShape.Weight;
+        }
+
+        return result;
+    }
+
+    private static IEnumerable<BlendShape> EnumerateBlendShapes(Mesh mesh)
+    {
+        foreach (BlendShape blendShape in mesh.EnumerateDescendants<BlendShape>())
+            yield return blendShape;
+
+        if (mesh.Scene is null)
+            yield break;
+
+        foreach (BlendShape blendShape in mesh.Scene.RootNode.EnumerateDescendants<BlendShape>())
+        {
+            if (blendShape.OwnerMesh == mesh && !blendShape.IsDescendantOf(mesh))
+                yield return blendShape;
+        }
+    }
+
+    private static void ApplyMorphTargets(float[] destination, float[]? deltas, int vertexCount, int componentCount, ReadOnlySpan<float> weights)
+    {
+        if (deltas is null)
+            return;
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            int vertexBase = vertexIndex * componentCount;
+
+            for (int targetIndex = 0; targetIndex < weights.Length; targetIndex++)
+            {
+                float weight = weights[targetIndex];
+                if (MathF.Abs(weight) < 1e-6f)
+                    continue;
+
+                int deltaBase = ((vertexIndex * weights.Length) + targetIndex) * componentCount;
+                for (int componentIndex = 0; componentIndex < componentCount; componentIndex++)
+                    destination[vertexBase + componentIndex] += deltas[deltaBase + componentIndex] * weight;
+            }
+        }
+    }
+
+    private static void NormalizeVectors(float[] values, int componentCount)
+    {
+        for (int i = 0; i < values.Length; i += componentCount)
+        {
+            float lengthSquared = 0.0f;
+            for (int c = 0; c < componentCount; c++)
+                lengthSquared += values[i + c] * values[i + c];
+
+            if (lengthSquared <= 1e-12f)
+                continue;
+
+            float inverseLength = 1.0f / MathF.Sqrt(lengthSquared);
+            for (int c = 0; c < componentCount; c++)
+                values[i + c] *= inverseLength;
+        }
+    }
+
+    private static byte[] ConvertToRgba(Image image)
+    {
+        return image.DecodeSlice<byte>();
     }
 
     private unsafe void RenderBones(Scene scene)
     {
-        if (_boneLineVAO == 0 || _lineShader == null || ActiveCamera == null) return;
+        if (_lineShader is null || ActiveCamera is null || _boneLineVao == 0 || _boneLineVbo == 0)
+            return;
 
-        var lineVerts = new List<Vector3>();
+        List<Vector3> points = [];
+        foreach (Skeleton skeleton in scene.RootNode.EnumerateDescendants<Skeleton>())
+            CollectBoneLines(skeleton, points);
 
-        foreach (var skeleton in scene.RootNode.EnumerateDescendants<Skeleton>())
-            CollectBoneLines(skeleton, lineVerts);
+        if (points.Count == 0)
+            return;
 
-        _boneLineVertexCount = lineVerts.Count;
-
-        if (_boneLineVertexCount == 0) return;
-
-        _gl.BindVertexArray(_boneLineVAO);
-        _gl.BindBuffer(BufferTarget.ArrayBuffer, _boneLineVBO);
-
-        var data = new float[_boneLineVertexCount * 3];
-        for (int i = 0; i < _boneLineVertexCount; i++)
+        float[] data = new float[points.Count * 3];
+        for (int i = 0; i < points.Count; i++)
         {
-            data[i * 3] = lineVerts[i].X;
-            data[i * 3 + 1] = lineVerts[i].Y;
-            data[i * 3 + 2] = lineVerts[i].Z;
+            data[(i * 3)] = points[i].X;
+            data[(i * 3) + 1] = points[i].Y;
+            data[(i * 3) + 2] = points[i].Z;
         }
 
+        _gl.BindVertexArray(_boneLineVao);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _boneLineVbo);
         fixed (float* ptr = data)
         {
-            _gl.BufferData(BufferTarget.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsage.DynamicDraw);
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsageARB.DynamicDraw);
         }
+
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
 
         _lineShader.Use();
-        var vp = ActiveCamera.GetProjectionMatrix() * ActiveCamera.GetViewMatrix();
-        _lineShader.SetUniform("uViewProjection", vp);
+        _lineShader.SetUniform("uViewProjection", ActiveCamera.GetViewMatrix() * ActiveCamera.GetProjectionMatrix());
         _lineShader.SetUniform("uModel", Matrix4x4.Identity);
+        _lineShader.SetUniform("uScene", SceneTransform);
         _lineShader.SetUniform("uLineColor", new Vector4(0.0f, 1.0f, 0.3f, 1.0f));
 
-        _gl.BindVertexArray(_boneLineVAO);
-        _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_boneLineVertexCount);
+        _gl.Disable(EnableCap.DepthTest);
+        _gl.LineWidth(1.5f);
+        _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)points.Count);
+        _gl.Enable(EnableCap.DepthTest);
         _gl.BindVertexArray(0);
     }
 
     private static void CollectBoneLines(SceneNode node, List<Vector3> points)
     {
-        if (node is SkeletonBone)
+        if (node is SkeletonBone bone)
         {
-            var worldPos = node.GetActiveWorldPosition();
-
-            if (node.Parent is SkeletonBone or Skeleton)
+            if (bone.Parent is SkeletonBone or Skeleton)
             {
-                var parentPos = node.Parent!.GetActiveWorldPosition();
-                points.Add(parentPos);
-                points.Add(worldPos);
-            }
-
-            if (node.Children != null)
-            {
-                foreach (var child in node.Children)
-                {
-                    if (child is SkeletonBone)
-                        CollectBoneLines(child, points);
-                }
+                points.Add(bone.Parent.GetActiveWorldMatrix().Translation);
+                points.Add(bone.GetActiveWorldMatrix().Translation);
             }
         }
-        else
+
+        foreach (SceneNode child in node.EnumerateChildren())
+            CollectBoneLines(child, points);
+    }
+
+    private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)
+    {
+        if (Matrix4x4.Invert(model, out Matrix4x4 inverseModel))
         {
-            if (node.Children != null)
-            {
-                foreach (var child in node.Children)
-                    CollectBoneLines(child, points);
-            }
+            Matrix4x4 transposed = Matrix4x4.Transpose(inverseModel);
+            return new Matrix3x3(
+                transposed.M11, transposed.M12, transposed.M13,
+                transposed.M21, transposed.M22, transposed.M23,
+                transposed.M31, transposed.M32, transposed.M33);
         }
+
+        return Matrix3x3.Identity;
     }
 
     public void Dispose()
     {
-        foreach (var pass in _passes)
+        foreach (IRenderPass pass in _passes)
             pass.Dispose();
         _passes.Clear();
 
-        foreach (var handle in _meshHandles.Values)
-            handle.Delete(_gl);
-        _meshHandles.Clear();
-
-        foreach (var handle in _textureHandles.Values)
-            handle.Dispose();
-        _textureHandles.Clear();
-
         _lineShader?.Dispose();
 
-        if (_boneLineVAO != 0) _gl.DeleteVertexArray(_boneLineVAO);
-        if (_boneLineVBO != 0) _gl.DeleteBuffer(_boneLineVBO);
+        try
+        {
+            if (_boneLineVao != 0)
+                _gl.DeleteVertexArray(_boneLineVao);
+
+            if (_boneLineVbo != 0)
+                _gl.DeleteBuffer(_boneLineVbo);
+        }
+        catch
+        {
+        }
     }
 }
 
 public readonly struct RendererColor(float r, float g, float b, float a)
 {
-    public readonly float R = r;
-    public readonly float G = g;
-    public readonly float B = b;
-    public readonly float A = a;
+    public float R { get; } = r;
+    public float G { get; } = g;
+    public float B { get; } = b;
+    public float A { get; } = a;
 }

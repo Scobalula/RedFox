@@ -43,21 +43,26 @@ public sealed class ObjTranslator : SceneTranslator
     public override void Read(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
     {
         using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        ObjReader reader = new(stream, Path.GetFileNameWithoutExtension(filePath), options);
+        Read(scene, stream, CreateReadContext(filePath, options), token);
+    }
+
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+    {
+        ObjReader reader = new(stream, context.Name, context.Options);
         IReadOnlyList<string> mtlPaths = reader.Read(scene);
 
-        // Resolve MTL files relative to the OBJ file's directory
-        string? baseDir = Path.GetDirectoryName(filePath);
+        // Resolve MTL files relative to the OBJ file's directory.
+        string? baseDir = context.SourceDirectoryPath;
         if (baseDir is not null)
         {
             Dictionary<string, Material> existingMaterials = BuildMaterialDictionary(scene);
             foreach (string mtlRelativePath in mtlPaths)
             {
-                string mtlFullPath = Path.Combine(baseDir, mtlRelativePath);
+                string mtlFullPath = Path.GetFullPath(Path.Combine(baseDir, mtlRelativePath));
                 if (File.Exists(mtlFullPath))
                 {
                     using FileStream mtlStream = new(mtlFullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-                    ObjMtlReader.Read(mtlStream, existingMaterials);
+                    ObjMtlReader.Read(mtlStream, existingMaterials, baseDir);
                 }
             }
         }
@@ -74,8 +79,11 @@ public sealed class ObjTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
-        ObjReader reader = new(stream, name, options);
-        reader.Read(scene);
+        Read(scene, stream, new SceneTranslationContext(name, options)
+        {
+            SourceDirectoryPath = options.SourceDirectoryPath,
+            SourceFilePath = options.SourceFilePath,
+        }, token);
     }
 
     /// <summary>
@@ -88,18 +96,20 @@ public sealed class ObjTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
     {
-        string baseName = Path.GetFileNameWithoutExtension(filePath);
-        string mtlFileName = $"{baseName}.mtl";
+        using FileStream stream = new(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
+        Write(scene, stream, CreateWriteContext(filePath, options), token);
+    }
 
-        using FileStream objStream = new(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
-        ObjWriter writer = new(objStream, baseName, options);
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+    {
+        string baseName = context.Name;
+        string mtlFileName = $"{baseName}.mtl";
+        ObjWriter writer = new(stream, baseName, context.Options);
         IReadOnlyList<Material> materials = writer.Write(scene, mtlFileName);
 
-        if (materials.Count > 0)
+        if (materials.Count > 0 && !string.IsNullOrWhiteSpace(context.TargetDirectoryPath))
         {
-            string? baseDir = Path.GetDirectoryName(filePath);
-            string mtlPath = baseDir is not null ? Path.Combine(baseDir, mtlFileName) : mtlFileName;
-
+            string mtlPath = Path.Combine(context.TargetDirectoryPath, mtlFileName);
             using FileStream mtlStream = new(mtlPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
             ObjMtlWriter.Write(mtlStream, materials);
         }
@@ -116,8 +126,7 @@ public sealed class ObjTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
-        ObjWriter writer = new(stream, name, options);
-        writer.Write(scene, $"{name}.mtl");
+        Write(scene, stream, new SceneTranslationContext(name, options), token);
     }
 
     private static Dictionary<string, Material> BuildMaterialDictionary(Scene scene)

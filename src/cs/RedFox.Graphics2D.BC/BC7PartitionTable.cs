@@ -4,7 +4,7 @@ namespace RedFox.Graphics2D.BC
     /// Provides partition, anchor, and interpolation weight tables for BC7 (BPTC) block compression.
     /// BC7 supports 1, 2, or 3 subsets with up to 64 partition shapes per subset count.
     /// </summary>
-    internal static class BC7PartitionTable
+    public static class BC7PartitionTable
     {
         /// <summary>
         /// Two-subset partition table (64 entries). Each <see cref="ushort"/> encodes 16 pixels

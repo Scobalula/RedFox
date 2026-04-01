@@ -1,5 +1,6 @@
 ﻿using System.Numerics;
 using System.Runtime.InteropServices;
+using RedFox.Graphics2D.BC;
 using RedFox.Graphics2D.Codecs;
 
 namespace RedFox.Graphics2D
@@ -234,6 +235,19 @@ namespace RedFox.Graphics2D
         /// <param name="targetFormat">The target format.</param>
         public void Convert(ImageFormat targetFormat)
         {
+            Convert(targetFormat, ImageConvertFlags.None);
+        }
+
+        /// <summary>
+        /// Converts this image in-place to the specified target format using the built-in codec resolver.
+        /// Uses direct byte-to-byte conversion when possible, falling back to <see cref="Vector4"/>
+        /// intermediates only when needed. Supports conversion to and from block-compressed (BCn) formats.
+        /// Optional <paramref name="flags"/> can prefer faster BC6H/BC7 CPU encoders when those are the target.
+        /// </summary>
+        /// <param name="targetFormat">The target format.</param>
+        /// <param name="flags">Optional conversion hints that can alter encoder selection.</param>
+        public void Convert(ImageFormat targetFormat, ImageConvertFlags flags)
+        {
             if (Format == targetFormat)
                 return;
 
@@ -249,12 +263,41 @@ namespace RedFox.Graphics2D
                 ref readonly ImageSlice srcSlice = ref _slices[i];
                 ref readonly ImageSlice dstSlice = ref newSlices[i];
 
-                targetCodec.ConvertFrom(srcSlice.PixelSpan, sourceCodec, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
+                if (!TryConvertWithFlags(sourceCodec, targetCodec, srcSlice.PixelSpan, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height, flags))
+                    targetCodec.ConvertFrom(srcSlice.PixelSpan, sourceCodec, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
             }
 
             _pixels = newPixels;
             _slices = newSlices;
             Format = targetFormat;
+        }
+
+        private static bool TryConvertWithFlags(
+            IPixelCodec sourceCodec,
+            IPixelCodec targetCodec,
+            ReadOnlySpan<byte> source,
+            Span<byte> destination,
+            int width,
+            int height,
+            ImageConvertFlags flags)
+        {
+            if ((flags & ImageConvertFlags.PreferFastBc7Encoding) != 0 && targetCodec is BC7Codec bc7Codec)
+            {
+                Vector4[] pixels = new Vector4[width * height];
+                sourceCodec.Decode(source, pixels, width, height);
+                bc7Codec.EncodeFast(pixels, destination, width, height);
+                return true;
+            }
+
+            if ((flags & ImageConvertFlags.PreferFastBc6HEncoding) != 0 && targetCodec is BC6HCodec bc6hCodec)
+            {
+                Vector4[] pixels = new Vector4[width * height];
+                sourceCodec.Decode(source, pixels, width, height);
+                bc6hCodec.EncodeFast(pixels, destination, width, height);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
