@@ -1,7 +1,8 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics2D.BC;
 using RedFox.Graphics2D.Codecs;
+using RedFox.Graphics2D.Conversion;
 
 namespace RedFox.Graphics2D
 {
@@ -235,7 +236,18 @@ namespace RedFox.Graphics2D
         /// <param name="targetFormat">The target format.</param>
         public void Convert(ImageFormat targetFormat)
         {
-            Convert(targetFormat, ImageConvertFlags.None);
+            Convert(targetFormat, ImageConvertFlags.None, ConverterEngine.None);
+        }
+
+        /// <summary>
+        /// Converts this image in-place to the specified target format using the supplied converter engine.
+        /// Falls back to built-in codecs when the engine does not handle the conversion.
+        /// </summary>
+        /// <param name="targetFormat">The target format.</param>
+        /// <param name="converterEngine">Optional custom converter engine.</param>
+        public void Convert(ImageFormat targetFormat, ConverterEngine? converterEngine)
+        {
+            Convert(targetFormat, ImageConvertFlags.None, converterEngine);
         }
 
         /// <summary>
@@ -247,6 +259,18 @@ namespace RedFox.Graphics2D
         /// <param name="targetFormat">The target format.</param>
         /// <param name="flags">Optional conversion hints that can alter encoder selection.</param>
         public void Convert(ImageFormat targetFormat, ImageConvertFlags flags)
+        {
+            Convert(targetFormat, flags, ConverterEngine.None);
+        }
+
+        /// <summary>
+        /// Converts this image in-place to the specified target format using a custom converter engine first.
+        /// Uses built-in CPU codecs when the engine is null, unsupported, or fails conversion.
+        /// </summary>
+        /// <param name="targetFormat">The target format.</param>
+        /// <param name="flags">Optional conversion hints that can alter encoder selection.</param>
+        /// <param name="converterEngine">Optional custom converter engine.</param>
+        public void Convert(ImageFormat targetFormat, ImageConvertFlags flags, ConverterEngine? converterEngine)
         {
             if (Format == targetFormat)
                 return;
@@ -263,13 +287,32 @@ namespace RedFox.Graphics2D
                 ref readonly ImageSlice srcSlice = ref _slices[i];
                 ref readonly ImageSlice dstSlice = ref newSlices[i];
 
-                if (!TryConvertWithFlags(sourceCodec, targetCodec, srcSlice.PixelSpan, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height, flags))
+                if (!TryConvertWithEngine(converterEngine, srcSlice.PixelSpan, Format, dstSlice.PixelSpan, targetFormat, srcSlice.Width, srcSlice.Height, flags) &&
+                    !TryConvertWithFlags(sourceCodec, targetCodec, srcSlice.PixelSpan, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height, flags))
+                {
                     targetCodec.ConvertFrom(srcSlice.PixelSpan, sourceCodec, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
+                }
             }
 
             _pixels = newPixels;
             _slices = newSlices;
             Format = targetFormat;
+        }
+
+        private static bool TryConvertWithEngine(
+            ConverterEngine? converterEngine,
+            ReadOnlySpan<byte> source,
+            ImageFormat sourceFormat,
+            Span<byte> destination,
+            ImageFormat destinationFormat,
+            int width,
+            int height,
+            ImageConvertFlags flags)
+        {
+            if (converterEngine is null || ReferenceEquals(converterEngine, ConverterEngine.None))
+                return false;
+
+            return converterEngine.TryConvert(source, sourceFormat, destination, destinationFormat, width, height, flags);
         }
 
         private static bool TryConvertWithFlags(

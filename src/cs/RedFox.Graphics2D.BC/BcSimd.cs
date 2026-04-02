@@ -10,18 +10,18 @@ namespace RedFox.Graphics2D.BC
     /// SIMD helpers for BC block encode/decode hot paths.
     /// Uses SSE/SSE2 when available and falls back to scalar code otherwise.
     /// </summary>
-    internal static class BcSimd
+    public static class BcSimd
     {
         /// <summary>
         /// Quantizes RGBA pixels to four byte-range channel arrays.
         /// </summary>
+        /// <param name="pixels">The source pixels to quantize.</param>
+        /// <param name="r">The destination red-channel values in the range 0-255.</param>
+        /// <param name="g">The destination green-channel values in the range 0-255.</param>
+        /// <param name="b">The destination blue-channel values in the range 0-255.</param>
+        /// <param name="a">The destination alpha-channel values in the range 0-255.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void QuantizeToRgba8Channels(
-            ReadOnlySpan<Vector4> pixels,
-            Span<int> r,
-            Span<int> g,
-            Span<int> b,
-            Span<int> a)
+        public static void QuantizeToRgba8Channels(ReadOnlySpan<Vector4> pixels, Span<int> r, Span<int> g, Span<int> b, Span<int> a)
         {
             int i = 0;
 
@@ -62,13 +62,13 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Stores RGBA channel arrays as normalized <see cref="Vector4"/> pixels.
         /// </summary>
+        /// <param name="r">The source red-channel values in the range 0-255.</param>
+        /// <param name="g">The source green-channel values in the range 0-255.</param>
+        /// <param name="b">The source blue-channel values in the range 0-255.</param>
+        /// <param name="a">The source alpha-channel values in the range 0-255.</param>
+        /// <param name="pixels">The destination normalized pixels.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void StoreNormalizedRgba8(
-            ReadOnlySpan<int> r,
-            ReadOnlySpan<int> g,
-            ReadOnlySpan<int> b,
-            ReadOnlySpan<int> a,
-            Span<Vector4> pixels)
+        public static void StoreNormalizedRgba8(ReadOnlySpan<int> r, ReadOnlySpan<int> g, ReadOnlySpan<int> b, ReadOnlySpan<int> a, Span<Vector4> pixels)
         {
             int i = 0;
 
@@ -105,17 +105,18 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Finds the best interpolation index per pixel for a 4-channel block.
         /// </summary>
+        /// <param name="rPix">The source red-channel pixel values.</param>
+        /// <param name="gPix">The source green-channel pixel values.</param>
+        /// <param name="bPix">The source blue-channel pixel values.</param>
+        /// <param name="aPix">The source alpha-channel pixel values.</param>
+        /// <param name="rCandidates">The candidate red-channel interpolated values.</param>
+        /// <param name="gCandidates">The candidate green-channel interpolated values.</param>
+        /// <param name="bCandidates">The candidate blue-channel interpolated values.</param>
+        /// <param name="aCandidates">The candidate alpha-channel interpolated values.</param>
+        /// <param name="indices">The destination span receiving the best candidate index for each pixel.</param>
+        /// <returns>The summed squared error across all pixels.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float FindBestIndices4Channel(
-            ReadOnlySpan<int> rPix,
-            ReadOnlySpan<int> gPix,
-            ReadOnlySpan<int> bPix,
-            ReadOnlySpan<int> aPix,
-            ReadOnlySpan<float> rCandidates,
-            ReadOnlySpan<float> gCandidates,
-            ReadOnlySpan<float> bCandidates,
-            ReadOnlySpan<float> aCandidates,
-            Span<int> indices)
+        public static float FindBestIndices4Channel(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix, ReadOnlySpan<float> rCandidates, ReadOnlySpan<float> gCandidates, ReadOnlySpan<float> bCandidates, ReadOnlySpan<float> aCandidates, Span<int> indices)
         {
             if (!(Sse.IsSupported && Sse2.IsSupported))
                 return FindBestIndices4ChannelScalar(rPix, gPix, bPix, aPix, rCandidates, gCandidates, bCandidates, aCandidates, indices);
@@ -143,12 +144,7 @@ namespace RedFox.Graphics2D.BC
 
                 for (int j = 0; j < rCandidates.Length; j++)
                 {
-                    Vector128<float> err = ComputeSquaredError(
-                        vr, vg, vb, va,
-                        Vector128.Create(rCandidates[j]),
-                        Vector128.Create(gCandidates[j]),
-                        Vector128.Create(bCandidates[j]),
-                        Vector128.Create(aCandidates[j]));
+                    Vector128<float> err = ComputeSquaredError(vr, vg, vb, va, Vector128.Create(rCandidates[j]), Vector128.Create(gCandidates[j]), Vector128.Create(bCandidates[j]), Vector128.Create(aCandidates[j]));
 
                     Vector128<float> mask = Sse.CompareLessThan(err, bestErr);
                     bestErr = Select(mask, err, bestErr);
@@ -171,15 +167,16 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Finds the best interpolation index per pixel for a 3-channel float block.
         /// </summary>
+        /// <param name="rPix">The source red-channel pixel values.</param>
+        /// <param name="gPix">The source green-channel pixel values.</param>
+        /// <param name="bPix">The source blue-channel pixel values.</param>
+        /// <param name="rCandidates">The candidate red-channel interpolated values.</param>
+        /// <param name="gCandidates">The candidate green-channel interpolated values.</param>
+        /// <param name="bCandidates">The candidate blue-channel interpolated values.</param>
+        /// <param name="indices">The destination span receiving the best candidate index for each pixel.</param>
+        /// <returns>The summed squared error across all pixels.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float FindBestIndices3Channel(
-            ReadOnlySpan<float> rPix,
-            ReadOnlySpan<float> gPix,
-            ReadOnlySpan<float> bPix,
-            ReadOnlySpan<float> rCandidates,
-            ReadOnlySpan<float> gCandidates,
-            ReadOnlySpan<float> bCandidates,
-            Span<int> indices)
+        public static float FindBestIndices3Channel(ReadOnlySpan<float> rPix, ReadOnlySpan<float> gPix, ReadOnlySpan<float> bPix, ReadOnlySpan<float> rCandidates, ReadOnlySpan<float> gCandidates, ReadOnlySpan<float> bCandidates, Span<int> indices)
         {
             if (!(Sse.IsSupported && Sse2.IsSupported))
                 return FindBestIndices3ChannelScalar(rPix, gPix, bPix, rCandidates, gCandidates, bCandidates, indices);
@@ -205,12 +202,7 @@ namespace RedFox.Graphics2D.BC
 
                 for (int j = 0; j < rCandidates.Length; j++)
                 {
-                    Vector128<float> err = ComputeSquaredError(
-                        vr, vg, vb, Vector128<float>.Zero,
-                        Vector128.Create(rCandidates[j]),
-                        Vector128.Create(gCandidates[j]),
-                        Vector128.Create(bCandidates[j]),
-                        Vector128<float>.Zero);
+                    Vector128<float> err = ComputeSquaredError(vr, vg, vb, Vector128<float>.Zero, Vector128.Create(rCandidates[j]), Vector128.Create(gCandidates[j]), Vector128.Create(bCandidates[j]), Vector128<float>.Zero);
 
                     Vector128<float> mask = Sse.CompareLessThan(err, bestErr);
                     bestErr = Select(mask, err, bestErr);
@@ -233,35 +225,23 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Finds the best interpolation index per pixel for a 2-subset RGB block.
         /// </summary>
+        /// <param name="subsetIndices">The subset index assigned to each source pixel.</param>
+        /// <param name="rPix">The source red-channel pixel values.</param>
+        /// <param name="gPix">The source green-channel pixel values.</param>
+        /// <param name="bPix">The source blue-channel pixel values.</param>
+        /// <param name="rCandidates0">The subset-0 red-channel candidate values.</param>
+        /// <param name="gCandidates0">The subset-0 green-channel candidate values.</param>
+        /// <param name="bCandidates0">The subset-0 blue-channel candidate values.</param>
+        /// <param name="rCandidates1">The subset-1 red-channel candidate values.</param>
+        /// <param name="gCandidates1">The subset-1 green-channel candidate values.</param>
+        /// <param name="bCandidates1">The subset-1 blue-channel candidate values.</param>
+        /// <param name="indices">The destination span receiving the best candidate index for each pixel.</param>
+        /// <returns>The summed squared error across all pixels.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static float FindBestIndicesPartitioned3Channel(
-            ReadOnlySpan<int> subsetIndices,
-            ReadOnlySpan<int> rPix,
-            ReadOnlySpan<int> gPix,
-            ReadOnlySpan<int> bPix,
-            ReadOnlySpan<float> rCandidates0,
-            ReadOnlySpan<float> gCandidates0,
-            ReadOnlySpan<float> bCandidates0,
-            ReadOnlySpan<float> rCandidates1,
-            ReadOnlySpan<float> gCandidates1,
-            ReadOnlySpan<float> bCandidates1,
-            Span<int> indices)
+        public static float FindBestIndicesPartitioned3Channel(ReadOnlySpan<int> subsetIndices, ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<float> rCandidates0, ReadOnlySpan<float> gCandidates0, ReadOnlySpan<float> bCandidates0, ReadOnlySpan<float> rCandidates1, ReadOnlySpan<float> gCandidates1, ReadOnlySpan<float> bCandidates1, Span<int> indices)
         {
             if (!(Sse.IsSupported && Sse2.IsSupported))
-            {
-                return FindBestIndicesPartitioned3ChannelScalar(
-                    subsetIndices,
-                    rPix,
-                    gPix,
-                    bPix,
-                    rCandidates0,
-                    gCandidates0,
-                    bCandidates0,
-                    rCandidates1,
-                    gCandidates1,
-                    bCandidates1,
-                    indices);
-            }
+                return FindBestIndicesPartitioned3ChannelScalar(subsetIndices, rPix, gPix, bPix, rCandidates0, gCandidates0, bCandidates0, rCandidates1, gCandidates1, bCandidates1, indices);
 
             float totalError = 0f;
             Span<float> errorBuffer = stackalloc float[4];
@@ -293,9 +273,7 @@ namespace RedFox.Graphics2D.BC
                     Vector128<float> cg = Select(subsetMask.AsSingle(), Vector128.Create(gCandidates1[j]), Vector128.Create(gCandidates0[j]));
                     Vector128<float> cb = Select(subsetMask.AsSingle(), Vector128.Create(bCandidates1[j]), Vector128.Create(bCandidates0[j]));
 
-                    Vector128<float> err = ComputeSquaredError(
-                        vr, vg, vb, Vector128<float>.Zero,
-                        cr, cg, cb, Vector128<float>.Zero);
+                    Vector128<float> err = ComputeSquaredError(vr, vg, vb, Vector128<float>.Zero, cr, cg, cb, Vector128<float>.Zero);
 
                     Vector128<float> mask = Sse.CompareLessThan(err, bestErr);
                     bestErr = Select(mask, err, bestErr);
@@ -318,12 +296,12 @@ namespace RedFox.Graphics2D.BC
         /// <summary>
         /// Stores RGB float channels as <see cref="Vector4"/> pixels with alpha fixed to 1.
         /// </summary>
+        /// <param name="r">The source red-channel values.</param>
+        /// <param name="g">The source green-channel values.</param>
+        /// <param name="b">The source blue-channel values.</param>
+        /// <param name="pixels">The destination pixel span.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void StoreRgbFloatWithAlphaOne(
-            ReadOnlySpan<float> r,
-            ReadOnlySpan<float> g,
-            ReadOnlySpan<float> b,
-            Span<Vector4> pixels)
+        public static void StoreRgbFloatWithAlphaOne(ReadOnlySpan<float> r, ReadOnlySpan<float> g, ReadOnlySpan<float> b, Span<Vector4> pixels)
         {
             int i = 0;
 
@@ -355,16 +333,7 @@ namespace RedFox.Graphics2D.BC
                 pixels[i] = new Vector4(r[i], g[i], b[i], 1f);
         }
 
-        private static float FindBestIndices4ChannelScalar(
-            ReadOnlySpan<int> rPix,
-            ReadOnlySpan<int> gPix,
-            ReadOnlySpan<int> bPix,
-            ReadOnlySpan<int> aPix,
-            ReadOnlySpan<float> rCandidates,
-            ReadOnlySpan<float> gCandidates,
-            ReadOnlySpan<float> bCandidates,
-            ReadOnlySpan<float> aCandidates,
-            Span<int> indices)
+        private static float FindBestIndices4ChannelScalar(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix, ReadOnlySpan<float> rCandidates, ReadOnlySpan<float> gCandidates, ReadOnlySpan<float> bCandidates, ReadOnlySpan<float> aCandidates, Span<int> indices)
         {
             float totalError = 0f;
 
@@ -395,14 +364,7 @@ namespace RedFox.Graphics2D.BC
             return totalError;
         }
 
-        private static float FindBestIndices3ChannelScalar(
-            ReadOnlySpan<float> rPix,
-            ReadOnlySpan<float> gPix,
-            ReadOnlySpan<float> bPix,
-            ReadOnlySpan<float> rCandidates,
-            ReadOnlySpan<float> gCandidates,
-            ReadOnlySpan<float> bCandidates,
-            Span<int> indices)
+        private static float FindBestIndices3ChannelScalar(ReadOnlySpan<float> rPix, ReadOnlySpan<float> gPix, ReadOnlySpan<float> bPix, ReadOnlySpan<float> rCandidates, ReadOnlySpan<float> gCandidates, ReadOnlySpan<float> bCandidates, Span<int> indices)
         {
             float totalError = 0f;
 
@@ -432,18 +394,7 @@ namespace RedFox.Graphics2D.BC
             return totalError;
         }
 
-        private static float FindBestIndicesPartitioned3ChannelScalar(
-            ReadOnlySpan<int> subsetIndices,
-            ReadOnlySpan<int> rPix,
-            ReadOnlySpan<int> gPix,
-            ReadOnlySpan<int> bPix,
-            ReadOnlySpan<float> rCandidates0,
-            ReadOnlySpan<float> gCandidates0,
-            ReadOnlySpan<float> bCandidates0,
-            ReadOnlySpan<float> rCandidates1,
-            ReadOnlySpan<float> gCandidates1,
-            ReadOnlySpan<float> bCandidates1,
-            Span<int> indices)
+        private static float FindBestIndicesPartitioned3ChannelScalar(ReadOnlySpan<int> subsetIndices, ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<float> rCandidates0, ReadOnlySpan<float> gCandidates0, ReadOnlySpan<float> bCandidates0, ReadOnlySpan<float> rCandidates1, ReadOnlySpan<float> gCandidates1, ReadOnlySpan<float> bCandidates1, Span<int> indices)
         {
             float totalError = 0f;
 
@@ -479,15 +430,7 @@ namespace RedFox.Graphics2D.BC
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<float> ComputeSquaredError(
-            Vector128<float> vr,
-            Vector128<float> vg,
-            Vector128<float> vb,
-            Vector128<float> va,
-            Vector128<float> cr,
-            Vector128<float> cg,
-            Vector128<float> cb,
-            Vector128<float> ca)
+        private static Vector128<float> ComputeSquaredError(Vector128<float> vr, Vector128<float> vg, Vector128<float> vb, Vector128<float> va, Vector128<float> cr, Vector128<float> cg, Vector128<float> cb, Vector128<float> ca)
         {
             Vector128<float> dr = Sse.Subtract(cr, vr);
             Vector128<float> dg = Sse.Subtract(cg, vg);
@@ -520,15 +463,7 @@ namespace RedFox.Graphics2D.BC
             Sse2.Or(Sse2.And(mask, whenTrue), Sse2.AndNot(mask, whenFalse));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Transpose4x4(
-            Vector128<float> r0,
-            Vector128<float> r1,
-            Vector128<float> r2,
-            Vector128<float> r3,
-            out Vector128<float> c0,
-            out Vector128<float> c1,
-            out Vector128<float> c2,
-            out Vector128<float> c3)
+        private static void Transpose4x4(Vector128<float> r0, Vector128<float> r1, Vector128<float> r2, Vector128<float> r3, out Vector128<float> c0, out Vector128<float> c1, out Vector128<float> c2, out Vector128<float> c3)
         {
             Vector128<float> t0 = Sse.UnpackLow(r0, r1);
             Vector128<float> t1 = Sse.UnpackHigh(r0, r1);

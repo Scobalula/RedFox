@@ -757,11 +757,7 @@ namespace RedFox.Graphics2D.BC
             maxVal = hi;
         }
 
-        private static float MeasureBlockError(
-            ReadOnlySpan<ushort> rHalf, ReadOnlySpan<ushort> gHalf, ReadOnlySpan<ushort> bHalf,
-            int rE0, int rE1, int gE0, int gE1, int bE0, int bE1,
-            int epBits, bool transformed, bool signed, ReadOnlySpan<byte> weights,
-            Span<int> bestIndices)
+        private static float MeasureBlockError(ReadOnlySpan<ushort> rHalf, ReadOnlySpan<ushort> gHalf, ReadOnlySpan<ushort> bHalf, int rE0, int rE1, int gE0, int gE1, int bE0, int bE1, int epBits, bool transformed, bool signed, ReadOnlySpan<byte> weights, Span<int> bestIndices)
         {
             // Unquantize endpoints to compare against pixel half values.
             int rU0 = Unquantize(rE0, epBits, signed);
@@ -794,22 +790,14 @@ namespace RedFox.Graphics2D.BC
                 bCandidates[j] = HalfToFloat((ushort)FinishUnquantize(InterpolateHalf(bU0, bU1, w), signed));
             }
 
-            return BcSimd.FindBestIndices3Channel(
-                rOriginal,
-                gOriginal,
-                bOriginal,
-                rCandidates[..weights.Length],
-                gCandidates[..weights.Length],
-                bCandidates[..weights.Length],
-                bestIndices);
+            return BcSimd.FindBestIndices3Channel(rOriginal, gOriginal, bOriginal, rCandidates[..weights.Length], gCandidates[..weights.Length], bCandidates[..weights.Length], bestIndices);
         }
 
         // Encodes using mode 11: 5-bit mode (00111), 11:9:9:9, 1 subset, transformed, 4-bit indices.
         // Layout: mode[4:0]=0..4, rw[9:0]=5..14, gw[9:0]=15..24, bw[9:0]=25..34,
         //   rx[8:0]=35..43, rw[10]=44, gx[8:0]=45..53, gw[10]=54, bx[8:0]=55..63, bw[10]=64
         //   Indices: 65..127 (63 bits = 16*4 - 1)
-        private static float TryEncodeMode11(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH,
-            Span<byte> block, bool signed)
+        private static float TryEncodeMode11(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH, Span<byte> block, bool signed)
         {
             const int epBits = 11;
             const int deltaBits = 9;
@@ -923,8 +911,7 @@ namespace RedFox.Graphics2D.BC
         // Mode 12: 5-bit mode (01011), 12:8:8:8, 1 subset, transformed, 4-bit indices.
         // Layout: mode[4:0], rw[9:0]=5..14, gw[9:0]=15..24, bw[9:0]=25..34,
         //   rx[7:0]=35..42, rw[11:10]=43..44, gx[7:0]=45..52, gw[11:10]=53..54, bx[7:0]=55..62, bw[11:10]=63..64
-        private static float TryEncodeMode12(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH,
-            Span<byte> block, bool signed)
+        private static float TryEncodeMode12(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH, Span<byte> block, bool signed)
         {
             const int epBits = 12;
             const int deltaBits = 8;
@@ -1016,8 +1003,7 @@ namespace RedFox.Graphics2D.BC
         // Mode 10: 5-bit mode (00011), 10:10:10:10, 1 subset, non-transformed, 4-bit indices.
         // Layout: mode[4:0], rw[9:0]=5..14, gw[9:0]=15..24, bw[9:0]=25..34,
         //   rx[9:0]=35..44, gx[9:0]=45..54, bx[9:0]=55..64
-        private static float TryEncodeMode10(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH,
-            Span<byte> block, bool signed)
+        private static float TryEncodeMode10(ReadOnlySpan<ushort> rH, ReadOnlySpan<ushort> gH, ReadOnlySpan<ushort> bH, Span<byte> block, bool signed)
         {
             const int epBits = 10;
 
