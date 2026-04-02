@@ -10,7 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics2D.Primitives\RedFox.Graphics2D.Primitives.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Codecs\RedFox.Graphics2D.Codecs.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.BC\RedFox.Graphics2D.BC.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.BC\RedFox.Graphics2D.BlockCompression.csproj" />
   </ItemGroup>
 
 </Project>

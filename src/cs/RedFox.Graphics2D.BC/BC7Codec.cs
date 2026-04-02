@@ -363,9 +363,7 @@ namespace RedFox.Graphics2D.BC
             bestBlock.CopyTo(block);
         }
 
-        private static float TryEncodeMode6(
-            ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix,
-            Span<byte> block)
+        private static float TryEncodeMode6(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix, Span<byte> block)
         {
             // Mode 6: 1 subset, 7-bit color, 7-bit alpha, endpoint P-bits, 4-bit indices.
             // Effective precision = 8 bits (7 + 1 P-bit).
@@ -453,9 +451,7 @@ namespace RedFox.Graphics2D.BC
             return totalError;
         }
 
-        private static float TryEncodeMode1(
-            ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix,
-            int partition, Span<byte> block)
+        private static float TryEncodeMode1(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, int partition, Span<byte> block)
         {
             // Mode 1: 2 subsets, 6-bit color, no alpha, shared P-bits, 3-bit indices.
             // Header: 2 bits (mode marker 00000010). Partition: 6 bits.
@@ -551,18 +547,7 @@ namespace RedFox.Graphics2D.BC
                         bCandidates1[j] = Interpolate(bU[2], bU[3], w);
                     }
 
-                    float candidateError = BcSimd.FindBestIndicesPartitioned3Channel(
-                        subsetIdx,
-                        rPix,
-                        gPix,
-                        bPix,
-                        rCandidates0,
-                        gCandidates0,
-                        bCandidates0,
-                        rCandidates1,
-                        gCandidates1,
-                        bCandidates1,
-                        candidateIndices);
+                    float candidateError = BcSimd.FindBestIndicesPartitioned3Channel(subsetIdx, rPix, gPix, bPix, rCandidates0, gCandidates0, bCandidates0, rCandidates1, gCandidates1, bCandidates1, candidateIndices);
 
                     if (candidateError < totalError)
                     {
@@ -600,18 +585,7 @@ namespace RedFox.Graphics2D.BC
             }
 
             Span<int> indices = stackalloc int[16];
-            BcSimd.FindBestIndicesPartitioned3Channel(
-                subsetIdx,
-                rPix,
-                gPix,
-                bPix,
-                rCandidates0,
-                gCandidates0,
-                bCandidates0,
-                rCandidates1,
-                gCandidates1,
-                bCandidates1,
-                indices);
+            BcSimd.FindBestIndicesPartitioned3Channel(subsetIdx, rPix, gPix, bPix, rCandidates0, gCandidates0, bCandidates0, rCandidates1, gCandidates1, bCandidates1, indices);
 
             // Fix anchor indices for both subsets.
             int anchor0 = 0;
@@ -680,10 +654,7 @@ namespace RedFox.Graphics2D.BC
             }
         }
 
-        private static float FindBestIndices4Channel(
-            ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix,
-            int r0, int r1, int g0, int g1, int b0, int b1, int a0, int a1,
-            ReadOnlySpan<byte> weights, Span<int> indices)
+        private static float FindBestIndices4Channel(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix, int r0, int r1, int g0, int g1, int b0, int b1, int a0, int a1, ReadOnlySpan<byte> weights, Span<int> indices)
         {
             Span<float> rCandidates = stackalloc float[16];
             Span<float> gCandidates = stackalloc float[16];
@@ -699,16 +670,7 @@ namespace RedFox.Graphics2D.BC
                 aCandidates[j] = Interpolate(a0, a1, w);
             }
 
-            return BcSimd.FindBestIndices4Channel(
-                rPix,
-                gPix,
-                bPix,
-                aPix,
-                rCandidates[..weights.Length],
-                gCandidates[..weights.Length],
-                bCandidates[..weights.Length],
-                aCandidates[..weights.Length],
-                indices);
+            return BcSimd.FindBestIndices4Channel(rPix, gPix, bPix, aPix, rCandidates[..weights.Length], gCandidates[..weights.Length], bCandidates[..weights.Length], aCandidates[..weights.Length], indices);
         }
 
         private static int QuantizeSharedPBitEndpoint(int value, int pbit)

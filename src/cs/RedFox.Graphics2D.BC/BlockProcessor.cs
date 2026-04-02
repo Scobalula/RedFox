@@ -9,7 +9,7 @@ namespace RedFox.Graphics2D.BC
     /// All BC formats operate on 4×4 pixel blocks; this class centralizes the block walk,
     /// boundary clamping, and pixel scatter/gather operations.
     /// </summary>
-    internal static class BlockProcessor
+    public static class BlockProcessor
     {
         /// <summary>
         /// Iterates over 4×4 blocks in the image, invoking <paramref name="decoder"/> for each block
@@ -22,13 +22,7 @@ namespace RedFox.Graphics2D.BC
         /// <param name="bytesPerBlock">The number of bytes per compressed block (8 for BC1/BC4, 16 for others).</param>
         /// <param name="decoder">The per-block decode function.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DecodeBlocks(
-            ReadOnlySpan<byte> source,
-            Span<Vector4> destination,
-            int width,
-            int height,
-            int bytesPerBlock,
-            BlockDecoder decoder)
+        public static void DecodeBlocks(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height, int bytesPerBlock, BlockDecoder decoder)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);
@@ -77,14 +71,7 @@ namespace RedFox.Graphics2D.BC
         /// <param name="bytesPerBlock">The number of bytes per compressed block.</param>
         /// <param name="decoder">The per-block decode function.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DecodeBlocksTo(
-            ReadOnlySpan<byte> source,
-            IPixelCodec targetCodec,
-            Span<byte> destination,
-            int width,
-            int height,
-            int bytesPerBlock,
-            BlockDecoder decoder)
+        public static void DecodeBlocksTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height, int bytesPerBlock, BlockDecoder decoder)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);
@@ -129,15 +116,7 @@ namespace RedFox.Graphics2D.BC
         /// <param name="bytesPerBlock">The number of bytes per compressed block.</param>
         /// <param name="decoder">The per-block decode function.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DecodeRows(
-            ReadOnlySpan<byte> source,
-            Span<Vector4> destination,
-            int startRow,
-            int rowCount,
-            int width,
-            int height,
-            int bytesPerBlock,
-            BlockDecoder decoder)
+        public static void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height, int bytesPerBlock, BlockDecoder decoder)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blockRowStart = startRow / 4;
@@ -184,13 +163,7 @@ namespace RedFox.Graphics2D.BC
         /// <param name="bytesPerBlock">The number of bytes per compressed block.</param>
         /// <param name="encoder">The per-block encode function.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void EncodeBlocks(
-            ReadOnlySpan<Vector4> source,
-            Span<byte> destination,
-            int width,
-            int height,
-            int bytesPerBlock,
-            BlockEncoder encoder)
+        public static void EncodeBlocks(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height, int bytesPerBlock, BlockEncoder encoder)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
             int blocksY = Math.Max(1, (height + 3) / 4);
