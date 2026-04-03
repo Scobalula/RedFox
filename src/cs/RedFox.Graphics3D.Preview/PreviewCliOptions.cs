@@ -30,6 +30,9 @@ public sealed class PreviewCliOptions
     public string? EnvironmentMapPath { get; set; }
     public float EnvironmentMapExposure { get; set; } = 1.0f;
     public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
+    public bool EnvironmentMapBlur { get; set; }
+    public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
+    public bool EnableIBL { get; set; } = true;
 
     public static PreviewCliOptions Parse(IReadOnlyList<string> args)
     {
@@ -124,6 +127,18 @@ public sealed class PreviewCliOptions
                     options.EnvironmentMapReflectionIntensity = ParseFloat(args, ++i, arg);
                     break;
 
+                case "--envmap-blur":
+                    options.EnvironmentMapBlur = true;
+                    break;
+
+                case "--envmap-blur-radius":
+                    options.EnvironmentMapBlurRadius = ParseFloat(args, ++i, arg);
+                    break;
+
+                case "--no-ibl":
+                    options.EnableIBL = false;
+                    break;
+
                 default:
                     throw new ArgumentException($"Unknown argument '{arg}'.");
             }
@@ -167,11 +182,18 @@ public sealed class PreviewCliOptions
               --wireframe             Render in wireframe mode.
               --no-bones              Disable skeleton bone preview lines.
               --no-grid               Disable the world grid.
+              --envmap <path>         Load an equirectangular environment map.
+              --envmap-exposure <v>   Environment map exposure. Default: 1.0
+              --envmap-intensity <v>  Environment map reflection intensity. Default: 0.5
+              --envmap-blur           Enable environment map blur.
+              --envmap-blur-radius <v> Blur radius for environment map. Default: 4.0
+              --no-ibl                Disable Image-Based Lighting.
               -h, --help              Show this help text.
 
             Runtime shortcuts:
               1 / 2 / 3               Switch Arcball / Blender / FPS camera.
               B                       Toggle bone preview.
+              V                       Toggle environment map blur.
               G                       Toggle grid.
               W                       Toggle wireframe.
               F                       Fit the camera to the loaded scene.

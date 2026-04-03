@@ -124,6 +124,18 @@ public class Material(string name) : SceneNode(name)
     public float? SpecularStrength { get; set; }
 
     /// <summary>
+    /// Gets or sets the metallic factor (0.0 = dielectric, 1.0 = metallic).
+    /// Used for IBL and PBR rendering.
+    /// </summary>
+    public float? Metallic { get; set; }
+
+    /// <summary>
+    /// Gets or sets the roughness factor (0.0 = smooth, 1.0 = rough).
+    /// Used for IBL and PBR rendering.
+    /// </summary>
+    public float? Roughness { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the specular mask is stored in the alpha channel of the diffuse texture.
     /// </summary>
     public bool SpecularMaskInDiffuseAlpha { get; set; }

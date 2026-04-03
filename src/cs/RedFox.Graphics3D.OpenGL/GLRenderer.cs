@@ -36,6 +36,16 @@ public sealed class GLRenderer : IDisposable
     public GLEquirectangularEnvironmentMap? EnvironmentMap { get; set; }
     public float EnvironmentMapExposure { get; set; } = 1.0f;
     public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
+    public bool EnvironmentMapBlurEnabled { get; set; }
+    public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
+    public bool EnableIBL { get; set; } = true;
+
+    /// <summary>
+    /// Gets the IBL precomputation pass if it has been added to the renderer.
+    /// This pass generates the BRDF LUT and prefiltered environment map textures.
+    /// </summary>
+    public IblPrecomputePass? IblPrecomputePass => GetPass<IblPrecomputePass>();
+
     public IReadOnlyList<IRenderPass> Passes => _passes;
     public Matrix3x3 SceneNormalMatrix => ComputeNormalMatrix(SceneTransform);
 
