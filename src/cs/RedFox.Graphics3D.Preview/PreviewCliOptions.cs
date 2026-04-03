@@ -27,6 +27,9 @@ public sealed class PreviewCliOptions
     public string? AnimationName { get; set; }
     public CameraMode CameraMode { get; set; } = CameraMode.Arcball;
     public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
+    public string? EnvironmentMapPath { get; set; }
+    public float EnvironmentMapExposure { get; set; } = 1.0f;
+    public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
 
     public static PreviewCliOptions Parse(IReadOnlyList<string> args)
     {
@@ -107,6 +110,18 @@ public sealed class PreviewCliOptions
 
                 case "--up-axis":
                     options.UpAxis = ParseUpAxis(ParseString(args, ++i, arg));
+                    break;
+
+                case "--envmap":
+                    options.EnvironmentMapPath = ParseString(args, ++i, arg);
+                    break;
+
+                case "--envmap-exposure":
+                    options.EnvironmentMapExposure = ParseFloat(args, ++i, arg);
+                    break;
+
+                case "--envmap-intensity":
+                    options.EnvironmentMapReflectionIntensity = ParseFloat(args, ++i, arg);
                     break;
 
                 default:
