@@ -131,6 +131,16 @@ public sealed class GeometryPass : IRenderPass
         }
 
         _meshShader.SetUniform("uHasDiffuseTexture", hasDiffuseTex);
+
+        bool hasEnvMap = renderer.EnvironmentMap?.TextureHandle is not null;
+        if (hasEnvMap)
+        {
+            renderer.EnvironmentMap!.TextureHandle!.Bind(3);
+            _meshShader.SetUniform("uEnvironmentMap", 3);
+        }
+
+        _meshShader.SetUniform("uHasEnvironmentMap", hasEnvMap);
+        _meshShader.SetUniform("uEnvironmentMapIntensity", renderer.EnvironmentMapReflectionIntensity);
     }
 
     private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)

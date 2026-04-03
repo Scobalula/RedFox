@@ -1,88 +1,60 @@
 ![Banner](assets/banner.png)
 
-RedFox is a collection of utilities and libraries for C# / .NET that I use across my projects. It covers compression, I/O, 3D scene graphs and skeletal animation, 2D image processing with pure C# codecs, cryptography, game asset extraction, and more.
+RedFox is my collection of utilities, libraries, and classes I share across all my projects, it covers compression, 3D graphics (scenes, animations, asset reading/writing, etc.), 2D graphics (converters, pure C# readers/writers), IO, and more. It ultimately replaces my old PhilLibX and Borks libraries to merge them into 1 unified set of projects.
 
-RedFox is ultimately a personal project that I also use as a testing ground for learning and experimenting. You may find code with conflicting design choices, highly verbose exposed internals, and a few wheels reinvented along the way — that's by design, not by accident. Where I'm testing the waters with patterns, features, or just seeing how things work under the hood.
-
----
+RedFox is, at it's core, a personal project that is also used for experimenting and leanring. You'll likely find a lot of code in here with weird design choices, mixed quality, and wheels re-invented. A lot of the classes are publicly exposed due to its intended use case.
 
 ## Namespace Overview
 
 ### RedFox
 
-Core utilities including high-performance byte-pattern scanning with SIMD (SSE2/AVX2) acceleration and sliding-window chunked I/O for searching binary data with wildcard support.
+Core utilities covering math, etc. or misc. code that does not fit into any particular project at the moment.
 
 ### RedFox.Compression
 
-Compression abstractions and codec implementations:
-
-- **Deflate** — ZLIB/Deflate via native `miniz`.
-- **LZ4** — Extremely fast compression via native `liblz4`.
-- **ZStandard** — ZStandard compression via native `libzstd`.
-
-All codecs share a common `CompressionCodec` base with `Compress`/`Decompress` over `Span<byte>`.
+Compression abstractions and implementations (including wrappers around populat codecs) such as LZ4, ZStandard, and MiniZ. All codecs share a unified class `CompressionCodec`.
 
 ### RedFox.Cryptography
 
-Hashing implementations:
-
-- **MurMur3** — Pure C# MurMurHash3 with 32-bit and 128-bit variants.
+Encryption and Cryptographic operations such as hashing, curently only covers a pure C# implementation of MurMur3.
 
 ### RedFox.Graphics2D
 
-A full 2D image pipeline modelled after DirectXTex's `ScratchImage`, with an `Image` container holding all mip levels, array slices, and depth slices in a contiguous buffer. Includes:
-
-- **Primitives** — Pixel format enumerations (~100+ DXGI-based formats) and format metadata.
-- **Codecs** — Per-pixel encode/decode to/from `Vector4` with SIMD-accelerated batch operations.
-- **BC** — Pure C# block compression (BC1–BC7, BC6H HDR) with quality and fast encoding paths.
-- **Vulkan.BC** — GPU-accelerated BC encode/decode via Vulkan compute shaders (SPIR-V).
-- **Format Translators** — Readers and writers for BMP, PNG (pure C#), JPEG, OpenEXR, TGA, TIFF, DDS, KTX, and IWI.
+A full 2D image pipeline inspired by Microsoft's DirectXTex library, providing methods for reading/writing images via translators, converting between formats (including a GPU backed BC decoder/encoder), and more to come.
 
 ### RedFox.Graphics3D
 
-A 3D scene graph, skeletal animation system, and model interchange layer:
+A full 3D scene graph with contains for meshes, animations, skeletons, and more. Contains translators for various formats and utilities for working with the scene.
 
-- **Core** — `Scene` with hierarchical `SceneNode` tree, `Skeleton`, `Mesh`, `Model`, `Material`, `Camera`, `Light`, packed vector types, and a full animation system with multi-layer blending, blend shapes, and IK/constraint solvers.
-- **IO** — `SceneTranslator` base class with format auto-detection and translation context.
-- **Format Translators** — glTF 2.0 (.gltf/.glb), Kaydara FBX (.fbx), Wavefront OBJ (.obj), Biovision Hierarchy (.bvh), Maya ASCII (.ma), MD5Mesh/MD5Anim, Valve SMD, SEAnim, and SEModel.
-- **OpenGL** — Scene renderer built on Silk.NET with mesh upload, shader management, camera controls, and animation playback.
-- **Preview** — Standalone model preview window for quick visual inspection.
+It also includes an OpenGL renderer that can be used in Avalonia and supports meshes and skeletal animation playback (heavy WIP).
 
 ### RedFox.IO
 
-I/O utilities including `SpanReader` (ref struct for typed reads from byte spans), `BinaryReader`/`BinaryWriter`/`Stream` extensions, `TextTokenReader`, and a `VirtualFileSystem` with in-memory directory trees.
-
-- **ProcessMemory** — Cross-platform (Windows + Linux) process memory reading and writing with `ProcessReader`/`ProcessWriter`, process discovery, and module resolution.
+I/O helpers and extensions including virtual file system classes, SpanReader for high-performant reading from spans, along with inter-process reader/writers, text parsers, and more.
 
 ### RedFox.GameExtraction
 
-A game asset extraction framework with a plugin architecture (`IAssetSourceReader` / `IAssetHandler`) coordinated through an `AssetManager`, backed by the virtual file system from `RedFox.IO`.
-
-- **UI** — Avalonia-based desktop application with asset browsing, hex viewer, text editor, and preview capabilities.
+A game extraction framework along with an Avalonia based UI for parsing game packages/processes in a shared method (heavy WIP).
 
 ### RedFox.Zenith
 
 Software licensing with hardware-bound verification, including GumRoad and TPM 2.0-based license verifiers.
 
----
-
 ## AI Disclosure
 
-I use AI as a tool to assist with writing code throughout this library — sometimes in small doses, sometimes in large batches. It's part of how I learn, experiment, and iterate. I believe AI is a powerful tool when used intentionally, and I have a personal interest in improvements to local LLMs that don't depend on massive data centers.
+I use AI a lot to assist with building apps, tools, and code. I know a lot of people have mixed feelings on AI but I think it's an insanely powerful tool when used correctly and definitely has aided me with building projects quicker around my already weeks with my actual job and life. Personally I'm very interested in AI models that don't rely on large data centers and I'm always keeping an eye on the local LLM space for productivity.
 
-If AI-generated or AI-assisted code doesn't sit well with you, this library probably isn't for you — and that's perfectly fine. No hard feelings.
-
----
+If AI-generated or AI-assisted code doesn't sit well with you, then I don't recommend using my tools or code.
 
 ## Contributing
 
-Issues and pull requests are very welcome! Whether it's a bug report, a feature idea, a new format you'd like to see supported, or a fix for something I broke — I'd love to hear from you. This is a project I build for myself and share in the hope it's useful, so community input is always appreciated.
-
----
+I'm always open to PRs and or issues if you have them to submit! Unfortunately due to limited time, bug reports and issues are prioritised to Patreon/Supporters of my apps and critical issues that affect a wider user-base. Even if you can't afford to financially support my projects, please still feel free to open an issue with suggestions, reports, etc. and I'll do my best to look after it!
 
 ## Credits & Third-Party Libraries
 
 RedFox itself is MIT licensed, however it uses and bundles third-party libraries that carry their own licenses. **It is your responsibility to verify the license terms of any third-party library before use.**
+
+Please keep in mind some of these libraries aren't directly used in the project, but were ported, used as reference, or served as inspiration for underlying code.
 
 | Library | Purpose | License |
 |---|---|---|
@@ -95,8 +67,8 @@ RedFox itself is MIT licensed, however it uses and bundles third-party libraries
 | [LZ4](https://github.com/lz4/lz4) | Extremely fast compression (native, bundled via submodule) | BSD 2-Clause |
 | [libzstd](https://github.com/facebook/zstd) | ZStandard compression (native) | BSD 3-Clause |
 | [Cast.NET](https://github.com/Scobalula/Cast.NET) | Cast container format reader/writer (bundled via submodule) | MIT |
-
----
+| [DirectXTex](https://github.com/Microsoft/DirectXTex) | Served as inspiration for Graphics2D | MIT |
+| [DirectXMath](https://github.com/Microsoft/DirectXMath) | Packed vector utilities ported into Graphics3D | MIT |
 
 ## License
 

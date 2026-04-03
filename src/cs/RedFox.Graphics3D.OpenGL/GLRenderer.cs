@@ -33,6 +33,9 @@ public sealed class GLRenderer : IDisposable
     public RendererColor BackgroundColor { get; set; } = new(0.12f, 0.12f, 0.14f, 1.0f);
     public ImageTranslatorManager? ImageTranslatorManager { get; set; }
     public Matrix4x4 SceneTransform { get; set; } = Matrix4x4.Identity;
+    public GLEquirectangularEnvironmentMap? EnvironmentMap { get; set; }
+    public float EnvironmentMapExposure { get; set; } = 1.0f;
+    public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
     public IReadOnlyList<IRenderPass> Passes => _passes;
     public Matrix3x3 SceneNormalMatrix => ComputeNormalMatrix(SceneTransform);
 
@@ -65,6 +68,7 @@ public sealed class GLRenderer : IDisposable
 
         if (_passes.Count == 0)
         {
+            AddPass(new EnvironmentMapPass());
             AddPass(new GridPass());
             AddPass(new GeometryPass());
         }
@@ -703,6 +707,7 @@ public sealed class GLRenderer : IDisposable
         _passes.Clear();
 
         _lineShader?.Dispose();
+        EnvironmentMap?.Dispose();
 
         try
         {
