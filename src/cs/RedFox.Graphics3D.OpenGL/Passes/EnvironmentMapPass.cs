@@ -4,10 +4,10 @@ using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL.Passes;
 
-using System.Numerics;
-using RedFox.Graphics3D.OpenGL.Shaders;
-using Silk.NET.OpenGL;
-
+/// <summary>
+/// A render pass that renders the equirectangular environment map as a background skybox.
+/// Supports optional Gaussian blur applied in the fragment shader.
+/// </summary>
 public sealed class EnvironmentMapPass : IRenderPass
 {
     private GL _gl = null!;
@@ -15,18 +15,24 @@ public sealed class EnvironmentMapPass : IRenderPass
     private uint _emptyVao;
     private bool _initialized;
 
+    /// <inheritdoc/>
     public string Name => "EnvironmentMap";
+
+    /// <inheritdoc/>
     public bool Enabled { get; set; } = true;
 
+    /// <inheritdoc/>
     public void Initialize(GLRenderer renderer)
     {
         _gl = renderer.GL;
         (string vertexSource, string fragmentSource) = ShaderSource.LoadProgram(_gl, "envmap");
         _shader = new GLShader(_gl, vertexSource, fragmentSource);
         _emptyVao = _gl.GenVertexArray();
+
         _initialized = true;
     }
 
+    /// <inheritdoc/>
     public void Render(GLRenderer renderer, Scene scene, float deltaTime)
     {
         if (!_initialized || !Enabled)
@@ -49,28 +55,33 @@ public sealed class EnvironmentMapPass : IRenderPass
             return;
 
         _gl.DepthMask(false);
-        _gl.Disable(EnableCap.DepthTest);
+        _gl.Disable(GLEnum.DepthTest);
 
         _shader.Use();
 
         _shader.SetUniform("uInverseViewProjection", inverseViewProjection);
         _shader.SetUniform("uCameraPos", camera.Position);
         _shader.SetUniform("uExposure", renderer.EnvironmentMapExposure);
+        _shader.SetUniform("uBlurEnabled", renderer.EnvironmentMapBlurEnabled);
+        _shader.SetUniform("uBlurRadius", renderer.EnvironmentMapBlurRadius);
+        _shader.SetUniform("uResolution", new Vector2(handle.Width, handle.Height));
 
-        handle.Bind(0);
+        // Bind environment map texture
+        _gl.ActiveTexture(TextureUnit.Texture0);
+        _gl.BindTexture(GLEnum.Texture2D, handle.TextureId);
         _shader.SetUniform("uEnvironmentMap", 0);
 
         _gl.BindVertexArray(_emptyVao);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 3);
         _gl.BindVertexArray(0);
 
-        _gl.ActiveTexture(TextureUnit.Texture0);
-        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        _gl.BindTexture(GLEnum.Texture2D, 0);
 
-        _gl.Enable(EnableCap.DepthTest);
+        _gl.Enable(GLEnum.DepthTest);
         _gl.DepthMask(true);
     }
 
+    /// <inheritdoc/>
     public void Dispose()
     {
         _shader?.Dispose();

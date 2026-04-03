@@ -141,6 +141,35 @@ public sealed class GeometryPass : IRenderPass
 
         _meshShader.SetUniform("uHasEnvironmentMap", hasEnvMap);
         _meshShader.SetUniform("uEnvironmentMapIntensity", renderer.EnvironmentMapReflectionIntensity);
+
+        // IBL textures and settings
+        bool useIBL = hasEnvMap && renderer.IblPrecomputePass is not null && renderer.IblPrecomputePass.Computed;
+        _meshShader.SetUniform("uUseIBL", useIBL);
+
+        if (useIBL && renderer.IblPrecomputePass is not null)
+        {
+            // Bind irradiance cubemap (texture unit 4)
+            _gl.ActiveTexture(TextureUnit.Texture4);
+            _gl.BindTexture(TextureTarget.TextureCubeMap, renderer.IblPrecomputePass.IrradianceCubemap);
+            _meshShader.SetUniform("uIrradianceMap", 4);
+
+            // Bind prefiltered environment cubemap (texture unit 5)
+            _gl.ActiveTexture(TextureUnit.Texture5);
+            _gl.BindTexture(TextureTarget.TextureCubeMap, renderer.IblPrecomputePass.PrefilterCubemap);
+            _meshShader.SetUniform("uPrefilterMap", 5);
+            _meshShader.SetUniform("uPrefilterMaxMipLevel", renderer.IblPrecomputePass.PrefilterMaxMipLevel);
+
+            // Bind BRDF LUT (texture unit 6)
+            _gl.ActiveTexture(TextureUnit.Texture6);
+            _gl.BindTexture(TextureTarget.Texture2D, renderer.IblPrecomputePass.BrdfLutTexture);
+            _meshShader.SetUniform("uBrdfLut", 6);
+        }
+
+        // Material IBL properties (defaults for now, could come from material later)
+        float metallic = material?.Metallic ?? 0.0f;
+        float roughness = material?.Roughness ?? 0.5f;
+        _meshShader.SetUniform("uMetallic", metallic);
+        _meshShader.SetUniform("uRoughness", roughness);
     }
 
     private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)
