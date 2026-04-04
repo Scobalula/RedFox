@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "RedFox.Graphics3D.Preview": {
+      "commandName": "Project",
+      "commandLineArgs": "D:\\Tools\\CordyCap\\Greyhound\\exported_files\\ghosts\\xmodels\\viewhands_mp_space_desert\\viewhands_mp_space_desert_LOD0.semodel --envmap \"C:\\Users\\Admin\\Downloads\\qwantani_moon_noon_1k.exr\" --up-axis z --envmap-blur"
+    }
+  }
+}
