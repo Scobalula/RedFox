@@ -14,6 +14,6 @@ void main()
 {
     vWorldPos = aPos;
     // Use only rotation from view matrix to sample the correct cubemap direction.
-    // Ignore translation — we're rendering a unit cube around the camera.
+    // Ignore translation - we're rendering a unit cube around the camera.
     gl_Position = (uProjection * mat4(mat3(uView))) * vec4(aPos, 1.0);
 }

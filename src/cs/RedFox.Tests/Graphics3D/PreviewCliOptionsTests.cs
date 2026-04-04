@@ -1,3 +1,4 @@
+using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.OpenGL.Cameras;
 using RedFox.Graphics3D.Preview;
 
@@ -45,5 +46,54 @@ public sealed class PreviewCliOptionsTests
         Assert.Equal(2, options.InputFiles.Count);
         Assert.EndsWith("mesh_a.obj", options.InputFiles[0], StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("mesh_b.obj", options.InputFiles[1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_WithEnvironmentMapFlags_BindsExpectedOptions()
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            "--envmap", "test.exr",
+            "--envmap-exposure", "1.25",
+            "--envmap-intensity", "0.25",
+            "--envmap-blur",
+            "--envmap-blur-radius", "3.0",
+            "--envmap-no-flip-y",
+            "--no-ibl",
+            "mesh.obj",
+        ]);
+
+        Assert.Equal("test.exr", options.EnvironmentMapPath);
+        Assert.Equal(1.25f, options.EnvironmentMapExposure, 3);
+        Assert.Equal(0.25f, options.EnvironmentMapReflectionIntensity, 3);
+        Assert.True(options.EnvironmentMapBlur);
+        Assert.Equal(3.0f, options.EnvironmentMapBlurRadius, 3);
+        Assert.Equal(EnvironmentMapFlipMode.ForceNoFlipY, options.EnvironmentMapFlipMode);
+        Assert.False(options.EnableIBL);
+    }
+
+    [Fact]
+    public void Parse_WithEnvmapFlipY_SetsFlipMode()
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            "--envmap", "test.exr",
+            "--envmap-flip-y",
+            "mesh.obj",
+        ]);
+
+        Assert.Equal(EnvironmentMapFlipMode.ForceFlipY, options.EnvironmentMapFlipMode);
+    }
+
+    [Fact]
+    public void Parse_WithConflictingEnvmapFlipFlags_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => PreviewCliOptions.Parse(
+        [
+            "--envmap", "test.exr",
+            "--envmap-flip-y",
+            "--envmap-no-flip-y",
+            "mesh.obj",
+        ]));
     }
 }

@@ -74,4 +74,26 @@ public sealed class CameraControllerTests
         float distanceAfter = Vector3.Distance(camera.Position, camera.Target);
         Assert.True(distanceAfter < distanceBefore);
     }
+
+    [Fact]
+    public void Fit_TargetsProvidedCenter()
+    {
+        Camera camera = new()
+        {
+            Position = new Vector3(0.0f, 0.0f, 5.0f),
+            Target = Vector3.Zero,
+            FieldOfView = 60.0f,
+            AspectRatio = 16.0f / 9.0f,
+        };
+
+        CameraController controller = new(camera);
+        Vector3 center = new(12.0f, -3.0f, 7.0f);
+
+        controller.Fit(center, 4.0f);
+
+        Assert.Equal(center.X, camera.Target.X, 4);
+        Assert.Equal(center.Y, camera.Target.Y, 4);
+        Assert.Equal(center.Z, camera.Target.Z, 4);
+        Assert.True(Vector3.Distance(camera.Position, camera.Target) > 4.0f);
+    }
 }

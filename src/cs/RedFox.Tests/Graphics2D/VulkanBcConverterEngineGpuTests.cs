@@ -1,7 +1,7 @@
 using System.Numerics;
 using RedFox.Graphics2D;
 using RedFox.Graphics2D.Codecs;
-using RedFox.Graphics2D.Vulkan.BC;
+using RedFox.Graphics2D.BlockCompression.Vulkan;
 
 namespace RedFox.Tests.Graphics2D;
 

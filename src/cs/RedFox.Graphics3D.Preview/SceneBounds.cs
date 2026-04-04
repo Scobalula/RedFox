@@ -13,6 +13,9 @@ public static class SceneBounds
     }
 
     public static bool TryGetBounds(Scene scene, out SceneBoundsInfo bounds)
+        => TryGetBounds(scene, Matrix4x4.Identity, out bounds);
+
+    public static bool TryGetBounds(Scene scene, Matrix4x4 sceneTransform, out SceneBoundsInfo bounds)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
@@ -30,9 +33,10 @@ public static class SceneBounds
             for (int vertexIndex = 0; vertexIndex < mesh.Positions.ElementCount; vertexIndex++)
             {
                 Vector3 worldPosition = Vector3.Transform(mesh.Positions.GetVector3(vertexIndex, 0), world);
+                Vector3 sceneWorldPosition = Vector3.Transform(worldPosition, sceneTransform);
 
-                min = Vector3.Min(min, worldPosition);
-                max = Vector3.Max(max, worldPosition);
+                min = Vector3.Min(min, sceneWorldPosition);
+                max = Vector3.Max(max, sceneWorldPosition);
                 hasBounds = true;
             }
         }

@@ -1,3 +1,4 @@
+using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.OpenGL.Cameras;
 
 namespace RedFox.Graphics3D.Preview;
@@ -29,9 +30,10 @@ public sealed class PreviewCliOptions
     public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
     public string? EnvironmentMapPath { get; set; }
     public float EnvironmentMapExposure { get; set; } = 1.0f;
-    public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
+    public float EnvironmentMapReflectionIntensity { get; set; } = 1.0f;
     public bool EnvironmentMapBlur { get; set; }
     public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
+    public EnvironmentMapFlipMode EnvironmentMapFlipMode { get; set; } = EnvironmentMapFlipMode.Auto;
     public bool EnableIBL { get; set; } = true;
 
     public static PreviewCliOptions Parse(IReadOnlyList<string> args)
@@ -135,6 +137,18 @@ public sealed class PreviewCliOptions
                     options.EnvironmentMapBlurRadius = ParseFloat(args, ++i, arg);
                     break;
 
+                case "--envmap-flip-y":
+                    if (options.EnvironmentMapFlipMode == EnvironmentMapFlipMode.ForceNoFlipY)
+                        throw new ArgumentException("Cannot specify both '--envmap-flip-y' and '--envmap-no-flip-y'.");
+                    options.EnvironmentMapFlipMode = EnvironmentMapFlipMode.ForceFlipY;
+                    break;
+
+                case "--envmap-no-flip-y":
+                    if (options.EnvironmentMapFlipMode == EnvironmentMapFlipMode.ForceFlipY)
+                        throw new ArgumentException("Cannot specify both '--envmap-flip-y' and '--envmap-no-flip-y'.");
+                    options.EnvironmentMapFlipMode = EnvironmentMapFlipMode.ForceNoFlipY;
+                    break;
+
                 case "--no-ibl":
                     options.EnableIBL = false;
                     break;
@@ -184,9 +198,11 @@ public sealed class PreviewCliOptions
               --no-grid               Disable the world grid.
               --envmap <path>         Load an equirectangular environment map.
               --envmap-exposure <v>   Environment map exposure. Default: 1.0
-              --envmap-intensity <v>  Environment map reflection intensity. Default: 0.5
+              --envmap-intensity <v>  Environment map reflection intensity. Default: 1.0
               --envmap-blur           Enable environment map blur.
-              --envmap-blur-radius <v> Blur radius for environment map. Default: 4.0
+              --envmap-blur-radius <v> Skybox blur mip level. Default: 4.0
+              --envmap-flip-y         Force vertical flip for environment map import.
+              --envmap-no-flip-y      Disable vertical flip for environment map import.
               --no-ibl                Disable Image-Based Lighting.
               -h, --help              Show this help text.
 

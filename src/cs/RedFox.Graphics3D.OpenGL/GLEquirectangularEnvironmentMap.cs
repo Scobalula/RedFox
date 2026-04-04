@@ -3,6 +3,7 @@ using RedFox.Graphics2D.IO;
 using Silk.NET.OpenGL;
 using System;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace RedFox.Graphics3D.OpenGL;
 
@@ -13,6 +14,11 @@ namespace RedFox.Graphics3D.OpenGL;
 public sealed class GLEquirectangularEnvironmentMap : IDisposable
 {
     private readonly GL _gl;
+
+    public string? SourcePath { get; private set; }
+    public long SourceLastWriteTimeUtcTicks { get; private set; }
+    public string? SourcePixelHashHex { get; private set; }
+    public bool EffectiveFlipY { get; private set; }
 
     /// <summary>
     /// Gets the OpenGL texture handle for this environment map.
@@ -34,30 +40,86 @@ public sealed class GLEquirectangularEnvironmentMap : IDisposable
     }
 
     /// <summary>
+    /// Loads source metadata without decoding the underlying image file.
+    /// This allows the env-map cache to be consulted before paying the EXR decode cost.
+    /// </summary>
+    public void LoadMetadata(string filePath, bool flipY = false)
+    {
+        ArgumentNullException.ThrowIfNull(filePath);
+
+        TextureHandle?.Dispose();
+        TextureHandle = null;
+
+        string fullPath = Path.GetFullPath(filePath);
+        SourcePath = fullPath;
+        EffectiveFlipY = flipY;
+        SourcePixelHashHex = null;
+
+        try
+        {
+            SourceLastWriteTimeUtcTicks = File.GetLastWriteTimeUtc(fullPath).Ticks;
+        }
+        catch
+        {
+            SourceLastWriteTimeUtcTicks = 0;
+        }
+
+    }
+
+    /// <summary>
     /// Loads an HDR image file (e.g., .exr) and uploads it to the GPU as a floating-point texture.
     /// The raw pixel data is passed directly to the GPU without intermediate decoding.
     /// </summary>
     /// <param name="filePath">The path to the HDR image file.</param>
     /// <param name="translatorManager">The image translator manager used to load the image.</param>
-    public void Load(string filePath, ImageTranslatorManager translatorManager)
+    public void Load(string filePath, ImageTranslatorManager translatorManager, bool flipY = false)
     {
-        ArgumentNullException.ThrowIfNull(filePath);
+        LoadMetadata(filePath, flipY);
+        EnsureTextureLoaded(translatorManager);
+    }
+
+    public bool EnsureTextureLoaded(ImageTranslatorManager translatorManager)
+    {
         ArgumentNullException.ThrowIfNull(translatorManager);
 
-        TextureHandle?.Dispose();
-        TextureHandle = null;
+        if (TextureHandle is not null)
+            return true;
 
-        Image image = translatorManager.Read(filePath);
+        if (string.IsNullOrWhiteSpace(SourcePath))
+            return false;
+
+        Image image = translatorManager.Read(SourcePath);
+
+        try
+        {
+            byte[] hash = SHA256.HashData(image.PixelData);
+            SourcePixelHashHex = Convert.ToHexString(hash).ToLowerInvariant();
+        }
+        catch
+        {
+            SourcePixelHashHex = null;
+        }
 
         // Pass raw pixel data directly to GPU - no need to decode through Vector4
         // EXR images are already loaded as R32G32B32A32Float format
         TextureHandle = new GLHdrTextureHandle(_gl, image.PixelData, image.Width, image.Height);
+        return true;
+    }
+
+    public void ReleaseTexture()
+    {
+        TextureHandle?.Dispose();
+        TextureHandle = null;
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        TextureHandle?.Dispose();
-        TextureHandle = null;
+        ReleaseTexture();
+
+        SourcePath = null;
+        SourceLastWriteTimeUtcTicks = 0;
+        SourcePixelHashHex = null;
+        EffectiveFlipY = false;
     }
 }

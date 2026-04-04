@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 
 namespace RedFox.Graphics3D.WavefrontObj;
 
@@ -52,6 +53,19 @@ public static class ObjMtlReader
                     string texPath = ExtractTexturePath(span[7..]);
                     current.DiffuseMapName = Path.GetFileNameWithoutExtension(texPath);
                     EnsureTexture(current, texPath, "diffuse", baseDirectory);
+                }
+                else if (span.StartsWith("Ks "))
+                {
+                    if (TryParseColor(span[3..], out Vector4 specularColor))
+                        current.SpecularColor = specularColor;
+                }
+                else if (span.StartsWith("Ns "))
+                {
+                    if (TryParseScalar(span[3..], out float shininess))
+                    {
+                        current.Shininess = shininess;
+                        current.Roughness = ConvertPhongShininessToRoughness(shininess);
+                    }
                 }
                 else if (span.StartsWith("map_Ks "))
                 {
@@ -125,6 +139,36 @@ public static class ObjMtlReader
         }
 
         return value.ToString();
+    }
+
+    private static bool TryParseColor(ReadOnlySpan<char> value, out Vector4 color)
+    {
+        color = default;
+        string[] parts = value.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3)
+            return false;
+
+        if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float r) ||
+            !float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float g) ||
+            !float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float b))
+        {
+            return false;
+        }
+
+        color = new Vector4(r, g, b, 1.0f);
+        return true;
+    }
+
+    private static bool TryParseScalar(ReadOnlySpan<char> value, out float scalar)
+    {
+        string trimmed = value.ToString().Trim();
+        return float.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out scalar);
+    }
+
+    private static float ConvertPhongShininessToRoughness(float shininess)
+    {
+        float safeShininess = MathF.Max(shininess, 0.0f);
+        return Math.Clamp(MathF.Sqrt(2.0f / (safeShininess + 2.0f)), 0.0f, 1.0f);
     }
 
     private static void EnsureTexture(Material material, string texturePath, string slot, string? baseDirectory)

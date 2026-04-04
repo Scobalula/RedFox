@@ -573,6 +573,7 @@ public sealed class GltfReader
                 matName = $"{matName}_{i}";
 
             Material mat = model.AddNode<Material>(matName);
+            mat.DoubleSided = gltfMat.DoubleSided;
 
             // Base color
             mat.DiffuseColor = new Vector4(

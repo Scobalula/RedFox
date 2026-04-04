@@ -135,7 +135,7 @@ public sealed class GltfWriter
         GltfMaterial gltfMat = new()
         {
             Name = mat.Name,
-            DoubleSided = true
+            DoubleSided = mat.DoubleSided
         };
 
         if (mat.DiffuseColor.HasValue)
