@@ -24,6 +24,7 @@ noperspective out vec3 vCameraRelativePosLinear;
 out vec3 vNormal;
 out vec2 vTexCoord;
 flat out int vHasNormals;
+out float vClipW;
 
 ivec2 getTexelCoord(int index, vec2 sizeValue)
 {
@@ -113,4 +114,5 @@ void main()
     vHasNormals = uHasNormals ? 1 : 0;
     mat4 viewRotation = mat4(mat3(uView));
     gl_Position = uProjection * viewRotation * vec4(sceneCameraRelativePos, 1.0);
+    vClipW = gl_Position.w;
 }

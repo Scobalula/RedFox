@@ -451,7 +451,7 @@ public sealed class GLRenderer : IDisposable
         Image? image = texture.Data;
 
         if (image is null && texture.ImageLoader is not null)
-            image = texture.ImageLoader.Load();
+            image = texture.ImageLoader.Load(texture.ResolvedFilePath, ImageTranslatorManager);
 
         string texturePath = texture.EffectiveFilePath;
         if (image is null && !string.IsNullOrWhiteSpace(texturePath) && File.Exists(texturePath))
@@ -459,6 +459,9 @@ public sealed class GLRenderer : IDisposable
 
         if (image is null)
             return null;
+
+        if (ImageFormatInfo.IsBlockCompressed(image.Format) && GLTextureHandle.IsCompressedFormatSupported(image.Format))
+            return new GLTextureHandle(_gl, image);
 
         return new GLTextureHandle(_gl, ConvertToRgba(image), image.Width, image.Height);
     }

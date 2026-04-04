@@ -382,7 +382,9 @@ public sealed class IblPrecomputePass : IRenderPass
 
         _gl.BindVertexArray(0);
 
-        GenerateSkyMipChain(sourceCubemap.TextureId, destination, size);
+        // Generate cascaded mipmap chain: each level reads from the previous one
+        // using a 5×5 Gaussian-weighted kernel for smooth HDR downsampling.
+        GenerateSkyMipChain(destination.TextureId, destination, size);
 
         _gl.BindFramebuffer(GLEnum.Framebuffer, 0);
         _gl.DeleteRenderbuffer(captureRBO);

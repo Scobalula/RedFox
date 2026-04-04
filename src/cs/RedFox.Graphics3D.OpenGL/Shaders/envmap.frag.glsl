@@ -12,10 +12,16 @@ vec3 tonemapReinhard(vec3 color)
     return color / (color + vec3(1.0));
 }
 
+vec3 linearToSRGB(vec3 color)
+{
+    return pow(color, vec3(1.0 / 2.2));
+}
+
 void main()
 {
     vec3 dir = normalize(vRayDirection);
-    float lod = (uBlurEnabled ? uBlurMipLevel : 0.0);
+    float lod = uBlurEnabled ? uBlurMipLevel : 0.0;
     vec3 envColor = textureLod(uSkyCubemap, dir, lod).rgb;
-    FragColor = vec4(tonemapReinhard(envColor * uExposure), 1.0);
+    vec3 mapped = tonemapReinhard(envColor * uExposure);
+    FragColor = vec4(linearToSRGB(mapped), 1.0);
 }

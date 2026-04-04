@@ -1,4 +1,5 @@
 using RedFox.Graphics2D;
+using RedFox.Graphics2D.IO;
 
 namespace RedFox.Graphics3D
 {
@@ -11,6 +12,6 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Loads and returns the image data, or <see langword="null"/> if the source is unavailable.
         /// </summary>
-        Image? Load();
+        Image? Load(string filePath, ImageTranslatorManager translatorManager);
     }
 }

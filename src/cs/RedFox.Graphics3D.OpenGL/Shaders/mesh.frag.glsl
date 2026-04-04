@@ -4,6 +4,7 @@ noperspective in vec3 vCameraRelativePosLinear;
 in vec3 vNormal;
 in vec2 vTexCoord;
 flat in int vHasNormals;
+in float vClipW;
 
 uniform vec3 uCameraPos;
 uniform vec3 uLightDir;
@@ -48,9 +49,21 @@ uniform bool uDoubleSided;
 
 uniform bool uUseIBL;
 
+uniform float uFarPlane;
+
 out vec4 FragColor;
 
 const float PI = 3.14159265358979323846;
+
+vec3 sRGBToLinear(vec3 color)
+{
+    return pow(color, vec3(2.2));
+}
+
+vec3 linearToSRGB(vec3 color)
+{
+    return pow(color, vec3(1.0 / 2.2));
+}
 
 vec3 tonemapReinhard(vec3 color)
 {
@@ -132,7 +145,7 @@ void main()
     float NdotV = max(abs(dot(N, V)), 1e-4);
 
     // ---- Material properties --------------------------------------------
-    vec3  albedo      = baseColor.rgb;
+    vec3  albedo      = sRGBToLinear(baseColor.rgb);
 
     float metallic = clamp(uMetallicFactor, 0.0, 1.0);
     float roughness = clamp(uRoughnessFactor, 0.0, 1.0);
@@ -160,10 +173,14 @@ void main()
         legacySpecular *= texture(uSpecularTexture, vTexCoord).rgb;
 
     vec3 dielectricF0 = vec3(0.04);
-    if (uUseLegacySpecular && metallic < 0.001)
+    if (uUseLegacySpecular)
         dielectricF0 = max(dielectricF0, legacySpecular);
 
-    vec3 F0 = mix(dielectricF0, albedo, metallic);
+    vec3 metallicF0 = albedo;
+    if (uUseLegacySpecular && uSpecularStrength > 0.0)
+        metallicF0 = mix(albedo, uSpecularColor, uSpecularStrength);
+
+    vec3 F0 = mix(dielectricF0, metallicF0, metallic);
 
     // ---- Direct lighting (Cook-Torrance) --------------------------------
     vec3  Lo     = vec3(0.0);
@@ -196,22 +213,21 @@ void main()
 
     if (uUseIBL)
     {
-        // Diffuse IBL
+        vec3 F_ambient = fresnelSchlickRoughness(NdotV, F0, perceptualRoughness);
+        vec3 kD        = (1.0 - F_ambient) * (1.0 - metallic);
+
         vec3 irradiance = texture(uIrradianceMap, N).rgb * uEnvironmentMapExposure;
-        vec3 F          = fresnelSchlickRoughness(NdotV, F0, perceptualRoughness);
-        vec3 kD         = (1.0 - F) * (1.0 - metallic);
         vec3 diffuse    = irradiance * albedo;
         ambient        += kD * diffuse;
 
-        // Specular IBL
         vec3  R              = reflect(-V, N);
-        vec3  filteredColor    = textureLod(uPrefilterMap, R, perceptualRoughness * uPrefilterMaxMipLevel).rgb * uEnvironmentMapExposure;
-        vec3  sharpSample      = uHasSkyMap ? textureLod(uSkyMap, R, 0.0).rgb : textureLod(uPrefilterMap, R, 0.0).rgb;
-        vec3  sharpColor       = sharpSample * uEnvironmentMapExposure;
-        float filteredWeight   = smoothstep(0.0, 0.12, perceptualRoughness);
+        vec3  filteredColor  = textureLod(uPrefilterMap, R, perceptualRoughness * uPrefilterMaxMipLevel).rgb * uEnvironmentMapExposure;
+        vec3  sharpSample    = uHasSkyMap ? textureLod(uSkyMap, R, 0.0).rgb : textureLod(uPrefilterMap, R, 0.0).rgb;
+        vec3  sharpColor     = sharpSample * uEnvironmentMapExposure;
+        float filteredWeight = smoothstep(0.0, 0.12, perceptualRoughness);
         vec3  prefilteredColor = mix(sharpColor, filteredColor, filteredWeight);
         vec2  brdf           = texture(uBrdfLut, vec2(NdotV, perceptualRoughness)).rg;
-        vec3  specularIBL    = prefilteredColor * (F * brdf.x + brdf.y);
+        vec3  specularIBL    = prefilteredColor * (F_ambient * brdf.x + brdf.y);
         ambient             += specularIBL;
 
         ambient *= uEnvironmentMapIntensity;
@@ -223,20 +239,25 @@ void main()
         if (!uHasSkyMap)
         {
             float hemiFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
-            ambient = mix(uGroundColor, uSkyColor, hemiFactor) * uAmbientStrength;
+            vec3 hemiAmbient = mix(uGroundColor, uSkyColor, hemiFactor) * uAmbientStrength;
+            vec3 kD_hemi = (1.0 - F0) * (1.0 - metallic);
+            ambient = kD_hemi * albedo * hemiAmbient * ao;
         }
         else
         {
-            // Envmap present but IBL disabled: keep a cheap specular-only reflection.
+            // Envmap present but IBL disabled: cheap specular + diffuse approximation.
             vec3 F = fresnelSchlick(NdotV, F0);
             vec3 R = reflect(-V, N);
             vec3 envColor = textureLod(uSkyMap, R, perceptualRoughness * uSkyMaxMipLevel).rgb * uEnvironmentMapExposure;
-            ambient = envColor * F * uEnvironmentMapIntensity * ao;
+            vec3 kD = (1.0 - F) * (1.0 - metallic);
+            float hemiFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+            vec3 hemiAmbient = mix(uGroundColor, uSkyColor, hemiFactor);
+            ambient = (kD * albedo * hemiAmbient + envColor * F) * uEnvironmentMapIntensity * ao;
         }
     }
 
     // ---- Combine ---------------------------------------------------------
     vec3 finalColor = ambient + Lo;
-
-    FragColor = vec4(tonemapReinhard(finalColor), baseColor.a);
+    FragColor = vec4(linearToSRGB(tonemapReinhard(finalColor)), baseColor.a);
+    gl_FragDepth = log2(max(1e-6, vClipW + 1.0)) / log2(uFarPlane + 1.0);
 }
