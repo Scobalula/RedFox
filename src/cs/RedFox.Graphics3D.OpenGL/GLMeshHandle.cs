@@ -4,6 +4,39 @@ namespace RedFox.Graphics3D.OpenGL;
 
 public sealed class GLMeshHandle
 {
+    public sealed class Descriptor
+    {
+        public bool FrontFaceClockwise { get; init; }
+        public bool HasConsistentWinding { get; init; }
+        public uint VAO { get; init; }
+        public uint PositionVBO { get; init; }
+        public uint NormalVBO { get; init; }
+        public uint UVVBO { get; init; }
+        public uint InfluenceRangeVBO { get; init; }
+        public uint InfluenceTexture { get; init; }
+        public uint BoneMatrixTexture { get; init; }
+        public uint EBO { get; init; }
+        public int VertexCount { get; init; }
+        public int IndexCount { get; init; }
+        public bool IsIndexed { get; init; }
+        public bool HasNormals { get; init; }
+        public bool HasUVs { get; init; }
+        public bool HasSkinning { get; init; }
+        public int BoneCount { get; init; }
+        public int InfluenceTextureWidth { get; init; }
+        public int InfluenceTextureHeight { get; init; }
+        public int BoneMatrixTextureWidth { get; init; }
+        public int BoneMatrixTextureHeight { get; init; }
+        public bool HasMorphTargets { get; init; }
+        public int MorphTargetCount { get; init; }
+        public float[]? BasePositions { get; init; }
+        public float[]? BaseNormals { get; init; }
+        public float[]? PositionMorphDeltas { get; init; }
+        public float[]? NormalMorphDeltas { get; init; }
+    }
+
+    public bool FrontFaceClockwise { get; }
+    public bool HasConsistentWinding { get; }
     public uint VAO { get; }
     public uint PositionVBO { get; }
     public uint NormalVBO { get; }
@@ -30,43 +63,37 @@ public sealed class GLMeshHandle
     public float[]? PositionMorphDeltas { get; }
     public float[]? NormalMorphDeltas { get; }
 
-    public GLMeshHandle(
-        uint vao, uint positionVbo, uint normalVbo, uint uvVbo,
-        uint influenceRangeVbo, uint influenceTexture, uint boneMatrixTexture, uint ebo,
-        int vertexCount, int indexCount, bool isIndexed,
-        bool hasNormals, bool hasUVs, bool hasSkinning,
-        int boneCount,
-        int influenceTextureWidth, int influenceTextureHeight,
-        int boneMatrixTextureWidth, int boneMatrixTextureHeight,
-        bool hasMorphTargets, int morphTargetCount,
-        float[]? basePositions, float[]? baseNormals,
-        float[]? positionMorphDeltas, float[]? normalMorphDeltas)
+    public GLMeshHandle(Descriptor descriptor)
     {
-        VAO = vao;
-        PositionVBO = positionVbo;
-        NormalVBO = normalVbo;
-        UVVBO = uvVbo;
-        InfluenceRangeVBO = influenceRangeVbo;
-        InfluenceTexture = influenceTexture;
-        BoneMatrixTexture = boneMatrixTexture;
-        EBO = ebo;
-        VertexCount = vertexCount;
-        IndexCount = indexCount;
-        IsIndexed = isIndexed;
-        HasNormals = hasNormals;
-        HasUVs = hasUVs;
-        HasSkinning = hasSkinning;
-        BoneCount = boneCount;
-        InfluenceTextureWidth = influenceTextureWidth;
-        InfluenceTextureHeight = influenceTextureHeight;
-        BoneMatrixTextureWidth = boneMatrixTextureWidth;
-        BoneMatrixTextureHeight = boneMatrixTextureHeight;
-        HasMorphTargets = hasMorphTargets;
-        MorphTargetCount = morphTargetCount;
-        BasePositions = basePositions;
-        BaseNormals = baseNormals;
-        PositionMorphDeltas = positionMorphDeltas;
-        NormalMorphDeltas = normalMorphDeltas;
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        FrontFaceClockwise = descriptor.FrontFaceClockwise;
+        HasConsistentWinding = descriptor.HasConsistentWinding;
+        VAO = descriptor.VAO;
+        PositionVBO = descriptor.PositionVBO;
+        NormalVBO = descriptor.NormalVBO;
+        UVVBO = descriptor.UVVBO;
+        InfluenceRangeVBO = descriptor.InfluenceRangeVBO;
+        InfluenceTexture = descriptor.InfluenceTexture;
+        BoneMatrixTexture = descriptor.BoneMatrixTexture;
+        EBO = descriptor.EBO;
+        VertexCount = descriptor.VertexCount;
+        IndexCount = descriptor.IndexCount;
+        IsIndexed = descriptor.IsIndexed;
+        HasNormals = descriptor.HasNormals;
+        HasUVs = descriptor.HasUVs;
+        HasSkinning = descriptor.HasSkinning;
+        BoneCount = descriptor.BoneCount;
+        InfluenceTextureWidth = descriptor.InfluenceTextureWidth;
+        InfluenceTextureHeight = descriptor.InfluenceTextureHeight;
+        BoneMatrixTextureWidth = descriptor.BoneMatrixTextureWidth;
+        BoneMatrixTextureHeight = descriptor.BoneMatrixTextureHeight;
+        HasMorphTargets = descriptor.HasMorphTargets;
+        MorphTargetCount = descriptor.MorphTargetCount;
+        BasePositions = descriptor.BasePositions;
+        BaseNormals = descriptor.BaseNormals;
+        PositionMorphDeltas = descriptor.PositionMorphDeltas;
+        NormalMorphDeltas = descriptor.NormalMorphDeltas;
     }
 
     public void Delete(GL gl)

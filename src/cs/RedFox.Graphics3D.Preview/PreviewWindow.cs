@@ -49,6 +49,7 @@ public sealed class PreviewWindow : IDisposable
         windowOptions.Title = BuildTitle(_options.InputFiles);
         windowOptions.IsVisible = !_options.Hidden;
         windowOptions.VSync = true;
+        windowOptions.PreferredDepthBufferBits = 32;
         windowOptions.API = new GraphicsAPI(
             ContextAPI.OpenGL,
             ContextProfile.Core,
@@ -77,7 +78,7 @@ public sealed class PreviewWindow : IDisposable
             ImageTranslatorManager = _imageTranslatorManager,
             ShowBones = _options.ShowBones,
             ShowWireframe = _options.Wireframe,
-            EnableBackFaceCulling = false,
+            EnableBackFaceCulling = true,
             EnvironmentMapExposure = _options.EnvironmentMapExposure,
             EnvironmentMapReflectionIntensity = _options.EnvironmentMapReflectionIntensity,
             EnvironmentMapBlurEnabled = _options.EnvironmentMapBlur,
@@ -92,15 +93,14 @@ public sealed class PreviewWindow : IDisposable
 
         if (!string.IsNullOrEmpty(_options.EnvironmentMapPath) && File.Exists(_options.EnvironmentMapPath))
         {
-            _renderer.EnvironmentMap = new GLEquirectangularEnvironmentMap(_gl);
-            _renderer.EnvironmentMap.Load(_options.EnvironmentMapPath, _imageTranslatorManager);
+            _renderer.EnvironmentMapFlipMode = _options.EnvironmentMapFlipMode;
 
-            // Add IBL precompute pass when environment map is loaded
-            if (_options.EnableIBL)
-            {
-                var iblPass = new IblPrecomputePass();
-                _renderer.AddPass(iblPass);
-            }
+            _renderer.EnvironmentMap = new GLEquirectangularEnvironmentMap(_gl);
+            bool effectiveFlipY = ResolveEnvironmentMapFlipY(_options.EnvironmentMapFlipMode);
+            _renderer.EnvironmentMap.LoadMetadata(_options.EnvironmentMapPath, effectiveFlipY);
+
+            // The skybox path also consumes the generated cubemap, not just the IBL shading path.
+            _renderer.InsertPass(0, new IblPrecomputePass());
         }
 
         _inputContext = _window.CreateInput();
@@ -114,15 +114,20 @@ public sealed class PreviewWindow : IDisposable
         }
 
         _camera = CreateOrReuseCamera();
+        ApplySceneTransformToCamera(_camera, _renderer.SceneTransform);
         _cameraController = new CameraController(_camera)
         {
             Mode = _options.CameraMode,
         };
         _cameraController.SynchronizeFromCamera();
-        ApplySceneTransformToCamera(_camera, _renderer.SceneTransform);
 
-        if (_options.AutoFitOnLoad && SceneBounds.TryGetBounds(_scene, out SceneBoundsInfo bounds))
-            ConfigureCameraClipPlanes(bounds.Radius);
+        if (TryGetSceneBounds(out SceneBoundsInfo bounds))
+        {
+            if (_options.AutoFitOnLoad)
+                FitCameraToScene(bounds);
+            else
+                ConfigureCameraClipPlanes(bounds.Center, bounds.Radius);
+        }
 
         _renderer.ActiveCamera = _camera;
         
@@ -156,6 +161,8 @@ public sealed class PreviewWindow : IDisposable
 
         CameraInputState inputState = BuildInputState(keyboard, mouse);
         _cameraController?.Update(inputState, (float)deltaTime);
+        if (TryGetSceneBounds(out SceneBoundsInfo bounds))
+            ConfigureCameraClipPlanes(bounds.Center, bounds.Radius);
         _animationController?.Update((float)deltaTime);
         
         _pendingWheelDelta = 0.0f;
@@ -276,8 +283,8 @@ public sealed class PreviewWindow : IDisposable
                 break;
 
             case Key.F:
-                if (SceneBounds.TryGetBounds(_scene, out SceneBoundsInfo bounds))
-                    ConfigureCameraClipPlanes(bounds.Radius);
+                if (TryGetSceneBounds(out SceneBoundsInfo bounds))
+                    FitCameraToScene(bounds);
                 break;
 
             case Key.Number1:
@@ -327,22 +334,55 @@ public sealed class PreviewWindow : IDisposable
         return newCamera;
     }
 
-    private void ConfigureCameraClipPlanes(float sceneRadius)
+    private bool TryGetSceneBounds(out SceneBoundsInfo bounds)
+    {
+        if (_renderer is null)
+        {
+            bounds = default;
+            return false;
+        }
+
+        return SceneBounds.TryGetBounds(_scene, _renderer.SceneTransform, out bounds);
+    }
+
+    private void FitCameraToScene(SceneBoundsInfo bounds)
+    {
+        if (_cameraController is null)
+            return;
+
+        _cameraController.Fit(bounds.Center, bounds.Radius);
+        ConfigureCameraClipPlanes(bounds.Center, bounds.Radius);
+    }
+
+    private void ConfigureCameraClipPlanes(Vector3 sceneCenter, float sceneRadius)
     {
         if (_camera is null)
             return;
 
-        float distance = sceneRadius * 2.5f;
-        _camera.NearPlane = MathF.Max(0.01f, distance * 0.01f);
-        _camera.FarPlane = distance * 3.0f;
-        _camera.Position = new Vector3(0, sceneRadius * 0.4f, distance);
-        _camera.Target = Vector3.Zero;
+        float radius = MathF.Max(sceneRadius, 1.0f);
+        float distanceToCenter = Vector3.Distance(_camera.Position, sceneCenter);
+        float nearestSurfaceDistance = MathF.Max(distanceToCenter - radius, 0.0f);
+        float farPadding = MathF.Max(radius * 128f, 2.0f);
+        float farPlane = MathF.Max(1.0f, distanceToCenter + radius + farPadding);
+
+        float nearPlane = nearestSurfaceDistance > 0.0f
+            ? MathF.Max(0.05f, nearestSurfaceDistance * 0.5f)
+            : MathF.Max(0.05f, radius * 0.00005f);
+
+        nearPlane = MathF.Max(nearPlane, farPlane / 50000.0f);
+        nearPlane = MathF.Min(nearPlane, MathF.Max(farPlane - 1.0f, 0.05f));
+
+        _camera.NearPlane = nearPlane;
+        _camera.FarPlane = MathF.Max(nearPlane + 1.0f, farPlane);
     }
 
     private void ApplySceneTransformToCamera(Camera camera, Matrix4x4 sceneTransform)
     {
         camera.Position = Vector3.Transform(camera.Position, sceneTransform);
         camera.Target = Vector3.Transform(camera.Target, sceneTransform);
+        Vector3 transformedUp = Vector3.TransformNormal(camera.Up, sceneTransform);
+        if (transformedUp.LengthSquared() > 1e-12f)
+            camera.Up = Vector3.Normalize(transformedUp);
     }
 
     private void ApplyCursorMode()
@@ -351,6 +391,17 @@ public sealed class PreviewWindow : IDisposable
             return;
 
         _mouse.Cursor.CursorMode = CursorMode.Normal;
+    }
+
+    private static bool ResolveEnvironmentMapFlipY(EnvironmentMapFlipMode flipMode)
+    {
+        return flipMode switch
+        {
+            EnvironmentMapFlipMode.ForceFlipY => true,
+            EnvironmentMapFlipMode.ForceNoFlipY => false,
+            // EXR scanlines are stored top-to-bottom while GL samples textures bottom-to-top.
+            _ => true,
+        };
     }
 
     private static string BuildTitle(IReadOnlyList<string> inputFiles)

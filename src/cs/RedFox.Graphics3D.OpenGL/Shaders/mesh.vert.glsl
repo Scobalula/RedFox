@@ -7,6 +7,8 @@ uniform mat4 uModel;
 uniform mat4 uScene;
 uniform mat4 uView;
 uniform mat4 uProjection;
+uniform vec3 uCameraPos;
+uniform vec3 uCameraWorldPos;
 uniform mat3 uNormalMatrix;
 uniform mat3 uSceneNormalMatrix;
 uniform bool uHasNormals;
@@ -17,6 +19,8 @@ uniform sampler2D uBoneMatrixTexture;
 uniform vec2 uBoneMatrixTextureSize;
 
 out vec3 vWorldPos;
+out vec3 vCameraRelativePos;
+noperspective out vec3 vCameraRelativePosLinear;
 out vec3 vNormal;
 out vec2 vTexCoord;
 flat out int vHasNormals;
@@ -42,10 +46,17 @@ mat4 fetchBoneMatrix(int boneIndex)
     return mat4(row0, row1, row2, row3);
 }
 
+mat3 computeNormalMatrix(mat4 matrixValue)
+{
+    return transpose(inverse(mat3(matrixValue)));
+}
+
 void main()
 {
     vec4 localPos = vec4(aPosition, 1.0);
-    vec4 worldPos = uModel * localPos;
+    mat4 worldMatrix = uModel;
+    worldMatrix[3].xyz -= uCameraWorldPos;
+    vec4 worldPos = worldMatrix * localPos;
     vec3 worldNormal = uHasNormals ? (uNormalMatrix * aNormal) : vec3(0.0, 1.0, 0.0);
 
     if (uHasSkinning)
@@ -63,10 +74,11 @@ void main()
 
             int boneIndex = int(influence.x + 0.5);
             mat4 boneMatrix = fetchBoneMatrix(boneIndex);
+            boneMatrix[3].xyz -= uCameraWorldPos;
             skinnedWorldPos += (boneMatrix * localPos) * weight;
 
             if (uHasNormals)
-                skinnedWorldNormal += (mat3(boneMatrix) * aNormal) * weight;
+                skinnedWorldNormal += (computeNormalMatrix(boneMatrix) * aNormal) * weight;
 
             totalWeight += weight;
         }
@@ -79,8 +91,10 @@ void main()
         }
     }
 
-    vec4 sceneWorldPos = uScene * worldPos;
-    vWorldPos = sceneWorldPos.xyz;
+    vec3 sceneCameraRelativePos = (uScene * vec4(worldPos.xyz, 0.0)).xyz;
+    vWorldPos = sceneCameraRelativePos + uCameraPos;
+    vCameraRelativePos = sceneCameraRelativePos;
+    vCameraRelativePosLinear = sceneCameraRelativePos;
 
     if (uHasNormals)
     {
@@ -97,5 +111,6 @@ void main()
 
     vTexCoord = aTexCoord;
     vHasNormals = uHasNormals ? 1 : 0;
-    gl_Position = uProjection * uView * sceneWorldPos;
+    mat4 viewRotation = mat4(mat3(uView));
+    gl_Position = uProjection * viewRotation * vec4(sceneCameraRelativePos, 1.0);
 }

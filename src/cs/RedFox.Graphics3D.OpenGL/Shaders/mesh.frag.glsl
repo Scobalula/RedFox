@@ -1,4 +1,6 @@
 in vec3 vWorldPos;
+in vec3 vCameraRelativePos;
+noperspective in vec3 vCameraRelativePosLinear;
 in vec3 vNormal;
 in vec2 vTexCoord;
 flat in int vHasNormals;
@@ -8,15 +10,11 @@ uniform vec3 uLightDir;
 uniform vec3 uLightColor;
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
-uniform vec3 uSpecularColor;
 uniform float uAmbientStrength;
-uniform float uSpecularStrength;
-uniform float uShininess;
 uniform vec4 uDiffuseColor;
 uniform bool uHasDiffuseTexture;
 uniform sampler2D uDiffuseTexture;
-uniform bool uHasEnvironmentMap;
-uniform sampler2D uEnvironmentMap;
+uniform float uEnvironmentMapExposure;
 uniform float uEnvironmentMapIntensity;
 
 // IBL uniforms
@@ -25,9 +23,28 @@ uniform samplerCube uPrefilterMap;
 uniform float uPrefilterMaxMipLevel;
 uniform sampler2D uBrdfLut;
 
-// Material IBL properties
-uniform float uMetallic;
-uniform float uRoughness;
+// Skybox cubemap (used for non-IBL reflection fallback)
+uniform bool uHasSkyMap;
+uniform samplerCube uSkyMap;
+uniform float uSkyMaxMipLevel;
+
+// Material factors / textures
+uniform float uMetallicFactor;
+uniform float uRoughnessFactor;
+uniform bool uHasMetallicRoughnessTexture;
+uniform sampler2D uMetallicRoughnessTexture;
+uniform bool uHasRoughnessTexture;
+uniform sampler2D uRoughnessTexture;
+uniform bool uHasGlossTexture;
+uniform sampler2D uGlossTexture;
+uniform bool uHasSpecularTexture;
+uniform sampler2D uSpecularTexture;
+uniform bool uUseLegacySpecular;
+uniform vec3 uSpecularColor;
+uniform float uSpecularStrength;
+uniform bool uHasAoTexture;
+uniform sampler2D uAoTexture;
+uniform bool uDoubleSided;
 
 uniform bool uUseIBL;
 
@@ -35,13 +52,18 @@ out vec4 FragColor;
 
 const float PI = 3.14159265358979323846;
 
+vec3 tonemapReinhard(vec3 color)
+{
+    return color / (color + vec3(1.0));
+}
+
 // ------------------------------------------------------------------
 // Cook-Torrance BRDF (learnopengl.com)
 // ------------------------------------------------------------------
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
-    float a      = roughness * roughness;
+    float a      = max(roughness * roughness, 1e-6);
     float a2     = a * a;
     float NdotH  = max(dot(N, H), 0.0);
     float denom  = (NdotH * a2 - NdotH) * NdotH + 1.0;
@@ -50,14 +72,14 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
 
 float GeometrySchlickGGX(float NdotV, float roughness)
 {
-    float r = roughness + 1.0;
+    float r = max(roughness, 1e-3) + 1.0;
     float k = (r * r) / 8.0;
     return NdotV / (NdotV * (1.0 - k) + k);
 }
 
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
-    float NdotV = max(dot(N, V), 0.0);
+    float NdotV = max(abs(dot(N, V)), 1e-4);
     float NdotL = max(dot(N, L), 0.0);
     return GeometrySchlickGGX(NdotL, roughness) * GeometrySchlickGGX(NdotV, roughness);
 }
@@ -65,6 +87,11 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+{
+    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 // ------------------------------------------------------------------
@@ -77,30 +104,91 @@ void main()
     vec4 texColor = uHasDiffuseTexture ? texture(uDiffuseTexture, vTexCoord) : vec4(1.0);
     vec4 baseColor = texColor * uDiffuseColor;
 
-    vec3 N = vHasNormals == 1
+    vec3 V = normalize(-vCameraRelativePos);
+    vec3 Ns = vHasNormals == 1
         ? normalize(vNormal)
-        : normalize(cross(dFdx(vWorldPos), dFdy(vWorldPos)));
+        : vec3(0.0, 1.0, 0.0);
+    vec3 geometricNormal = cross(dFdx(vCameraRelativePosLinear), dFdy(vCameraRelativePosLinear));
+    float geometricNormalLengthSquared = dot(geometricNormal, geometricNormal);
+    vec3 Ng = geometricNormalLengthSquared > 1e-12
+        ? geometricNormal * inversesqrt(geometricNormalLengthSquared)
+        : Ns;
 
-    vec3 V = normalize(uCameraPos - vWorldPos);
+    if (uDoubleSided)
+    {
+        if (!gl_FrontFacing)
+        {
+            Ng = -Ng;
+            Ns = -Ns;
+        }
+    }
+    else
+    {
+        Ng = faceforward(Ng, -V, Ng);
+        Ns = faceforward(Ns, -V, Ng);
+    }
+
+    vec3 N = normalize(Ns);
+    float NdotV = max(abs(dot(N, V)), 1e-4);
 
     // ---- Material properties --------------------------------------------
-    float metallic    = uMetallic;
-    float roughness   = uRoughness;
     vec3  albedo      = baseColor.rgb;
-    vec3  F0          = mix(vec3(0.04), albedo, metallic);
 
-    // ---- Direct lighting (unchanged Blinn-Phong) ------------------------
+    float metallic = clamp(uMetallicFactor, 0.0, 1.0);
+    float roughness = clamp(uRoughnessFactor, 0.0, 1.0);
+
+    if (uHasMetallicRoughnessTexture)
+    {
+        // glTF combined metallic-roughness: G = roughness, B = metallic
+        vec3 mr = texture(uMetallicRoughnessTexture, vTexCoord).rgb;
+        roughness *= mr.g;
+        metallic *= mr.b;
+    }
+
+    if (uHasRoughnessTexture)
+        roughness *= texture(uRoughnessTexture, vTexCoord).r;
+    else if (uHasGlossTexture)
+        roughness *= (1.0 - texture(uGlossTexture, vTexCoord).r);
+
+    float perceptualRoughness = roughness;
+    float shadingRoughness = max(perceptualRoughness, 1e-3);
+
+    float ao = uHasAoTexture ? texture(uAoTexture, vTexCoord).r : 1.0;
+
+    vec3 legacySpecular = clamp(uSpecularColor * uSpecularStrength, vec3(0.0), vec3(1.0));
+    if (uHasSpecularTexture)
+        legacySpecular *= texture(uSpecularTexture, vTexCoord).rgb;
+
+    vec3 dielectricF0 = vec3(0.04);
+    if (uUseLegacySpecular && metallic < 0.001)
+        dielectricF0 = max(dielectricF0, legacySpecular);
+
+    vec3 F0 = mix(dielectricF0, albedo, metallic);
+
+    // ---- Direct lighting (Cook-Torrance) --------------------------------
     vec3  Lo     = vec3(0.0);
     vec3  lightDir = normalize(-uLightDir);
-    vec3  halfDir  = normalize(lightDir + V);
     float NdotL    = max(dot(N, lightDir), 0.0);
 
     if (NdotL > 0.0)
     {
-        float NdotH = max(dot(N, halfDir), 0.0);
-        vec3 radiance   = uLightColor;
-        vec3 specular   = uSpecularColor * radiance * pow(NdotH, uShininess) * uSpecularStrength * NdotL;
-        Lo += albedo * radiance * NdotL + specular;
+        vec3 H = normalize(V + lightDir);
+
+        float NDF = DistributionGGX(N, H, shadingRoughness);
+        float G   = GeometrySmith(N, V, lightDir, shadingRoughness);
+        vec3  F   = fresnelSchlick(max(dot(H, V), 0.0), F0);
+
+        vec3 numerator = NDF * G * F;
+        float denom = 4.0 * NdotV * NdotL + 0.0001;
+        vec3 specular = numerator / denom;
+
+        vec3 kS = F;
+        vec3 kD = (1.0 - kS) * (1.0 - metallic);
+
+        vec3 radiance = uLightColor;
+        vec3 diffuse = kD * albedo / PI;
+
+        Lo += (diffuse + specular) * radiance * NdotL;
     }
 
     // ---- Ambient lighting ------------------------------------------------
@@ -109,40 +197,46 @@ void main()
     if (uUseIBL)
     {
         // Diffuse IBL
-        vec3 irradiance = texture(uIrradianceMap, N).rgb;
-        vec3 F          = fresnelSchlick(max(dot(N, V), 0.0), F0);
+        vec3 irradiance = texture(uIrradianceMap, N).rgb * uEnvironmentMapExposure;
+        vec3 F          = fresnelSchlickRoughness(NdotV, F0, perceptualRoughness);
         vec3 kD         = (1.0 - F) * (1.0 - metallic);
         vec3 diffuse    = irradiance * albedo;
         ambient        += kD * diffuse;
 
         // Specular IBL
         vec3  R              = reflect(-V, N);
-        vec3  prefilteredColor = textureLod(uPrefilterMap, R, roughness * uPrefilterMaxMipLevel).rgb;
-        vec2  brdf           = texture(uBrdfLut, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        vec3  filteredColor    = textureLod(uPrefilterMap, R, perceptualRoughness * uPrefilterMaxMipLevel).rgb * uEnvironmentMapExposure;
+        vec3  sharpSample      = uHasSkyMap ? textureLod(uSkyMap, R, 0.0).rgb : textureLod(uPrefilterMap, R, 0.0).rgb;
+        vec3  sharpColor       = sharpSample * uEnvironmentMapExposure;
+        float filteredWeight   = smoothstep(0.0, 0.12, perceptualRoughness);
+        vec3  prefilteredColor = mix(sharpColor, filteredColor, filteredWeight);
+        vec2  brdf           = texture(uBrdfLut, vec2(NdotV, perceptualRoughness)).rg;
         vec3  specularIBL    = prefilteredColor * (F * brdf.x + brdf.y);
         ambient             += specularIBL;
+
+        ambient *= uEnvironmentMapIntensity;
+        ambient *= ao;
     }
     else
     {
-        // Fallback: hemisphere ambient
-        float hemiFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
-        ambient = mix(uGroundColor, uSkyColor, hemiFactor) * uAmbientStrength;
+        // No-envmap fallback: hemisphere ambient
+        if (!uHasSkyMap)
+        {
+            float hemiFactor = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+            ambient = mix(uGroundColor, uSkyColor, hemiFactor) * uAmbientStrength;
+        }
+        else
+        {
+            // Envmap present but IBL disabled: keep a cheap specular-only reflection.
+            vec3 F = fresnelSchlick(NdotV, F0);
+            vec3 R = reflect(-V, N);
+            vec3 envColor = textureLod(uSkyMap, R, perceptualRoughness * uSkyMaxMipLevel).rgb * uEnvironmentMapExposure;
+            ambient = envColor * F * uEnvironmentMapIntensity * ao;
+        }
     }
 
     // ---- Combine ---------------------------------------------------------
     vec3 finalColor = ambient + Lo;
 
-    // Simple env reflection fallback when IBL disabled
-    if (!uUseIBL && uHasEnvironmentMap)
-    {
-        float fresnel = pow(1.0 - max(dot(N, V), 0.0), 5.0);
-        vec2 envUv = vec2(
-            0.5 + atan(reflect(-V, N).z, reflect(-V, N).x) / 6.2831853071795864,
-            acos(clamp(reflect(-V, N).y, -1.0, 1.0)) / 3.14159265358979323846
-        );
-        vec3 envColor = texture(uEnvironmentMap, envUv).rgb;
-        finalColor = mix(finalColor, envColor, fresnel * uEnvironmentMapIntensity);
-    }
-
-    FragColor = vec4(finalColor, baseColor.a);
+    FragColor = vec4(tonemapReinhard(finalColor), baseColor.a);
 }

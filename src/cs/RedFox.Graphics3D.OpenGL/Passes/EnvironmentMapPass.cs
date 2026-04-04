@@ -5,8 +5,8 @@ using Silk.NET.OpenGL;
 namespace RedFox.Graphics3D.OpenGL.Passes;
 
 /// <summary>
-/// A render pass that renders the equirectangular environment map as a background skybox.
-/// Supports optional Gaussian blur applied in the fragment shader.
+/// A render pass that renders the precomputed environment cubemap as a background skybox.
+/// Optional blur is implemented as cubemap LOD selection.
 /// </summary>
 public sealed class EnvironmentMapPass : IRenderPass
 {
@@ -38,12 +38,8 @@ public sealed class EnvironmentMapPass : IRenderPass
         if (!_initialized || !Enabled)
             return;
 
-        GLEquirectangularEnvironmentMap? envMap = renderer.EnvironmentMap;
-        if (envMap is null)
-            return;
-
-        GLHdrTextureHandle? handle = envMap.TextureHandle;
-        if (handle is null || handle.TextureId == 0)
+        GLEnvironmentResources? environment = renderer.EnvironmentResources;
+        if (environment is null || environment.SkyCubemap.TextureId == 0)
             return;
 
         Camera? camera = renderer.ActiveCamera;
@@ -56,6 +52,7 @@ public sealed class EnvironmentMapPass : IRenderPass
 
         _gl.DepthMask(false);
         _gl.Disable(GLEnum.DepthTest);
+        _gl.Disable(EnableCap.CullFace);
 
         _shader.Use();
 
@@ -63,19 +60,21 @@ public sealed class EnvironmentMapPass : IRenderPass
         _shader.SetUniform("uCameraPos", camera.Position);
         _shader.SetUniform("uExposure", renderer.EnvironmentMapExposure);
         _shader.SetUniform("uBlurEnabled", renderer.EnvironmentMapBlurEnabled);
-        _shader.SetUniform("uBlurRadius", renderer.EnvironmentMapBlurRadius);
-        _shader.SetUniform("uResolution", new Vector2(handle.Width, handle.Height));
+        float blurMip = renderer.EnvironmentMapBlurEnabled
+            ? Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.SkyMaxMipLevel)
+            : 0.0f;
+        _shader.SetUniform("uBlurMipLevel", blurMip);
 
-        // Bind environment map texture
+        // Bind precomputed sky cubemap
         _gl.ActiveTexture(TextureUnit.Texture0);
-        _gl.BindTexture(GLEnum.Texture2D, handle.TextureId);
-        _shader.SetUniform("uEnvironmentMap", 0);
+        _gl.BindTexture(GLEnum.TextureCubeMap, environment.SkyCubemap.TextureId);
+        _shader.SetUniform("uSkyCubemap", 0);
 
         _gl.BindVertexArray(_emptyVao);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 3);
         _gl.BindVertexArray(0);
 
-        _gl.BindTexture(GLEnum.Texture2D, 0);
+        _gl.BindTexture(GLEnum.TextureCubeMap, 0);
 
         _gl.Enable(GLEnum.DepthTest);
         _gl.DepthMask(true);

@@ -731,7 +731,7 @@ namespace RedFox.Graphics3D
                 Matrix4x4 skinTransform = _inverseBindMatrices[skinIndex] * skinnedBones[skinIndex].GetActiveWorldMatrix();
 
                 Vector3 transformed = transformAsDirection
-                    ? Vector3.TransformNormal(value, skinTransform)
+                    ? TransformDirectionByNormalMatrix(value, skinTransform)
                     : Vector3.Transform(value, skinTransform);
 
                 result += transformed * weight;
@@ -768,7 +768,7 @@ namespace RedFox.Graphics3D
                 Matrix4x4 skinTransform = skinTransforms[skinIndex];
 
                 Vector3 transformed = transformAsDirection
-                    ? Vector3.TransformNormal(value, skinTransform)
+                    ? TransformDirectionByNormalMatrix(value, skinTransform)
                     : Vector3.Transform(value, skinTransform);
 
                 result += transformed * weight;
@@ -790,6 +790,15 @@ namespace RedFox.Graphics3D
             }
 
             return weightedResult;
+        }
+
+        private static Vector3 TransformDirectionByNormalMatrix(Vector3 value, Matrix4x4 transform)
+        {
+            if (!Matrix4x4.Invert(transform, out Matrix4x4 inverse))
+                return Vector3.TransformNormal(value, transform);
+
+            Matrix4x4 normalMatrix = Matrix4x4.Transpose(inverse);
+            return Vector3.TransformNormal(value, normalMatrix);
         }
 
         private Vector3 GetRequiredVector3(DataBuffer? buffer, int vertexIndex, string bufferName)

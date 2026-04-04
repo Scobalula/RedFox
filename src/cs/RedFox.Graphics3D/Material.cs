@@ -127,13 +127,18 @@ public class Material(string name) : SceneNode(name)
     /// Gets or sets the metallic factor (0.0 = dielectric, 1.0 = metallic).
     /// Used for IBL and PBR rendering.
     /// </summary>
-    public float? Metallic { get; set; }
+    public float? Metallic { get; set; } = 0;
 
     /// <summary>
     /// Gets or sets the roughness factor (0.0 = smooth, 1.0 = rough).
     /// Used for IBL and PBR rendering.
     /// </summary>
-    public float? Roughness { get; set; }
+    public float? Roughness { get; set; } = 0;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the material should render both front and back faces.
+    /// </summary>
+    public bool DoubleSided { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether the specular mask is stored in the alpha channel of the diffuse texture.

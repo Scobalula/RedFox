@@ -12,6 +12,8 @@ public sealed class GLRenderer : IDisposable
 {
     private readonly GL _gl;
     private readonly List<IRenderPass> _passes = [];
+    private GLEquirectangularEnvironmentMap? _environmentMap;
+    private GLEnvironmentResources? _environmentResources;
 
     private GLShader? _lineShader;
     private uint _boneLineVao;
@@ -33,9 +35,25 @@ public sealed class GLRenderer : IDisposable
     public RendererColor BackgroundColor { get; set; } = new(0.12f, 0.12f, 0.14f, 1.0f);
     public ImageTranslatorManager? ImageTranslatorManager { get; set; }
     public Matrix4x4 SceneTransform { get; set; } = Matrix4x4.Identity;
-    public GLEquirectangularEnvironmentMap? EnvironmentMap { get; set; }
+    public GLEquirectangularEnvironmentMap? EnvironmentMap
+    {
+        get => _environmentMap;
+        set
+        {
+            if (ReferenceEquals(_environmentMap, value))
+                return;
+
+            _environmentMap?.Dispose();
+            _environmentMap = value;
+            SetEnvironmentResources(null);
+        }
+    }
+
+    public GLEnvironmentResources? EnvironmentResources => _environmentResources;
+
+    public EnvironmentMapFlipMode EnvironmentMapFlipMode { get; set; } = EnvironmentMapFlipMode.Auto;
     public float EnvironmentMapExposure { get; set; } = 1.0f;
-    public float EnvironmentMapReflectionIntensity { get; set; } = 0.5f;
+    public float EnvironmentMapReflectionIntensity { get; set; } = 1.0f;
     public bool EnvironmentMapBlurEnabled { get; set; }
     public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
     public bool EnableIBL { get; set; } = true;
@@ -69,6 +87,8 @@ public sealed class GLRenderer : IDisposable
         _maxTextureSize = Math.Max(_maxTextureSize, 1);
 
         _gl.Enable(EnableCap.DepthTest);
+        if (!IsOpenGles)
+            _gl.Enable(GLEnum.TextureCubeMapSeamless);
         _gl.FrontFace(FrontFaceDirection.Ccw);
 
         (string lineVertex, string lineFragment) = ShaderSource.LoadProgram(_gl, "line");
@@ -93,6 +113,19 @@ public sealed class GLRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(pass);
         _passes.Add(pass);
+
+        if (_isInitialized)
+            pass.Initialize(this);
+    }
+
+    public void InsertPass(int index, IRenderPass pass)
+    {
+        ArgumentNullException.ThrowIfNull(pass);
+
+        if ((uint)index > (uint)_passes.Count)
+            index = _passes.Count;
+
+        _passes.Insert(index, pass);
 
         if (_isInitialized)
             pass.Initialize(this);
@@ -249,6 +282,7 @@ public sealed class GLRenderer : IDisposable
         _gl.BindVertexArray(vao);
 
         float[] positions = ExtractVertexFloatBuffer(mesh.Positions, 0, 3);
+
         uint positionVbo = UploadFloatAttributeBuffer(positions, mesh.HasMorphTargets ? BufferUsageARB.DynamicDraw : BufferUsageARB.StaticDraw);
         _gl.EnableVertexAttribArray(0);
         _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
@@ -312,9 +346,10 @@ public sealed class GLRenderer : IDisposable
 
         uint elementBuffer = 0;
         int indexCount = 0;
+        uint[]? indices = null;
         if (mesh.IsIndexed && mesh.FaceIndices is not null)
         {
-            uint[] indices = ExtractIndexBuffer(mesh.FaceIndices);
+            indices = ExtractIndexBuffer(mesh.FaceIndices);
             indexCount = indices.Length;
             elementBuffer = _gl.GenBuffer();
             _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, elementBuffer);
@@ -324,35 +359,91 @@ public sealed class GLRenderer : IDisposable
             }
         }
 
+        bool frontFaceClockwise = DetermineFrontFaceClockwise(positions, normals, indices, mesh.VertexCount);
+
         _gl.BindVertexArray(0);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
-        return new GLMeshHandle(
-            vao,
-            positionVbo,
-            normalVbo,
-            uvVbo,
-            influenceRangeVbo,
-            influenceTexture,
-            boneMatrixTexture,
-            elementBuffer,
-            mesh.VertexCount,
-            indexCount,
-            mesh.IsIndexed,
-            mesh.Normals is not null,
-            mesh.UVLayers is not null,
-            hasSkinning,
-            boneCount,
-            influenceTextureWidth,
-            influenceTextureHeight,
-            boneMatrixTextureWidth,
-            boneMatrixTextureHeight,
-            mesh.HasMorphTargets,
-            mesh.MorphTargetCount,
-            positions,
-            normals,
-            mesh.DeltaPositions is null ? null : ExtractMorphFloatBuffer(mesh.DeltaPositions, 3),
-            mesh.DeltaNormals is null ? null : ExtractMorphFloatBuffer(mesh.DeltaNormals, 3));
+        return new GLMeshHandle(new GLMeshHandle.Descriptor
+        {
+            FrontFaceClockwise = frontFaceClockwise,
+            VAO = vao,
+            PositionVBO = positionVbo,
+            NormalVBO = normalVbo,
+            UVVBO = uvVbo,
+            InfluenceRangeVBO = influenceRangeVbo,
+            InfluenceTexture = influenceTexture,
+            BoneMatrixTexture = boneMatrixTexture,
+            EBO = elementBuffer,
+            VertexCount = mesh.VertexCount,
+            IndexCount = indexCount,
+            IsIndexed = mesh.IsIndexed,
+            HasNormals = mesh.Normals is not null,
+            HasUVs = mesh.UVLayers is not null,
+            HasSkinning = hasSkinning,
+            BoneCount = boneCount,
+            InfluenceTextureWidth = influenceTextureWidth,
+            InfluenceTextureHeight = influenceTextureHeight,
+            BoneMatrixTextureWidth = boneMatrixTextureWidth,
+            BoneMatrixTextureHeight = boneMatrixTextureHeight,
+            HasMorphTargets = mesh.HasMorphTargets,
+            MorphTargetCount = mesh.MorphTargetCount,
+            BasePositions = positions,
+            BaseNormals = normals,
+            PositionMorphDeltas = mesh.DeltaPositions is null ? null : ExtractMorphFloatBuffer(mesh.DeltaPositions, 3),
+            NormalMorphDeltas = mesh.DeltaNormals is null ? null : ExtractMorphFloatBuffer(mesh.DeltaNormals, 3),
+        });
+    }
+
+    private static bool DetermineFrontFaceClockwise(float[] positions, float[]? normals, uint[]? indices, int vertexCount)
+    {
+        const float epsilon = 1e-10f;
+
+        if (normals is null || positions.Length < 9 || normals.Length < 9)
+            return false;
+
+        int triangleCount = indices is not null ? indices.Length / 3 : vertexCount / 3;
+        if (triangleCount <= 0)
+            return false;
+
+        int positiveCount = 0;
+        int negativeCount = 0;
+        int sampleCount = Math.Min(triangleCount, 512);
+        int triangleStep = Math.Max(triangleCount / sampleCount, 1);
+
+        for (int triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += triangleStep)
+        {
+            int baseIndex = triangleIndex * 3;
+            int i0 = indices is not null ? (int)indices[baseIndex] : baseIndex;
+            int i1 = indices is not null ? (int)indices[baseIndex + 1] : baseIndex + 1;
+            int i2 = indices is not null ? (int)indices[baseIndex + 2] : baseIndex + 2;
+
+            Vector3 p0 = ReadVector3(positions, i0);
+            Vector3 p1 = ReadVector3(positions, i1);
+            Vector3 p2 = ReadVector3(positions, i2);
+
+            Vector3 faceNormal = Vector3.Cross(p1 - p0, p2 - p0);
+            if (faceNormal.LengthSquared() <= epsilon)
+                continue;
+
+            Vector3 avgNormal = ReadVector3(normals, i0) + ReadVector3(normals, i1) + ReadVector3(normals, i2);
+            if (avgNormal.LengthSquared() <= epsilon)
+                continue;
+
+            float orientation = Vector3.Dot(faceNormal, avgNormal);
+            if (orientation > epsilon)
+                positiveCount++;
+            else if (orientation < -epsilon)
+                negativeCount++;
+        }
+
+        return negativeCount > positiveCount;
+    }
+
+    private static Vector3 ReadVector3(float[] values, int vertexIndex)
+    {
+        int offset = vertexIndex * 3;
+        return new Vector3(values[offset], values[offset + 1], values[offset + 2]);
     }
 
     private unsafe GLTextureHandle? UploadTexture(Texture texture)
@@ -716,8 +807,11 @@ public sealed class GLRenderer : IDisposable
             pass.Dispose();
         _passes.Clear();
 
+        SetEnvironmentResources(null);
+
         _lineShader?.Dispose();
-        EnvironmentMap?.Dispose();
+        _environmentMap?.Dispose();
+        _environmentMap = null;
 
         try
         {
@@ -730,6 +824,15 @@ public sealed class GLRenderer : IDisposable
         catch
         {
         }
+    }
+
+    internal void SetEnvironmentResources(GLEnvironmentResources? resources)
+    {
+        if (ReferenceEquals(_environmentResources, resources))
+            return;
+
+        _environmentResources?.Dispose();
+        _environmentResources = resources;
     }
 }
 

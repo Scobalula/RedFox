@@ -53,7 +53,19 @@ public sealed class CameraController
     public void Fit(Vector3 center, float radius)
     {
         _focusPoint = center;
-        _distance = MathF.Max(radius * 2.5f, 1.0f);
+
+        if (_camera.Projection == CameraProjection.Orthographic)
+        {
+            _camera.OrthographicSize = MathF.Max(radius * 2.2f, 0.1f);
+            _distance = MathF.Max(radius * 2.5f, 1.0f);
+            ApplyOrbitCamera();
+            return;
+        }
+
+        float verticalHalfFov = float.DegreesToRadians(MathF.Max(_camera.FieldOfView, 1.0f)) * 0.5f;
+        float horizontalHalfFov = MathF.Atan(MathF.Tan(verticalHalfFov) * MathF.Max(_camera.AspectRatio, 1e-3f));
+        float limitingHalfFov = MathF.Max(MathF.Min(verticalHalfFov, horizontalHalfFov), 0.1f);
+        _distance = MathF.Max((radius / MathF.Sin(limitingHalfFov)) * 1.05f, radius + 0.1f);
         ApplyOrbitCamera();
     }
 

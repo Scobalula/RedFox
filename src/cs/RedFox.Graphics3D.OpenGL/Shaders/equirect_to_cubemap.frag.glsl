@@ -6,6 +6,7 @@
 in vec3 vWorldPos;
 
 uniform sampler2D uEquirectangularMap;
+uniform bool uFlipY;
 
 out vec4 FragColor;
 
@@ -21,6 +22,8 @@ vec2 equirectDirectionToUV(vec3 dir)
 void main()
 {
     vec2 uv = equirectDirectionToUV(normalize(vWorldPos));
+    if (uFlipY)
+        uv.y = 1.0 - uv.y;
     vec3 color = texture(uEquirectangularMap, uv).rgb;
     FragColor = vec4(color, 1.0);
 }
