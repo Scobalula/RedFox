@@ -192,7 +192,7 @@ public sealed class CameraController
     private void Zoom(float wheelDelta)
     {
         float zoomAmount = MathF.Max(_distance, 1.0f) * wheelDelta * ZoomSensitivity;
-        _distance = Math.Clamp(_distance - zoomAmount, 0.1f, 5000f);
+        _distance = MathF.Max(_distance - zoomAmount, 0.1f);
     }
 
     private void ApplyOrbitCamera()

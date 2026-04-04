@@ -41,5 +41,5 @@ public class Texture(string filePath, string slot) : SceneNode(Path.GetFileNameW
     /// <summary>
     /// Gets or sets the image loader used to retrieve and process images.
     /// </summary>
-    public IImageLoader? ImageLoader { get; set; }
+    public IImageLoader? ImageLoader { get; set; } = FileSystemImageLoader.Shared;
 }

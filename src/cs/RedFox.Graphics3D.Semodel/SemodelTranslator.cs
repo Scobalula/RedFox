@@ -147,8 +147,7 @@ public class SemodelTranslator : SceneTranslator
 
             if (hasWeights && influences > 0)
             {
-                int indexSize = boneCount <= byte.MaxValue ? 1 :
-                                boneCount <= ushort.MaxValue ? 2 : 4;
+                int indexSize = boneCount <= byte.MaxValue ? 1 : boneCount <= ushort.MaxValue ? 2 : 4;
                 int influenceStride = indexSize + sizeof(float);
                 int vertexStride    = influences * influenceStride;
 

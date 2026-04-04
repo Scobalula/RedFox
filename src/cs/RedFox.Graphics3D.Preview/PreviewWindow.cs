@@ -359,18 +359,24 @@ public sealed class PreviewWindow : IDisposable
         if (_camera is null)
             return;
 
-        float radius = MathF.Max(sceneRadius, 1.0f);
+        float radius = MathF.Max(sceneRadius, 0.1f);
         float distanceToCenter = Vector3.Distance(_camera.Position, sceneCenter);
         float nearestSurfaceDistance = MathF.Max(distanceToCenter - radius, 0.0f);
-        float farPadding = MathF.Max(radius * 128f, 2.0f);
-        float farPlane = MathF.Max(1.0f, distanceToCenter + radius + farPadding);
+        float farPlane = MathF.Max(distanceToCenter + radius + radius * 0.5f, radius * 2.0f);
 
-        float nearPlane = nearestSurfaceDistance > 0.0f
-            ? MathF.Max(0.05f, nearestSurfaceDistance * 0.5f)
-            : MathF.Max(0.05f, radius * 0.00005f);
+        float nearPlane;
+        if (nearestSurfaceDistance > radius * 0.01f)
+        {
+            nearPlane = nearestSurfaceDistance * 0.1f;
+        }
+        else
+        {
+            nearPlane = MathF.Max(radius * 1e-5f, 1e-6f);
+        }
 
-        nearPlane = MathF.Max(nearPlane, farPlane / 50000.0f);
-        nearPlane = MathF.Min(nearPlane, MathF.Max(farPlane - 1.0f, 0.05f));
+        float minNearForDepth = farPlane / 50000.0f;
+        nearPlane = MathF.Max(nearPlane, minNearForDepth);
+        nearPlane = MathF.Min(nearPlane, farPlane * 0.5f);
 
         _camera.NearPlane = nearPlane;
         _camera.FarPlane = MathF.Max(nearPlane + 1.0f, farPlane);

@@ -5,7 +5,7 @@ namespace RedFox.Graphics3D.OpenGL;
 
 public static class EnvironmentCacheKey
 {
-    public const int CacheVersion = 7;
+    public const int CacheVersion = 8;
 
     public static string Compute(
         string sourcePath,

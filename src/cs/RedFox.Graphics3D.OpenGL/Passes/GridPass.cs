@@ -36,6 +36,7 @@ public sealed class GridPass : IRenderPass
         // System.Numerics composes row-major transforms, so combined matrices
         // need to be built as view * projection before they are uploaded.
         _shader.SetUniform("uViewProjection", renderer.ActiveCamera.GetViewMatrix() * renderer.ActiveCamera.GetProjectionMatrix());
+        _shader.SetUniform("uFarPlane", renderer.ActiveCamera.FarPlane);
 
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);

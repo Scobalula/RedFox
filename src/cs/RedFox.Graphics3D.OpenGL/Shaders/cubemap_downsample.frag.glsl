@@ -44,7 +44,7 @@ void main()
             float weight = wy * kernelWeight(x);
             vec2 offset = vec2(float(x), float(y)) * offsetScale;
             vec3 sampleDir = normalize(dir + tangent * offset.x + bitangent * offset.y);
-            color += textureLod(uEnvironmentMap, sampleDir, 0.0).rgb * weight;
+            color += textureLod(uEnvironmentMap, sampleDir, uTargetMipLevel - 1.0).rgb * weight;
             totalWeight += weight;
         }
     }

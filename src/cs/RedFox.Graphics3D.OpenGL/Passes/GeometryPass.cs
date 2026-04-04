@@ -9,6 +9,7 @@ public sealed class GeometryPass : IRenderPass
 {
     private GL _gl = null!;
     private GLShader _meshShader = null!;
+    private uint _defaultWhiteTexture;
     private bool _initialized;
 
     public string Name => "Geometry";
@@ -19,6 +20,7 @@ public sealed class GeometryPass : IRenderPass
         _gl = renderer.GL;
         (string meshVertex, string meshFragment) = ShaderSource.LoadProgram(_gl, "mesh");
         _meshShader = new GLShader(_gl, meshVertex, meshFragment);
+        _defaultWhiteTexture = CreateDefault1x1Texture(_gl, 255, 255, 255, 255);
         _initialized = true;
     }
 
@@ -30,12 +32,19 @@ public sealed class GeometryPass : IRenderPass
         if (camera == null) return;
 
         _meshShader.Use();
+        SetSceneUniforms(renderer, camera);
 
-        var view = camera.GetViewMatrix();
-        var proj = camera.GetProjectionMatrix();
+        foreach (var mesh in scene.RootNode.EnumerateDescendants<Mesh>())
+        {
+            RenderMesh(renderer, mesh);
+        }
+    }
 
-        _meshShader.SetUniform("uView", view);
-        _meshShader.SetUniform("uProjection", proj);
+    private void SetSceneUniforms(GLRenderer renderer, Camera camera)
+    {
+        _meshShader.SetUniform("uView", camera.GetViewMatrix());
+        _meshShader.SetUniform("uProjection", camera.GetProjectionMatrix());
+        _meshShader.SetUniform("uFarPlane", camera.FarPlane);
         _meshShader.SetUniform("uScene", renderer.SceneTransform);
         _meshShader.SetUniform("uSceneNormalMatrix", renderer.SceneNormalMatrix);
         _meshShader.SetUniform("uCameraPos", camera.Position);
@@ -47,11 +56,6 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uAmbientStrength", 0.85f);
         _meshShader.SetUniform("uEnvironmentMapExposure", renderer.EnvironmentMapExposure);
         _meshShader.SetUniform("uEnvironmentMapIntensity", renderer.EnvironmentMapReflectionIntensity);
-
-        foreach (var mesh in scene.RootNode.EnumerateDescendants<Mesh>())
-        {
-            RenderMesh(renderer, mesh);
-        }
     }
 
     private void RenderMesh(GLRenderer renderer, Mesh mesh)
@@ -68,18 +72,7 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uHasSkinning", handle.HasSkinning);
 
         if (handle.HasSkinning)
-        {
-            renderer.UpdateSkinningData(mesh, handle);
-            _gl.ActiveTexture(TextureUnit.Texture1);
-            _gl.BindTexture(TextureTarget.Texture2D, handle.InfluenceTexture);
-            _meshShader.SetUniform("uInfluenceTexture", 1);
-            _meshShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
-
-            _gl.ActiveTexture(TextureUnit.Texture2);
-            _gl.BindTexture(TextureTarget.Texture2D, handle.BoneMatrixTexture);
-            _meshShader.SetUniform("uBoneMatrixTexture", 2);
-            _meshShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
-        }
+            BindSkinningTextures(renderer, mesh, handle);
 
         var material = mesh.Materials?.FirstOrDefault();
         ConfigureCullState(renderer, handle, material, model);
@@ -91,7 +84,6 @@ public sealed class GeometryPass : IRenderPass
         {
             unsafe
             {
-                // With an element buffer bound, OpenGL expects a byte offset here.
                 _gl.DrawElements(PrimitiveType.Triangles, (uint)handle.IndexCount, DrawElementsType.UnsignedInt, (void*)0);
             }
         }
@@ -101,15 +93,42 @@ public sealed class GeometryPass : IRenderPass
         }
 
         _gl.BindVertexArray(0);
+
         if (handle.HasSkinning)
-        {
-            _gl.ActiveTexture(TextureUnit.Texture2);
-            _gl.BindTexture(TextureTarget.Texture2D, 0);
-            _gl.ActiveTexture(TextureUnit.Texture1);
-            _gl.BindTexture(TextureTarget.Texture2D, 0);
-            _gl.ActiveTexture(TextureUnit.Texture0);
-        }
+            UnbindSkinningTextures();
     }
+
+    // ------------------------------------------------------------------
+    // Skinning
+    // ------------------------------------------------------------------
+
+    private void BindSkinningTextures(GLRenderer renderer, Mesh mesh, GLMeshHandle handle)
+    {
+        renderer.UpdateSkinningData(mesh, handle);
+
+        _gl.ActiveTexture(TextureUnit.Texture1);
+        _gl.BindTexture(TextureTarget.Texture2D, handle.InfluenceTexture);
+        _meshShader.SetUniform("uInfluenceTexture", 1);
+        _meshShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
+
+        _gl.ActiveTexture(TextureUnit.Texture2);
+        _gl.BindTexture(TextureTarget.Texture2D, handle.BoneMatrixTexture);
+        _meshShader.SetUniform("uBoneMatrixTexture", 2);
+        _meshShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
+    }
+
+    private void UnbindSkinningTextures()
+    {
+        _gl.ActiveTexture(TextureUnit.Texture2);
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        _gl.ActiveTexture(TextureUnit.Texture1);
+        _gl.BindTexture(TextureTarget.Texture2D, 0);
+        _gl.ActiveTexture(TextureUnit.Texture0);
+    }
+
+    // ------------------------------------------------------------------
+    // Culling
+    // ------------------------------------------------------------------
 
     private void ConfigureCullState(GLRenderer renderer, GLMeshHandle handle, Material? material, Matrix4x4 model)
     {
@@ -132,10 +151,47 @@ public sealed class GeometryPass : IRenderPass
         }
     }
 
+    // ------------------------------------------------------------------
+    // Material
+    // ------------------------------------------------------------------
+
     private void ApplyMaterial(GLRenderer renderer, Material? material)
     {
-        Vector4 diffuseColor = material?.DiffuseColor ?? new Vector4(0.7f, 0.7f, 0.7f, 1.0f);
+        BindDefaultTextures();
+        ApplyDiffuse(renderer, material);
+        ApplyEnvironment(renderer);
+        ApplyPbrFactors(material);
+        ApplyMaterialTextures(renderer, material);
+    }
 
+    private void BindDefaultTextures()
+    {
+        // Bind a 1x1 white texture to every material sampler unit so that
+        // unbound samplers always reference a valid GL object. This prevents
+        // undefined behaviour on drivers that evaluate both ternary branches
+        // or that read from default-unit-0 for unset sampler uniforms.
+        ReadOnlySpan<uint> units = [0, 7, 8, 9, 10, 11];
+        ReadOnlySpan<string> names =
+        [
+            "uDiffuseTexture",
+            "uMetallicRoughnessTexture",
+            "uAoTexture",
+            "uRoughnessTexture",
+            "uGlossTexture",
+            "uSpecularTexture"
+        ];
+
+        for (int i = 0; i < units.Length; i++)
+        {
+            _gl.ActiveTexture((TextureUnit)((int)TextureUnit.Texture0 + (int)units[i]));
+            _gl.BindTexture(TextureTarget.Texture2D, _defaultWhiteTexture);
+            _meshShader.SetUniform(names[i], (int)units[i]);
+        }
+    }
+
+    private void ApplyDiffuse(GLRenderer renderer, Material? material)
+    {
+        Vector4 diffuseColor = material?.DiffuseColor ?? Vector4.One;
         _meshShader.SetUniform("uDiffuseColor", diffuseColor);
 
         bool hasDiffuseTex = false;
@@ -151,10 +207,14 @@ public sealed class GeometryPass : IRenderPass
         }
 
         _meshShader.SetUniform("uHasDiffuseTexture", hasDiffuseTex);
+    }
 
+    private void ApplyEnvironment(GLRenderer renderer)
+    {
         GLEnvironmentResources? env = renderer.EnvironmentResources;
         bool hasSkyMap = env is not null && env.SkyCubemap.TextureId != 0;
         _meshShader.SetUniform("uHasSkyMap", hasSkyMap);
+
         if (hasSkyMap && env is not null)
         {
             _gl.ActiveTexture(TextureUnit.Texture3);
@@ -163,7 +223,6 @@ public sealed class GeometryPass : IRenderPass
             _meshShader.SetUniform("uSkyMaxMipLevel", env.SkyMaxMipLevel);
         }
 
-        // IBL textures and settings
         bool useIBL = renderer.EnableIBL &&
                       env is not null &&
                       env.IrradianceCubemap.TextureId != 0 &&
@@ -173,98 +232,75 @@ public sealed class GeometryPass : IRenderPass
 
         if (useIBL && env is not null)
         {
-            // Bind irradiance cubemap (texture unit 4)
             _gl.ActiveTexture(TextureUnit.Texture4);
             _gl.BindTexture(TextureTarget.TextureCubeMap, env.IrradianceCubemap.TextureId);
             _meshShader.SetUniform("uIrradianceMap", 4);
 
-            // Bind prefiltered environment cubemap (texture unit 5)
             _gl.ActiveTexture(TextureUnit.Texture5);
             _gl.BindTexture(TextureTarget.TextureCubeMap, env.PrefilterCubemap.TextureId);
             _meshShader.SetUniform("uPrefilterMap", 5);
             _meshShader.SetUniform("uPrefilterMaxMipLevel", env.PrefilterMaxMipLevel);
 
-            // Bind BRDF LUT (texture unit 6)
             _gl.ActiveTexture(TextureUnit.Texture6);
             _gl.BindTexture(TextureTarget.Texture2D, env.BrdfLutTexture);
             _meshShader.SetUniform("uBrdfLut", 6);
         }
+    }
 
+    private void ApplyPbrFactors(Material? material)
+    {
         (float metallicFactor, float roughnessFactor) = PbrMaterialFactors.Resolve(material);
-        _meshShader.SetUniform("uMetallicFactor", metallicFactor);
-        _meshShader.SetUniform("uRoughnessFactor", roughnessFactor);
+        _meshShader.SetUniform("uMetallicFactor", 0f);
+        _meshShader.SetUniform("uRoughnessFactor", 0.5f);
         _meshShader.SetUniform("uDoubleSided", material?.DoubleSided ?? false);
-        _meshShader.SetUniform("uSpecularColor", ExtractRgb(material?.SpecularColor ?? new Vector4(1.0f)));
-        _meshShader.SetUniform("uSpecularStrength", material?.SpecularStrength ?? 1.0f);
 
-        bool hasMrTexture = false;
-        if (material is not null && material.TryGetMetallicMap(out var metallicRoughnessTexture))
-        {
-            var texHandle = renderer.GetOrCreateTextureHandle(metallicRoughnessTexture);
-            if (texHandle is not null)
-            {
-                texHandle.Bind(7);
-                _meshShader.SetUniform("uMetallicRoughnessTexture", 7);
-                hasMrTexture = true;
-            }
-        }
+        bool hasLegacySpecular = material?.SpecularColor.HasValue == true || material?.SpecularStrength.HasValue == true;
+        _meshShader.SetUniform("uSpecularColor", ExtractRgb(material?.SpecularColor ?? Vector4.One));
+        _meshShader.SetUniform("uSpecularStrength", material?.SpecularStrength ?? (hasLegacySpecular ? 1.0f : 0.0f));
+    }
+
+    private void ApplyMaterialTextures(GLRenderer renderer, Material? material)
+    {
+        bool hasMrTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetMetallicMap(out t), 7, "uMetallicRoughnessTexture");
         _meshShader.SetUniform("uHasMetallicRoughnessTexture", hasMrTexture);
 
-        bool hasRoughnessTexture = false;
-        if (material is not null && material.TryGetRoughnessMap(out var roughnessTexture))
-        {
-            var texHandle = renderer.GetOrCreateTextureHandle(roughnessTexture);
-            if (texHandle is not null)
-            {
-                texHandle.Bind(9);
-                _meshShader.SetUniform("uRoughnessTexture", 9);
-                hasRoughnessTexture = true;
-            }
-        }
+        bool hasRoughnessTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetRoughnessMap(out t), 9, "uRoughnessTexture");
         _meshShader.SetUniform("uHasRoughnessTexture", hasRoughnessTexture);
 
         bool hasGlossTexture = false;
-        if (!hasRoughnessTexture && material is not null && material.TryGetGlossMap(out var glossTexture))
-        {
-            var texHandle = renderer.GetOrCreateTextureHandle(glossTexture);
-            if (texHandle is not null)
-            {
-                texHandle.Bind(10);
-                _meshShader.SetUniform("uGlossTexture", 10);
-                hasGlossTexture = true;
-            }
-        }
+        if (!hasRoughnessTexture)
+            hasGlossTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetGlossMap(out t), 10, "uGlossTexture");
         _meshShader.SetUniform("uHasGlossTexture", hasGlossTexture);
 
-        bool hasSpecularTexture = false;
-        if (material is not null && material.TryGetSpecularMap(out var specularTexture))
-        {
-            var texHandle = renderer.GetOrCreateTextureHandle(specularTexture);
-            if (texHandle is not null)
-            {
-                texHandle.Bind(11);
-                _meshShader.SetUniform("uSpecularTexture", 11);
-                hasSpecularTexture = true;
-            }
-        }
+        bool hasSpecularTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetSpecularMap(out t), 11, "uSpecularTexture");
         _meshShader.SetUniform("uHasSpecularTexture", hasSpecularTexture);
-        _meshShader.SetUniform(
-            "uUseLegacySpecular",
+        _meshShader.SetUniform("uUseLegacySpecular",
             hasSpecularTexture || material?.SpecularColor.HasValue == true || material?.SpecularStrength.HasValue == true);
 
-        bool hasAoTexture = false;
-        if (material is not null && material.TryGetAmbientOcclusionMap(out var aoTexture))
-        {
-            var texHandle = renderer.GetOrCreateTextureHandle(aoTexture);
-            if (texHandle is not null)
-            {
-                texHandle.Bind(8);
-                _meshShader.SetUniform("uAoTexture", 8);
-                hasAoTexture = true;
-            }
-        }
+        bool hasAoTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetAmbientOcclusionMap(out t), 8, "uAoTexture");
         _meshShader.SetUniform("uHasAoTexture", hasAoTexture);
     }
+
+    private delegate bool TryGetTexture(Material material, out Texture? texture);
+
+    private bool TryBindMaterialTexture(GLRenderer renderer, Material? material, TryGetTexture getter, uint unit, string uniformName)
+    {
+        if (material is not null && getter(material, out var texture) && texture is not null)
+        {
+            var texHandle = renderer.GetOrCreateTextureHandle(texture);
+            if (texHandle is not null)
+            {
+                texHandle.Bind(unit);
+                _meshShader.SetUniform(uniformName, (int)unit);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
 
     private static Vector3 ExtractRgb(Vector4 color) => new(color.X, color.Y, color.Z);
 
@@ -289,8 +325,27 @@ public sealed class GeometryPass : IRenderPass
         return Vector3.Transform(sceneSpaceCameraPosition, inverseScene);
     }
 
+    private static unsafe uint CreateDefault1x1Texture(GL gl, byte r, byte g, byte b, byte a)
+    {
+        uint tex = gl.GenTexture();
+        gl.BindTexture(TextureTarget.Texture2D, tex);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
+        byte* pixel = stackalloc byte[4] { r, g, b, a };
+        gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixel);
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        return tex;
+    }
+
     public void Dispose()
     {
         _meshShader?.Dispose();
+        if (_defaultWhiteTexture != 0)
+        {
+            try { _gl.DeleteTexture(_defaultWhiteTexture); } catch { }
+            _defaultWhiteTexture = 0;
+        }
     }
 }

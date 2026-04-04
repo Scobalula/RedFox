@@ -2,7 +2,7 @@
   "profiles": {
     "RedFox.Graphics3D.Preview": {
       "commandName": "Project",
-      "commandLineArgs": "D:\\Tools\\CordyCap\\Greyhound\\exported_files\\ghosts\\xmodels\\viewhands_mp_space_desert\\viewhands_mp_space_desert_LOD0.semodel --envmap \"C:\\Users\\Admin\\Downloads\\qwantani_moon_noon_1k.exr\" --up-axis z --envmap-blur"
+      "commandLineArgs": "\"D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xmodels\\viewhands_base_iw8\\viewhands_base_iw8_LOD0.semodel\" --envmap \"C:\\Users\\Admin\\Downloads\\qwantani_moon_noon_1k.exr\" --up-axis z --envmap-blur"
     }
   }
 }

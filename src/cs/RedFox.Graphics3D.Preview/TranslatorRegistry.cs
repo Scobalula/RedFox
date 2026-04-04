@@ -16,6 +16,7 @@ using RedFox.Graphics3D.Semodel;
 using RedFox.Graphics3D.SEAnim;
 using RedFox.Graphics3D.Smd;
 using RedFox.Graphics3D.WavefrontObj;
+using RedFox.Graphics3D.Cast;
 
 namespace RedFox.Graphics3D.Preview;
 
@@ -34,6 +35,7 @@ public static class TranslatorRegistry
         manager.Register(new SemodelTranslator());
         manager.Register(new SeanimTranslator());
         manager.Register(new SmdTranslator());
+        manager.Register(new CastTranslator());
         return manager;
     }
 
