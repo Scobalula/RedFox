@@ -3,6 +3,12 @@ using RedFox.Graphics3D.OpenGL.Cameras;
 
 namespace RedFox.Graphics3D.Preview;
 
+public enum PreviewBackend
+{
+    Cli,
+    Avalonia
+}
+
 public enum SceneUpAxis
 {
     Y,
@@ -20,6 +26,7 @@ public sealed class PreviewCliOptions
     public bool ShowBones { get; set; } = true;
     public bool ShowGrid { get; set; } = true;
     public bool Wireframe { get; set; }
+    public bool ShowSkybox { get; set; } = true;
     public bool AutoFitOnLoad { get; set; } = true;
     public bool NormalizeScene { get; set; }
     public float NormalizeRadius { get; set; } = 10.0f;
@@ -35,6 +42,9 @@ public sealed class PreviewCliOptions
     public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
     public EnvironmentMapFlipMode EnvironmentMapFlipMode { get; set; } = EnvironmentMapFlipMode.Auto;
     public bool EnableIBL { get; set; } = true;
+    public RendererShadingMode ShadingMode { get; set; } = RendererShadingMode.Pbr;
+    public int MsaaSamples { get; set; } = 4;
+    public PreviewBackend Backend { get; set; } = PreviewBackend.Cli;
 
     public static PreviewCliOptions Parse(IReadOnlyList<string> args)
     {
@@ -64,8 +74,24 @@ public sealed class PreviewCliOptions
                     options.Hidden = true;
                     break;
 
+                case "--backend":
+                    options.Backend = ParseBackend(ParseString(args, ++i, arg));
+                    break;
+
+                case "--cli":
+                    options.Backend = PreviewBackend.Cli;
+                    break;
+
+                case "--avalonia":
+                    options.Backend = PreviewBackend.Avalonia;
+                    break;
+
                 case "--wireframe":
                     options.Wireframe = true;
+                    break;
+
+                case "--no-skybox":
+                    options.ShowSkybox = false;
                     break;
 
                 case "--no-bones":
@@ -153,6 +179,18 @@ public sealed class PreviewCliOptions
                     options.EnableIBL = false;
                     break;
 
+                case "--fullbright":
+                    options.ShadingMode = RendererShadingMode.Fullbright;
+                    break;
+
+                case "--shading":
+                    options.ShadingMode = ParseShadingMode(ParseString(args, ++i, arg));
+                    break;
+
+                case "--msaa":
+                    options.MsaaSamples = ParseInt(args, ++i, arg);
+                    break;
+
                 default:
                     throw new ArgumentException($"Unknown argument '{arg}'.");
             }
@@ -170,6 +208,9 @@ public sealed class PreviewCliOptions
         if (options.NormalizeRadius <= 0f)
             throw new ArgumentOutOfRangeException(nameof(args), "Normalize radius must be greater than zero.");
 
+        if (options.MsaaSamples < 0)
+            throw new ArgumentOutOfRangeException(nameof(args), "MSAA sample count cannot be negative.");
+
         return options;
     }
 
@@ -182,6 +223,9 @@ public sealed class PreviewCliOptions
               RedFox.Graphics3D.Preview [options] <file1> [file2 ...]
 
             Options:
+              --backend <name>       cli | avalonia. Default: cli
+              --cli                  Shortcut for '--backend cli'.
+              --avalonia             Shortcut for '--backend avalonia'.
               --hidden                Create the preview window hidden.
               --frames <count>        Auto-close after N rendered frames.
               --width <pixels>        Window width. Default: 1280
@@ -194,6 +238,9 @@ public sealed class PreviewCliOptions
               --normalize-scene       Uniformly scale loaded content to a target radius.
               --normalize-radius <v>  Target radius for normalization. Default: 10
               --wireframe             Render in wireframe mode.
+              --no-skybox            Hide the background skybox while keeping env lighting.
+              --shading <mode>       pbr | fullbright
+              --fullbright           Shortcut for '--shading fullbright'.
               --no-bones              Disable skeleton bone preview lines.
               --no-grid               Disable the world grid.
               --envmap <path>         Load an equirectangular environment map.
@@ -204,11 +251,14 @@ public sealed class PreviewCliOptions
               --envmap-flip-y         Force vertical flip for environment map import.
               --envmap-no-flip-y      Disable vertical flip for environment map import.
               --no-ibl                Disable Image-Based Lighting.
+              --msaa <samples>        Use renderer-managed MSAA. Default: 4 (0 or 1 disables)
               -h, --help              Show this help text.
 
             Runtime shortcuts:
               1 / 2 / 3               Switch Arcball / Blender / FPS camera.
               B                       Toggle bone preview.
+              H                       Toggle skybox visibility.
+              L                       Toggle PBR / fullbright shading.
               V                       Toggle environment map blur.
               G                       Toggle grid.
               W                       Toggle wireframe.
@@ -245,6 +295,26 @@ public sealed class PreviewCliOptions
             "blender" => CameraMode.Blender,
             "fps" => CameraMode.Fps,
             _ => throw new ArgumentException($"Unknown camera mode '{value}'."),
+        };
+    }
+
+    private static PreviewBackend ParseBackend(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "cli" => PreviewBackend.Cli,
+            "avalonia" or "ui" => PreviewBackend.Avalonia,
+            _ => throw new ArgumentException($"Unknown preview backend '{value}'."),
+        };
+    }
+
+    private static RendererShadingMode ParseShadingMode(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "pbr" => RendererShadingMode.Pbr,
+            "fullbright" or "unlit" or "flat" => RendererShadingMode.Fullbright,
+            _ => throw new ArgumentException($"Unknown shading mode '{value}'."),
         };
     }
 

@@ -1,4 +1,6 @@
 using System.Numerics;
+using OpenGlSceneBounds = RedFox.Graphics3D.OpenGL.Viewing.SceneBounds;
+using OpenGlSceneBoundsInfo = RedFox.Graphics3D.OpenGL.Viewing.SceneBoundsInfo;
 
 namespace RedFox.Graphics3D.Preview;
 
@@ -17,40 +19,9 @@ public static class SceneBounds
 
     public static bool TryGetBounds(Scene scene, Matrix4x4 sceneTransform, out SceneBoundsInfo bounds)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-
-        bool hasBounds = false;
-        Vector3 min = new(float.PositiveInfinity);
-        Vector3 max = new(float.NegativeInfinity);
-
-        foreach (Mesh mesh in scene.RootNode.EnumerateDescendants<Mesh>())
-        {
-            if (mesh.Positions is null)
-                continue;
-
-            Matrix4x4 world = mesh.GetActiveWorldMatrix();
-
-            for (int vertexIndex = 0; vertexIndex < mesh.Positions.ElementCount; vertexIndex++)
-            {
-                Vector3 worldPosition = Vector3.Transform(mesh.Positions.GetVector3(vertexIndex, 0), world);
-                Vector3 sceneWorldPosition = Vector3.Transform(worldPosition, sceneTransform);
-
-                min = Vector3.Min(min, sceneWorldPosition);
-                max = Vector3.Max(max, sceneWorldPosition);
-                hasBounds = true;
-            }
-        }
-
-        if (!hasBounds)
-        {
-            bounds = new SceneBoundsInfo(Vector3.Zero, Vector3.Zero, Vector3.Zero, 1.0f);
-            return false;
-        }
-
-        Vector3 center = (min + max) * 0.5f;
-        float radius = MathF.Max(0.5f * Vector3.Distance(min, max), 1.0f);
-        bounds = new SceneBoundsInfo(min, max, center, radius);
-        return true;
+        bool hasBounds = OpenGlSceneBounds.TryGetBounds(scene, sceneTransform, out OpenGlSceneBoundsInfo openGlBounds);
+        bounds = new SceneBoundsInfo(openGlBounds.Min, openGlBounds.Max, openGlBounds.Center, openGlBounds.Radius);
+        return hasBounds;
     }
 }
 

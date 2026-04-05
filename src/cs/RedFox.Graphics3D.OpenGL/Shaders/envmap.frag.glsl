@@ -1,4 +1,4 @@
-in vec3 vRayDirection;
+in vec3 vDirection;
 
 uniform samplerCube uSkyCubemap;
 uniform float uExposure;
@@ -19,9 +19,10 @@ vec3 linearToSRGB(vec3 color)
 
 void main()
 {
-    vec3 dir = normalize(vRayDirection);
-    float lod = uBlurEnabled ? uBlurMipLevel : 0.0;
-    vec3 envColor = textureLod(uSkyCubemap, dir, lod).rgb;
+    vec3 dir = normalize(vDirection);
+    vec3 envColor = uBlurEnabled
+        ? textureLod(uSkyCubemap, dir, uBlurMipLevel).rgb
+        : textureLod(uSkyCubemap, dir, 0.0).rgb;
     vec3 mapped = tonemapReinhard(envColor * uExposure);
     FragColor = vec4(linearToSRGB(mapped), 1.0);
 }

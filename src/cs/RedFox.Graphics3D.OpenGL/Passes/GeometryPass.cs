@@ -1,5 +1,4 @@
 using System.Numerics;
-using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.OpenGL.Shaders;
 using Silk.NET.OpenGL;
 
@@ -26,17 +25,25 @@ public sealed class GeometryPass : IRenderPass
 
     public void Render(GLRenderer renderer, Scene scene, float deltaTime)
     {
-        if (!_initialized || !Enabled) return;
+        if (!_initialized || !Enabled)
+            return;
 
-        var camera = renderer.ActiveCamera;
-        if (camera == null) return;
+        Camera? camera = renderer.ActiveCamera;
+        if (camera is null)
+            return;
 
         _meshShader.Use();
         SetSceneUniforms(renderer, camera);
 
-        foreach (var mesh in scene.RootNode.EnumerateDescendants<Mesh>())
+        bool wireframeApplied = ApplyGeometryPolygonMode(renderer);
+        try
         {
-            RenderMesh(renderer, mesh);
+            foreach (Mesh mesh in scene.RootNode.EnumerateDescendants<Mesh>())
+                RenderMesh(renderer, mesh);
+        }
+        finally
+        {
+            RestoreGeometryPolygonMode(wireframeApplied);
         }
     }
 
@@ -56,16 +63,18 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uAmbientStrength", 0.85f);
         _meshShader.SetUniform("uEnvironmentMapExposure", renderer.EnvironmentMapExposure);
         _meshShader.SetUniform("uEnvironmentMapIntensity", renderer.EnvironmentMapReflectionIntensity);
+        _meshShader.SetUniform("uShadingMode", (int)renderer.ShadingMode);
     }
 
     private void RenderMesh(GLRenderer renderer, Mesh mesh)
     {
-        var handle = renderer.GetOrCreateMeshHandle(mesh);
-        if (handle == null) return;
+        GLMeshHandle? handle = renderer.GetOrCreateMeshHandle(mesh);
+        if (handle is null)
+            return;
 
         renderer.UpdateDynamicMeshData(mesh, handle);
 
-        var model = mesh.GetActiveWorldMatrix();
+        Matrix4x4 model = mesh.GetActiveWorldMatrix();
         _meshShader.SetUniform("uModel", model);
         _meshShader.SetUniform("uNormalMatrix", ComputeNormalMatrix(model));
         _meshShader.SetUniform("uHasNormals", handle.HasNormals);
@@ -74,7 +83,7 @@ public sealed class GeometryPass : IRenderPass
         if (handle.HasSkinning)
             BindSkinningTextures(renderer, mesh, handle);
 
-        var material = mesh.Materials?.FirstOrDefault();
+        Material? material = mesh.Materials?.FirstOrDefault();
         ConfigureCullState(renderer, handle, material, model);
         ApplyMaterial(renderer, material);
 
@@ -96,6 +105,23 @@ public sealed class GeometryPass : IRenderPass
 
         if (handle.HasSkinning)
             UnbindSkinningTextures();
+    }
+
+    private bool ApplyGeometryPolygonMode(GLRenderer renderer)
+    {
+        if (!renderer.ShowWireframe || renderer.IsOpenGles)
+            return false;
+
+        _gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Line);
+        return true;
+    }
+
+    private void RestoreGeometryPolygonMode(bool wireframeApplied)
+    {
+        if (!wireframeApplied)
+            return;
+
+        _gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Fill);
     }
 
     // ------------------------------------------------------------------
@@ -137,9 +163,9 @@ public sealed class GeometryPass : IRenderPass
         _gl.FrontFace(frontFaceClockwise ? (FrontFaceDirection)0x0900 : FrontFaceDirection.Ccw);
 
         bool cullBackFaces = renderer.EnableBackFaceCulling &&
-                            handle.HasConsistentWinding &&
-                            !handle.HasSkinning &&
-                            !(material?.DoubleSided ?? false);
+                             handle.HasConsistentWinding &&
+                             !handle.HasSkinning &&
+                             !(material?.DoubleSided ?? false);
         if (cullBackFaces)
         {
             _gl.Enable(EnableCap.CullFace);
@@ -166,10 +192,6 @@ public sealed class GeometryPass : IRenderPass
 
     private void BindDefaultTextures()
     {
-        // Bind a 1x1 white texture to every material sampler unit so that
-        // unbound samplers always reference a valid GL object. This prevents
-        // undefined behaviour on drivers that evaluate both ternary branches
-        // or that read from default-unit-0 for unset sampler uniforms.
         ReadOnlySpan<uint> units = [0, 7, 8, 9, 10, 11];
         ReadOnlySpan<string> names =
         [
@@ -195,10 +217,10 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uDiffuseColor", diffuseColor);
 
         bool hasDiffuseTex = false;
-        if (material != null && material.TryGetDiffuseMap(out var texture))
+        if (material is not null && material.TryGetDiffuseMap(out Texture? texture))
         {
-            var texHandle = renderer.GetOrCreateTextureHandle(texture);
-            if (texHandle != null)
+            GLTextureHandle? texHandle = renderer.GetOrCreateTextureHandle(texture);
+            if (texHandle is not null)
             {
                 texHandle.Bind(0);
                 _meshShader.SetUniform("uDiffuseTexture", 0);
@@ -249,7 +271,6 @@ public sealed class GeometryPass : IRenderPass
 
     private void ApplyPbrFactors(Material? material)
     {
-        (float metallicFactor, float roughnessFactor) = PbrMaterialFactors.Resolve(material);
         _meshShader.SetUniform("uMetallicFactor", 0f);
         _meshShader.SetUniform("uRoughnessFactor", 0.5f);
         _meshShader.SetUniform("uDoubleSided", material?.DoubleSided ?? false);
@@ -261,23 +282,24 @@ public sealed class GeometryPass : IRenderPass
 
     private void ApplyMaterialTextures(GLRenderer renderer, Material? material)
     {
-        bool hasMrTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetMetallicMap(out t), 7, "uMetallicRoughnessTexture");
+        bool hasMrTexture = TryBindMaterialTexture(renderer, material, static (Material m, out Texture? t) => m.TryGetMetallicMap(out t), 7, "uMetallicRoughnessTexture");
         _meshShader.SetUniform("uHasMetallicRoughnessTexture", hasMrTexture);
 
-        bool hasRoughnessTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetRoughnessMap(out t), 9, "uRoughnessTexture");
+        bool hasRoughnessTexture = TryBindMaterialTexture(renderer, material, static (Material m, out Texture? t) => m.TryGetRoughnessMap(out t), 9, "uRoughnessTexture");
         _meshShader.SetUniform("uHasRoughnessTexture", hasRoughnessTexture);
 
         bool hasGlossTexture = false;
         if (!hasRoughnessTexture)
-            hasGlossTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetGlossMap(out t), 10, "uGlossTexture");
+            hasGlossTexture = TryBindMaterialTexture(renderer, material, static (Material m, out Texture? t) => m.TryGetGlossMap(out t), 10, "uGlossTexture");
         _meshShader.SetUniform("uHasGlossTexture", hasGlossTexture);
 
-        bool hasSpecularTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetSpecularMap(out t), 11, "uSpecularTexture");
+        bool hasSpecularTexture = TryBindMaterialTexture(renderer, material, static (Material m, out Texture? t) => m.TryGetSpecularMap(out t), 11, "uSpecularTexture");
         _meshShader.SetUniform("uHasSpecularTexture", hasSpecularTexture);
-        _meshShader.SetUniform("uUseLegacySpecular",
+        _meshShader.SetUniform(
+            "uUseLegacySpecular",
             hasSpecularTexture || material?.SpecularColor.HasValue == true || material?.SpecularStrength.HasValue == true);
 
-        bool hasAoTexture = TryBindMaterialTexture(renderer, material, (m, out t) => m.TryGetAmbientOcclusionMap(out t), 8, "uAoTexture");
+        bool hasAoTexture = TryBindMaterialTexture(renderer, material, static (Material m, out Texture? t) => m.TryGetAmbientOcclusionMap(out t), 8, "uAoTexture");
         _meshShader.SetUniform("uHasAoTexture", hasAoTexture);
     }
 
@@ -285,9 +307,9 @@ public sealed class GeometryPass : IRenderPass
 
     private bool TryBindMaterialTexture(GLRenderer renderer, Material? material, TryGetTexture getter, uint unit, string uniformName)
     {
-        if (material is not null && getter(material, out var texture) && texture is not null)
+        if (material is not null && getter(material, out Texture? texture) && texture is not null)
         {
-            var texHandle = renderer.GetOrCreateTextureHandle(texture);
+            GLTextureHandle? texHandle = renderer.GetOrCreateTextureHandle(texture);
             if (texHandle is not null)
             {
                 texHandle.Bind(unit);
@@ -295,6 +317,7 @@ public sealed class GeometryPass : IRenderPass
                 return true;
             }
         }
+
         return false;
     }
 
@@ -306,14 +329,15 @@ public sealed class GeometryPass : IRenderPass
 
     private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)
     {
-        if (Matrix4x4.Invert(model, out var inverseModel))
+        if (Matrix4x4.Invert(model, out Matrix4x4 inverseModel))
         {
-            var transposed = Matrix4x4.Transpose(inverseModel);
+            Matrix4x4 transposed = Matrix4x4.Transpose(inverseModel);
             return new Matrix3x3(
                 transposed.M11, transposed.M12, transposed.M13,
                 transposed.M21, transposed.M22, transposed.M23,
                 transposed.M31, transposed.M32, transposed.M33);
         }
+
         return Matrix3x3.Identity;
     }
 
@@ -342,6 +366,7 @@ public sealed class GeometryPass : IRenderPass
     public void Dispose()
     {
         _meshShader?.Dispose();
+
         if (_defaultWhiteTexture != 0)
         {
             try { _gl.DeleteTexture(_defaultWhiteTexture); } catch { }

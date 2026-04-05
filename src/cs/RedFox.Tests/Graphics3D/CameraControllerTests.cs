@@ -96,4 +96,40 @@ public sealed class CameraControllerTests
         Assert.Equal(center.Z, camera.Target.Z, 4);
         Assert.True(Vector3.Distance(camera.Position, camera.Target) > 4.0f);
     }
+
+    [Fact]
+    public void Update_ArcballPositiveWheelDeltaAtMinimumDistance_AdvancesFocusPoint()
+    {
+        Camera camera = new()
+        {
+            Position = new Vector3(0.0f, 0.0f, 0.015f),
+            Target = Vector3.Zero,
+        };
+
+        CameraController controller = new(camera)
+        {
+            Mode = CameraMode.Arcball,
+            ZoomSensitivity = 0.15f,
+        };
+
+        Vector3 focusBefore = controller.FocusPoint;
+
+        controller.Update(new CameraInputState(
+            Vector2.Zero,
+            1.0f,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false), 0.0f);
+
+        Assert.True(controller.FocusPoint.Z < focusBefore.Z);
+        Assert.True(Vector3.Distance(camera.Position, camera.Target) >= 0.01f);
+    }
 }

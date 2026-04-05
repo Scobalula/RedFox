@@ -1,14 +1,16 @@
 layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec4 aColor;
 
-uniform mat4 uViewProjection;
+uniform mat4 uView;
+uniform mat4 uProjection;
+uniform vec3 uCameraPos;
 
 out vec4 vColor;
-out float vClipW;
 
 void main()
 {
     vColor = aColor;
-    gl_Position = uViewProjection * vec4(aPosition, 1.0);
-    vClipW = gl_Position.w;
+    vec3 cameraRelativePos = aPosition - uCameraPos;
+    mat4 viewRotation = mat4(mat3(uView));
+    gl_Position = uProjection * viewRotation * vec4(cameraRelativePos, 1.0);
 }

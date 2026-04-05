@@ -1,5 +1,6 @@
 using System.Numerics;
 using RedFox.Graphics3D.OpenGL.Shaders;
+using RedFox.Graphics3D.OpenGL.Viewing;
 using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL.Passes;
@@ -10,7 +11,7 @@ public sealed class GridPass : IRenderPass
     private GLShader _shader = null!;
     private uint _vao;
     private uint _vbo;
-    private int _vertexCount;
+    private GridSegment[] _segments = [];
     private bool _initialized;
 
     public string Name => "Grid";
@@ -21,34 +22,76 @@ public sealed class GridPass : IRenderPass
     public void Initialize(GLRenderer renderer)
     {
         _gl = renderer.GL;
-        (string gridVertex, string gridFragment) = ShaderSource.LoadProgram(_gl, "grid");
+        (string gridVertex, string gridFragment) = ShaderSource.LoadProgram(_gl, "overlay_line");
         _shader = new GLShader(_gl, gridVertex, gridFragment);
         BuildGeometry();
         _initialized = true;
     }
 
-    public void Render(GLRenderer renderer, Scene scene, float deltaTime)
+    public unsafe void Render(GLRenderer renderer, Scene scene, float deltaTime)
     {
         if (!_initialized || !Enabled || renderer.ActiveCamera is null || _vao == 0)
             return;
 
-        _shader.Use();
-        // System.Numerics composes row-major transforms, so combined matrices
-        // need to be built as view * projection before they are uploaded.
-        _shader.SetUniform("uViewProjection", renderer.ActiveCamera.GetViewMatrix() * renderer.ActiveCamera.GetProjectionMatrix());
-        _shader.SetUniform("uFarPlane", renderer.ActiveCamera.FarPlane);
+        int* viewport = stackalloc int[4];
+        _gl.GetInteger(GLEnum.Viewport, viewport);
+        int viewportWidth = viewport[2];
+        int viewportHeight = viewport[3];
+        if (viewportWidth <= 0 || viewportHeight <= 0)
+            return;
 
+        Matrix4x4 viewMatrix = renderer.ActiveCamera.GetViewMatrix();
+        Matrix4x4 projectionMatrix = renderer.ActiveCamera.GetProjectionMatrix();
+        float nearPlane = renderer.ActiveCamera.NearPlane;
+        float farPlane = renderer.ActiveCamera.FarPlane;
+        List<float> vertices = new(_segments.Length * 48);
+        foreach (GridSegment segment in _segments)
+        {
+            ScreenSpaceLineMeshBuilder.TryAppendQuad(
+                vertices,
+                segment.Start,
+                segment.End,
+                viewMatrix,
+                projectionMatrix,
+                nearPlane,
+                farPlane,
+                viewportWidth,
+                viewportHeight,
+                1.25f,
+                segment.Color);
+        }
+
+        if (vertices.Count == 0)
+            return;
+
+        float[] data = [.. vertices];
+        _gl.BindVertexArray(_vao);
+        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
+        fixed (float* ptr = data)
+        {
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsageARB.DynamicDraw);
+        }
+
+        _gl.EnableVertexAttribArray(0);
+        _gl.VertexAttribPointer(0, 4, VertexAttribPointerType.Float, false, 8 * sizeof(float), 0);
+        _gl.EnableVertexAttribArray(1);
+        _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, 8 * sizeof(float), 4 * sizeof(float));
+
+        _shader.Use();
+        _gl.Disable(EnableCap.CullFace);
+        _gl.Disable(EnableCap.DepthTest);
+        _gl.DepthMask(false);
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
-        _gl.BindVertexArray(_vao);
-        _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)_vertexCount);
+        _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)(data.Length / 8));
         _gl.BindVertexArray(0);
         _gl.Disable(EnableCap.Blend);
+        _gl.DepthMask(true);
     }
 
-    private unsafe void BuildGeometry()
+    private void BuildGeometry()
     {
-        List<float> vertices = [];
+        List<GridSegment> segments = [];
         int lineCount = (int)MathF.Floor((HalfExtent * 2.0f) / Step) + 1;
 
         for (int lineIndex = 0; lineIndex < lineCount; lineIndex++)
@@ -58,48 +101,21 @@ public sealed class GridPass : IRenderPass
                 ? new Vector4(0.56f, 0.56f, 0.60f, 0.9f)
                 : new Vector4(0.32f, 0.34f, 0.38f, 0.55f);
 
-            AddVertex(vertices, new Vector3(offset, 0.0f, -HalfExtent), color);
-            AddVertex(vertices, new Vector3(offset, 0.0f, HalfExtent), color);
-            AddVertex(vertices, new Vector3(-HalfExtent, 0.0f, offset), color);
-            AddVertex(vertices, new Vector3(HalfExtent, 0.0f, offset), color);
+            segments.Add(new GridSegment(new Vector3(offset, 0.0f, -HalfExtent), new Vector3(offset, 0.0f, HalfExtent), color));
+            segments.Add(new GridSegment(new Vector3(-HalfExtent, 0.0f, offset), new Vector3(HalfExtent, 0.0f, offset), color));
         }
 
-        AddVertex(vertices, Vector3.Zero, new Vector4(0.95f, 0.25f, 0.25f, 1.0f));
-        AddVertex(vertices, new Vector3(HalfExtent, 0.0f, 0.0f), new Vector4(0.95f, 0.25f, 0.25f, 1.0f));
-        AddVertex(vertices, Vector3.Zero, new Vector4(0.25f, 0.6f, 0.95f, 1.0f));
-        AddVertex(vertices, new Vector3(0.0f, 0.0f, HalfExtent), new Vector4(0.25f, 0.6f, 0.95f, 1.0f));
-
-        float[] data = [.. vertices];
-        _vertexCount = data.Length / 7;
+        segments.Add(new GridSegment(Vector3.Zero, new Vector3(HalfExtent, 0.0f, 0.0f), new Vector4(0.95f, 0.25f, 0.25f, 1.0f)));
+        segments.Add(new GridSegment(Vector3.Zero, new Vector3(0.0f, 0.0f, HalfExtent), new Vector4(0.25f, 0.6f, 0.95f, 1.0f)));
+        _segments = [.. segments];
 
         _vao = _gl.GenVertexArray();
         _vbo = _gl.GenBuffer();
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        fixed (float* ptr = data)
-        {
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
-        }
-
-        const uint stride = 7 * sizeof(float);
-        _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, stride, 0);
-        _gl.EnableVertexAttribArray(1);
-        _gl.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 3 * sizeof(float));
         _gl.BindVertexArray(0);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-    }
-
-    private static void AddVertex(List<float> vertices, Vector3 position, Vector4 color)
-    {
-        vertices.Add(position.X);
-        vertices.Add(position.Y);
-        vertices.Add(position.Z);
-        vertices.Add(color.X);
-        vertices.Add(color.Y);
-        vertices.Add(color.Z);
-        vertices.Add(color.W);
     }
 
     public void Dispose()
@@ -118,4 +134,6 @@ public sealed class GridPass : IRenderPass
         {
         }
     }
+
+    private readonly record struct GridSegment(Vector3 Start, Vector3 End, Vector4 Color);
 }

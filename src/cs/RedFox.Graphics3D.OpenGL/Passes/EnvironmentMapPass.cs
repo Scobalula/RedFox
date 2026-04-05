@@ -12,7 +12,8 @@ public sealed class EnvironmentMapPass : IRenderPass
 {
     private GL _gl = null!;
     private GLShader _shader = null!;
-    private uint _emptyVao;
+    private uint _cubeVao;
+    private uint _cubeVbo;
     private bool _initialized;
 
     /// <inheritdoc/>
@@ -27,7 +28,27 @@ public sealed class EnvironmentMapPass : IRenderPass
         _gl = renderer.GL;
         (string vertexSource, string fragmentSource) = ShaderSource.LoadProgram(_gl, "envmap");
         _shader = new GLShader(_gl, vertexSource, fragmentSource);
-        _emptyVao = _gl.GenVertexArray();
+        _cubeVao = _gl.GenVertexArray();
+        _cubeVbo = _gl.GenBuffer();
+
+        unsafe
+        {
+            _gl.BindVertexArray(_cubeVao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _cubeVbo);
+            fixed (float* ptr = CubeGeometry.Vertices)
+            {
+                _gl.BufferData(
+                    BufferTargetARB.ArrayBuffer,
+                    (nuint)(CubeGeometry.Vertices.Length * sizeof(float)),
+                    ptr,
+                    BufferUsageARB.StaticDraw);
+            }
+
+            _gl.EnableVertexAttribArray(0);
+            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+            _gl.BindVertexArray(0);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
+        }
 
         _initialized = true;
     }
@@ -38,6 +59,9 @@ public sealed class EnvironmentMapPass : IRenderPass
         if (!_initialized || !Enabled)
             return;
 
+        if (!renderer.ShowSkybox)
+            return;
+
         GLEnvironmentResources? environment = renderer.EnvironmentResources;
         if (environment is null || environment.SkyCubemap.TextureId == 0)
             return;
@@ -46,32 +70,39 @@ public sealed class EnvironmentMapPass : IRenderPass
         if (camera is null)
             return;
 
-        Matrix4x4 viewProjection = camera.GetViewMatrix() * camera.GetProjectionMatrix();
-        if (!Matrix4x4.Invert(viewProjection, out Matrix4x4 inverseViewProjection))
-            return;
-
         _gl.DepthMask(false);
         _gl.Disable(GLEnum.DepthTest);
         _gl.Disable(EnableCap.CullFace);
 
         _shader.Use();
 
-        _shader.SetUniform("uInverseViewProjection", inverseViewProjection);
-        _shader.SetUniform("uCameraPos", camera.Position);
+        _shader.SetUniform("uProjection", camera.GetProjectionMatrix());
+        _shader.SetUniform("uView", camera.GetViewMatrix());
         _shader.SetUniform("uExposure", renderer.EnvironmentMapExposure);
         _shader.SetUniform("uBlurEnabled", renderer.EnvironmentMapBlurEnabled);
-        float blurMip = renderer.EnvironmentMapBlurEnabled
-            ? Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.SkyMaxMipLevel)
-            : 0.0f;
+        uint cubemapTextureId = environment.SkyCubemap.TextureId;
+        float blurMip = 0.0f;
+        if (renderer.EnvironmentMapBlurEnabled)
+        {
+            if (environment.PrefilterCubemap.TextureId != 0)
+            {
+                cubemapTextureId = environment.PrefilterCubemap.TextureId;
+                blurMip = Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.PrefilterMaxMipLevel);
+            }
+            else
+            {
+                blurMip = Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.SkyMaxMipLevel);
+            }
+        }
+
         _shader.SetUniform("uBlurMipLevel", blurMip);
 
-        // Bind precomputed sky cubemap
         _gl.ActiveTexture(TextureUnit.Texture0);
-        _gl.BindTexture(GLEnum.TextureCubeMap, environment.SkyCubemap.TextureId);
+        _gl.BindTexture(GLEnum.TextureCubeMap, cubemapTextureId);
         _shader.SetUniform("uSkyCubemap", 0);
 
-        _gl.BindVertexArray(_emptyVao);
-        _gl.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        _gl.BindVertexArray(_cubeVao);
+        _gl.DrawArrays(PrimitiveType.Triangles, 0, CubeGeometry.VertexCount);
         _gl.BindVertexArray(0);
 
         _gl.BindTexture(GLEnum.TextureCubeMap, 0);
@@ -87,8 +118,11 @@ public sealed class EnvironmentMapPass : IRenderPass
 
         try
         {
-            if (_emptyVao != 0)
-                _gl.DeleteVertexArray(_emptyVao);
+            if (_cubeVao != 0)
+                _gl.DeleteVertexArray(_cubeVao);
+
+            if (_cubeVbo != 0)
+                _gl.DeleteBuffer(_cubeVbo);
         }
         catch
         {

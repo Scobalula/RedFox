@@ -10,9 +10,13 @@ float kernelWeight(int offset)
 {
     int index = abs(offset);
     if (index == 0)
-        return 6.0;
+        return 70.0;
     if (index == 1)
-        return 4.0;
+        return 56.0;
+    if (index == 2)
+        return 28.0;
+    if (index == 3)
+        return 8.0;
     return 1.0;
 }
 
@@ -31,15 +35,15 @@ void main()
     buildBasis(dir, tangent, bitangent);
 
     float stepTexels = max(exp2(max(uTargetMipLevel - 1.0, 0.0)), 1.0);
-    float offsetScale = (2.0 * stepTexels) / max(uBaseResolution, 1.0);
+    float offsetScale = (6.0 * stepTexels) / max(uBaseResolution, 1.0);
 
     vec3 color = vec3(0.0);
     float totalWeight = 0.0;
 
-    for (int y = -2; y <= 2; y++)
+    for (int y = -4; y <= 4; y++)
     {
         float wy = kernelWeight(y);
-        for (int x = -2; x <= 2; x++)
+        for (int x = -4; x <= 4; x++)
         {
             float weight = wy * kernelWeight(x);
             vec2 offset = vec2(float(x), float(y)) * offsetScale;

@@ -7,6 +7,7 @@ public sealed class GLShader : IDisposable
 {
     private readonly GL _gl;
     private readonly Dictionary<string, int> _uniformCache = new();
+    private readonly Dictionary<string, UniformType> _uniformTypeCache = new();
 
     public uint ProgramId { get; }
 
@@ -33,6 +34,22 @@ public sealed class GLShader : IDisposable
         gl.DetachShader(ProgramId, fs);
         gl.DeleteShader(vs);
         gl.DeleteShader(fs);
+
+        CacheUniformMetadata();
+    }
+
+    private void CacheUniformMetadata()
+    {
+        _gl.GetProgram(ProgramId, ProgramPropertyARB.ActiveUniforms, out int count);
+        for (uint i = 0; i < (uint)count; i++)
+        {
+            string name = _gl.GetActiveUniform(ProgramId, i, out _, out UniformType type);
+            if (name.EndsWith("[0]"))
+                name = name[..^3];
+            int loc = _gl.GetUniformLocation(ProgramId, name);
+            _uniformCache[name] = loc;
+            _uniformTypeCache[name] = type;
+        }
     }
 
     private uint CompileShader(ShaderType type, string source)
@@ -68,7 +85,17 @@ public sealed class GLShader : IDisposable
     public void SetUniform(string name, int value)
     {
         int loc = GetUniformLocation(name);
-        if (loc >= 0) _gl.Uniform1(loc, value);
+        if (loc < 0) return;
+
+        if (_uniformTypeCache.TryGetValue(name, out UniformType type) &&
+            type == UniformType.Float)
+        {
+            _gl.Uniform1(loc, (float)value);
+        }
+        else
+        {
+            _gl.Uniform1(loc, value);
+        }
     }
 
     public void SetUniform(string name, float value)

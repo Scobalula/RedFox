@@ -94,7 +94,7 @@ namespace RedFox.Graphics2D.IO
         /// <param name="extension">The file extension, including the leading dot.</param>
         /// <returns><see langword="true"/> when this translator supports the extension; otherwise <see langword="false"/>.</returns>
         public virtual bool IsValid(string filePath, string extension) =>
-            Extensions.Contains(extension);
+            Extensions.Contains(extension, StringComparer.InvariantCultureIgnoreCase);
 
         /// <summary>
         /// Determines whether this translator can handle the given file based on extension and header bytes.

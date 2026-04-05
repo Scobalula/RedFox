@@ -1,7 +1,9 @@
 in vec3 vWorldPos;
 in vec3 vCameraRelativePos;
 noperspective in vec3 vCameraRelativePosLinear;
+in vec3 vViewPos;
 in vec3 vNormal;
+in vec3 vViewNormal;
 in vec2 vTexCoord;
 flat in int vHasNormals;
 in float vClipW;
@@ -48,12 +50,15 @@ uniform sampler2D uAoTexture;
 uniform bool uDoubleSided;
 
 uniform bool uUseIBL;
+uniform int uShadingMode;
 
 uniform float uFarPlane;
 
 out vec4 FragColor;
 
 const float PI = 3.14159265358979323846;
+const int SHADING_MODE_PBR = 0;
+const int SHADING_MODE_FULLBRIGHT = 1;
 
 vec3 sRGBToLinear(vec3 color)
 {
@@ -116,16 +121,31 @@ void main()
     // ---- Albedo / normal ------------------------------------------------
     vec4 texColor = uHasDiffuseTexture ? texture(uDiffuseTexture, vTexCoord) : vec4(1.0);
     vec4 baseColor = texColor * uDiffuseColor;
+    if (uShadingMode == SHADING_MODE_FULLBRIGHT)
+    {
+        FragColor = vec4(baseColor.rgb, baseColor.a);
+        gl_FragDepth = log2(max(1e-6, vClipW + 1.0)) / log2(uFarPlane + 1.0);
+        return;
+    }
 
     vec3 V = normalize(-vCameraRelativePos);
+    vec3 viewVector = normalize(-vViewPos);
     vec3 Ns = vHasNormals == 1
         ? normalize(vNormal)
         : vec3(0.0, 1.0, 0.0);
+    vec3 viewNs = vHasNormals == 1
+        ? normalize(vViewNormal)
+        : vec3(0.0, 1.0, 0.0);
     vec3 geometricNormal = cross(dFdx(vCameraRelativePosLinear), dFdy(vCameraRelativePosLinear));
+    vec3 viewGeometricNormal = cross(dFdx(vViewPos), dFdy(vViewPos));
     float geometricNormalLengthSquared = dot(geometricNormal, geometricNormal);
+    float viewGeometricNormalLengthSquared = dot(viewGeometricNormal, viewGeometricNormal);
     vec3 Ng = geometricNormalLengthSquared > 1e-12
         ? geometricNormal * inversesqrt(geometricNormalLengthSquared)
         : Ns;
+    vec3 viewNg = viewGeometricNormalLengthSquared > 1e-12
+        ? viewGeometricNormal * inversesqrt(viewGeometricNormalLengthSquared)
+        : viewNs;
 
     if (uDoubleSided)
     {
@@ -133,15 +153,20 @@ void main()
         {
             Ng = -Ng;
             Ns = -Ns;
+            viewNg = -viewNg;
+            viewNs = -viewNs;
         }
     }
     else
     {
         Ng = faceforward(Ng, -V, Ng);
         Ns = faceforward(Ns, -V, Ng);
+        viewNg = faceforward(viewNg, -viewVector, viewNg);
+        viewNs = faceforward(viewNs, -viewVector, viewNg);
     }
 
     vec3 N = normalize(Ns);
+    vec3 viewNormal = normalize(viewNs);
     float NdotV = max(abs(dot(N, V)), 1e-4);
 
     // ---- Material properties --------------------------------------------

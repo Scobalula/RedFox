@@ -1,0 +1,365 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.Graphics3D.Preview.ViewModels"
+        xmlns:gl="clr-namespace:RedFox.Graphics3D.OpenGL.Controls;assembly=RedFox.Graphics3D.OpenGL"
+        x:Class="RedFox.Graphics3D.Preview.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="1480"
+        Height="920"
+        MinWidth="1100"
+        MinHeight="720"
+        Title="RedFox Graphics3D Preview"
+        KeyDown="OnWindowKeyDown">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Background="#171C22"
+            BorderBrush="#22303D"
+            BorderThickness="0,0,0,1"
+            Padding="22,18">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="4">
+          <TextBlock Text="RedFox OpenGL Viewer"
+                     FontSize="24"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="Avalonia demo control with runtime scene swapping, camera controls, animation playback, and texture-backed rendering."
+                     Foreground="#A9B6C5"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10"
+                    VerticalAlignment="Center">
+          <Button Content="Add Files..."
+                  Click="OnAddFilesClick" />
+          <Button Content="Fit"
+                  Command="{Binding FitCameraCommand}" />
+          <Button Content="Reset Camera"
+                  Command="{Binding ResetCameraCommand}" />
+          <Button Content="Play / Pause"
+                  Command="{Binding ToggleAnimationPlaybackCommand}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1"
+          ColumnDefinitions="360,*"
+          ColumnSpacing="18"
+          Margin="18">
+      <Border Background="#11161C"
+              BorderBrush="#22303D"
+              BorderThickness="1"
+              CornerRadius="16"
+              Padding="18">
+        <ScrollViewer>
+          <StackPanel Spacing="18">
+            <StackPanel Spacing="10">
+              <TextBlock Text="Loaded Data"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <StackPanel Orientation="Horizontal"
+                          Spacing="8">
+                <Button Content="Remove Selected"
+                        Command="{Binding RemoveSelectedFileCommand}" />
+                <Button Content="Clear"
+                        Command="{Binding ClearFilesCommand}" />
+              </StackPanel>
+              <ListBox ItemsSource="{Binding LoadedFiles}"
+                       SelectedItem="{Binding SelectedFile}"
+                       Height="180">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:LoadedFileItem">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding DisplayName}"
+                                 FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding FullPath}"
+                                 Foreground="#93A5B8"
+                                 FontSize="11"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+              <TextBlock Text="Animation"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <CheckBox Content="Playing"
+                        IsChecked="{Binding IsAnimationPlaying}" />
+              <TextBlock Text="Clip" />
+              <ComboBox ItemsSource="{Binding AnimationOptions}"
+                        SelectedItem="{Binding SelectedAnimationOption}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AnimationOptionItem">
+                    <TextBlock Text="{Binding DisplayName}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Text="{Binding AnimationSpeed, StringFormat='Speed: {0:F2}x'}" />
+              <Slider Minimum="0.1"
+                      Maximum="3"
+                      Value="{Binding AnimationSpeed}" />
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+              <TextBlock Text="View"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <TextBlock Text="Camera Mode" />
+              <ComboBox ItemsSource="{Binding CameraModes}"
+                        SelectedItem="{Binding CameraMode}" />
+              <TextBlock Text="{Binding CameraFieldOfView, StringFormat='Field Of View: {0:F1}°'}" />
+              <Slider Minimum="10"
+                      Maximum="120"
+                      Value="{Binding CameraFieldOfView}" />
+              <TextBlock Text="Render From Bone" />
+              <ComboBox ItemsSource="{Binding AvailableViewBoneNames, ElementName=Viewer}"
+                        SelectedItem="{Binding SelectedViewBoneName}" />
+              <TextBlock Text="Bone Forward Axis" />
+              <ComboBox ItemsSource="{Binding BoneViewAxes}"
+                        SelectedItem="{Binding SelectedViewBoneForwardAxis}" />
+              <TextBlock Text="Bone Up Axis" />
+              <ComboBox ItemsSource="{Binding BoneViewAxes}"
+                        SelectedItem="{Binding SelectedViewBoneUpAxis}" />
+              <Button Content="Use Scene Camera"
+                      Command="{Binding ClearViewBoneCommand}"
+                      IsEnabled="{Binding HasSelectedViewBone}" />
+              <TextBlock Text="Up Axis" />
+              <ComboBox ItemsSource="{Binding UpAxisModes}"
+                        SelectedItem="{Binding UpAxis}" />
+              <TextBlock Text="MSAA" />
+              <CheckBox Content="Enable MSAA"
+                        IsChecked="{Binding IsMsaaEnabled}" />
+              <ComboBox ItemsSource="{Binding MsaaSampleOptions}"
+                        SelectedItem="{Binding MsaaSamples}"
+                        IsEnabled="{Binding IsMsaaEnabled}" />
+              <CheckBox Content="Auto-fit when scene changes"
+                        IsChecked="{Binding AutoFitOnSceneChanged}" />
+              <CheckBox Content="Normalize scene"
+                        IsChecked="{Binding NormalizeScene}" />
+              <TextBlock Text="{Binding NormalizeRadius, StringFormat='Normalize Radius: {0:F1}'}" />
+              <Slider Minimum="1"
+                      Maximum="20"
+                      Value="{Binding NormalizeRadius}" />
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+              <TextBlock Text="Renderer"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <CheckBox Content="Show bones"
+                        IsChecked="{Binding ShowBones}" />
+              <CheckBox Content="Show grid"
+                        IsChecked="{Binding ShowGrid}" />
+              <CheckBox Content="Wireframe"
+                        IsChecked="{Binding ShowWireframe}" />
+              <CheckBox Content="Show skybox"
+                        IsChecked="{Binding ShowSkybox}" />
+              <TextBlock Text="Shading" />
+              <ComboBox ItemsSource="{Binding ShadingModes}"
+                        SelectedItem="{Binding ShadingMode}" />
+              <CheckBox Content="Enable IBL"
+                        IsChecked="{Binding EnableIBL}" />
+              <CheckBox Content="Blur environment"
+                        IsChecked="{Binding EnvironmentMapBlurEnabled}" />
+              <TextBlock Text="{Binding EnvironmentMapExposure, StringFormat='Env Exposure: {0:F2}'}" />
+              <Slider Minimum="0.1"
+                      Maximum="4"
+                      Value="{Binding EnvironmentMapExposure}" />
+              <TextBlock Text="{Binding EnvironmentMapReflectionIntensity, StringFormat='Env Intensity: {0:F2}'}" />
+              <Slider Minimum="0"
+                      Maximum="4"
+                      Value="{Binding EnvironmentMapReflectionIntensity}" />
+              <TextBlock Text="{Binding EnvironmentMapBlurRadius, StringFormat='Env Blur Radius: {0:F2}'}" />
+              <Slider Minimum="0"
+                      Maximum="8"
+                      Value="{Binding EnvironmentMapBlurRadius}" />
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+              <TextBlock Text="Environment Map"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <TextBox Text="{Binding EnvironmentMapPath}"
+                       Watermark="Optional HDR / EXR environment map path" />
+              <StackPanel Orientation="Horizontal"
+                          Spacing="8">
+                <Button Content="Browse..."
+                        Click="OnBrowseEnvironmentMapClick" />
+                <Button Content="Clear"
+                        Click="OnClearEnvironmentMapClick" />
+              </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="Status"
+                         FontSize="16"
+                         FontWeight="SemiBold" />
+              <TextBlock Text="{Binding StatusText}"
+                         TextWrapping="Wrap"
+                         Foreground="#C9D3DE" />
+              <TextBlock Text="{Binding ErrorMessage}"
+                         IsVisible="{Binding HasErrorMessage}"
+                         TextWrapping="Wrap"
+                         Foreground="#FF8B7A" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <Border Grid.Column="1"
+              Background="#0C1116"
+              BorderBrush="#22303D"
+              BorderThickness="1"
+              CornerRadius="20"
+              Padding="12">
+        <Grid x:Name="ViewerHost">
+          <gl:SceneViewer x:Name="Viewer"
+                          Scene="{Binding Scene}"
+                          ImageTranslatorManager="{Binding ImageTranslatorManager}"
+                          Controller="{Binding ViewerController}"
+                          ShowBones="{Binding ShowBones}"
+                          ShowGrid="{Binding ShowGrid}"
+                          ShowWireframe="{Binding ShowWireframe}"
+                          ShowSkybox="{Binding ShowSkybox}"
+                          AutoFitOnSceneChanged="{Binding AutoFitOnSceneChanged}"
+                          NormalizeScene="{Binding NormalizeScene}"
+                          NormalizeRadius="{Binding NormalizeRadius}"
+                          UpAxis="{Binding UpAxis}"
+                          AnimationName="{Binding SelectedAnimation}"
+                          ViewBoneName="{Binding SelectedViewBoneName}"
+                          ViewBoneForwardAxis="{Binding SelectedViewBoneForwardAxis}"
+                          ViewBoneUpAxis="{Binding SelectedViewBoneUpAxis}"
+                          AnimationSpeed="{Binding AnimationSpeed}"
+                          IsAnimationPlaying="{Binding IsAnimationPlaying}"
+                          AnimationTimeSeconds="{Binding AnimationTimeSeconds, Mode=TwoWay}"
+                          AnimationDurationSeconds="{Binding AnimationDurationSeconds, Mode=TwoWay}"
+                          AnimationFrameRate="{Binding AnimationFrameRate, Mode=TwoWay}"
+                          CameraMode="{Binding CameraMode}"
+                          FieldOfView="{Binding CameraFieldOfView, Mode=TwoWay}"
+                          EnvironmentMapPath="{Binding EnvironmentMapPath}"
+                          EnvironmentMapExposure="{Binding EnvironmentMapExposure}"
+                          EnvironmentMapReflectionIntensity="{Binding EnvironmentMapReflectionIntensity}"
+                          EnvironmentMapBlurEnabled="{Binding EnvironmentMapBlurEnabled}"
+                          EnvironmentMapBlurRadius="{Binding EnvironmentMapBlurRadius}"
+                          EnvironmentMapFlipMode="{Binding EnvironmentMapFlipMode}"
+                          EnableIBL="{Binding EnableIBL}"
+                          ShadingMode="{Binding ShadingMode}"
+                          MsaaSamples="{Binding MsaaSamples}" />
+
+          <Border Background="#6A10161C"
+                  CornerRadius="14"
+                  Padding="18"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding ShowEmptyState}">
+            <StackPanel Spacing="8"
+                        Width="360">
+              <TextBlock Text="Drop models, animations, or materials here"
+                         FontSize="20"
+                         FontWeight="SemiBold"
+                         TextAlignment="Center" />
+              <TextBlock Text="The viewer binds directly to the scene object, so swapping data from the file list or from drag and drop updates the control at runtime."
+                         Foreground="#A9B6C5"
+                         TextAlignment="Center"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#7A0E141A"
+                  CornerRadius="12"
+                  Padding="12"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"
+                  Margin="12">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Shortcuts"
+                         FontWeight="SemiBold" />
+              <TextBlock Text="1/2/3 camera modes, B bones, G grid, W wireframe, V blur, F fit, P play/pause"
+                         FontSize="11"
+                         Foreground="#B5C1CE"
+                         TextWrapping="Wrap"
+                         Width="330" />
+            </StackPanel>
+          </Border>
+
+          <Border Background="#7A0E141A"
+                  CornerRadius="12"
+                  Padding="12"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Top"
+                  Margin="12">
+            <StackPanel Spacing="4"
+                        HorizontalAlignment="Right">
+              <TextBlock Text="{Binding IsLoading, StringFormat='Loading: {0}'}"
+                         FontSize="11"
+                         Foreground="#B5C1CE" />
+              <TextBlock Text="{Binding FramesPerSecond, ElementName=Viewer, StringFormat='FPS: {0:F1}'}"
+                         FontSize="11"
+                         Foreground="#B5C1CE" />
+              <TextBlock Text="{Binding AverageFrameTimeMilliseconds, ElementName=Viewer, StringFormat='Frame: {0:F2} ms'}"
+                         FontSize="11"
+                         Foreground="#B5C1CE" />
+              <TextBlock Text="{Binding RenderedFrameCount, ElementName=Viewer, StringFormat='Frames: {0}'}"
+                         FontSize="11"
+                         Foreground="#B5C1CE" />
+              <TextBlock Text="{Binding AvailableAnimationNames.Count, ElementName=Viewer, StringFormat='Clips: {0}'}"
+                         FontSize="11"
+                         Foreground="#B5C1CE" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Background="#11161C"
+            BorderBrush="#22303D"
+            BorderThickness="0,1,0,0"
+            Padding="18,12">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto"
+            ColumnSpacing="10">
+        <TextBlock Text="Timeline"
+                   VerticalAlignment="Center"
+                   FontWeight="SemiBold" />
+
+        <Button Grid.Column="1"
+                Content="|&lt;"
+                Command="{Binding JumpToAnimationStartCommand}"
+                IsEnabled="{Binding HasTimeline}" />
+
+        <Button Grid.Column="2"
+                Content="&lt; Frame"
+                Command="{Binding StepBackwardFrameCommand}"
+                IsEnabled="{Binding HasTimeline}" />
+
+        <Button Grid.Column="3"
+                Content="Frame &gt;"
+                Command="{Binding StepForwardFrameCommand}"
+                IsEnabled="{Binding HasTimeline}" />
+
+        <Slider Grid.Column="4"
+                Minimum="0"
+                Maximum="{Binding AnimationDurationSeconds}"
+                Value="{Binding AnimationTimeSeconds}"
+                IsEnabled="{Binding HasTimeline}" />
+
+        <NumericUpDown Grid.Column="5"
+                       Width="120"
+                       Minimum="0"
+                       Maximum="{Binding AnimationDurationSecondsValue}"
+                       Increment="{Binding AnimationFrameDurationValue}"
+                       Value="{Binding AnimationTimeSecondsValue}"
+                       FormatString="F4"
+                       IsEnabled="{Binding HasTimeline}" />
+
+        <TextBlock Grid.Column="6"
+                   Text="{Binding TimelineSummary}"
+                   VerticalAlignment="Center"
+                   Foreground="#B5C1CE"
+                   TextWrapping="Wrap" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

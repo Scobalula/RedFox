@@ -27,6 +27,7 @@ public readonly record struct CameraInputState(
 public sealed class CameraController
 {
     private const float HalfPiMinusEpsilon = 1.5607964f;
+    private const float MinimumDistance = 0.01f;
 
     private readonly Camera _camera;
     private float _yaw;
@@ -44,7 +45,7 @@ public sealed class CameraController
     public CameraMode Mode { get; set; } = CameraMode.Arcball;
     public float OrbitSensitivity { get; set; } = 0.01f;
     public float PanSensitivity { get; set; } = 0.0025f;
-    public float ZoomSensitivity { get; set; } = 0.15f;
+    public float ZoomSensitivity { get; set; } = 0.12f;
     public float MoveSpeed { get; set; } = 4.5f;
     public float FastMoveMultiplier { get; set; } = 3.0f;
     public Vector3 FocusPoint => _focusPoint;
@@ -78,7 +79,7 @@ public sealed class CameraController
         _pitch = Math.Clamp(MathF.Asin(forward.Y), -HalfPiMinusEpsilon, HalfPiMinusEpsilon);
         _yaw = MathF.Atan2(forward.X, -forward.Z);
         _focusPoint = _camera.Target;
-        _distance = MathF.Max(Vector3.Distance(_camera.Position, _camera.Target), 0.001f);
+        _distance = MathF.Max(Vector3.Distance(_camera.Position, _camera.Target), MinimumDistance);
     }
 
     public void Update(in CameraInputState input, float deltaTime)
@@ -142,8 +143,7 @@ public sealed class CameraController
         }
 
         float moveSpeed = MoveSpeed * deltaTime * (input.FastMoveModifier ? FastMoveMultiplier : 1.0f);
-        Vector3 forward = GetForward();
-        Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
+        GetOrbitBasis(out Vector3 forward, out Vector3 right, out _);
         Vector3 movement = Vector3.Zero;
 
         if (input.MoveForward) movement += forward;
@@ -170,7 +170,7 @@ public sealed class CameraController
         if (MathF.Abs(direction) < float.Epsilon)
             return;
 
-        _distance = MathF.Max(0.1f, _distance - (direction * MoveSpeed * deltaTime));
+        ApplyDolly(direction * MoveSpeed * deltaTime);
     }
 
     private void Orbit(Vector2 mouseDelta)
@@ -181,26 +181,34 @@ public sealed class CameraController
 
     private void Pan(Vector2 mouseDelta)
     {
-        Vector3 forward = GetForward();
-        Vector3 right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
-        Vector3 up = Vector3.Normalize(Vector3.Cross(right, forward));
-        float panScale = MathF.Max(_distance, 1.0f) * PanSensitivity;
+        GetOrbitBasis(out _, out Vector3 right, out Vector3 up);
+        float distanceScale = _camera.Projection == CameraProjection.Orthographic
+            ? MathF.Max(_camera.OrthographicSize, 0.25f)
+            : MathF.Max(_distance, 0.25f);
+        float fovScale = _camera.Projection == CameraProjection.Orthographic
+            ? 1.0f
+            : MathF.Tan(float.DegreesToRadians(MathF.Max(_camera.FieldOfView, 1.0f)) * 0.5f) * 2.0f;
+        float panScale = distanceScale * fovScale * PanSensitivity;
 
         _focusPoint += (-right * mouseDelta.X + up * mouseDelta.Y) * panScale;
     }
 
     private void Zoom(float wheelDelta)
     {
-        float zoomAmount = MathF.Max(_distance, 1.0f) * wheelDelta * ZoomSensitivity;
-        _distance = MathF.Max(_distance - zoomAmount, 0.1f);
+        if (MathF.Abs(wheelDelta) < float.Epsilon)
+            return;
+
+        float zoomFactor = MathF.Exp(wheelDelta * ZoomSensitivity);
+        float dollyAmount = MathF.Max(_distance, 0.1f) * (1.0f - (1.0f / zoomFactor));
+        ApplyDolly(dollyAmount);
     }
 
     private void ApplyOrbitCamera()
     {
-        Vector3 forward = GetForward();
+        GetOrbitBasis(out Vector3 forward, out _, out Vector3 up);
         _camera.Target = _focusPoint;
         _camera.Position = _focusPoint - (forward * _distance);
-        _camera.Up = Vector3.UnitY;
+        _camera.Up = up;
     }
 
     private Vector3 GetForward()
@@ -210,5 +218,49 @@ public sealed class CameraController
             MathF.Sin(_yaw) * cosPitch,
             MathF.Sin(_pitch),
             -MathF.Cos(_yaw) * cosPitch));
+    }
+
+    private Vector3 GetRight()
+    {
+        // Keep the horizontal orbit axis driven by yaw alone so it stays stable
+        // as we approach a top-down view instead of collapsing at the pole.
+        Vector3 right = new(
+            MathF.Cos(_yaw),
+            0.0f,
+            MathF.Sin(_yaw));
+
+        return NormalizeOrFallback(right, Vector3.UnitX);
+    }
+
+    private void GetOrbitBasis(out Vector3 forward, out Vector3 right, out Vector3 up)
+    {
+        forward = GetForward();
+        right = GetRight();
+        up = Vector3.Cross(right, forward);
+        up = NormalizeOrFallback(up, Vector3.UnitY);
+    }
+
+    private void ApplyDolly(float amount)
+    {
+        if (MathF.Abs(amount) < float.Epsilon)
+            return;
+
+        float desiredDistance = _distance - amount;
+        if (desiredDistance >= MinimumDistance)
+        {
+            _distance = desiredDistance;
+            return;
+        }
+
+        float forwardTravel = MinimumDistance - desiredDistance;
+        _distance = MinimumDistance;
+
+        if (amount > 0.0f)
+            _focusPoint += GetForward() * forwardTravel;
+    }
+
+    private static Vector3 NormalizeOrFallback(Vector3 value, Vector3 fallback)
+    {
+        return value.LengthSquared() > 1e-8f ? Vector3.Normalize(value) : fallback;
     }
 }

@@ -25,6 +25,7 @@ public sealed class PreviewCliOptionsTests
             "--no-fit",
             "--wireframe",
             "--no-bones",
+            "--msaa", "8",
             "mesh_a.obj",
             "mesh_b.obj",
         ]);
@@ -43,6 +44,7 @@ public sealed class PreviewCliOptionsTests
         Assert.Equal("Walk", options.AnimationName);
         Assert.Equal(1.5f, options.AnimationSpeed, 3);
         Assert.Equal(8.0f, options.NormalizeRadius, 3);
+        Assert.Equal(8, options.MsaaSamples);
         Assert.Equal(2, options.InputFiles.Count);
         Assert.EndsWith("mesh_a.obj", options.InputFiles[0], StringComparison.OrdinalIgnoreCase);
         Assert.EndsWith("mesh_b.obj", options.InputFiles[1], StringComparison.OrdinalIgnoreCase);
@@ -73,6 +75,20 @@ public sealed class PreviewCliOptionsTests
     }
 
     [Fact]
+    public void Parse_WithSkyboxAndShadingFlags_BindsExpectedOptions()
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            "--no-skybox",
+            "--shading", "fullbright",
+            "mesh.obj",
+        ]);
+
+        Assert.False(options.ShowSkybox);
+        Assert.Equal(RendererShadingMode.Fullbright, options.ShadingMode);
+    }
+
+    [Fact]
     public void Parse_WithEnvmapFlipY_SetsFlipMode()
     {
         PreviewCliOptions options = PreviewCliOptions.Parse(
@@ -95,5 +111,55 @@ public sealed class PreviewCliOptionsTests
             "--envmap-no-flip-y",
             "mesh.obj",
         ]));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(4, 4)]
+    public void Parse_WithMsaa_BindsRequestedSampleCount(int requested, int expected)
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            "--msaa", requested.ToString(),
+            "mesh.obj",
+        ]);
+
+        Assert.Equal(expected, options.MsaaSamples);
+    }
+
+    [Fact]
+    public void Parse_WithNegativeMsaa_Throws()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => PreviewCliOptions.Parse(
+        [
+            "--msaa", "-1",
+            "mesh.obj",
+        ]));
+    }
+
+    [Fact]
+    public void Parse_WithoutBackendFlag_DefaultsToCliBackend()
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            "mesh.obj",
+        ]);
+
+        Assert.Equal(PreviewBackend.Cli, options.Backend);
+    }
+
+    [Theory]
+    [InlineData("--backend", "cli", PreviewBackend.Cli)]
+    [InlineData("--backend", "avalonia", PreviewBackend.Avalonia)]
+    public void Parse_WithBackendFlag_BindsExpectedBackend(string option, string value, PreviewBackend expected)
+    {
+        PreviewCliOptions options = PreviewCliOptions.Parse(
+        [
+            option, value,
+            "mesh.obj",
+        ]);
+
+        Assert.Equal(expected, options.Backend);
     }
 }

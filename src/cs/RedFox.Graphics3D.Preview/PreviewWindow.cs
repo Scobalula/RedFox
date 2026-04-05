@@ -2,6 +2,7 @@ using RedFox.Graphics2D.IO;
 using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.OpenGL.Cameras;
 using RedFox.Graphics3D.OpenGL.Passes;
+using RedFox.Graphics3D.OpenGL.Viewing;
 
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -78,14 +79,18 @@ public sealed class PreviewWindow : IDisposable
             ImageTranslatorManager = _imageTranslatorManager,
             ShowBones = _options.ShowBones,
             ShowWireframe = _options.Wireframe,
+            ShowSkybox = _options.ShowSkybox,
             EnableBackFaceCulling = true,
+            ShadingMode = _options.ShadingMode,
             EnvironmentMapExposure = _options.EnvironmentMapExposure,
             EnvironmentMapReflectionIntensity = _options.EnvironmentMapReflectionIntensity,
             EnvironmentMapBlurEnabled = _options.EnvironmentMapBlur,
             EnvironmentMapBlurRadius = _options.EnvironmentMapBlurRadius,
             EnableIBL = _options.EnableIBL,
+            RequestedMsaaSamples = _options.MsaaSamples,
         };
         _renderer.Initialize();
+        _renderer.SetOutputSize(_window.FramebufferSize.X, _window.FramebufferSize.Y);
         _renderer.SceneTransform = SceneBootstrapper.GetUpAxisTransform(_options.UpAxis);
         
         if (_renderer.GetPass<GridPass>() is GridPass gridPass)
@@ -150,6 +155,8 @@ public sealed class PreviewWindow : IDisposable
             // Check specific keys we care about
             CheckKeyState(keyboard, Key.Escape);
             CheckKeyState(keyboard, Key.B);
+            CheckKeyState(keyboard, Key.H);
+            CheckKeyState(keyboard, Key.L);
             CheckKeyState(keyboard, Key.V);
             CheckKeyState(keyboard, Key.G);
             CheckKeyState(keyboard, Key.W);
@@ -239,6 +246,7 @@ public sealed class PreviewWindow : IDisposable
 
     private void OnFramebufferResize(Vector2D<int> size)
     {
+        _renderer?.SetOutputSize(size.X, size.Y);
         _gl?.Viewport(size);
         
         if (_camera is not null)
@@ -264,6 +272,20 @@ public sealed class PreviewWindow : IDisposable
             case Key.B:
                 if (_renderer is not null)
                     _renderer.ShowBones = !_renderer.ShowBones;
+                break;
+
+            case Key.H:
+                if (_renderer is not null)
+                    _renderer.ShowSkybox = !_renderer.ShowSkybox;
+                break;
+
+            case Key.L:
+                if (_renderer is not null)
+                {
+                    _renderer.ShadingMode = _renderer.ShadingMode == RendererShadingMode.Pbr
+                        ? RendererShadingMode.Fullbright
+                        : RendererShadingMode.Pbr;
+                }
                 break;
 
             case Key.V:
@@ -359,27 +381,17 @@ public sealed class PreviewWindow : IDisposable
         if (_camera is null)
             return;
 
-        float radius = MathF.Max(sceneRadius, 0.1f);
-        float distanceToCenter = Vector3.Distance(_camera.Position, sceneCenter);
-        float nearestSurfaceDistance = MathF.Max(distanceToCenter - radius, 0.0f);
-        float farPlane = MathF.Max(distanceToCenter + radius + radius * 0.5f, radius * 2.0f);
-
-        float nearPlane;
-        if (nearestSurfaceDistance > radius * 0.01f)
+        if (TryGetSceneBounds(out SceneBoundsInfo bounds))
         {
-            nearPlane = nearestSurfaceDistance * 0.1f;
-        }
-        else
-        {
-            nearPlane = MathF.Max(radius * 1e-5f, 1e-6f);
+            CameraClipPlanes.Configure(_camera, new RedFox.Graphics3D.OpenGL.Viewing.SceneBoundsInfo(bounds.Min, bounds.Max, bounds.Center, bounds.Radius));
+            return;
         }
 
-        float minNearForDepth = farPlane / 50000.0f;
-        nearPlane = MathF.Max(nearPlane, minNearForDepth);
-        nearPlane = MathF.Min(nearPlane, farPlane * 0.5f);
-
-        _camera.NearPlane = nearPlane;
-        _camera.FarPlane = MathF.Max(nearPlane + 1.0f, farPlane);
+        CameraClipPlanes.Configure(_camera, new RedFox.Graphics3D.OpenGL.Viewing.SceneBoundsInfo(
+            sceneCenter - new Vector3(sceneRadius),
+            sceneCenter + new Vector3(sceneRadius),
+            sceneCenter,
+            sceneRadius));
     }
 
     private void ApplySceneTransformToCamera(Camera camera, Matrix4x4 sceneTransform)

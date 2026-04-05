@@ -4,6 +4,7 @@ using RedFox.Graphics2D.IO;
 using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.OpenGL.Passes;
 using RedFox.Graphics3D.OpenGL.Shaders;
+using RedFox.Graphics3D.OpenGL.Viewing;
 using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL;
@@ -14,12 +15,14 @@ public sealed class GLRenderer : IDisposable
     private readonly List<IRenderPass> _passes = [];
     private GLEquirectangularEnvironmentMap? _environmentMap;
     private GLEnvironmentResources? _environmentResources;
+    private MultisampleFramebufferObject? _msaaFramebuffer;
 
-    private GLShader? _lineShader;
-    private uint _boneLineVao;
-    private uint _boneLineVbo;
     private bool _isInitialized;
     private int _maxTextureSize = 2048;
+    private int _maxMsaaSamples = 1;
+    private int _requestedMsaaSamples = 4;
+    private int _outputWidth;
+    private int _outputHeight;
 
     public GLRenderer(GL gl)
     {
@@ -30,8 +33,24 @@ public sealed class GLRenderer : IDisposable
     public Camera? ActiveCamera { get; set; }
     public bool ShowBones { get; set; } = true;
     public bool ShowWireframe { get; set; }
+    public bool ShowSkybox { get; set; } = true;
     public bool EnableBackFaceCulling { get; set; }
+    public RendererShadingMode ShadingMode { get; set; } = RendererShadingMode.Pbr;
     public bool IsOpenGles { get; private set; }
+    public int RequestedMsaaSamples
+    {
+        get => _requestedMsaaSamples;
+        set
+        {
+            int normalized = NormalizeMsaaSampleCount(value);
+            if (_requestedMsaaSamples == normalized)
+                return;
+
+            _requestedMsaaSamples = normalized;
+        }
+    }
+
+    public int EffectiveMsaaSamples => _msaaFramebuffer?.SampleCount ?? 1;
     public RendererColor BackgroundColor { get; set; } = new(0.12f, 0.12f, 0.14f, 1.0f);
     public ImageTranslatorManager? ImageTranslatorManager { get; set; }
     public Matrix4x4 SceneTransform { get; set; } = Matrix4x4.Identity;
@@ -84,29 +103,29 @@ public sealed class GLRenderer : IDisposable
 
         IsOpenGles = ShaderSource.GetProfile(_gl) == ShaderProfile.OpenGles;
         _gl.GetInteger(GLEnum.MaxTextureSize, out _maxTextureSize);
+        _gl.GetInteger(GLEnum.MaxSamples, out _maxMsaaSamples);
         _maxTextureSize = Math.Max(_maxTextureSize, 1);
+        _maxMsaaSamples = Math.Max(_maxMsaaSamples, 1);
 
         _gl.Enable(EnableCap.DepthTest);
+        _gl.Enable(EnableCap.Multisample);
         if (!IsOpenGles)
             _gl.Enable(GLEnum.TextureCubeMapSeamless);
         _gl.FrontFace(FrontFaceDirection.Ccw);
 
-        (string lineVertex, string lineFragment) = ShaderSource.LoadProgram(_gl, "line");
-        _lineShader = new GLShader(_gl, lineVertex, lineFragment);
-        _boneLineVao = _gl.GenVertexArray();
-        _boneLineVbo = _gl.GenBuffer();
-
         if (_passes.Count == 0)
         {
             AddPass(new EnvironmentMapPass());
-            AddPass(new GridPass());
             AddPass(new GeometryPass());
+            AddPass(new BonePass());
+            AddPass(new GridPass());
         }
 
         foreach (IRenderPass pass in _passes)
             pass.Initialize(this);
 
         _isInitialized = true;
+        RecreateMultisampleFramebuffer();
     }
 
     public void AddPass(IRenderPass pass)
@@ -148,9 +167,42 @@ public sealed class GLRenderer : IDisposable
 
     public T? GetPass<T>() where T : class, IRenderPass => _passes.OfType<T>().FirstOrDefault();
 
-    public void Render(Scene scene, float deltaTime)
+    public void SetOutputSize(int width, int height)
+    {
+        width = Math.Max(width, 0);
+        height = Math.Max(height, 0);
+
+        if (_outputWidth == width && _outputHeight == height)
+            return;
+
+        _outputWidth = width;
+        _outputHeight = height;
+
+        if (_isInitialized)
+            RecreateMultisampleFramebuffer();
+    }
+
+    public unsafe void Render(Scene scene, float deltaTime)
     {
         ArgumentNullException.ThrowIfNull(scene);
+
+        int* viewport = stackalloc int[4];
+        _gl.GetInteger(GLEnum.Viewport, viewport);
+        int savedViewportX = viewport[0];
+        int savedViewportY = viewport[1];
+        int savedViewportWidth = viewport[2];
+        int savedViewportHeight = viewport[3];
+
+        _gl.GetInteger(GLEnum.DrawFramebufferBinding, out int savedDrawFramebuffer);
+        _gl.GetInteger(GLEnum.ReadFramebufferBinding, out int savedReadFramebuffer);
+
+        EnsureMultisampleFramebuffer(savedViewportWidth, savedViewportHeight);
+
+        if (_msaaFramebuffer is not null)
+        {
+            _msaaFramebuffer.BindForRendering();
+            _gl.Viewport(0, 0, (uint)_msaaFramebuffer.Width, (uint)_msaaFramebuffer.Height);
+        }
 
         _gl.ClearColor(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, BackgroundColor.A);
         _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -165,20 +217,32 @@ public sealed class GLRenderer : IDisposable
             _gl.Disable(EnableCap.CullFace);
         }
 
-        if (ShowWireframe && !IsOpenGles)
-            _gl.PolygonMode(GLEnum.FrontAndBack, PolygonMode.Line);
-
         foreach (IRenderPass pass in _passes)
         {
             if (pass.Enabled)
                 pass.Render(this, scene, deltaTime);
         }
 
-        if (ShowBones)
-            RenderBones(scene);
+        if (_msaaFramebuffer is not null)
+        {
+            _gl.BindFramebuffer(GLEnum.ReadFramebuffer, _msaaFramebuffer.FramebufferId);
+            _gl.BindFramebuffer(GLEnum.DrawFramebuffer, (uint)savedDrawFramebuffer);
+            _gl.BlitFramebuffer(
+                0,
+                0,
+                _msaaFramebuffer.Width,
+                _msaaFramebuffer.Height,
+                savedViewportX,
+                savedViewportY,
+                savedViewportX + savedViewportWidth,
+                savedViewportY + savedViewportHeight,
+                (uint)ClearBufferMask.ColorBufferBit,
+                GLEnum.Linear);
+        }
 
-        if (ShowWireframe && !IsOpenGles)
-            _gl.PolygonMode(GLEnum.FrontAndBack, PolygonMode.Fill);
+        _gl.BindFramebuffer(GLEnum.ReadFramebuffer, (uint)savedReadFramebuffer);
+        _gl.BindFramebuffer(GLEnum.DrawFramebuffer, (uint)savedDrawFramebuffer);
+        _gl.Viewport(savedViewportX, savedViewportY, (uint)savedViewportWidth, (uint)savedViewportHeight);
     }
 
     public GLMeshHandle? GetOrCreateMeshHandle(Mesh mesh)
@@ -732,64 +796,6 @@ public sealed class GLRenderer : IDisposable
         return image.DecodeSlice<byte>();
     }
 
-    private unsafe void RenderBones(Scene scene)
-    {
-        if (_lineShader is null || ActiveCamera is null || _boneLineVao == 0 || _boneLineVbo == 0)
-            return;
-
-        List<Vector3> points = [];
-        foreach (Skeleton skeleton in scene.RootNode.EnumerateDescendants<Skeleton>())
-            CollectBoneLines(skeleton, points);
-
-        if (points.Count == 0)
-            return;
-
-        float[] data = new float[points.Count * 3];
-        for (int i = 0; i < points.Count; i++)
-        {
-            data[(i * 3)] = points[i].X;
-            data[(i * 3) + 1] = points[i].Y;
-            data[(i * 3) + 2] = points[i].Z;
-        }
-
-        _gl.BindVertexArray(_boneLineVao);
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _boneLineVbo);
-        fixed (float* ptr = data)
-        {
-            _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint)(data.Length * sizeof(float)), ptr, BufferUsageARB.DynamicDraw);
-        }
-
-        _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
-
-        _lineShader.Use();
-        _lineShader.SetUniform("uViewProjection", ActiveCamera.GetViewMatrix() * ActiveCamera.GetProjectionMatrix());
-        _lineShader.SetUniform("uModel", Matrix4x4.Identity);
-        _lineShader.SetUniform("uScene", SceneTransform);
-        _lineShader.SetUniform("uLineColor", new Vector4(0.0f, 1.0f, 0.3f, 1.0f));
-
-        _gl.Disable(EnableCap.DepthTest);
-        _gl.LineWidth(1.5f);
-        _gl.DrawArrays(PrimitiveType.Lines, 0, (uint)points.Count);
-        _gl.Enable(EnableCap.DepthTest);
-        _gl.BindVertexArray(0);
-    }
-
-    private static void CollectBoneLines(SceneNode node, List<Vector3> points)
-    {
-        if (node is SkeletonBone bone)
-        {
-            if (bone.Parent is SkeletonBone or Skeleton)
-            {
-                points.Add(bone.Parent.GetActiveWorldMatrix().Translation);
-                points.Add(bone.GetActiveWorldMatrix().Translation);
-            }
-        }
-
-        foreach (SceneNode child in node.EnumerateChildren())
-            CollectBoneLines(child, points);
-    }
-
     private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)
     {
         if (Matrix4x4.Invert(model, out Matrix4x4 inverseModel))
@@ -812,21 +818,10 @@ public sealed class GLRenderer : IDisposable
 
         SetEnvironmentResources(null);
 
-        _lineShader?.Dispose();
         _environmentMap?.Dispose();
         _environmentMap = null;
-
-        try
-        {
-            if (_boneLineVao != 0)
-                _gl.DeleteVertexArray(_boneLineVao);
-
-            if (_boneLineVbo != 0)
-                _gl.DeleteBuffer(_boneLineVbo);
-        }
-        catch
-        {
-        }
+        _msaaFramebuffer?.Dispose();
+        _msaaFramebuffer = null;
     }
 
     internal void SetEnvironmentResources(GLEnvironmentResources? resources)
@@ -837,6 +832,51 @@ public sealed class GLRenderer : IDisposable
         _environmentResources?.Dispose();
         _environmentResources = resources;
     }
+
+    private void EnsureMultisampleFramebuffer(int viewportWidth, int viewportHeight)
+    {
+        if (_outputWidth <= 0 || _outputHeight <= 0)
+        {
+            _outputWidth = Math.Max(viewportWidth, 0);
+            _outputHeight = Math.Max(viewportHeight, 0);
+        }
+
+        if (_msaaFramebuffer is not null &&
+            _msaaFramebuffer.Width == _outputWidth &&
+            _msaaFramebuffer.Height == _outputHeight &&
+            _msaaFramebuffer.SampleCount == GetEffectiveRequestedMsaaSamples())
+        {
+            return;
+        }
+
+        RecreateMultisampleFramebuffer();
+    }
+
+    private void RecreateMultisampleFramebuffer()
+    {
+        _msaaFramebuffer?.Dispose();
+        _msaaFramebuffer = null;
+
+        int width = _outputWidth;
+        int height = _outputHeight;
+        int samples = GetEffectiveRequestedMsaaSamples();
+
+        if (!_isInitialized || width <= 0 || height <= 0 || samples <= 1)
+            return;
+
+        _msaaFramebuffer = new MultisampleFramebufferObject(_gl);
+        _msaaFramebuffer.Initialize(width, height, samples);
+    }
+
+    private int GetEffectiveRequestedMsaaSamples()
+    {
+        if (_requestedMsaaSamples <= 1)
+            return 1;
+
+        return Math.Clamp(_requestedMsaaSamples, 1, _maxMsaaSamples);
+    }
+
+    private static int NormalizeMsaaSampleCount(int value) => value <= 1 ? 1 : value;
 }
 
 public readonly struct RendererColor(float r, float g, float b, float a)
