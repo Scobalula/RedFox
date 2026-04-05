@@ -4,10 +4,22 @@ using RedFox.Graphics3D.IO;
 
 namespace RedFox.Graphics3D.OpenGL.Viewing;
 
+/// <summary>
+/// Provides helper methods for loading, normalizing, and preparing scenes for preview rendering.
+/// </summary>
 public static class SceneViewBootstrapper
 {
     private static readonly FieldInfo? SceneField = typeof(SceneNode).GetField("_scene", BindingFlags.Instance | BindingFlags.NonPublic);
 
+    /// <summary>
+    /// Loads one or more scene files into a single preview scene, optionally normalizing the scale.
+    /// </summary>
+    /// <param name="filePaths">The file paths of the scenes to load.</param>
+    /// <param name="translatorManager">The translator manager used to read scene files.</param>
+    /// <param name="normalizeScene">Whether to normalize the scene scale to <paramref name="normalizeRadius"/>.</param>
+    /// <param name="normalizeRadius">The target bounding sphere radius when normalizing.</param>
+    /// <param name="upAxis">The up-axis convention to assume for the loaded scene.</param>
+    /// <returns>A combined <see cref="Scene"/> containing all imported geometry.</returns>
     public static Scene LoadScene(
         IEnumerable<string> filePaths,
         SceneTranslatorManager translatorManager,
@@ -45,6 +57,14 @@ public static class SceneViewBootstrapper
         return scene;
     }
 
+    /// <summary>
+    /// Computes the combined scene transform from the up-axis convention and optional normalization scaling.
+    /// </summary>
+    /// <param name="scene">The scene used to determine the current bounding radius for normalization.</param>
+    /// <param name="upAxis">The up-axis convention for the scene.</param>
+    /// <param name="normalizeScene">Whether to apply normalization scaling.</param>
+    /// <param name="normalizeRadius">The target bounding sphere radius when normalizing.</param>
+    /// <returns>The combined scene transform matrix.</returns>
     public static Matrix4x4 GetSceneTransform(Scene? scene, SceneUpAxis upAxis, bool normalizeScene, float normalizeRadius)
     {
         Matrix4x4 transform = GetUpAxisTransform(upAxis);
@@ -59,6 +79,11 @@ public static class SceneViewBootstrapper
         return Matrix4x4.CreateScale(scale) * transform;
     }
 
+    /// <summary>
+    /// Returns the rotation matrix that converts coordinates from the specified up-axis convention to Y-up.
+    /// </summary>
+    /// <param name="upAxis">The source up-axis convention.</param>
+    /// <returns>A rotation matrix that reorients the scene to Y-up.</returns>
     public static Matrix4x4 GetUpAxisTransform(SceneUpAxis upAxis)
     {
         Quaternion rotation = upAxis switch
@@ -72,6 +97,11 @@ public static class SceneViewBootstrapper
         return Matrix4x4.CreateFromQuaternion(rotation);
     }
 
+    /// <summary>
+    /// Determines whether a scene node has any explicit transform data set in its bind or live transforms.
+    /// </summary>
+    /// <param name="node">The scene node to inspect.</param>
+    /// <returns><c>true</c> if the node or any of its transforms contain explicit values.</returns>
     public static bool HasExplicitTransform(SceneNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
@@ -89,6 +119,10 @@ public static class SceneViewBootstrapper
             || node.LiveTransform.Scale.HasValue;
     }
 
+    /// <summary>
+    /// Updates the camera's position, target, and up vector from its current world matrix.
+    /// </summary>
+    /// <param name="camera">The camera to synchronize.</param>
     public static void SynchronizeCameraFromNodeTransform(Camera camera)
     {
         ArgumentNullException.ThrowIfNull(camera);

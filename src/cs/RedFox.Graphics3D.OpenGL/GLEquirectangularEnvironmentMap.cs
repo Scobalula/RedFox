@@ -15,9 +15,24 @@ public sealed class GLEquirectangularEnvironmentMap : IDisposable
 {
     private readonly GL _gl;
 
+    /// <summary>
+    /// Gets the fully-qualified path of the source HDR image file, or <c>null</c> if not yet loaded.
+    /// </summary>
     public string? SourcePath { get; private set; }
+
+    /// <summary>
+    /// Gets the last-write time (UTC ticks) of the source file at the time metadata was loaded.
+    /// </summary>
     public long SourceLastWriteTimeUtcTicks { get; private set; }
+
+    /// <summary>
+    /// Gets a lowercase hex-encoded SHA-256 hash of the source pixel data, or <c>null</c> if not yet computed.
+    /// </summary>
     public string? SourcePixelHashHex { get; private set; }
+
+    /// <summary>
+    /// Gets whether the image should be flipped vertically when uploaded to the GPU.
+    /// </summary>
     public bool EffectiveFlipY { get; private set; }
 
     /// <summary>
@@ -72,12 +87,18 @@ public sealed class GLEquirectangularEnvironmentMap : IDisposable
     /// </summary>
     /// <param name="filePath">The path to the HDR image file.</param>
     /// <param name="translatorManager">The image translator manager used to load the image.</param>
+    /// <param name="flipY">If <c>true</c>, the image is flipped vertically on upload.</param>
     public void Load(string filePath, ImageTranslatorManager translatorManager, bool flipY = false)
     {
         LoadMetadata(filePath, flipY);
         EnsureTextureLoaded(translatorManager);
     }
 
+    /// <summary>
+    /// Ensures the GPU texture has been uploaded. If the texture is already loaded this returns immediately.
+    /// </summary>
+    /// <param name="translatorManager">The image translator manager used to decode the source file.</param>
+    /// <returns><c>true</c> if the texture was successfully loaded or was already loaded; otherwise <c>false</c>.</returns>
     public bool EnsureTextureLoaded(ImageTranslatorManager translatorManager)
     {
         ArgumentNullException.ThrowIfNull(translatorManager);
@@ -106,6 +127,9 @@ public sealed class GLEquirectangularEnvironmentMap : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Releases the GPU texture and resets the handle to <c>null</c>.
+    /// </summary>
     public void ReleaseTexture()
     {
         TextureHandle?.Dispose();

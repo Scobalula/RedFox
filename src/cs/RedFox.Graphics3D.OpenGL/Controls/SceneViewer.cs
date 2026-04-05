@@ -437,11 +437,12 @@ public class SceneViewer : HitTestOpenGlControlBase
         _renderer = new GLRenderer(_gl);
         _renderer.Initialize();
 
-        if (_renderer.GetPass<IblPrecomputePass>() is null)
-            _renderer.InsertPass(0, new IblPrecomputePass());
-
         _environmentMapDirty = true;
         ApplyRendererSettings();
+
+        if (_renderer.GetPass<AnimationPass>() is null)
+            _renderer.AddPass(new AnimationPass());
+
         ConfigureSceneState(fitCamera: AutoFitOnSceneChanged, recreateCamera: true, resetAnimation: true);
         UpdateViewportState();
 
@@ -486,12 +487,15 @@ public class SceneViewer : HitTestOpenGlControlBase
         float deltaTime = ComputeDeltaTime();
         UpdateFrameStats(deltaTime);
 
-        if (IsAnimationPlaying)
-            _animationController?.Update(deltaTime);
-        else
-            _animationController?.SampleAt(AnimationTimeSeconds);
+        AnimationPass? animationPass = renderer.GetPass<AnimationPass>();
+        if (animationPass is not null)
+        {
+            if (IsAnimationPlaying)
+                animationPass.Enabled = true;
+            else
+                animationPass.SampleAt(AnimationTimeSeconds);
+        }
 
-        SyncAnimationStateFromController();
         UpdateCamera(deltaTime);
         ApplyBoneViewCamera();
 
@@ -499,6 +503,9 @@ public class SceneViewer : HitTestOpenGlControlBase
             ConfigureCameraClipPlanes(bounds);
 
         renderer.Render(Scene ?? _emptyScene, deltaTime);
+
+        if (animationPass is not null)
+            SyncAnimationStateFromPass();
 
         RenderedFrameCount++;
         FrameRendered?.Invoke(this, EventArgs.Empty);
@@ -807,7 +814,7 @@ public class SceneViewer : HitTestOpenGlControlBase
         RenderedFrameCount = 0;
         FramesPerSecond = 0.0f;
         AverageFrameTimeMilliseconds = 0.0f;
-        SyncAnimationStateFromController();
+        SyncAnimationStateFromPass();
     }
 
     private void QueueSceneResourceRelease(Scene? scene)
@@ -861,18 +868,18 @@ public class SceneViewer : HitTestOpenGlControlBase
             return;
 
         _renderer.ImageTranslatorManager = ImageTranslatorManager;
-        _renderer.ShowBones = ShowBones;
-        _renderer.ShowWireframe = ShowWireframe;
-        _renderer.ShowSkybox = ShowSkybox;
-        _renderer.EnableBackFaceCulling = EnableBackFaceCulling;
-        _renderer.ShadingMode = ShadingMode;
-        _renderer.EnvironmentMapExposure = EnvironmentMapExposure;
-        _renderer.EnvironmentMapReflectionIntensity = EnvironmentMapReflectionIntensity;
-        _renderer.EnvironmentMapBlurEnabled = EnvironmentMapBlurEnabled;
-        _renderer.EnvironmentMapBlurRadius = EnvironmentMapBlurRadius;
-        _renderer.EnableIBL = EnableIBL;
-        _renderer.RequestedMsaaSamples = MsaaSamples;
-        _renderer.BackgroundColor = ToRendererColor(ClearColor);
+        _renderer.Settings.ShowBones = ShowBones;
+        _renderer.Settings.ShowWireframe = ShowWireframe;
+        _renderer.Settings.ShowSkybox = ShowSkybox;
+        _renderer.Settings.EnableBackFaceCulling = EnableBackFaceCulling;
+        _renderer.Settings.ShadingMode = ShadingMode;
+        _renderer.Settings.EnvironmentMapExposure = EnvironmentMapExposure;
+        _renderer.Settings.EnvironmentMapReflectionIntensity = EnvironmentMapReflectionIntensity;
+        _renderer.Settings.EnvironmentMapBlurEnabled = EnvironmentMapBlurEnabled;
+        _renderer.Settings.EnvironmentMapBlurRadius = EnvironmentMapBlurRadius;
+        _renderer.Settings.EnableIBL = EnableIBL;
+        _renderer.Settings.RequestedMsaaSamples = MsaaSamples;
+        _renderer.Settings.BackgroundColor = ToRendererColor(ClearColor);
 
         if (_renderer.GetPass<GridPass>() is GridPass gridPass)
             gridPass.Enabled = ShowGrid;
@@ -886,9 +893,6 @@ public class SceneViewer : HitTestOpenGlControlBase
             return;
 
         _environmentMapDirty = false;
-
-        if (_renderer.GetPass<IblPrecomputePass>() is null)
-            _renderer.InsertPass(0, new IblPrecomputePass());
 
         string? path = EnvironmentMapPath;
         if (string.IsNullOrWhiteSpace(path))
@@ -926,8 +930,8 @@ public class SceneViewer : HitTestOpenGlControlBase
 
         if (_renderer is not null)
         {
-            _renderer.SceneTransform = SceneViewBootstrapper.GetSceneTransform(Scene, UpAxis, NormalizeScene, NormalizeRadius);
-            _renderer.ActiveCamera = EnsureCamera(activeScene, recreateCamera);
+            _renderer.Settings.SceneTransform = SceneViewBootstrapper.GetSceneTransform(Scene, UpAxis, NormalizeScene, NormalizeRadius);
+            _renderer.Settings.ActiveCamera = EnsureCamera(activeScene, recreateCamera);
         }
 
         if (resetAnimation || _animationController is null)
@@ -949,7 +953,7 @@ public class SceneViewer : HitTestOpenGlControlBase
         Camera camera = CreateOrReuseCamera(scene);
 
         if (_renderer is not null)
-            ApplySceneTransformToCamera(camera, _renderer.SceneTransform);
+            ApplySceneTransformToCamera(camera, _renderer.Settings.SceneTransform);
 
         camera.AspectRatio = GetAspectRatio();
         _camera = camera;
@@ -978,7 +982,7 @@ public class SceneViewer : HitTestOpenGlControlBase
         };
 
         _animationController.SampleAt(_animationController.ElapsedSeconds);
-        SyncAnimationStateFromController();
+        SyncAnimationStateFromPass();
     }
 
     private void UpdateViewportState()
@@ -1048,14 +1052,21 @@ public class SceneViewer : HitTestOpenGlControlBase
             return;
 
         _animationController.SampleAt(targetTime);
-        SyncAnimationStateFromController();
+        SyncAnimationStateFromPass();
     }
 
-    private void SyncAnimationStateFromController()
+    private void SyncAnimationStateFromPass()
     {
-        float elapsedSeconds = _animationController?.ElapsedSeconds ?? 0.0f;
-        float durationSeconds = _animationController?.DurationSeconds ?? 0.0f;
-        float frameRate = _animationController?.FrameRate ?? 0.0f;
+        if (_renderer is null)
+            return;
+
+        AnimationPass? animationPass = _renderer.GetPass<AnimationPass>();
+        if (animationPass is null)
+            return;
+
+        float elapsedSeconds = animationPass.ElapsedSeconds;
+        float durationSeconds = animationPass.DurationSeconds;
+        float frameRate = animationPass.FrameRate;
 
         elapsedSeconds = durationSeconds > 0.0f
             ? Math.Clamp(elapsedSeconds, 0.0f, durationSeconds)
@@ -1066,6 +1077,7 @@ public class SceneViewer : HitTestOpenGlControlBase
         try
         {
             SetCurrentValue(AnimationDurationSecondsProperty, durationSeconds);
+
             SetCurrentValue(AnimationFrameRateProperty, frameRate);
             SetCurrentValue(AnimationTimeSecondsProperty, elapsedSeconds);
         }
@@ -1200,7 +1212,7 @@ public class SceneViewer : HitTestOpenGlControlBase
             return false;
         }
 
-        return SceneBounds.TryGetBounds(Scene, _renderer.SceneTransform, out bounds);
+        return SceneBounds.TryGetBounds(Scene, _renderer.Settings.SceneTransform, out bounds);
     }
 
     private bool TryGetSelectedViewBone(out SkeletonBone? bone)

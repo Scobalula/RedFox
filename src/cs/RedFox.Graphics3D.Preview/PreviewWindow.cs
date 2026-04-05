@@ -74,24 +74,22 @@ public sealed class PreviewWindow : IDisposable
     private void OnLoad()
     {
         _gl = GL.GetApi(_window);
-        _renderer = new GLRenderer(_gl)
-        {
-            ImageTranslatorManager = _imageTranslatorManager,
-            ShowBones = _options.ShowBones,
-            ShowWireframe = _options.Wireframe,
-            ShowSkybox = _options.ShowSkybox,
-            EnableBackFaceCulling = true,
-            ShadingMode = _options.ShadingMode,
-            EnvironmentMapExposure = _options.EnvironmentMapExposure,
-            EnvironmentMapReflectionIntensity = _options.EnvironmentMapReflectionIntensity,
-            EnvironmentMapBlurEnabled = _options.EnvironmentMapBlur,
-            EnvironmentMapBlurRadius = _options.EnvironmentMapBlurRadius,
-            EnableIBL = _options.EnableIBL,
-            RequestedMsaaSamples = _options.MsaaSamples,
-        };
+        _renderer = new GLRenderer(_gl);
+        _renderer.ImageTranslatorManager = _imageTranslatorManager;
+        _renderer.Settings.ShowBones = _options.ShowBones;
+        _renderer.Settings.ShowWireframe = _options.Wireframe;
+        _renderer.Settings.ShowSkybox = _options.ShowSkybox;
+        _renderer.Settings.EnableBackFaceCulling = true;
+        _renderer.Settings.ShadingMode = _options.ShadingMode;
+        _renderer.Settings.EnvironmentMapExposure = _options.EnvironmentMapExposure;
+        _renderer.Settings.EnvironmentMapReflectionIntensity = _options.EnvironmentMapReflectionIntensity;
+        _renderer.Settings.EnvironmentMapBlurEnabled = _options.EnvironmentMapBlur;
+        _renderer.Settings.EnvironmentMapBlurRadius = _options.EnvironmentMapBlurRadius;
+        _renderer.Settings.EnableIBL = _options.EnableIBL;
+        _renderer.Settings.RequestedMsaaSamples = _options.MsaaSamples;
         _renderer.Initialize();
         _renderer.SetOutputSize(_window.FramebufferSize.X, _window.FramebufferSize.Y);
-        _renderer.SceneTransform = SceneBootstrapper.GetUpAxisTransform(_options.UpAxis);
+        _renderer.Settings.SceneTransform = SceneBootstrapper.GetUpAxisTransform(_options.UpAxis);
         
         if (_renderer.GetPass<GridPass>() is GridPass gridPass)
             gridPass.Enabled = _options.ShowGrid;
@@ -103,9 +101,6 @@ public sealed class PreviewWindow : IDisposable
             _renderer.EnvironmentMap = new GLEquirectangularEnvironmentMap(_gl);
             bool effectiveFlipY = ResolveEnvironmentMapFlipY(_options.EnvironmentMapFlipMode);
             _renderer.EnvironmentMap.LoadMetadata(_options.EnvironmentMapPath, effectiveFlipY);
-
-            // The skybox path also consumes the generated cubemap, not just the IBL shading path.
-            _renderer.InsertPass(0, new IblPrecomputePass());
         }
 
         _inputContext = _window.CreateInput();
@@ -119,7 +114,7 @@ public sealed class PreviewWindow : IDisposable
         }
 
         _camera = CreateOrReuseCamera();
-        ApplySceneTransformToCamera(_camera, _renderer.SceneTransform);
+        ApplySceneTransformToCamera(_camera, _renderer.Settings.SceneTransform);
         _cameraController = new CameraController(_camera)
         {
             Mode = _options.CameraMode,
@@ -134,7 +129,7 @@ public sealed class PreviewWindow : IDisposable
                 ConfigureCameraClipPlanes(bounds.Center, bounds.Radius);
         }
 
-        _renderer.ActiveCamera = _camera;
+        _renderer.Settings.ActiveCamera = _camera;
         
         _animationController = new AnimationPlaybackController(_scene, _options.AnimationName)
         {
@@ -271,27 +266,26 @@ public sealed class PreviewWindow : IDisposable
 
             case Key.B:
                 if (_renderer is not null)
-                    _renderer.ShowBones = !_renderer.ShowBones;
+                    _renderer.Settings.ShowBones = !_renderer.Settings.ShowBones;
                 break;
 
             case Key.H:
                 if (_renderer is not null)
-                    _renderer.ShowSkybox = !_renderer.ShowSkybox;
+                    _renderer.Settings.ShowSkybox = !_renderer.Settings.ShowSkybox;
                 break;
 
             case Key.L:
                 if (_renderer is not null)
                 {
-                    _renderer.ShadingMode = _renderer.ShadingMode == RendererShadingMode.Pbr
+                    _renderer.Settings.ShadingMode = _renderer.Settings.ShadingMode == RendererShadingMode.Pbr
                         ? RendererShadingMode.Fullbright
                         : RendererShadingMode.Pbr;
                 }
                 break;
 
             case Key.V:
-                // Toggle environment map blur (V for enVironment blur)
                 if (_renderer is not null)
-                    _renderer.EnvironmentMapBlurEnabled = !_renderer.EnvironmentMapBlurEnabled;
+                    _renderer.Settings.EnvironmentMapBlurEnabled = !_renderer.Settings.EnvironmentMapBlurEnabled;
                 break;
 
             case Key.G:
@@ -301,7 +295,7 @@ public sealed class PreviewWindow : IDisposable
 
             case Key.W:
                 if (_renderer is not null)
-                    _renderer.ShowWireframe = !_renderer.ShowWireframe;
+                    _renderer.Settings.ShowWireframe = !_renderer.Settings.ShowWireframe;
                 break;
 
             case Key.F:
@@ -364,7 +358,7 @@ public sealed class PreviewWindow : IDisposable
             return false;
         }
 
-        return SceneBounds.TryGetBounds(_scene, _renderer.SceneTransform, out bounds);
+        return SceneBounds.TryGetBounds(_scene, _renderer.Settings.SceneTransform, out bounds);
     }
 
     private void FitCameraToScene(SceneBoundsInfo bounds)

@@ -4,11 +4,21 @@ using RedFox.Graphics3D.Buffers;
 
 namespace RedFox.Graphics3D.OpenGL.Viewing;
 
+/// <summary>
+/// Computes bounding information for a 3D scene by aggregating mesh geometry.
+/// </summary>
 public static class SceneBounds
 {
     private const float MinimumWeight = 1e-6f;
     private static readonly ConditionalWeakTable<Mesh, MeshBoundsCache> MeshBoundsCaches = new();
 
+    /// <summary>
+    /// Attempts to compute the center and radius of the scene's bounding sphere.
+    /// </summary>
+    /// <param name="scene">The scene to measure.</param>
+    /// <param name="center">The bounding sphere center in scene space.</param>
+    /// <param name="radius">The bounding sphere radius.</param>
+    /// <returns><c>true</c> if the scene contains measurable geometry; otherwise <c>false</c>.</returns>
     public static bool TryGetBounds(Scene scene, out Vector3 center, out float radius)
     {
         bool hasBounds = TryGetBounds(scene, out SceneBoundsInfo bounds);
@@ -17,9 +27,22 @@ public static class SceneBounds
         return hasBounds;
     }
 
+    /// <summary>
+    /// Attempts to compute the bounding information for a scene using an identity transform.
+    /// </summary>
+    /// <param name="scene">The scene to measure.</param>
+    /// <param name="bounds">The computed bounding information.</param>
+    /// <returns><c>true</c> if the scene contains measurable geometry; otherwise <c>false</c>.</returns>
     public static bool TryGetBounds(Scene scene, out SceneBoundsInfo bounds)
         => TryGetBounds(scene, Matrix4x4.Identity, out bounds);
 
+    /// <summary>
+    /// Attempts to compute the bounding information for a scene with an additional scene-level transform.
+    /// </summary>
+    /// <param name="scene">The scene to measure.</param>
+    /// <param name="sceneTransform">An additional transform applied to all scene geometry.</param>
+    /// <param name="bounds">The computed bounding information.</param>
+    /// <returns><c>true</c> if the scene contains measurable geometry; otherwise <c>false</c>.</returns>
     public static bool TryGetBounds(Scene scene, Matrix4x4 sceneTransform, out SceneBoundsInfo bounds)
     {
         ArgumentNullException.ThrowIfNull(scene);
@@ -220,40 +243,7 @@ public static class SceneBounds
     }
 
     private static bool TryResolveMorphWeights(Mesh mesh, out float[] weights)
-    {
-        if (!mesh.HasMorphTargets || mesh.MorphTargetCount == 0)
-        {
-            weights = [];
-            return false;
-        }
-
-        weights = new float[mesh.MorphTargetCount];
-
-        foreach (BlendShape blendShape in EnumerateBlendShapes(mesh))
-        {
-            if ((uint)blendShape.TargetIndex >= (uint)weights.Length)
-                continue;
-
-            weights[blendShape.TargetIndex] = blendShape.Weight;
-        }
-
-        return weights.Any(static weight => MathF.Abs(weight) > MinimumWeight);
-    }
-
-    private static IEnumerable<BlendShape> EnumerateBlendShapes(Mesh mesh)
-    {
-        foreach (BlendShape blendShape in mesh.EnumerateDescendants<BlendShape>())
-            yield return blendShape;
-
-        if (mesh.Scene is null)
-            yield break;
-
-        foreach (BlendShape blendShape in mesh.Scene.RootNode.EnumerateDescendants<BlendShape>())
-        {
-            if (blendShape.OwnerMesh == mesh && !blendShape.IsDescendantOf(mesh))
-                yield return blendShape;
-        }
-    }
+        => BlendShapeEvaluator.TryResolveMorphWeights(mesh, out weights);
 
     private static IEnumerable<Vector3> EnumerateCorners(Vector3 min, Vector3 max)
     {
@@ -302,4 +292,11 @@ public static class SceneBounds
     }
 }
 
+/// <summary>
+/// Describes the axis-aligned bounding box and bounding sphere of a scene.
+/// </summary>
+/// <param name="Min">The minimum corner of the axis-aligned bounding box.</param>
+/// <param name="Max">The maximum corner of the axis-aligned bounding box.</param>
+/// <param name="Center">The center of the bounding sphere.</param>
+/// <param name="Radius">The radius of the bounding sphere.</param>
 public readonly record struct SceneBoundsInfo(Vector3 Min, Vector3 Max, Vector3 Center, float Radius);

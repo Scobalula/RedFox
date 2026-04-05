@@ -4,6 +4,21 @@ namespace RedFox.Graphics3D.OpenGL.Viewing;
 
 internal static class ScreenSpaceLineMeshBuilder
 {
+    /// <summary>
+    /// Attempts to append a screen-space line quad to the vertex data buffer.
+    /// </summary>
+    /// <param name="vertexData">The vertex data list to append quad vertices to.</param>
+    /// <param name="startScene">The line start position in scene space.</param>
+    /// <param name="endScene">The line end position in scene space.</param>
+    /// <param name="viewMatrix">The view matrix for transforming scene positions to view space.</param>
+    /// <param name="projectionMatrix">The projection matrix for transforming view positions to clip space.</param>
+    /// <param name="nearPlane">The near clipping plane distance.</param>
+    /// <param name="farPlane">The far clipping plane distance.</param>
+    /// <param name="viewportWidth">The viewport width in pixels.</param>
+    /// <param name="viewportHeight">The viewport height in pixels.</param>
+    /// <param name="thicknessPixels">The line thickness in screen pixels.</param>
+    /// <param name="color">The RGBA color of the line.</param>
+    /// <returns><c>true</c> if the quad was appended; <c>false</c> if the line was fully clipped or degenerate.</returns>
     public static bool TryAppendQuad(
         List<float> vertexData,
         Vector3 startScene,
@@ -114,6 +129,20 @@ internal static class ScreenSpaceLineMeshBuilder
         vertexData.Add(color.W);
     }
 
+    /// <summary>
+    /// Attempts to append a screen-space point quad to the vertex data buffer.
+    /// </summary>
+    /// <param name="vertexData">The vertex data list to append quad vertices to.</param>
+    /// <param name="scenePosition">The point position in scene space.</param>
+    /// <param name="viewMatrix">The view matrix for transforming scene positions to view space.</param>
+    /// <param name="projectionMatrix">The projection matrix for transforming view positions to clip space.</param>
+    /// <param name="nearPlane">The near clipping plane distance.</param>
+    /// <param name="farPlane">The far clipping plane distance.</param>
+    /// <param name="viewportWidth">The viewport width in pixels.</param>
+    /// <param name="viewportHeight">The viewport height in pixels.</param>
+    /// <param name="sizePixels">The point size in screen pixels.</param>
+    /// <param name="color">The RGBA color of the point.</param>
+    /// <returns><c>true</c> if the quad was appended; <c>false</c> if the point was clipped or degenerate.</returns>
     public static bool TryAppendPoint(
         List<float> vertexData,
         Vector3 scenePosition,

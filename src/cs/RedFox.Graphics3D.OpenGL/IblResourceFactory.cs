@@ -1,112 +1,91 @@
 using System.IO;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using RedFox.Graphics3D.OpenGL.Shaders;
 using Silk.NET.OpenGL;
 
-namespace RedFox.Graphics3D.OpenGL.Passes;
+namespace RedFox.Graphics3D.OpenGL;
 
-/// <summary>
-/// Precomputes IBL data following the learnopengl.com PBR pipeline:
-///   1. Equirectangular -> cubemap conversion
-///   2. Irradiance cubemap (diffuse)
-///   3. Prefiltered environment cubemap (specular, mipmapped)
-///   4. BRDF LUT 2D texture
-///
-/// All precomputed cubemaps are cached to disk next to the source environment map
-/// so subsequent loads skip regeneration.
-/// </summary>
-public sealed class IblPrecomputePass : IRenderPass
+public sealed unsafe class IblResourceFactory : IDisposable
 {
-    private GL _gl = null!;
+    private readonly int _maxTextureSize;
 
-    private GLShader _equirectToCubemapShader = null!;
-    private GLShader _cubemapDownsampleShader = null!;
-    private GLShader _irradianceShader = null!;
-    private GLShader _prefilterShader = null!;
-    private GLShader _brdfLutShader = null!;
-
+    private GL? _gl;
+    private GLShader? _equirectToCubemapShader;
+    private GLShader? _cubemapDownsampleShader;
+    private GLShader? _irradianceShader;
+    private GLShader? _prefilterShader;
+    private GLShader? _brdfLutShader;
     private uint _cubeVAO;
     private uint _cubeVBO;
     private uint _emptyVao;
+    private bool _initialized;
 
     private GLEnvironmentResources? _resources;
-
-    private bool _initialized;
     private bool _computed;
 
     public const int IrradianceSize = 32;
     public const int PrefilterSize = 256;
     public const int BrdfLutSize = 256;
     private const int DiffuseShProjectionFaceSize = 64;
+
     public static int PrefilterMipLevels => ComputeFullMipChainLevelCount(PrefilterSize);
-
-    public string Name => "IBL Precompute";
-    public bool Enabled { get; set; } = true;
     public bool Computed => _computed;
-    public uint SkyCubemap => _resources?.SkyCubemap.TextureId ?? 0;
-    public uint IrradianceCubemap => _resources?.IrradianceCubemap.TextureId ?? 0;
-    public uint PrefilterCubemap => _resources?.PrefilterCubemap.TextureId ?? 0;
-    public uint BrdfLutTexture => _resources?.BrdfLutTexture ?? 0;
 
-    /// <summary>
-    /// Maximum mip level index of the prefilter cubemap (used in textureLod).
-    /// </summary>
-    public float PrefilterMaxMipLevel => _resources?.PrefilterMaxMipLevel ?? (PrefilterMipLevels - 1);
-
-    public float SkyMaxMipLevel => _resources?.SkyMaxMipLevel ?? 0;
-
-    private string? _cacheDirectory;
-    private EnvironmentCacheManifest? _expectedManifest;
-
-    public unsafe void Initialize(GLRenderer renderer)
+    public IblResourceFactory(int maxTextureSize)
     {
-        _gl = renderer.GL;
+        _maxTextureSize = maxTextureSize;
+    }
 
-        // Load shaders
-        (string cv, string _) = ShaderSource.LoadProgram(_gl, "cubemap");
-        (string _, string ef) = ShaderSource.LoadProgram(_gl, "equirect_to_cubemap");
-        _equirectToCubemapShader = new GLShader(_gl, cv, ef);
+    public void Initialize(GL gl)
+    {
+        _gl = gl;
 
-        (string dv, string df) = ShaderSource.LoadProgram(_gl, "cubemap_downsample");
-        _cubemapDownsampleShader = new GLShader(_gl, dv, df);
+        (string cv, string _) = ShaderSource.LoadProgram(gl, "cubemap");
+        (string _, string ef) = ShaderSource.LoadProgram(gl, "equirect_to_cubemap");
+        _equirectToCubemapShader = new GLShader(gl, cv, ef);
 
-        (string iv, string ir) = ShaderSource.LoadProgram(_gl, "irradiance");
-        _irradianceShader = new GLShader(_gl, iv, ir);
+        (string dv, string df) = ShaderSource.LoadProgram(gl, "cubemap_downsample");
+        _cubemapDownsampleShader = new GLShader(gl, dv, df);
 
-        (string pv, string pf) = ShaderSource.LoadProgram(_gl, "prefilter");
-        _prefilterShader = new GLShader(_gl, pv, pf);
+        (string iv, string ir) = ShaderSource.LoadProgram(gl, "irradiance");
+        _irradianceShader = new GLShader(gl, iv, ir);
 
-        (string bv, string bf) = ShaderSource.LoadProgram(_gl, "brdf_lut");
-        _brdfLutShader = new GLShader(_gl, bv, bf);
+        (string pv, string pf) = ShaderSource.LoadProgram(gl, "prefilter");
+        _prefilterShader = new GLShader(gl, pv, pf);
 
-        // Create cube VAO/VBO
-        _cubeVAO = _gl.GenVertexArray();
-        _cubeVBO = _gl.GenBuffer();
-        _gl.BindVertexArray(_cubeVAO);
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _cubeVBO);
-        fixed (float* ptr = CubeGeometry.Vertices)
+        (string bv, string bf) = ShaderSource.LoadProgram(gl, "brdf_lut");
+        _brdfLutShader = new GLShader(gl, bv, bf);
+
+        _cubeVAO = gl.GenVertexArray();
+        _cubeVBO = gl.GenBuffer();
+        gl.BindVertexArray(_cubeVAO);
+        gl.BindBuffer(BufferTargetARB.ArrayBuffer, _cubeVBO);
+        unsafe
         {
-            _gl.BufferData(BufferTargetARB.ArrayBuffer,
-                (nuint)(CubeGeometry.Vertices.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            fixed (float* ptr = CubeGeometry.Vertices)
+            {
+                gl.BufferData(BufferTargetARB.ArrayBuffer,
+                    (nuint)(CubeGeometry.Vertices.Length * sizeof(float)), ptr, BufferUsageARB.StaticDraw);
+            }
         }
-        _gl.EnableVertexAttribArray(0);
-        _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, (void*)0);
-        _gl.BindVertexArray(0);
+        gl.EnableVertexAttribArray(0);
+        gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, (void*)0);
+        gl.BindVertexArray(0);
 
-        _emptyVao = _gl.GenVertexArray();
-
+        _emptyVao = gl.GenVertexArray();
         _initialized = true;
     }
 
-    public unsafe void Render(GLRenderer renderer, Scene scene, float deltaTime)
+    public GLEnvironmentResources? ComputeIfNecessary(GLRenderer renderer)
     {
-        if (!_initialized || !Enabled)
-            return;
+        if (!_initialized || _gl is null)
+            return null;
 
         GLEquirectangularEnvironmentMap? envMap = renderer.EnvironmentMap;
         if (envMap is null || string.IsNullOrWhiteSpace(envMap.SourcePath))
-            return;
+            return _resources;
 
         string sourcePath = envMap.SourcePath ?? "unknown";
         bool flipY = envMap.EffectiveFlipY;
@@ -127,10 +106,10 @@ public sealed class IblPrecomputePass : IRenderPass
         if (_resources is not null && _resources.CacheKey.Equals(key, StringComparison.Ordinal))
         {
             _computed = true;
-            return;
+            return _resources;
         }
 
-        _expectedManifest = new EnvironmentCacheManifest
+        var expectedManifest = new EnvironmentCacheManifest
         {
             CacheVersion = EnvironmentCacheKey.CacheVersion,
             Key = key,
@@ -146,81 +125,79 @@ public sealed class IblPrecomputePass : IRenderPass
             BrdfLutSize = BrdfLutSize,
         };
 
-        _cacheDirectory = GetCacheDirectory(key);
+        string cacheDirectory = GetCacheDirectory(key);
 
-        // Try cache first
-        if (TryLoadFromCache(renderer, _expectedManifest, _cacheDirectory))
+        if (TryLoadFromCache(renderer, expectedManifest, cacheDirectory))
         {
             _computed = true;
-            return;
+            return _resources;
         }
 
         if (renderer.ImageTranslatorManager is null || !envMap.EnsureTextureLoaded(renderer.ImageTranslatorManager))
-            return;
+            return _resources;
 
-        _expectedManifest.SourcePixelHashHex = envMap.SourcePixelHashHex;
+        expectedManifest.SourcePixelHashHex = envMap.SourcePixelHashHex;
 
-        // Save viewport
-        int* vp = stackalloc int[4];
-        _gl.GetInteger(GLEnum.Viewport, vp);
-        int savedX = vp[0], savedY = vp[1], savedW = vp[2], savedH = vp[3];
-        _gl.GetInteger(GLEnum.DrawFramebufferBinding, out int drawFbo);
-        int savedFbo = drawFbo;
+        unsafe
+        {
+            int* vp = stackalloc int[4];
+            _gl.GetInteger(GLEnum.Viewport, vp);
+            int savedX = vp[0], savedY = vp[1], savedW = vp[2], savedH = vp[3];
+            _gl.GetInteger(GLEnum.DrawFramebufferBinding, out int drawFbo);
+            int savedFbo = drawFbo;
 
-        // Cubemap capture renders a box around the origin and needs depth testing so
-        // only the nearest cube face contributes for each fragment.
-        _gl.Enable(EnableCap.DepthTest);
-        _gl.Disable(EnableCap.CullFace);
-
-        var resources = new GLEnvironmentResources(_gl, key, skySize, skyMipLevels, IrradianceSize, PrefilterSize, PrefilterMipLevels);
-
-        // 1. Convert equirectangular -> sky cubemap (mipmapped)
-        ConvertEquirectangularToCubemap(envMap, resources.SkyCubemap, skySize);
-
-        // 2. Generate irradiance cubemap
-        GenerateIrradianceMap(resources.SkyCubemap.TextureId, skySize, resources.IrradianceCubemap.TextureId);
-
-        // 3. Generate prefiltered environment cubemap
-        GeneratePrefilterMap(resources.SkyCubemap.TextureId, skySize, resources.PrefilterCubemap.TextureId);
-
-        // 4. Generate BRDF LUT
-        resources.BrdfLutTexture = GenerateBrdfLut();
-
-        renderer.SetEnvironmentResources(resources);
-        _resources = resources;
-
-        SaveToCache(_expectedManifest, _cacheDirectory, resources);
-        envMap.ReleaseTexture();
-
-        // Restore state
-        _gl.Viewport(savedX, savedY, (uint)savedW, (uint)savedH);
-        _gl.BindFramebuffer(GLEnum.Framebuffer, (uint)savedFbo);
-        _gl.Enable(EnableCap.DepthTest);
-        if (renderer.EnableBackFaceCulling)
-            _gl.Enable(EnableCap.CullFace);
-        else
+            _gl.Enable(EnableCap.DepthTest);
             _gl.Disable(EnableCap.CullFace);
 
-        _computed = true;
+            var resources = new GLEnvironmentResources(_gl, key, skySize, skyMipLevels, IrradianceSize, PrefilterSize, PrefilterMipLevels);
+
+            ConvertEquirectangularToCubemap(envMap, resources.SkyCubemap, skySize);
+            GenerateIrradianceMap(resources.SkyCubemap.TextureId, skySize, resources.IrradianceCubemap.TextureId);
+            GeneratePrefilterMap(resources.SkyCubemap.TextureId, skySize, resources.PrefilterCubemap.TextureId);
+            resources.BrdfLutTexture = GenerateBrdfLut();
+
+            SaveToCache(expectedManifest, cacheDirectory, resources);
+            envMap.ReleaseTexture();
+
+            renderer.SetEnvironmentResources(resources);
+            _resources = resources;
+
+            _gl.Viewport(savedX, savedY, (uint)savedW, (uint)savedH);
+            _gl.BindFramebuffer(GLEnum.Framebuffer, (uint)savedFbo);
+            _gl.Enable(EnableCap.DepthTest);
+
+            _computed = true;
+            return _resources;
+        }
     }
 
-    // ------------------------------------------------------------------
-    // Cache
-    // ------------------------------------------------------------------
+    public void Dispose()
+    {
+        _equirectToCubemapShader?.Dispose();
+        _cubemapDownsampleShader?.Dispose();
+        _irradianceShader?.Dispose();
+        _prefilterShader?.Dispose();
+        _brdfLutShader?.Dispose();
+
+        if (_gl is not null)
+        {
+            if (_cubeVAO != 0) { try { _gl.DeleteVertexArray(_cubeVAO); } catch { } _cubeVAO = 0; }
+            if (_cubeVBO != 0) { try { _gl.DeleteBuffer(_cubeVBO); } catch { } _cubeVBO = 0; }
+            if (_emptyVao != 0) { try { _gl.DeleteVertexArray(_emptyVao); } catch { } _emptyVao = 0; }
+        }
+
+        _initialized = false;
+    }
 
     private static int ComputeFullMipChainLevelCount(int baseSize)
     {
         int levels = 1;
         int size = Math.Max(baseSize, 1);
-        while (size > 1)
-        {
-            size >>= 1;
-            levels++;
-        }
+        while (size > 1) { size >>= 1; levels++; }
         return levels;
     }
 
-    private string GetCacheDirectory(string key)
+    private static string GetCacheDirectory(string key)
     {
         string cacheBase = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "EnvironmentCache");
         Directory.CreateDirectory(cacheBase);
@@ -229,6 +206,7 @@ public sealed class IblPrecomputePass : IRenderPass
 
     private bool TryLoadFromCache(GLRenderer renderer, EnvironmentCacheManifest expected, string cacheDirectory)
     {
+        if (_gl is null) return false;
         try
         {
             string manifestPath = Path.Combine(cacheDirectory, "manifest.json");
@@ -239,19 +217,14 @@ public sealed class IblPrecomputePass : IRenderPass
             if (!ManifestMatches(loaded, expected))
                 return false;
 
+            var resources = new GLEnvironmentResources(
+                _gl, expected.Key, expected.SkySize, expected.SkyMipLevels,
+                expected.IrradianceSize, expected.PrefilterSize, expected.PrefilterMipLevels);
+
             string skyPath = Path.Combine(cacheDirectory, "sky.foxmap");
             string irrPath = Path.Combine(cacheDirectory, "irradiance.foxmap");
             string prePath = Path.Combine(cacheDirectory, "prefilter.foxmap");
             string brdfPath = Path.Combine(cacheDirectory, "brdf_lut.dat");
-
-            var resources = new GLEnvironmentResources(
-                _gl,
-                expected.Key,
-                expected.SkySize,
-                expected.SkyMipLevels,
-                expected.IrradianceSize,
-                expected.PrefilterSize,
-                expected.PrefilterMipLevels);
 
             bool skyOk = GLCubemap.CacheExists(skyPath, expected.SkySize, expected.SkyMipLevels) &&
                          resources.SkyCubemap.LoadFromFile(skyPath);
@@ -260,42 +233,27 @@ public sealed class IblPrecomputePass : IRenderPass
             bool preOk = GLCubemap.CacheExists(prePath, expected.PrefilterSize, expected.PrefilterMipLevels) &&
                          resources.PrefilterCubemap.LoadFromFile(prePath);
 
-            if (!skyOk || !irrOk || !preOk)
-            {
-                resources.Dispose();
-                return false;
-            }
+            if (!skyOk || !irrOk || !preOk) { resources.Dispose(); return false; }
 
             if (File.Exists(brdfPath))
-            {
                 resources.BrdfLutTexture = LoadBrdfLut(brdfPath);
-            }
             else
-            {
                 resources.BrdfLutTexture = GenerateBrdfLut();
-                SaveBrdfLut(brdfPath, resources.BrdfLutTexture);
-            }
 
             renderer.SetEnvironmentResources(resources);
             _resources = resources;
             return true;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     private static bool ManifestMatches(EnvironmentCacheManifest? loaded, EnvironmentCacheManifest expected)
     {
-        if (loaded is null)
-            return false;
-
-        return loaded.CacheVersion == expected.CacheVersion &&
+        return loaded is not null &&
+               loaded.CacheVersion == expected.CacheVersion &&
                string.Equals(loaded.Key, expected.Key, StringComparison.Ordinal) &&
                string.Equals(loaded.SourcePath, expected.SourcePath, StringComparison.OrdinalIgnoreCase) &&
                loaded.SourceLastWriteTimeUtcTicks == expected.SourceLastWriteTimeUtcTicks &&
-               MatchesOptionalPixelHash(loaded.SourcePixelHashHex, expected.SourcePixelHashHex) &&
                loaded.FlipY == expected.FlipY &&
                loaded.SkySize == expected.SkySize &&
                loaded.SkyMipLevels == expected.SkyMipLevels &&
@@ -305,40 +263,23 @@ public sealed class IblPrecomputePass : IRenderPass
                loaded.BrdfLutSize == expected.BrdfLutSize;
     }
 
-    private static bool MatchesOptionalPixelHash(string? loaded, string? expected)
-    {
-        if (string.IsNullOrWhiteSpace(expected))
-            return true;
-
-        return string.Equals(loaded ?? string.Empty, expected, StringComparison.OrdinalIgnoreCase);
-    }
-
     private void SaveToCache(EnvironmentCacheManifest expected, string cacheDirectory, GLEnvironmentResources resources)
     {
         try
         {
             Directory.CreateDirectory(cacheDirectory);
-
             resources.SkyCubemap.SaveToFile(Path.Combine(cacheDirectory, "sky.foxmap"));
             resources.IrradianceCubemap.SaveToFile(Path.Combine(cacheDirectory, "irradiance.foxmap"));
             resources.PrefilterCubemap.SaveToFile(Path.Combine(cacheDirectory, "prefilter.foxmap"));
             SaveBrdfLut(Path.Combine(cacheDirectory, "brdf_lut.dat"), resources.BrdfLutTexture);
-
-            string manifestPath = Path.Combine(cacheDirectory, "manifest.json");
-            File.WriteAllText(manifestPath, JsonSerializer.Serialize(expected));
+            File.WriteAllText(Path.Combine(cacheDirectory, "manifest.json"), JsonSerializer.Serialize(expected));
         }
-        catch
-        {
-            // Cache save is non-critical
-        }
+        catch { }
     }
 
-    // ------------------------------------------------------------------
-    // Equirectangular -> Cubemap conversion
-    // ------------------------------------------------------------------
-
-    private unsafe void ConvertEquirectangularToCubemap(GLEquirectangularEnvironmentMap envMap, GLCubemap destination, int size)
+    public unsafe void ConvertEquirectangularToCubemap(GLEquirectangularEnvironmentMap envMap, GLCubemap destination, int size)
     {
+        if (_gl is null) return;
         using GLCubemap sourceCubemap = new(_gl);
         sourceCubemap.Create(size, 1, useMipmaps: false);
 
@@ -347,45 +288,36 @@ public sealed class IblPrecomputePass : IRenderPass
         _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, captureRBO);
         _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, GLEnum.DepthComponent24, (uint)size, (uint)size);
 
-        // Projection for cubemap faces: 90deg FOV, 1:1 aspect
         Matrix4x4 captureProjection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2.0f, 1.0f, 0.1f, 10.0f);
         Matrix4x4[] captureViews = GetCaptureViews();
 
-        _equirectToCubemapShader.Use();
+        _equirectToCubemapShader!.Use();
         _equirectToCubemapShader.SetUniform("uProjection", captureProjection);
         envMap.TextureHandle!.Bind(0);
         _equirectToCubemapShader.SetUniform("uEquirectangularMap", 0);
         _equirectToCubemapShader.SetUniform("uFlipY", envMap.EffectiveFlipY);
 
         _gl.BindFramebuffer(GLEnum.Framebuffer, captureFBO);
-        _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment,
-            GLEnum.Renderbuffer, captureRBO);
+        _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment, GLEnum.Renderbuffer, captureRBO);
         _gl.Viewport(0, 0, (uint)size, (uint)size);
         _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
         _gl.BindVertexArray(_cubeVAO);
 
         for (int face = 0; face < 6; face++)
         {
             _equirectToCubemapShader.SetUniform("uView", captureViews[face]);
             TextureTarget target = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + face);
-            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0,
-                target, sourceCubemap.TextureId, 0);
+            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0, target, sourceCubemap.TextureId, 0);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             _gl.DrawArrays(PrimitiveType.Triangles, 0, CubeGeometry.VertexCount);
-
-            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0,
-                target, destination.TextureId, 0);
+            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0, target, destination.TextureId, 0);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             _gl.DrawArrays(PrimitiveType.Triangles, 0, CubeGeometry.VertexCount);
         }
 
-        _gl.BindVertexArray(0);
-
-        // Generate cascaded mipmap chain: each level reads from the previous one
-        // using a 5×5 Gaussian-weighted kernel for smooth HDR downsampling.
         GenerateSkyMipChain(sourceCubemap.TextureId, destination, size);
 
+        _gl.BindVertexArray(0);
         _gl.BindFramebuffer(GLEnum.Framebuffer, 0);
         _gl.DeleteRenderbuffer(captureRBO);
         _gl.DeleteFramebuffer(captureFBO);
@@ -393,16 +325,13 @@ public sealed class IblPrecomputePass : IRenderPass
 
     private unsafe void GenerateSkyMipChain(uint sourceCubemap, GLCubemap destination, int size)
     {
-        if (destination.MipLevels <= 1)
-            return;
-
+        if (_gl is null || destination.MipLevels <= 1) return;
         uint captureFBO = _gl.GenFramebuffer();
         uint captureRBO = _gl.GenRenderbuffer();
-
         Matrix4x4 captureProjection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2.0f, 1.0f, 0.1f, 10.0f);
         Matrix4x4[] captureViews = GetCaptureViews();
 
-        _cubemapDownsampleShader.Use();
+        _cubemapDownsampleShader!.Use();
         _cubemapDownsampleShader.SetUniform("uProjection", captureProjection);
         _cubemapDownsampleShader.SetUniform("uBaseResolution", (float)size);
         _gl.ActiveTexture(TextureUnit.Texture0);
@@ -439,41 +368,34 @@ public sealed class IblPrecomputePass : IRenderPass
         _gl.DeleteFramebuffer(captureFBO);
     }
 
-    // ------------------------------------------------------------------
-    // Irradiance map generation
-    // ------------------------------------------------------------------
-
     private unsafe void GenerateIrradianceMap(uint envCubemap, int envCubemapResolution, uint destinationCubemap)
     {
+        if (_gl is null) return;
         uint captureFBO = _gl.GenFramebuffer();
         uint captureRBO = _gl.GenRenderbuffer();
         _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, captureRBO);
-        _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, GLEnum.DepthComponent24,
-            (uint)IrradianceSize, (uint)IrradianceSize);
+        _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, GLEnum.DepthComponent24, (uint)IrradianceSize, (uint)IrradianceSize);
 
         Matrix4x4 captureProjection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2.0f, 1.0f, 0.1f, 10.0f);
         Matrix4x4[] captureViews = GetCaptureViews();
         Vector3[] shCoefficients = ComputeDiffuseIrradianceShCoefficients(envCubemap, envCubemapResolution);
 
-        _irradianceShader.Use();
+        _irradianceShader!.Use();
         _irradianceShader.SetUniform("uProjection", captureProjection);
         for (int i = 0; i < shCoefficients.Length; i++)
             _irradianceShader.SetUniform($"uShCoefficients[{i}]", shCoefficients[i]);
 
         _gl.BindFramebuffer(GLEnum.Framebuffer, captureFBO);
-        _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment,
-            GLEnum.Renderbuffer, captureRBO);
+        _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment, GLEnum.Renderbuffer, captureRBO);
         _gl.Viewport(0, 0, (uint)IrradianceSize, (uint)IrradianceSize);
         _gl.ClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
         _gl.BindVertexArray(_cubeVAO);
 
         for (int face = 0; face < 6; face++)
         {
             _irradianceShader.SetUniform("uView", captureViews[face]);
             var target = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + face);
-            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0,
-                target, destinationCubemap, 0);
+            _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0, target, destinationCubemap, 0);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             _gl.DrawArrays(PrimitiveType.Triangles, 0, CubeGeometry.VertexCount);
         }
@@ -484,19 +406,15 @@ public sealed class IblPrecomputePass : IRenderPass
         _gl.DeleteFramebuffer(captureFBO);
     }
 
-    // ------------------------------------------------------------------
-    // Prefilter map generation
-    // ------------------------------------------------------------------
-
     private unsafe void GeneratePrefilterMap(uint envCubemap, int envCubemapResolution, uint destinationCubemap)
     {
+        if (_gl is null) return;
         uint captureFBO = _gl.GenFramebuffer();
         uint captureRBO = _gl.GenRenderbuffer();
-
         Matrix4x4 captureProjection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 2.0f, 1.0f, 0.1f, 10.0f);
         Matrix4x4[] captureViews = GetCaptureViews();
 
-        _prefilterShader.Use();
+        _prefilterShader!.Use();
         _gl.ActiveTexture(TextureUnit.Texture0);
         _gl.BindTexture(TextureTarget.TextureCubeMap, envCubemap);
         _prefilterShader.SetUniform("uEnvironmentMap", 0);
@@ -515,21 +433,16 @@ public sealed class IblPrecomputePass : IRenderPass
             float roughness = (float)level / (PrefilterMipLevels - 1);
 
             _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, captureRBO);
-            _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, GLEnum.DepthComponent24,
-                (uint)mipWidth, (uint)mipHeight);
-            _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment,
-                GLEnum.Renderbuffer, captureRBO);
-
+            _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, GLEnum.DepthComponent24, (uint)mipWidth, (uint)mipHeight);
+            _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthAttachment, GLEnum.Renderbuffer, captureRBO);
             _gl.Viewport(0, 0, (uint)mipWidth, (uint)mipHeight);
-
             _prefilterShader.SetUniform("uRoughness", roughness);
 
             for (int face = 0; face < 6; face++)
             {
                 _prefilterShader.SetUniform("uView", captureViews[face]);
                 var target = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + face);
-                _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0,
-                    target, destinationCubemap, level);
+                _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0, target, destinationCubemap, level);
                 _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
                 _gl.DrawArrays(PrimitiveType.Triangles, 0, CubeGeometry.VertexCount);
             }
@@ -541,16 +454,12 @@ public sealed class IblPrecomputePass : IRenderPass
         _gl.DeleteFramebuffer(captureFBO);
     }
 
-    // ------------------------------------------------------------------
-    // BRDF LUT
-    // ------------------------------------------------------------------
-
     private unsafe uint GenerateBrdfLut()
     {
+        if (_gl is null) return 0;
         uint fbo = _gl.GenFramebuffer();
         _gl.BindFramebuffer(GLEnum.Framebuffer, fbo);
 
-        // Create BRDF LUT texture
         uint brdfTexture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, brdfTexture);
         float[] emptyData = new float[BrdfLutSize * BrdfLutSize * 4];
@@ -565,11 +474,10 @@ public sealed class IblPrecomputePass : IRenderPass
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
         _gl.BindTexture(TextureTarget.Texture2D, 0);
 
-        _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0,
-            GLEnum.Texture2D, brdfTexture, 0);
+        _gl.FramebufferTexture2D(GLEnum.Framebuffer, GLEnum.ColorAttachment0, GLEnum.Texture2D, brdfTexture, 0);
         _gl.Viewport(0, 0, (uint)BrdfLutSize, (uint)BrdfLutSize);
 
-        _brdfLutShader.Use();
+        _brdfLutShader!.Use();
         _gl.Disable(EnableCap.DepthTest);
         _gl.BindVertexArray(_emptyVao);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, 3);
@@ -581,38 +489,32 @@ public sealed class IblPrecomputePass : IRenderPass
         return brdfTexture;
     }
 
-    private void SaveBrdfLut(string path, uint textureId)
+    private unsafe void SaveBrdfLut(string path, uint textureId)
     {
+        if (_gl is null) return;
         float[] data = new float[BrdfLutSize * BrdfLutSize * 4];
-        unsafe
+        fixed (float* ptr = data)
         {
-            fixed (float* ptr = data)
-            {
-                _gl.BindTexture(TextureTarget.Texture2D, textureId);
-                _gl.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, ptr);
-            }
+            _gl.BindTexture(TextureTarget.Texture2D, textureId);
+            _gl.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, ptr);
         }
         File.WriteAllBytes(path, System.Runtime.InteropServices.MemoryMarshal.AsBytes(data.AsSpan()).ToArray());
     }
 
-    private uint LoadBrdfLut(string path)
+    private unsafe uint LoadBrdfLut(string path)
     {
+        if (_gl is null) return 0;
         byte[] data = File.ReadAllBytes(path);
         int expectedFloats = BrdfLutSize * BrdfLutSize * 4;
         if (data.Length != expectedFloats * sizeof(float))
-        {
             return GenerateBrdfLut();
-        }
 
         uint brdfTexture = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, brdfTexture);
-        unsafe
+        fixed (byte* ptr = data)
         {
-            fixed (byte* ptr = data)
-            {
-                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba32f, BrdfLutSize, BrdfLutSize, 0,
-                    PixelFormat.Rgba, PixelType.Float, ptr);
-            }
+            _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba32f, BrdfLutSize, BrdfLutSize, 0,
+                PixelFormat.Rgba, PixelType.Float, ptr);
         }
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
@@ -622,22 +524,19 @@ public sealed class IblPrecomputePass : IRenderPass
         return brdfTexture;
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
     private static Matrix4x4[] GetCaptureViews() =>
     [
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3( 1.0f,  0.0f,  0.0f), new Vector3(0.0f, -1.0f,  0.0f)),
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(-1.0f,  0.0f,  0.0f), new Vector3(0.0f, -1.0f,  0.0f)),
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3( 0.0f,  1.0f,  0.0f), new Vector3(0.0f,  0.0f,  1.0f)),
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3( 0.0f, -1.0f,  0.0f), new Vector3(0.0f,  0.0f, -1.0f)),
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3( 0.0f,  0.0f,  1.0f), new Vector3(0.0f, -1.0f,  0.0f)),
-        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3( 0.0f,  0.0f, -1.0f), new Vector3(0.0f, -1.0f,  0.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(1.0f, 0.0f, 0.0f), new Vector3(0.0f, -1.0f, 0.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(-1.0f, 0.0f, 0.0f), new Vector3(0.0f, -1.0f, 0.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 0.0f, 1.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(0.0f, -1.0f, 0.0f), new Vector3(0.0f, 0.0f, -1.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(0.0f, 0.0f, 1.0f), new Vector3(0.0f, -1.0f, 0.0f)),
+        Matrix4x4.CreateLookAt(Vector3.Zero, new Vector3(0.0f, 0.0f, -1.0f), new Vector3(0.0f, -1.0f, 0.0f)),
     ];
 
     private unsafe Vector3[] ComputeDiffuseIrradianceShCoefficients(uint envCubemap, int envCubemapResolution)
     {
+        if (_gl is null) return new Vector3[9];
         int maxMipLevel = ComputeFullMipChainLevelCount(envCubemapResolution) - 1;
         int projectionMipLevel = ChooseDiffuseShProjectionMipLevel(envCubemapResolution, maxMipLevel);
         int sampleSize = Math.Max(envCubemapResolution >> projectionMipLevel, 1);
@@ -683,8 +582,6 @@ public sealed class IblPrecomputePass : IRenderPass
 
         _gl.BindTexture(TextureTarget.TextureCubeMap, 0);
 
-        // Lambertian diffuse irradiance is just the SH-projected radiance convolved
-        // with the cosine kernel. Each SH band gets a scalar kernel factor.
         coefficients[0] *= MathF.PI;
         coefficients[1] *= (2.0f * MathF.PI / 3.0f);
         coefficients[2] *= (2.0f * MathF.PI / 3.0f);
@@ -702,51 +599,29 @@ public sealed class IblPrecomputePass : IRenderPass
     {
         int level = 0;
         int size = envCubemapResolution;
-        while (size > DiffuseShProjectionFaceSize && level < maxMipLevel)
-        {
-            size >>= 1;
-            level++;
-        }
-
+        while (size > DiffuseShProjectionFaceSize && level < maxMipLevel) { size >>= 1; level++; }
         return level;
     }
 
     private static float ComputeCubemapTexelSolidAngle(float x0, float y0, float x1, float y1)
-    {
-        float area = CubemapAreaElement(x0, y0) -
-                     CubemapAreaElement(x0, y1) -
-                     CubemapAreaElement(x1, y0) +
-                     CubemapAreaElement(x1, y1);
-
-        return MathF.Abs(area);
-    }
+        => MathF.Abs(CubemapAreaElement(x0, y0) - CubemapAreaElement(x0, y1) - CubemapAreaElement(x1, y0) + CubemapAreaElement(x1, y1));
 
     private static float CubemapAreaElement(float x, float y)
+        => MathF.Atan2(x * y, MathF.Sqrt((x * x) + (y * y) + 1.0f));
+
+    private static Vector3 CubemapFaceDirection(int face, float u, float v) => Vector3.Normalize(face switch
     {
-        return MathF.Atan2(x * y, MathF.Sqrt((x * x) + (y * y) + 1.0f));
-    }
+        0 => new Vector3(1.0f, v, -u),
+        1 => new Vector3(-1.0f, v, u),
+        2 => new Vector3(u, 1.0f, -v),
+        3 => new Vector3(u, -1.0f, v),
+        4 => new Vector3(u, v, 1.0f),
+        _ => new Vector3(-u, v, -1.0f),
+    });
 
-    private static Vector3 CubemapFaceDirection(int face, float u, float v)
+    private static void EvaluateSecondOrderShBasis(Vector3 d, Span<float> basis)
     {
-        Vector3 direction = face switch
-        {
-            0 => new Vector3(1.0f, v, -u),
-            1 => new Vector3(-1.0f, v, u),
-            2 => new Vector3(u, 1.0f, -v),
-            3 => new Vector3(u, -1.0f, v),
-            4 => new Vector3(u, v, 1.0f),
-            _ => new Vector3(-u, v, -1.0f),
-        };
-
-        return Vector3.Normalize(direction);
-    }
-
-    private static void EvaluateSecondOrderShBasis(Vector3 direction, Span<float> basis)
-    {
-        float x = direction.X;
-        float y = direction.Y;
-        float z = direction.Z;
-
+        float x = d.X, y = d.Y, z = d.Z;
         basis[0] = 0.282095f;
         basis[1] = 0.488603f * y;
         basis[2] = 0.488603f * z;
@@ -756,19 +631,5 @@ public sealed class IblPrecomputePass : IRenderPass
         basis[6] = 0.315392f * ((3.0f * z * z) - 1.0f);
         basis[7] = 1.092548f * x * z;
         basis[8] = 0.546274f * ((x * x) - (y * y));
-    }
-
-    public void Dispose()
-    {
-        _equirectToCubemapShader?.Dispose();
-        _cubemapDownsampleShader?.Dispose();
-        _irradianceShader?.Dispose();
-        _prefilterShader?.Dispose();
-        _brdfLutShader?.Dispose();
-
-        if (_cubeVAO != 0) { try { _gl.DeleteVertexArray(_cubeVAO); } catch { } _cubeVAO = 0; }
-        if (_cubeVBO != 0) { try { _gl.DeleteBuffer(_cubeVBO); } catch { } _cubeVBO = 0; }
-
-        if (_emptyVao != 0) { try { _gl.DeleteVertexArray(_emptyVao); } catch { } _emptyVao = 0; }
     }
 }

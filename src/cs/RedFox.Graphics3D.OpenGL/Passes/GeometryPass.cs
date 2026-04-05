@@ -12,6 +12,7 @@ public sealed class GeometryPass : IRenderPass
     private bool _initialized;
 
     public string Name => "Geometry";
+    public PassPhase Phase => PassPhase.Pass;
     public bool Enabled { get; set; } = true;
 
     public void Initialize(GLRenderer renderer)
@@ -19,7 +20,7 @@ public sealed class GeometryPass : IRenderPass
         _gl = renderer.GL;
         (string meshVertex, string meshFragment) = ShaderSource.LoadProgram(_gl, "mesh");
         _meshShader = new GLShader(_gl, meshVertex, meshFragment);
-        _defaultWhiteTexture = CreateDefault1x1Texture(_gl, 255, 255, 255, 255);
+        _defaultWhiteTexture = GlBufferOperations.CreateDefault1x1Texture(_gl, 255, 255, 255, 255);
         _initialized = true;
     }
 
@@ -28,18 +29,18 @@ public sealed class GeometryPass : IRenderPass
         if (!_initialized || !Enabled)
             return;
 
-        Camera? camera = renderer.ActiveCamera;
-        if (camera is null)
+        RenderSettings settings = renderer.Settings;
+        if (settings.ActiveCamera is not Camera camera)
             return;
 
         _meshShader.Use();
-        SetSceneUniforms(renderer, camera);
+        SetSceneUniforms(settings, camera);
 
-        bool wireframeApplied = ApplyGeometryPolygonMode(renderer);
+        bool wireframeApplied = ApplyGeometryPolygonMode(settings);
         try
         {
             foreach (Mesh mesh in scene.RootNode.EnumerateDescendants<Mesh>())
-                RenderMesh(renderer, mesh);
+                RenderMesh(renderer, settings, mesh);
         }
         finally
         {
@@ -47,69 +48,72 @@ public sealed class GeometryPass : IRenderPass
         }
     }
 
-    private void SetSceneUniforms(GLRenderer renderer, Camera camera)
+    public void Dispose()
+    {
+        _meshShader?.Dispose();
+
+        if (_defaultWhiteTexture != 0)
+        {
+            try { _gl.DeleteTexture(_defaultWhiteTexture); } catch { }
+            _defaultWhiteTexture = 0;
+        }
+    }
+
+    private void SetSceneUniforms(RenderSettings settings, Camera camera)
     {
         _meshShader.SetUniform("uView", camera.GetViewMatrix());
         _meshShader.SetUniform("uProjection", camera.GetProjectionMatrix());
         _meshShader.SetUniform("uFarPlane", camera.FarPlane);
-        _meshShader.SetUniform("uScene", renderer.SceneTransform);
-        _meshShader.SetUniform("uSceneNormalMatrix", renderer.SceneNormalMatrix);
+        _meshShader.SetUniform("uScene", settings.SceneTransform);
+        _meshShader.SetUniform("uSceneNormalMatrix", settings.SceneNormalMatrix);
         _meshShader.SetUniform("uCameraPos", camera.Position);
-        _meshShader.SetUniform("uCameraWorldPos", ComputePreSceneCameraPosition(camera.Position, renderer.SceneTransform));
+        _meshShader.SetUniform("uCameraWorldPos", ComputePreSceneCameraPosition(camera.Position, settings.SceneTransform));
         _meshShader.SetUniform("uLightDir", Vector3.Normalize(new Vector3(0.35f, -0.9f, 0.25f)));
         _meshShader.SetUniform("uLightColor", new Vector3(1.0f, 0.98f, 0.94f));
         _meshShader.SetUniform("uSkyColor", new Vector3(0.24f, 0.31f, 0.40f));
         _meshShader.SetUniform("uGroundColor", new Vector3(0.09f, 0.08f, 0.07f));
         _meshShader.SetUniform("uAmbientStrength", 0.85f);
-        _meshShader.SetUniform("uEnvironmentMapExposure", renderer.EnvironmentMapExposure);
-        _meshShader.SetUniform("uEnvironmentMapIntensity", renderer.EnvironmentMapReflectionIntensity);
-        _meshShader.SetUniform("uShadingMode", (int)renderer.ShadingMode);
+        _meshShader.SetUniform("uEnvironmentMapExposure", settings.EnvironmentMapExposure);
+        _meshShader.SetUniform("uEnvironmentMapIntensity", settings.EnvironmentMapReflectionIntensity);
+        _meshShader.SetUniform("uShadingMode", (int)settings.ShadingMode);
     }
 
-    private void RenderMesh(GLRenderer renderer, Mesh mesh)
+    private void RenderMesh(GLRenderer renderer, RenderSettings settings, Mesh mesh)
     {
-        GLMeshHandle? handle = renderer.GetOrCreateMeshHandle(mesh);
+        MeshRenderHandle? handle = renderer.GetOrCreateMeshHandle(mesh);
         if (handle is null)
             return;
 
-        renderer.UpdateDynamicMeshData(mesh, handle);
+        handle.Update(renderer.GL, 0);
 
         Matrix4x4 model = mesh.GetActiveWorldMatrix();
         _meshShader.SetUniform("uModel", model);
-        _meshShader.SetUniform("uNormalMatrix", ComputeNormalMatrix(model));
+        _meshShader.SetUniform("uNormalMatrix", Matrix3x3.FromModelMatrix(model));
         _meshShader.SetUniform("uHasNormals", handle.HasNormals);
         _meshShader.SetUniform("uHasSkinning", handle.HasSkinning);
 
         if (handle.HasSkinning)
-            BindSkinningTextures(renderer, mesh, handle);
+        {
+            handle.BindSkinningTextures(_gl);
+            _meshShader.SetUniform("uInfluenceTexture", 1);
+            _meshShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
+            _meshShader.SetUniform("uBoneMatrixTexture", 2);
+            _meshShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
+        }
 
         Material? material = mesh.Materials?.FirstOrDefault();
-        ConfigureCullState(renderer, handle, material, model);
-        ApplyMaterial(renderer, material);
+        ConfigureCullState(settings, handle, material, model);
+        ApplyMaterial(renderer, settings, material);
 
-        _gl.BindVertexArray(handle.VAO);
-
-        if (handle.IsIndexed)
-        {
-            unsafe
-            {
-                _gl.DrawElements(PrimitiveType.Triangles, (uint)handle.IndexCount, DrawElementsType.UnsignedInt, (void*)0);
-            }
-        }
-        else
-        {
-            _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)handle.VertexCount);
-        }
-
-        _gl.BindVertexArray(0);
+        handle.Draw(_gl);
 
         if (handle.HasSkinning)
-            UnbindSkinningTextures();
+            handle.UnbindSkinningTextures(_gl);
     }
 
-    private bool ApplyGeometryPolygonMode(GLRenderer renderer)
+    private bool ApplyGeometryPolygonMode(RenderSettings settings)
     {
-        if (!renderer.ShowWireframe || renderer.IsOpenGles)
+        if (!settings.ShowWireframe || settings.IsOpenGles)
             return false;
 
         _gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Line);
@@ -124,46 +128,13 @@ public sealed class GeometryPass : IRenderPass
         _gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Fill);
     }
 
-    // ------------------------------------------------------------------
-    // Skinning
-    // ------------------------------------------------------------------
-
-    private void BindSkinningTextures(GLRenderer renderer, Mesh mesh, GLMeshHandle handle)
+    private void ConfigureCullState(RenderSettings settings, MeshRenderHandle handle, Material? material, Matrix4x4 model)
     {
-        renderer.UpdateSkinningData(mesh, handle);
-
-        _gl.ActiveTexture(TextureUnit.Texture1);
-        _gl.BindTexture(TextureTarget.Texture2D, handle.InfluenceTexture);
-        _meshShader.SetUniform("uInfluenceTexture", 1);
-        _meshShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
-
-        _gl.ActiveTexture(TextureUnit.Texture2);
-        _gl.BindTexture(TextureTarget.Texture2D, handle.BoneMatrixTexture);
-        _meshShader.SetUniform("uBoneMatrixTexture", 2);
-        _meshShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
-    }
-
-    private void UnbindSkinningTextures()
-    {
-        _gl.ActiveTexture(TextureUnit.Texture2);
-        _gl.BindTexture(TextureTarget.Texture2D, 0);
-        _gl.ActiveTexture(TextureUnit.Texture1);
-        _gl.BindTexture(TextureTarget.Texture2D, 0);
-        _gl.ActiveTexture(TextureUnit.Texture0);
-    }
-
-    // ------------------------------------------------------------------
-    // Culling
-    // ------------------------------------------------------------------
-
-    private void ConfigureCullState(GLRenderer renderer, GLMeshHandle handle, Material? material, Matrix4x4 model)
-    {
-        bool flipsWinding = model.GetDeterminant() * renderer.SceneTransform.GetDeterminant() < 0.0f;
+        bool flipsWinding = model.GetDeterminant() * settings.SceneTransform.GetDeterminant() < 0.0f;
         bool frontFaceClockwise = handle.FrontFaceClockwise ^ flipsWinding;
         _gl.FrontFace(frontFaceClockwise ? (FrontFaceDirection)0x0900 : FrontFaceDirection.Ccw);
 
-        bool cullBackFaces = renderer.EnableBackFaceCulling &&
-                             handle.HasConsistentWinding &&
+        bool cullBackFaces = settings.EnableBackFaceCulling &&
                              !handle.HasSkinning &&
                              !(material?.DoubleSided ?? false);
         if (cullBackFaces)
@@ -177,15 +148,11 @@ public sealed class GeometryPass : IRenderPass
         }
     }
 
-    // ------------------------------------------------------------------
-    // Material
-    // ------------------------------------------------------------------
-
-    private void ApplyMaterial(GLRenderer renderer, Material? material)
+    private void ApplyMaterial(GLRenderer renderer, RenderSettings settings, Material? material)
     {
         BindDefaultTextures();
         ApplyDiffuse(renderer, material);
-        ApplyEnvironment(renderer);
+        ApplyEnvironment(renderer, settings);
         ApplyPbrFactors(material);
         ApplyMaterialTextures(renderer, material);
     }
@@ -231,7 +198,7 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uHasDiffuseTexture", hasDiffuseTex);
     }
 
-    private void ApplyEnvironment(GLRenderer renderer)
+    private void ApplyEnvironment(GLRenderer renderer, RenderSettings settings)
     {
         GLEnvironmentResources? env = renderer.EnvironmentResources;
         bool hasSkyMap = env is not null && env.SkyCubemap.TextureId != 0;
@@ -245,7 +212,7 @@ public sealed class GeometryPass : IRenderPass
             _meshShader.SetUniform("uSkyMaxMipLevel", env.SkyMaxMipLevel);
         }
 
-        bool useIBL = renderer.EnableIBL &&
+        bool useIBL = settings.EnableIBL &&
                       env is not null &&
                       env.IrradianceCubemap.TextureId != 0 &&
                       env.PrefilterCubemap.TextureId != 0 &&
@@ -271,8 +238,9 @@ public sealed class GeometryPass : IRenderPass
 
     private void ApplyPbrFactors(Material? material)
     {
-        _meshShader.SetUniform("uMetallicFactor", 0f);
-        _meshShader.SetUniform("uRoughnessFactor", 0.5f);
+        (float metallic, float roughness) = PbrMaterialFactors.Resolve(material);
+        _meshShader.SetUniform("uMetallicFactor", metallic);
+        _meshShader.SetUniform("uRoughnessFactor", roughness);
         _meshShader.SetUniform("uDoubleSided", material?.DoubleSided ?? false);
 
         bool hasLegacySpecular = material?.SpecularColor.HasValue == true || material?.SpecularStrength.HasValue == true;
@@ -321,25 +289,7 @@ public sealed class GeometryPass : IRenderPass
         return false;
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
     private static Vector3 ExtractRgb(Vector4 color) => new(color.X, color.Y, color.Z);
-
-    private static Matrix3x3 ComputeNormalMatrix(Matrix4x4 model)
-    {
-        if (Matrix4x4.Invert(model, out Matrix4x4 inverseModel))
-        {
-            Matrix4x4 transposed = Matrix4x4.Transpose(inverseModel);
-            return new Matrix3x3(
-                transposed.M11, transposed.M12, transposed.M13,
-                transposed.M21, transposed.M22, transposed.M23,
-                transposed.M31, transposed.M32, transposed.M33);
-        }
-
-        return Matrix3x3.Identity;
-    }
 
     private static Vector3 ComputePreSceneCameraPosition(Vector3 sceneSpaceCameraPosition, Matrix4x4 sceneTransform)
     {
@@ -347,30 +297,5 @@ public sealed class GeometryPass : IRenderPass
             return sceneSpaceCameraPosition;
 
         return Vector3.Transform(sceneSpaceCameraPosition, inverseScene);
-    }
-
-    private static unsafe uint CreateDefault1x1Texture(GL gl, byte r, byte g, byte b, byte a)
-    {
-        uint tex = gl.GenTexture();
-        gl.BindTexture(TextureTarget.Texture2D, tex);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
-        byte* pixel = stackalloc byte[4] { r, g, b, a };
-        gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixel);
-        gl.BindTexture(TextureTarget.Texture2D, 0);
-        return tex;
-    }
-
-    public void Dispose()
-    {
-        _meshShader?.Dispose();
-
-        if (_defaultWhiteTexture != 0)
-        {
-            try { _gl.DeleteTexture(_defaultWhiteTexture); } catch { }
-            _defaultWhiteTexture = 0;
-        }
     }
 }

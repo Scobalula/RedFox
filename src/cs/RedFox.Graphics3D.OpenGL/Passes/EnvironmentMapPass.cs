@@ -4,10 +4,6 @@ using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL.Passes;
 
-/// <summary>
-/// A render pass that renders the precomputed environment cubemap as a background skybox.
-/// Optional blur is implemented as cubemap LOD selection.
-/// </summary>
 public sealed class EnvironmentMapPass : IRenderPass
 {
     private GL _gl = null!;
@@ -16,18 +12,16 @@ public sealed class EnvironmentMapPass : IRenderPass
     private uint _cubeVbo;
     private bool _initialized;
 
-    /// <inheritdoc/>
     public string Name => "EnvironmentMap";
-
-    /// <inheritdoc/>
+    public PassPhase Phase => PassPhase.Pass;
     public bool Enabled { get; set; } = true;
 
-    /// <inheritdoc/>
     public void Initialize(GLRenderer renderer)
     {
         _gl = renderer.GL;
         (string vertexSource, string fragmentSource) = ShaderSource.LoadProgram(_gl, "envmap");
         _shader = new GLShader(_gl, vertexSource, fragmentSource);
+
         _cubeVao = _gl.GenVertexArray();
         _cubeVbo = _gl.GenBuffer();
 
@@ -53,20 +47,20 @@ public sealed class EnvironmentMapPass : IRenderPass
         _initialized = true;
     }
 
-    /// <inheritdoc/>
     public void Render(GLRenderer renderer, Scene scene, float deltaTime)
     {
         if (!_initialized || !Enabled)
             return;
 
-        if (!renderer.ShowSkybox)
+        RenderSettings settings = renderer.Settings;
+        if (!settings.ShowSkybox)
             return;
 
         GLEnvironmentResources? environment = renderer.EnvironmentResources;
         if (environment is null || environment.SkyCubemap.TextureId == 0)
             return;
 
-        Camera? camera = renderer.ActiveCamera;
+        Camera? camera = settings.ActiveCamera;
         if (camera is null)
             return;
 
@@ -78,20 +72,21 @@ public sealed class EnvironmentMapPass : IRenderPass
 
         _shader.SetUniform("uProjection", camera.GetProjectionMatrix());
         _shader.SetUniform("uView", camera.GetViewMatrix());
-        _shader.SetUniform("uExposure", renderer.EnvironmentMapExposure);
-        _shader.SetUniform("uBlurEnabled", renderer.EnvironmentMapBlurEnabled);
+        _shader.SetUniform("uExposure", settings.EnvironmentMapExposure);
+        _shader.SetUniform("uBlurEnabled", settings.EnvironmentMapBlurEnabled);
+
         uint cubemapTextureId = environment.SkyCubemap.TextureId;
         float blurMip = 0.0f;
-        if (renderer.EnvironmentMapBlurEnabled)
+        if (settings.EnvironmentMapBlurEnabled)
         {
             if (environment.PrefilterCubemap.TextureId != 0)
             {
                 cubemapTextureId = environment.PrefilterCubemap.TextureId;
-                blurMip = Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.PrefilterMaxMipLevel);
+                blurMip = Math.Clamp(settings.EnvironmentMapBlurRadius, 0.0f, environment.PrefilterMaxMipLevel);
             }
             else
             {
-                blurMip = Math.Clamp(renderer.EnvironmentMapBlurRadius, 0.0f, environment.SkyMaxMipLevel);
+                blurMip = Math.Clamp(settings.EnvironmentMapBlurRadius, 0.0f, environment.SkyMaxMipLevel);
             }
         }
 
@@ -111,7 +106,6 @@ public sealed class EnvironmentMapPass : IRenderPass
         _gl.DepthMask(true);
     }
 
-    /// <inheritdoc/>
     public void Dispose()
     {
         _shader?.Dispose();

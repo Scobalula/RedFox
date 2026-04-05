@@ -21,6 +21,10 @@ public sealed class GLCubemap : IDisposable
     /// <summary>Number of mipmap levels (1 if not mipmapped).</summary>
     public int MipLevels { get; private set; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="GLCubemap"/> class.
+    /// </summary>
+    /// <param name="gl">The OpenGL context to use.</param>
     public GLCubemap(GL gl)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
@@ -196,6 +200,9 @@ public sealed class GLCubemap : IDisposable
         return br.ReadInt32() == size && br.ReadInt32() == mipLevels;
     }
 
+    /// <summary>
+    /// Releases the OpenGL texture resource and resets state.
+    /// </summary>
     public void Dispose()
     {
         if (TextureId != 0)

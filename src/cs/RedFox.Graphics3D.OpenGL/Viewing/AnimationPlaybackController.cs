@@ -2,6 +2,9 @@ using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.OpenGL.Viewing;
 
+/// <summary>
+/// Drives animation playback for a scene by managing skeleton and blend shape animation samplers.
+/// </summary>
 public sealed class AnimationPlaybackController
 {
     private readonly Scene _scene;
@@ -9,6 +12,11 @@ public sealed class AnimationPlaybackController
     private readonly BlendShape[] _blendShapes;
     private float _elapsedSeconds;
 
+    /// <summary>
+    /// Creates a new playback controller for the specified scene, optionally filtering by animation name.
+    /// </summary>
+    /// <param name="scene">The scene containing the animations to play.</param>
+    /// <param name="animationName">An optional animation name filter; when specified, only matching animations are loaded.</param>
     public AnimationPlaybackController(Scene scene, string? animationName = null)
     {
         _scene = scene ?? throw new ArgumentNullException(nameof(scene));
@@ -18,17 +26,32 @@ public sealed class AnimationPlaybackController
         InitializeBlendShapeSamplers(animationName);
     }
 
+    /// <summary>The animation samplers managed by this controller.</summary>
     public IReadOnlyList<AnimationSampler> Samplers => _samplers;
+
+    /// <summary>The playback speed multiplier. A value of 1.0 plays at normal speed.</summary>
     public float Speed { get; set; } = 1.0f;
+
+    /// <summary>The total duration of the longest active animation in seconds.</summary>
     public float DurationSeconds => _samplers.Count == 0 ? 0.0f : _samplers.Max(sampler => sampler.Length);
+
+    /// <summary>The highest frame rate among all active animation samplers.</summary>
     public float FrameRate => _samplers.Count == 0 ? 0.0f : _samplers.Max(sampler => sampler.FrameRate);
+
+    /// <summary>The time between frames at the current frame rate, in seconds.</summary>
     public float FrameTime => FrameRate > 0.0f ? 1.0f / FrameRate : 0.0f;
+
+    /// <summary>Gets or sets the current playback position in seconds.</summary>
     public float ElapsedSeconds
     {
         get => _elapsedSeconds;
         set => _elapsedSeconds = Math.Max(value, 0.0f);
     }
 
+    /// <summary>
+    /// Advances the playback position by the specified delta time and applies the resulting animation samples.
+    /// </summary>
+    /// <param name="deltaTime">The time to advance in seconds.</param>
     public void Update(float deltaTime)
     {
         if (_samplers.Count == 0)
@@ -42,6 +65,10 @@ public sealed class AnimationPlaybackController
         SampleAt(_elapsedSeconds);
     }
 
+    /// <summary>
+    /// Samples all animations at the specified elapsed time and applies the results to the scene.
+    /// </summary>
+    /// <param name="elapsedSeconds">The absolute time in seconds at which to sample.</param>
     public void SampleAt(float elapsedSeconds)
     {
         _elapsedSeconds = Math.Max(elapsedSeconds, 0.0f);

@@ -3,8 +3,22 @@ using RedFox.Graphics3D;
 
 namespace RedFox.Graphics3D.OpenGL;
 
+/// <summary>
+/// Provides helper methods for resolving PBR metallic and roughness values
+/// from a <see cref="Material"/>'s scalar and colour properties.
+/// </summary>
 public static class PbrMaterialFactors
 {
+    /// <summary>
+    /// Resolves the metallic and roughness factors from the given material,
+    /// clamping both values to the [0, 1] range.
+    /// </summary>
+    /// <param name="material">
+    /// The material to read PBR factors from, or <c>null</c> to use default values.
+    /// </param>
+    /// <returns>
+    /// A tuple containing the resolved <c>Metallic</c> and <c>Roughness</c> values.
+    /// </returns>
     public static (float Metallic, float Roughness) Resolve(Material? material)
     {
         float metallic = ResolveNullable(material?.Metallic, material?.MetallicColor, fallback: 0f);

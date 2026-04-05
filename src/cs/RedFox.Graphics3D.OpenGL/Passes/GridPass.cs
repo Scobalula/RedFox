@@ -15,7 +15,9 @@ public sealed class GridPass : IRenderPass
     private bool _initialized;
 
     public string Name => "Grid";
+    public PassPhase Phase => PassPhase.Postpass;
     public bool Enabled { get; set; } = true;
+
     public float HalfExtent { get; set; } = 10.0f;
     public float Step { get; set; } = 1.0f;
 
@@ -30,7 +32,7 @@ public sealed class GridPass : IRenderPass
 
     public unsafe void Render(GLRenderer renderer, Scene scene, float deltaTime)
     {
-        if (!_initialized || !Enabled || renderer.ActiveCamera is null || _vao == 0)
+        if (!_initialized || !Enabled || renderer.Settings.ActiveCamera is not Camera camera || _vao == 0)
             return;
 
         int* viewport = stackalloc int[4];
@@ -40,10 +42,10 @@ public sealed class GridPass : IRenderPass
         if (viewportWidth <= 0 || viewportHeight <= 0)
             return;
 
-        Matrix4x4 viewMatrix = renderer.ActiveCamera.GetViewMatrix();
-        Matrix4x4 projectionMatrix = renderer.ActiveCamera.GetProjectionMatrix();
-        float nearPlane = renderer.ActiveCamera.NearPlane;
-        float farPlane = renderer.ActiveCamera.FarPlane;
+        Matrix4x4 viewMatrix = camera.GetViewMatrix();
+        Matrix4x4 projectionMatrix = camera.GetProjectionMatrix();
+        float nearPlane = camera.NearPlane;
+        float farPlane = camera.FarPlane;
         List<float> vertices = new(_segments.Length * 48);
         foreach (GridSegment segment in _segments)
         {

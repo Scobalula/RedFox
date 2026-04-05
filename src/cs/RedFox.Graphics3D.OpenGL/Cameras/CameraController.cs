@@ -2,13 +2,41 @@ using System.Numerics;
 
 namespace RedFox.Graphics3D.OpenGL.Cameras;
 
+/// <summary>
+/// Specifies the interaction mode for a <see cref="CameraController"/>.
+/// </summary>
 public enum CameraMode
 {
+    /// <summary>
+    /// Arcball orbiting with left mouse, panning with middle mouse or shift+left.
+    /// </summary>
     Arcball,
+    /// <summary>
+    /// Blender-style controls: orbit with middle mouse, pan with shift+middle, dolly with right mouse.
+    /// </summary>
     Blender,
+    /// <summary>
+    /// First-person shooter style free-flight camera.
+    /// </summary>
     Fps
 }
 
+/// <summary>
+/// Encapsulates the current input state consumed by <see cref="CameraController.Update"/>.
+/// </summary>
+/// <param name="MouseDelta">Relative mouse movement since the last frame.</param>
+/// <param name="WheelDelta">Accumulated mouse wheel delta.</param>
+/// <param name="LeftMouseDown">Whether the left mouse button is held.</param>
+/// <param name="MiddleMouseDown">Whether the middle mouse button is held.</param>
+/// <param name="RightMouseDown">Whether the right mouse button is held.</param>
+/// <param name="ShiftModifier">Whether the Shift key is held.</param>
+/// <param name="MoveForward">Whether the forward movement input is active.</param>
+/// <param name="MoveBackward">Whether the backward movement input is active.</param>
+/// <param name="MoveLeft">Whether the left movement input is active.</param>
+/// <param name="MoveRight">Whether the right movement input is active.</param>
+/// <param name="MoveUp">Whether the upward movement input is active.</param>
+/// <param name="MoveDown">Whether the downward movement input is active.</param>
+/// <param name="FastMoveModifier">Whether the fast-move modifier input is active.</param>
 public readonly record struct CameraInputState(
     Vector2 MouseDelta,
     float WheelDelta,
@@ -24,6 +52,9 @@ public readonly record struct CameraInputState(
     bool MoveDown,
     bool FastMoveModifier);
 
+/// <summary>
+/// Translates user input into camera position and orientation changes for an orbiting or free-flight camera.
+/// </summary>
 public sealed class CameraController
 {
     private const float HalfPiMinusEpsilon = 1.5607964f;
@@ -35,22 +66,67 @@ public sealed class CameraController
     private float _distance;
     private Vector3 _focusPoint;
 
+    /// <summary>
+    /// Initializes a new <see cref="CameraController"/> that drives the specified <paramref name="camera"/>.
+    /// </summary>
+    /// <param name="camera">The camera to control.</param>
     public CameraController(Camera camera)
     {
         _camera = camera ?? throw new ArgumentNullException(nameof(camera));
         SynchronizeFromCamera();
     }
 
+    /// <summary>
+    /// Gets the <see cref="Camera"/> instance controlled by this controller.
+    /// </summary>
     public Camera Camera => _camera;
+
+    /// <summary>
+    /// Gets or sets the camera interaction mode.
+    /// </summary>
     public CameraMode Mode { get; set; } = CameraMode.Arcball;
+
+    /// <summary>
+    /// Gets or sets the sensitivity applied to orbit rotations.
+    /// </summary>
     public float OrbitSensitivity { get; set; } = 0.01f;
+
+    /// <summary>
+    /// Gets or sets the sensitivity applied to panning.
+    /// </summary>
     public float PanSensitivity { get; set; } = 0.0025f;
+
+    /// <summary>
+    /// Gets or sets the sensitivity applied to zoom via the mouse wheel.
+    /// </summary>
     public float ZoomSensitivity { get; set; } = 0.12f;
+
+    /// <summary>
+    /// Gets or sets the base movement speed used in FPS mode.
+    /// </summary>
     public float MoveSpeed { get; set; } = 4.5f;
+
+    /// <summary>
+    /// Gets or sets the multiplier applied to <see cref="MoveSpeed"/> when the fast-move modifier is active.
+    /// </summary>
     public float FastMoveMultiplier { get; set; } = 3.0f;
+
+    /// <summary>
+    /// Gets the point in world space around which the camera orbits.
+    /// </summary>
     public Vector3 FocusPoint => _focusPoint;
+
+    /// <summary>
+    /// Gets the current distance between the camera and the focus point.
+    /// </summary>
     public float Distance => _distance;
 
+    /// <summary>
+    /// Positions the camera so that a sphere of the given <paramref name="radius"/> centered at
+    /// <paramref name="center"/> is fully visible.
+    /// </summary>
+    /// <param name="center">The world-space center of the bounding sphere.</param>
+    /// <param name="radius">The radius of the bounding sphere.</param>
     public void Fit(Vector3 center, float radius)
     {
         _focusPoint = center;
@@ -70,6 +146,9 @@ public sealed class CameraController
         ApplyOrbitCamera();
     }
 
+    /// <summary>
+    /// Recalculates internal yaw, pitch, focus point, and distance from the camera's current position and target.
+    /// </summary>
     public void SynchronizeFromCamera()
     {
         Vector3 forward = Vector3.Normalize(_camera.Target - _camera.Position);
@@ -82,6 +161,11 @@ public sealed class CameraController
         _distance = MathF.Max(Vector3.Distance(_camera.Position, _camera.Target), MinimumDistance);
     }
 
+    /// <summary>
+    /// Applies the given <paramref name="input"/> state to update the camera for the current frame.
+    /// </summary>
+    /// <param name="input">The current input state.</param>
+    /// <param name="deltaTime">The time elapsed since the last frame, in seconds.</param>
     public void Update(in CameraInputState input, float deltaTime)
     {
         switch (Mode)

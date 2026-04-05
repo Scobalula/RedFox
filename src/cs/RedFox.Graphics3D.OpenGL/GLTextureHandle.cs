@@ -3,14 +3,26 @@ using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL;
 
+/// <summary>
+/// Represents an OpenGL 2D texture uploaded from image data.
+/// Supports both uncompressed RGBA and block-compressed (BCn) formats.
+/// </summary>
 public sealed class GLTextureHandle : IDisposable
 {
-    public uint TextureId { get; private set; }
-    public int Width { get; }
-    public int Height { get; }
-
     private readonly GL _gl;
 
+    /// <summary>The OpenGL texture ID.</summary>
+    public uint TextureId { get; private set; }
+
+    /// <summary>The texture width in pixels.</summary>
+    public int Width { get; }
+
+    /// <summary>The texture height in pixels.</summary>
+    public int Height { get; }
+
+    /// <summary>
+    /// Creates an RGBA8 texture from raw byte pixel data with mipmapped filtering.
+    /// </summary>
     public GLTextureHandle(GL gl, byte[] rgbaData, int width, int height)
     {
         _gl = gl;
@@ -30,6 +42,9 @@ public sealed class GLTextureHandle : IDisposable
         gl.BindTexture(TextureTarget.Texture2D, 0);
     }
 
+    /// <summary>
+    /// Creates a block-compressed texture from an <see cref="Image"/> with pre-existing mip levels.
+    /// </summary>
     public GLTextureHandle(GL gl, Image image)
     {
         _gl = gl;
@@ -63,12 +78,17 @@ public sealed class GLTextureHandle : IDisposable
         gl.BindTexture(TextureTarget.Texture2D, 0);
     }
 
+    /// <summary>Binds this texture to the specified texture unit.</summary>
+    /// <param name="unit">Zero-based texture unit index.</param>
     public void Bind(uint unit)
     {
         _gl.ActiveTexture((TextureUnit)((int)TextureUnit.Texture0 + (int)unit));
         _gl.BindTexture(TextureTarget.Texture2D, TextureId);
     }
 
+    /// <summary>
+    /// Checks whether the given image format is supported as a block-compressed GPU texture.
+    /// </summary>
     public static bool IsCompressedFormatSupported(ImageFormat format) => MapCompressedFormatOrDefault(format) != 0;
 
     private static InternalFormat MapCompressedFormat(ImageFormat format) => format switch
@@ -109,17 +129,12 @@ public sealed class GLTextureHandle : IDisposable
         _ => 0
     };
 
+    /// <summary>Deletes the OpenGL texture resource.</summary>
     public void Dispose()
     {
         if (TextureId != 0)
         {
-            try
-            {
-                _gl.DeleteTexture(TextureId);
-            }
-            catch
-            {
-            }
+            try { _gl.DeleteTexture(TextureId); } catch { }
             TextureId = 0;
         }
     }

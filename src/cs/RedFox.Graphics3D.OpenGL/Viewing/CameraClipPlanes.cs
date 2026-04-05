@@ -2,8 +2,16 @@ using System.Numerics;
 
 namespace RedFox.Graphics3D.OpenGL.Viewing;
 
+/// <summary>
+/// Computes appropriate near and far clipping planes for a camera based on scene bounds.
+/// </summary>
 public static class CameraClipPlanes
 {
+    /// <summary>
+    /// Configures the near and far clipping planes of the given camera to fit the specified scene bounds.
+    /// </summary>
+    /// <param name="camera">The camera whose clip planes will be configured.</param>
+    /// <param name="bounds">The axis-aligned bounding information for the scene.</param>
     public static void Configure(Camera camera, in SceneBoundsInfo bounds)
     {
         ArgumentNullException.ThrowIfNull(camera);
