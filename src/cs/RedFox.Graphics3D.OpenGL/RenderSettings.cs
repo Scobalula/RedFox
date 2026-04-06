@@ -19,6 +19,11 @@ public sealed class RenderSettings
     public bool EnvironmentMapBlurEnabled { get; set; }
     public float EnvironmentMapBlurRadius { get; set; } = 4.0f;
     public bool EnableIBL { get; set; } = true;
+    public bool EnableShadows { get; set; } = true;
+    public ShadowQuality ShadowQuality { get; set; } = ShadowQuality.Ultra;
+    public float ShadowSoftness { get; set; } = 1.0f;
+    public float ShadowIntensity { get; set; } = 1;
+    public bool AutoDetectShadowLight { get; set; } = true;
     public int RequestedMsaaSamples { get; set; } = 4;
 
     public Vector3 TransformPoint(Vector3 value) => Vector3.Transform(value, SceneTransform);

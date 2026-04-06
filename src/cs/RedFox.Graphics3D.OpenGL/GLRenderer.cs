@@ -29,6 +29,11 @@ public sealed class GLRenderer : IDisposable
 
     private ImageTranslatorManager? _imageTranslatorManager;
 
+    private Vector3? _dominantLightDirection;
+    private Vector3 _dominantLightColor = Vector3.One;
+    private float _dominantLightIntensity = 1.0f;
+    private GLEnvironmentResources? _lastDominantLightEnvResources;
+
     public GLRenderer(GL gl)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
@@ -39,6 +44,10 @@ public sealed class GLRenderer : IDisposable
     public RenderSettings Settings { get; }
 
     public GLEnvironmentResources? EnvironmentResources => _environmentResources;
+
+    public Vector3? DominantLightDirection => _dominantLightDirection;
+    public Vector3 DominantLightColor => _dominantLightColor;
+    public float DominantLightIntensity => _dominantLightIntensity;
 
     public ImageTranslatorManager? ImageTranslatorManager
     {
@@ -95,6 +104,9 @@ public sealed class GLRenderer : IDisposable
             AddPass(new GeometryPass());
             AddPass(new BonePass());
         }
+
+        if (GetPassesByPhase(PassPhase.Prepass).Count == 0)
+            AddPass(new ShadowMapPass());
 
         if (GetPassesByPhase(PassPhase.Postpass).Count == 0)
             AddPass(new GridPass());
@@ -284,6 +296,8 @@ public sealed class GLRenderer : IDisposable
                 SetEnvironmentResources(iblResources);
         }
 
+        UpdateDominantLight();
+
         ExecutePasses(_prepasses, scene, deltaTime);
         ExecutePasses(_renderPasses, scene, deltaTime);
         ExecutePasses(_postpasses, scene, deltaTime);
@@ -332,6 +346,136 @@ public sealed class GLRenderer : IDisposable
 
         _environmentResources?.Dispose();
         _environmentResources = resources;
+        _lastDominantLightEnvResources = null;
+    }
+
+    internal void UpdateDominantLight()
+    {
+        if (!Settings.AutoDetectShadowLight || !Settings.EnableShadows)
+            return;
+
+        GLEnvironmentResources? env = _environmentResources;
+        if (env is null || env.IrradianceCubemap.TextureId == 0)
+        {
+            _dominantLightDirection = null;
+            return;
+        }
+
+        if (ReferenceEquals(env, _lastDominantLightEnvResources))
+            return;
+
+        _lastDominantLightEnvResources = env;
+        ExtractDominantLightFromCubemap(env);
+    }
+
+    private unsafe void ExtractDominantLightFromCubemap(GLEnvironmentResources env)
+    {
+        if (Settings.IsOpenGles)
+        {
+            _dominantLightDirection = null;
+            return;
+        }
+
+        ReadOnlySpan<Vector3> faceDirections =
+        [
+            Vector3.UnitX,
+            -Vector3.UnitX,
+            Vector3.UnitY,
+            -Vector3.UnitY,
+            Vector3.UnitZ,
+            -Vector3.UnitZ,
+        ];
+
+        uint cubemapId = env.IrradianceCubemap.TextureId;
+        int faceSize = env.IrradianceCubemap.Size;
+        int sampleSize = Math.Min(faceSize, 4);
+
+        float[] pixels = new float[sampleSize * sampleSize * 4];
+        int mipLevel = 0;
+        int actualSize = faceSize;
+        while (actualSize > sampleSize && mipLevel < 8)
+        {
+            mipLevel++;
+            actualSize = Math.Max(faceSize >> mipLevel, 1);
+        }
+        if (actualSize > sampleSize)
+        {
+            mipLevel = 0;
+            actualSize = faceSize;
+        }
+
+        pixels = new float[actualSize * actualSize * 4];
+
+        Vector3 bestDir = -Vector3.UnitY;
+        float bestLuminance = 0.0f;
+        Vector3 weightedColor = Vector3.Zero;
+        float totalWeight = 0.0f;
+
+        _gl.BindTexture(TextureTarget.TextureCubeMap, cubemapId);
+
+        for (int face = 0; face < 6; face++)
+        {
+            var target = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + face);
+            fixed (float* ptr = pixels)
+            {
+                _gl.GetTexImage(target, mipLevel, PixelFormat.Rgba, PixelType.Float, ptr);
+            }
+
+            for (int y = 0; y < actualSize; y++)
+            {
+                for (int x = 0; x < actualSize; x++)
+                {
+                    int idx = (y * actualSize + x) * 4;
+                    float r = pixels[idx];
+                    float g = pixels[idx + 1];
+                    float b = pixels[idx + 2];
+                    float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+
+                    Vector3 dir = ComputeCubemapDirection(face, x, y, actualSize);
+                    float weight = luminance * luminance;
+                    weightedColor += new Vector3(r, g, b) * weight;
+                    totalWeight += weight;
+
+                    if (luminance > bestLuminance)
+                    {
+                        bestLuminance = luminance;
+                        bestDir = dir;
+                    }
+                }
+            }
+        }
+
+        _gl.BindTexture(TextureTarget.TextureCubeMap, 0);
+
+        if (bestLuminance > 0.001f)
+        {
+            _dominantLightDirection = Vector3.Normalize(bestDir);
+            _dominantLightColor = totalWeight > 0.0f
+                ? Vector3.Normalize(weightedColor / totalWeight)
+                : Vector3.One;
+            _dominantLightIntensity = MathF.Min(bestLuminance, 5.0f);
+        }
+        else
+        {
+            _dominantLightDirection = null;
+            _dominantLightColor = Vector3.One;
+            _dominantLightIntensity = 1.0f;
+        }
+    }
+
+    private static Vector3 ComputeCubemapDirection(int face, int x, int y, int faceSize)
+    {
+        float u = (x + 0.5f) / faceSize * 2.0f - 1.0f;
+        float v = (y + 0.5f) / faceSize * 2.0f - 1.0f;
+        return face switch
+        {
+            0 => Vector3.Normalize(new Vector3(1.0f, -v, -u)),
+            1 => Vector3.Normalize(new Vector3(-1.0f, -v, u)),
+            2 => Vector3.Normalize(new Vector3(u, 1.0f, v)),
+            3 => Vector3.Normalize(new Vector3(u, -1.0f, -v)),
+            4 => Vector3.Normalize(new Vector3(u, -v, 1.0f)),
+            _ => Vector3.Normalize(new Vector3(-u, -v, -1.0f)),
+        };
     }
 
     private void ExecutePasses(List<IRenderPass> passes, Scene scene, float deltaTime)

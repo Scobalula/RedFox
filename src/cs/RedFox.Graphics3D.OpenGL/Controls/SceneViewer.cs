@@ -113,6 +113,21 @@ public class SceneViewer : HitTestOpenGlControlBase
     public static readonly StyledProperty<bool> EnableIBLProperty =
         AvaloniaProperty.Register<SceneViewer, bool>(nameof(EnableIBL), true);
 
+    public static readonly StyledProperty<bool> EnableShadowsProperty =
+        AvaloniaProperty.Register<SceneViewer, bool>(nameof(EnableShadows));
+
+    public static readonly StyledProperty<ShadowQuality> ShadowQualityProperty =
+        AvaloniaProperty.Register<SceneViewer, ShadowQuality>(nameof(ShadowQuality), OpenGL.ShadowQuality.Medium);
+
+    public static readonly StyledProperty<float> ShadowSoftnessProperty =
+        AvaloniaProperty.Register<SceneViewer, float>(nameof(ShadowSoftness), 1.0f);
+
+    public static readonly StyledProperty<float> ShadowIntensityProperty =
+        AvaloniaProperty.Register<SceneViewer, float>(nameof(ShadowIntensity), 0.85f);
+
+    public static readonly StyledProperty<bool> AutoDetectShadowLightProperty =
+        AvaloniaProperty.Register<SceneViewer, bool>(nameof(AutoDetectShadowLight), true);
+
     public static readonly StyledProperty<int> MsaaSamplesProperty =
         AvaloniaProperty.Register<SceneViewer, int>(nameof(MsaaSamples), 4);
 
@@ -368,6 +383,36 @@ public class SceneViewer : HitTestOpenGlControlBase
         set => SetValue(EnableIBLProperty, value);
     }
 
+    public bool EnableShadows
+    {
+        get => GetValue(EnableShadowsProperty);
+        set => SetValue(EnableShadowsProperty, value);
+    }
+
+    public ShadowQuality ShadowQuality
+    {
+        get => GetValue(ShadowQualityProperty);
+        set => SetValue(ShadowQualityProperty, value);
+    }
+
+    public float ShadowSoftness
+    {
+        get => GetValue(ShadowSoftnessProperty);
+        set => SetValue(ShadowSoftnessProperty, value);
+    }
+
+    public float ShadowIntensity
+    {
+        get => GetValue(ShadowIntensityProperty);
+        set => SetValue(ShadowIntensityProperty, value);
+    }
+
+    public bool AutoDetectShadowLight
+    {
+        get => GetValue(AutoDetectShadowLightProperty);
+        set => SetValue(AutoDetectShadowLightProperty, value);
+    }
+
     public int MsaaSamples
     {
         get => GetValue(MsaaSamplesProperty);
@@ -543,6 +588,11 @@ public class SceneViewer : HitTestOpenGlControlBase
             change.Property == EnvironmentMapBlurEnabledProperty ||
             change.Property == EnvironmentMapBlurRadiusProperty ||
             change.Property == EnableIBLProperty ||
+            change.Property == EnableShadowsProperty ||
+            change.Property == ShadowQualityProperty ||
+            change.Property == ShadowSoftnessProperty ||
+            change.Property == ShadowIntensityProperty ||
+            change.Property == AutoDetectShadowLightProperty ||
             change.Property == MsaaSamplesProperty ||
             change.Property == ClearColorProperty ||
             change.Property == ShowGridProperty)
@@ -878,6 +928,11 @@ public class SceneViewer : HitTestOpenGlControlBase
         _renderer.Settings.EnvironmentMapBlurEnabled = EnvironmentMapBlurEnabled;
         _renderer.Settings.EnvironmentMapBlurRadius = EnvironmentMapBlurRadius;
         _renderer.Settings.EnableIBL = EnableIBL;
+        _renderer.Settings.EnableShadows = EnableShadows;
+        _renderer.Settings.ShadowQuality = ShadowQuality;
+        _renderer.Settings.ShadowSoftness = ShadowSoftness;
+        _renderer.Settings.ShadowIntensity = ShadowIntensity;
+        _renderer.Settings.AutoDetectShadowLight = AutoDetectShadowLight;
         _renderer.Settings.RequestedMsaaSamples = MsaaSamples;
         _renderer.Settings.BackgroundColor = ToRendererColor(ClearColor);
 

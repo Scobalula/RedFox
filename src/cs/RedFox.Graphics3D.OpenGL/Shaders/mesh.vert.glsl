@@ -18,6 +18,9 @@ uniform vec2 uInfluenceTextureSize;
 uniform sampler2D uBoneMatrixTexture;
 uniform vec2 uBoneMatrixTextureSize;
 
+uniform mat4 uLightSpaceMatrix;
+uniform bool uEnableShadows;
+
 out vec3 vWorldPos;
 out vec3 vCameraRelativePos;
 noperspective out vec3 vCameraRelativePosLinear;
@@ -27,6 +30,7 @@ out vec3 vViewNormal;
 out vec2 vTexCoord;
 flat out int vHasNormals;
 out float vClipW;
+out vec4 vLightSpacePos;
 
 ivec2 getTexelCoord(int index, vec2 sizeValue)
 {
@@ -118,4 +122,9 @@ void main()
     vViewNormal = mat3(uView) * vNormal;
     gl_Position = uProjection * vec4(vViewPos, 1.0);
     vClipW = gl_Position.w;
+
+    if (uEnableShadows)
+        vLightSpacePos = uLightSpaceMatrix * vec4(vWorldPos, 1.0);
+    else
+        vLightSpacePos = vec4(0.0);
 }

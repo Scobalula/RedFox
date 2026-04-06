@@ -161,6 +161,28 @@
                         SelectedItem="{Binding ShadingMode}" />
               <CheckBox Content="Enable IBL"
                         IsChecked="{Binding EnableIBL}" />
+              <CheckBox Content="Enable shadows"
+                        IsChecked="{Binding EnableShadows}" />
+              <TextBlock Text="Shadow Quality"
+                        IsVisible="{Binding EnableShadows}" />
+              <ComboBox ItemsSource="{Binding ShadowQualities}"
+                        SelectedItem="{Binding ShadowQuality}"
+                        IsVisible="{Binding EnableShadows}" />
+              <CheckBox Content="Auto-detect light"
+                        IsChecked="{Binding AutoDetectShadowLight}"
+                        IsVisible="{Binding EnableShadows}" />
+              <TextBlock Text="{Binding ShadowSoftness, StringFormat='Shadow Softness: {0:F2}'}"
+                        IsVisible="{Binding EnableShadows}" />
+              <Slider Minimum="0"
+                      Maximum="3"
+                      Value="{Binding ShadowSoftness}"
+                      IsVisible="{Binding EnableShadows}" />
+              <TextBlock Text="{Binding ShadowIntensity, StringFormat='Shadow Intensity: {0:F2}'}"
+                        IsVisible="{Binding EnableShadows}" />
+              <Slider Minimum="0"
+                      Maximum="1"
+                      Value="{Binding ShadowIntensity}"
+                      IsVisible="{Binding EnableShadows}" />
               <CheckBox Content="Blur environment"
                         IsChecked="{Binding EnvironmentMapBlurEnabled}" />
               <TextBlock Text="{Binding EnvironmentMapExposure, StringFormat='Env Exposure: {0:F2}'}" />
@@ -245,6 +267,11 @@
                           EnvironmentMapBlurRadius="{Binding EnvironmentMapBlurRadius}"
                           EnvironmentMapFlipMode="{Binding EnvironmentMapFlipMode}"
                           EnableIBL="{Binding EnableIBL}"
+                          EnableShadows="{Binding EnableShadows}"
+                          ShadowQuality="{Binding ShadowQuality}"
+                          ShadowSoftness="{Binding ShadowSoftness}"
+                          ShadowIntensity="{Binding ShadowIntensity}"
+                          AutoDetectShadowLight="{Binding AutoDetectShadowLight}"
                           ShadingMode="{Binding ShadingMode}"
                           MsaaSamples="{Binding MsaaSamples}" />
 

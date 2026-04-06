@@ -2,7 +2,7 @@
   "profiles": {
     "RedFox.Graphics3D.Preview": {
       "commandName": "Project",
-      "commandLineArgs": "\"D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xmodels\\viewhands_base_iw8\\viewhands_base_iw8_LOD0.semodel\" D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xanims\\vm_sh_oscar12_reload_empty.seanim --envmap \"C:\\Users\\Admin\\Downloads\\drachenfels_cellar_8k.exr\" --up-axis z --envmap-blur --avalonia"
+      "commandLineArgs": "\"D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xmodels\\viewhands_base_iw8\\viewhands_base_iw8_LOD0.semodel\" D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xanims\\vm_sh_oscar12_reload_empty.seanim --envmap \"C:\\Users\\Admin\\Downloads\\studio_small_07_8k.exr\" --up-axis z --avalonia"
     }
   }
 }

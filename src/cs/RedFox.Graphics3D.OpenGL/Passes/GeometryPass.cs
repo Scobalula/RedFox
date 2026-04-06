@@ -9,6 +9,7 @@ public sealed class GeometryPass : IRenderPass
     private GL _gl = null!;
     private GLShader _meshShader = null!;
     private uint _defaultWhiteTexture;
+    private ShadowMapPass? _activeShadowPass;
     private bool _initialized;
 
     public string Name => "Geometry";
@@ -35,6 +36,7 @@ public sealed class GeometryPass : IRenderPass
 
         _meshShader.Use();
         SetSceneUniforms(settings, camera);
+        BindShadowMap(renderer, settings);
 
         bool wireframeApplied = ApplyGeometryPolygonMode(settings);
         try
@@ -68,14 +70,38 @@ public sealed class GeometryPass : IRenderPass
         _meshShader.SetUniform("uSceneNormalMatrix", settings.SceneNormalMatrix);
         _meshShader.SetUniform("uCameraPos", camera.Position);
         _meshShader.SetUniform("uCameraWorldPos", ComputePreSceneCameraPosition(camera.Position, settings.SceneTransform));
-        _meshShader.SetUniform("uLightDir", Vector3.Normalize(new Vector3(0.35f, -0.9f, 0.25f)));
-        _meshShader.SetUniform("uLightColor", new Vector3(1.0f, 0.98f, 0.94f));
         _meshShader.SetUniform("uSkyColor", new Vector3(0.24f, 0.31f, 0.40f));
         _meshShader.SetUniform("uGroundColor", new Vector3(0.09f, 0.08f, 0.07f));
         _meshShader.SetUniform("uAmbientStrength", 0.85f);
         _meshShader.SetUniform("uEnvironmentMapExposure", settings.EnvironmentMapExposure);
         _meshShader.SetUniform("uEnvironmentMapIntensity", settings.EnvironmentMapReflectionIntensity);
         _meshShader.SetUniform("uShadingMode", (int)settings.ShadingMode);
+    }
+
+    private void BindShadowMap(GLRenderer renderer, RenderSettings settings)
+    {
+        bool shadowsEnabled = settings.EnableShadows;
+        ShadowMapPass? shadowPass = shadowsEnabled ? renderer.GetPass<ShadowMapPass>() : null;
+        bool hasShadowMap = shadowPass is not null && shadowPass.ShadowMapTextureId != 0;
+
+        _activeShadowPass = hasShadowMap ? shadowPass : null;
+        _meshShader.SetUniform("uEnableShadows", hasShadowMap);
+
+        if (hasShadowMap)
+        {
+            _meshShader.SetUniform("uLightDir", shadowPass!.ActiveLightDirection);
+            _meshShader.SetUniform("uLightColor", shadowPass.ActiveLightColor);
+            _meshShader.SetUniform("uLightSpaceMatrix", shadowPass.LightSpaceMatrix);
+            _meshShader.SetUniform("uShadowQuality", (int)settings.ShadowQuality);
+            _meshShader.SetUniform("uShadowSoftness", settings.ShadowSoftness);
+            _meshShader.SetUniform("uShadowIntensity", settings.ShadowIntensity);
+            _meshShader.SetUniform("uShadowMap", 12);
+        }
+        else
+        {
+            _meshShader.SetUniform("uLightDir", Vector3.Normalize(new Vector3(0.35f, -0.9f, 0.25f)));
+            _meshShader.SetUniform("uLightColor", new Vector3(1.0f, 0.98f, 0.94f));
+        }
     }
 
     private void RenderMesh(GLRenderer renderer, RenderSettings settings, Mesh mesh)
@@ -104,6 +130,12 @@ public sealed class GeometryPass : IRenderPass
         Material? material = mesh.Materials?.FirstOrDefault();
         ConfigureCullState(settings, handle, material, model);
         ApplyMaterial(renderer, settings, material);
+
+        if (_activeShadowPass is not null)
+        {
+            _gl.ActiveTexture(TextureUnit.Texture12);
+            _gl.BindTexture(TextureTarget.Texture2D, _activeShadowPass.ShadowMapTextureId);
+        }
 
         handle.Draw(_gl);
 

@@ -28,6 +28,7 @@ public partial class MainWindowViewModel : ObservableObject
         ShadingModes = Enum.GetValues<RendererShadingMode>();
         UpAxisModes = Enum.GetValues<ViewerSceneUpAxis>();
         MsaaSampleOptions = [0, 2, 4, 8];
+        ShadowQualities = Enum.GetValues<ShadowQuality>();
 
         LoadedFiles.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasLoadedFiles));
         LoadedFiles.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowEmptyState));
@@ -55,6 +56,8 @@ public partial class MainWindowViewModel : ObservableObject
     public IReadOnlyList<ViewerSceneUpAxis> UpAxisModes { get; }
 
     public IReadOnlyList<int> MsaaSampleOptions { get; }
+
+    public IReadOnlyList<ShadowQuality> ShadowQualities { get; }
 
     public bool HasLoadedFiles => LoadedFiles.Count > 0;
 
@@ -143,6 +146,21 @@ public partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     private bool enableIBL = true;
+
+    [ObservableProperty]
+    private bool enableShadows;
+
+    [ObservableProperty]
+    private ShadowQuality shadowQuality = ShadowQuality.Medium;
+
+    [ObservableProperty]
+    private float shadowSoftness = 1.0f;
+
+    [ObservableProperty]
+    private float shadowIntensity = 0.85f;
+
+    [ObservableProperty]
+    private bool autoDetectShadowLight = true;
 
     [ObservableProperty]
     private bool environmentMapBlurEnabled;
