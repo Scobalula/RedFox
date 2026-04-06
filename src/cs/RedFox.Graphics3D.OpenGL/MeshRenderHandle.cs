@@ -4,27 +4,25 @@ using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL;
 
-public sealed class MeshRenderHandle : RenderHandle
+public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHandle
 {
-    private readonly Mesh _mesh;
-    private readonly int _maxTextureSize;
+    private readonly Mesh _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
+    private readonly int _maxTextureSize = maxTextureSize;
+    private readonly List<uint> _vertexBufferObjects = [];
+
+    public IReadOnlyList<uint> VertexBufferObjects => _vertexBufferObjects;
 
     private uint _vao;
-    private uint _positionVbo;
-    private uint _normalVbo;
-    private uint _uvVbo;
     private uint _influenceRangeVbo;
     private uint _influenceTexture;
     private uint _boneMatrixTexture;
     private uint _ebo;
 
-    private float[]? _basePositions;
-    private float[]? _baseNormals;
     private float[]? _positionMorphDeltas;
     private float[]? _normalMorphDeltas;
 
     public Mesh Mesh => _mesh;
-    public bool FrontFaceClockwise { get; private set; }
+    public bool FrontFaceClockwise { get; private set; } = false;
     public int VertexCount { get; private set; }
     public int IndexCount { get; private set; }
     public bool IsIndexed { get; private set; }
@@ -39,43 +37,38 @@ public sealed class MeshRenderHandle : RenderHandle
     public bool HasMorphTargets { get; private set; }
     public int MorphTargetCount { get; private set; }
 
-    public MeshRenderHandle(Mesh mesh, int maxTextureSize = 2048)
+    public static uint CreateVertexBufferObject(GL gl, uint index, DataBuffer buffer, int valueIndex, int componentCount, BufferUsageARB usage)
     {
-        _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
-        _maxTextureSize = maxTextureSize;
+        float[] data = ExtractVertexFloatBuffer(buffer, valueIndex, componentCount);
+        var vbo = GlBufferOperations.UploadFloatAttributeBuffer(gl, data, usage);
+        gl.EnableVertexAttribArray(index);
+        gl.VertexAttribPointer(index, componentCount, VertexAttribPointerType.Float, false, 0, 0);
+        return vbo;
     }
 
     protected override void OnInitialize(GL gl)
     {
         Mesh mesh = _mesh;
+
         if (mesh.Positions is null || mesh.VertexCount == 0)
             return;
 
         _vao = gl.GenVertexArray();
         gl.BindVertexArray(_vao);
 
-        _basePositions = ExtractVertexFloatBuffer(mesh.Positions, 0, 3);
-        _positionVbo = GlBufferOperations.UploadFloatAttributeBuffer(
-            gl, _basePositions, mesh.HasMorphTargets ? BufferUsageARB.DynamicDraw : BufferUsageARB.StaticDraw);
-        gl.EnableVertexAttribArray(0);
-        gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, 0);
+        // We require these
+        if (mesh.Normals is null)
+            MeshNormals.Generate(mesh);
+        if (mesh.Tangents is null)
+            MeshTangentFrame.Generate(mesh, true);
+
+        _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 0, mesh.Positions, 0, 3, BufferUsageARB.DynamicDraw));
+
 
         if (mesh.Normals is not null)
-        {
-            _baseNormals = ExtractVertexFloatBuffer(mesh.Normals, 0, 3);
-            _normalVbo = GlBufferOperations.UploadFloatAttributeBuffer(
-                gl, _baseNormals, mesh.HasMorphTargets ? BufferUsageARB.DynamicDraw : BufferUsageARB.StaticDraw);
-            gl.EnableVertexAttribArray(1);
-            gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, 0, 0);
-        }
-
+            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 1, mesh.Normals, 0, 3, BufferUsageARB.DynamicDraw));
         if (mesh.UVLayers is not null)
-        {
-            _uvVbo = GlBufferOperations.UploadFloatAttributeBuffer(
-                gl, ExtractVertexFloatBuffer(mesh.UVLayers, 0, 2), BufferUsageARB.StaticDraw);
-            gl.EnableVertexAttribArray(2);
-            gl.VertexAttribPointer(2, 2, VertexAttribPointerType.Float, false, 0, 0);
-        }
+            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 2, mesh.UVLayers, 0, 2, BufferUsageARB.DynamicDraw));
 
         bool hasSkinning = mesh.HasSkinning && mesh.SkinnedBones is not null
                            && mesh.BoneIndices is not null && mesh.BoneWeights is not null;
@@ -135,8 +128,7 @@ public sealed class MeshRenderHandle : RenderHandle
             }
         }
 
-        FrontFaceClockwise = DetermineFrontFaceClockwise(
-            _basePositions, _baseNormals, indices, mesh.VertexCount);
+        //FrontFaceClockwise = DetermineFrontFaceClockwise(_basePositions, _baseNormals, indices, mesh.VertexCount);
 
         VertexCount = mesh.VertexCount;
         HasNormals = mesh.Normals is not null;
@@ -195,31 +187,7 @@ public sealed class MeshRenderHandle : RenderHandle
 
     private void UpdateMorphTargets(GL gl)
     {
-        if (!HasMorphTargets || MorphTargetCount == 0 || _basePositions is null)
-            return;
-
-        float[] weights = BlendShapeEvaluator.ResolveMorphWeights(_mesh, MorphTargetCount);
-        if (weights.All(static w => MathF.Abs(w) < 1e-6f))
-        {
-            GlBufferOperations.UploadFloatBuffer(gl, _positionVbo, _basePositions);
-            if (HasNormals && _baseNormals is not null)
-                GlBufferOperations.UploadFloatBuffer(gl, _normalVbo, _baseNormals);
-            return;
-        }
-
-        float[] morphedPositions = new float[_basePositions.Length];
-        Array.Copy(_basePositions, morphedPositions, morphedPositions.Length);
-        BlendShapeEvaluator.ApplyMorphTargets(morphedPositions, _positionMorphDeltas, VertexCount, 3, weights);
-        GlBufferOperations.UploadFloatBuffer(gl, _positionVbo, morphedPositions);
-
-        if (!HasNormals || _baseNormals is null)
-            return;
-
-        float[] morphedNormals = new float[_baseNormals.Length];
-        Array.Copy(_baseNormals, morphedNormals, morphedNormals.Length);
-        BlendShapeEvaluator.ApplyMorphTargets(morphedNormals, _normalMorphDeltas, VertexCount, 3, weights);
-        BlendShapeEvaluator.NormalizeVectors(morphedNormals, 3);
-        GlBufferOperations.UploadFloatBuffer(gl, _normalVbo, morphedNormals);
+        // TODO: This should be done in a shader imo
     }
 
     private void UpdateSkinning(GL gl)
@@ -246,14 +214,21 @@ public sealed class MeshRenderHandle : RenderHandle
 
         try
         {
-            if (_vao != 0) gl.DeleteVertexArray(_vao);
-            if (_positionVbo != 0) gl.DeleteBuffer(_positionVbo);
-            if (_normalVbo != 0) gl.DeleteBuffer(_normalVbo);
-            if (_uvVbo != 0) gl.DeleteBuffer(_uvVbo);
-            if (_influenceRangeVbo != 0) gl.DeleteBuffer(_influenceRangeVbo);
-            if (_influenceTexture != 0) gl.DeleteTexture(_influenceTexture);
-            if (_boneMatrixTexture != 0) gl.DeleteTexture(_boneMatrixTexture);
-            if (_ebo != 0) gl.DeleteBuffer(_ebo);
+            if (_vao != 0)
+                gl.DeleteVertexArray(_vao);
+
+            foreach (var vertexBufferObject in _vertexBufferObjects)
+                if (vertexBufferObject != 0)
+                    gl.DeleteBuffer(vertexBufferObject);
+
+            if (_influenceRangeVbo != 0)
+                gl.DeleteBuffer(_influenceRangeVbo);
+            if (_influenceTexture != 0)
+                gl.DeleteTexture(_influenceTexture);
+            if (_boneMatrixTexture != 0)
+                gl.DeleteTexture(_boneMatrixTexture);
+            if (_ebo != 0)
+                gl.DeleteBuffer(_ebo);
         }
         catch { }
     }

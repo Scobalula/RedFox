@@ -69,6 +69,7 @@ Please keep in mind some of these libraries aren't directly used in the project,
 | [Cast.NET](https://github.com/Scobalula/Cast.NET) | Cast container format reader/writer (bundled via submodule) | MIT |
 | [DirectXTex](https://github.com/Microsoft/DirectXTex) | Served as inspiration for Graphics2D | MIT |
 | [DirectXMath](https://github.com/Microsoft/DirectXMath) | Packed vector utilities ported into Graphics3D | MIT |
+| [DirectXMesh](https://github.com/Microsoft/DirectXMesh) | Mesh tools/optimizers ported into Graphics3D | MIT |
 
 ## License
 

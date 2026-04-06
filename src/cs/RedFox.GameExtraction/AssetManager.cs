@@ -93,13 +93,9 @@ public sealed class AssetManager
     /// <exception cref="NotSupportedException">
     /// Thrown when no registered reader can handle the given file.
     /// </exception>
-    public async Task<LoadedSource> MountArchiveAsync(
-        string path,
-        IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default)
+    public async Task<LoadedSource> MountArchiveAsync(string path, IProgress<string>? progress = null, CancellationToken cancellationToken = default)
     {
-        var reader = FindSourceReader(path)
-            ?? throw new NotSupportedException($"No registered source reader supports '{Path.GetFileName(path)}'.");
+        var reader = FindSourceReader(path) ?? throw new NotSupportedException($"No registered source reader supports '{Path.GetFileName(path)}'.");
 
         using var stream = File.OpenRead(path);
         var source = await reader.ReadAsync(stream, path, this, progress, cancellationToken).ConfigureAwait(false);
