@@ -106,7 +106,10 @@ public sealed class GLRenderer : IDisposable
         }
 
         if (GetPassesByPhase(PassPhase.Prepass).Count == 0)
+        {
+            AddPass(new MeshDeformPass());
             AddPass(new ShadowMapPass());
+        }
 
         if (GetPassesByPhase(PassPhase.Postpass).Count == 0)
             AddPass(new GridPass());
@@ -190,7 +193,9 @@ public sealed class GLRenderer : IDisposable
         if (mesh.GraphicsHandle is MeshRenderHandle existing)
             return existing;
 
-        var handle = new MeshRenderHandle(mesh, _maxTextureSize);
+        var handle = new MeshRenderHandle(mesh);
+        var deformPass = GetPass<MeshDeformPass>();
+        handle.SetComputeAvailable(deformPass?.ComputeAvailable ?? false);
         handle.Initialize(_gl);
         mesh.GraphicsHandle = handle;
         return handle;
@@ -337,6 +342,7 @@ public sealed class GLRenderer : IDisposable
 
         _msaaFramebuffer?.Dispose();
         _msaaFramebuffer = null;
+
     }
 
     internal void SetEnvironmentResources(GLEnvironmentResources? resources)

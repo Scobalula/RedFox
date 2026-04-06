@@ -10,6 +10,47 @@ namespace RedFox.Graphics3D.OpenGL;
 internal static class GlBufferOperations
 {
     /// <summary>
+    /// Creates a shader storage buffer object (SSBO) with the specified float data.
+    /// </summary>
+    public static unsafe uint CreateStorageBuffer(GL gl, float[] data, BufferUsageARB usage)
+    {
+        uint buffer = gl.GenBuffer();
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, buffer);
+        fixed (float* ptr = data)
+        {
+            gl.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)(data.Length * sizeof(float)), ptr, usage);
+        }
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, 0);
+        return buffer;
+    }
+
+    /// <summary>
+    /// Creates an empty shader storage buffer object (SSBO) with the given byte size.
+    /// </summary>
+    public static unsafe uint CreateEmptyStorageBuffer(GL gl, int sizeInBytes, BufferUsageARB usage)
+    {
+        uint buffer = gl.GenBuffer();
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, buffer);
+        gl.BufferData(BufferTargetARB.ShaderStorageBuffer, (nuint)sizeInBytes, null, usage);
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, 0);
+        return buffer;
+    }
+
+    /// <summary>
+    /// Replaces the contents of an existing SSBO with new float data.
+    /// </summary>
+    public static unsafe void UploadStorageBuffer(GL gl, uint bufferId, float[] data)
+    {
+        if (bufferId == 0) return;
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, bufferId);
+        fixed (float* ptr = data)
+        {
+            gl.BufferSubData(BufferTargetARB.ShaderStorageBuffer, 0, (nuint)(data.Length * sizeof(float)), ptr);
+        }
+        gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, 0);
+    }
+
+    /// <summary>
     /// Uploads a float array to a vertex attribute buffer and returns the generated buffer ID.
     /// </summary>
     public static unsafe uint UploadFloatAttributeBuffer(GL gl, float[] data, BufferUsageARB usage)

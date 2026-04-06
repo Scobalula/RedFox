@@ -48,6 +48,23 @@ public static class ShaderSource
     }
 
     /// <summary>
+    /// Loads a compute shader from the application's shader directory.
+    /// </summary>
+    /// <param name="programName">The name of the shader file (without extension).</param>
+    /// <returns>The compute shader source with the appropriate version header prepended.</returns>
+    /// <exception cref="FileNotFoundException">Thrown when the compute shader file cannot be found.</exception>
+    public static string LoadCompute(string programName)
+    {
+        string shaderDirectory = Path.Combine(AppContext.BaseDirectory, "Shaders");
+        string computePath = Path.Combine(shaderDirectory, $"{programName}.comp.glsl");
+
+        if (!File.Exists(computePath))
+            throw new FileNotFoundException($"Shader file not found: {computePath}", computePath);
+
+        return "#version 430 core\n" + File.ReadAllText(computePath);
+    }
+
+    /// <summary>
     /// Determines the appropriate shader profile based on the current OpenGL context version string.
     /// </summary>
     /// <param name="gl">The OpenGL context to inspect.</param>

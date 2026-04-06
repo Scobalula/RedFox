@@ -4,25 +4,26 @@ using Silk.NET.OpenGL;
 
 namespace RedFox.Graphics3D.OpenGL;
 
-public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHandle
+public sealed class MeshRenderHandle(Mesh mesh) : RenderHandle
 {
     private readonly Mesh _mesh = mesh ?? throw new ArgumentNullException(nameof(mesh));
-    private readonly int _maxTextureSize = maxTextureSize;
     private readonly List<uint> _vertexBufferObjects = [];
 
-    public IReadOnlyList<uint> VertexBufferObjects => _vertexBufferObjects;
+    private uint _srcPositionSsbo;
+    private uint _srcNormalSsbo;
+    private uint _morphPosDeltaSsbo;
+    private uint _morphNrmDeltaSsbo;
+    private uint _morphWeightSsbo;
+    private uint _boneMatrixSsbo;
+    private uint _influenceSsbo;
+    private uint _influenceRangeSsbo;
 
+    private bool _computeAvailable;
     private uint _vao;
-    private uint _influenceRangeVbo;
-    private uint _influenceTexture;
-    private uint _boneMatrixTexture;
     private uint _ebo;
 
-    private float[]? _positionMorphDeltas;
-    private float[]? _normalMorphDeltas;
-
     public Mesh Mesh => _mesh;
-    public bool FrontFaceClockwise { get; private set; } = false;
+    public bool FrontFaceClockwise { get; private set; }
     public int VertexCount { get; private set; }
     public int IndexCount { get; private set; }
     public bool IsIndexed { get; private set; }
@@ -30,122 +31,159 @@ public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHand
     public bool HasUVs { get; private set; }
     public bool HasSkinning { get; private set; }
     public int BoneCount { get; private set; }
-    public int InfluenceTextureWidth { get; private set; } = 1;
-    public int InfluenceTextureHeight { get; private set; } = 1;
-    public int BoneMatrixTextureWidth { get; private set; } = 1;
-    public int BoneMatrixTextureHeight { get; private set; } = 1;
     public bool HasMorphTargets { get; private set; }
     public int MorphTargetCount { get; private set; }
+    public bool UseComputeDeform { get; private set; }
 
-    public static uint CreateVertexBufferObject(GL gl, uint index, DataBuffer buffer, int valueIndex, int componentCount, BufferUsageARB usage)
-    {
-        float[] data = ExtractVertexFloatBuffer(buffer, valueIndex, componentCount);
-        var vbo = GlBufferOperations.UploadFloatAttributeBuffer(gl, data, usage);
-        gl.EnableVertexAttribArray(index);
-        gl.VertexAttribPointer(index, componentCount, VertexAttribPointerType.Float, false, 0, 0);
-        return vbo;
-    }
+    internal void SetComputeAvailable(bool available) => _computeAvailable = available;
 
     protected override void OnInitialize(GL gl)
     {
         Mesh mesh = _mesh;
-
         if (mesh.Positions is null || mesh.VertexCount == 0)
             return;
 
-        _vao = gl.GenVertexArray();
-        gl.BindVertexArray(_vao);
-
-        // We require these
         if (mesh.Normals is null)
             MeshNormals.Generate(mesh);
         if (mesh.Tangents is null)
             MeshTangentFrame.Generate(mesh, true);
 
-        _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 0, mesh.Positions, 0, 3, BufferUsageARB.DynamicDraw));
+        bool hasSkinning = mesh.HasSkinning
+                           && mesh.SkinnedBones is not null
+                           && mesh.BoneIndices is not null
+                           && mesh.BoneWeights is not null;
+        bool hasMorphTargets = mesh.HasMorphTargets && mesh.MorphTargetCount > 0;
+        bool useCompute = _computeAvailable && (hasSkinning || hasMorphTargets);
 
+        _vao = gl.GenVertexArray();
+        gl.BindVertexArray(_vao);
 
-        if (mesh.Normals is not null)
-            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 1, mesh.Normals, 0, 3, BufferUsageARB.DynamicDraw));
-        if (mesh.UVLayers is not null)
-            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 2, mesh.UVLayers, 0, 2, BufferUsageARB.DynamicDraw));
-
-        bool hasSkinning = mesh.HasSkinning && mesh.SkinnedBones is not null
-                           && mesh.BoneIndices is not null && mesh.BoneWeights is not null;
-
-        if (hasSkinning)
+        if (useCompute)
         {
-            int boneCount = mesh.SkinnedBones!.Count;
-            (int[] influenceRanges, float[] influenceTextureData, int influenceEntryCount) =
-                BuildSkinInfluenceTextureData(mesh.BoneIndices!, mesh.BoneWeights!, boneCount);
-
-            unsafe
-            {
-                _influenceRangeVbo = gl.GenBuffer();
-                gl.BindBuffer(BufferTargetARB.ArrayBuffer, _influenceRangeVbo);
-                fixed (int* ptr = influenceRanges)
-                {
-                    gl.BufferData(BufferTargetARB.ArrayBuffer,
-                        (nuint)(influenceRanges.Length * sizeof(int)), ptr, BufferUsageARB.StaticDraw);
-                }
-            }
-
-            gl.EnableVertexAttribArray(3);
-            gl.VertexAttribIPointer(3, 2, VertexAttribIType.Int, 0, 0);
-
-            (InfluenceTextureWidth, InfluenceTextureHeight) =
-                GlBufferOperations.ComputeTextureDimensions(_maxTextureSize, Math.Max(influenceEntryCount, 1));
-            _influenceTexture = GlBufferOperations.CreateFloatTexture(
-                gl, InfluenceTextureWidth, InfluenceTextureHeight,
-                GlBufferOperations.PadTextureData(influenceTextureData, InfluenceTextureWidth * InfluenceTextureHeight * 4));
-
-            (BoneMatrixTextureWidth, BoneMatrixTextureHeight) =
-                GlBufferOperations.ComputeTextureDimensions(_maxTextureSize, Math.Max(boneCount * 4, 1));
-            _boneMatrixTexture = GlBufferOperations.CreateFloatTexture(
-                gl, BoneMatrixTextureWidth, BoneMatrixTextureHeight,
-                new float[BoneMatrixTextureWidth * BoneMatrixTextureHeight * 4]);
-
-            BoneCount = boneCount;
-            HasSkinning = true;
+            float[] positionData = ExtractVertexFloatBuffer(mesh.Positions, 0, 3);
+            float[] normalData = mesh.Normals is not null ? ExtractVertexFloatBuffer(mesh.Normals, 0, 3) : [];
+            InitializeComputeBuffers(gl, mesh, positionData, normalData, hasSkinning, hasMorphTargets);
+        }
+        else
+        {
+            InitializeStaticBuffers(gl, mesh);
         }
 
-        uint[]? indices = null;
-        if (mesh.IsIndexed && mesh.FaceIndices is not null)
-        {
-            indices = ExtractIndexBuffer(mesh.FaceIndices);
-            IndexCount = indices.Length;
-            IsIndexed = true;
-
-            unsafe
-            {
-                _ebo = gl.GenBuffer();
-                gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
-                fixed (uint* ptr = indices)
-                {
-                    gl.BufferData(BufferTargetARB.ElementArrayBuffer,
-                        (nuint)(indices.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
-                }
-            }
-        }
-
-        //FrontFaceClockwise = DetermineFrontFaceClockwise(_basePositions, _baseNormals, indices, mesh.VertexCount);
+        InitializeIndexBuffer(gl, mesh);
 
         VertexCount = mesh.VertexCount;
         HasNormals = mesh.Normals is not null;
         HasUVs = mesh.UVLayers is not null;
-        HasMorphTargets = mesh.HasMorphTargets;
+        HasSkinning = hasSkinning;
+        HasMorphTargets = hasMorphTargets;
         MorphTargetCount = mesh.MorphTargetCount;
-        _positionMorphDeltas = mesh.DeltaPositions is null ? null : ExtractMorphFloatBuffer(mesh.DeltaPositions, 3);
-        _normalMorphDeltas = mesh.DeltaNormals is null ? null : ExtractMorphFloatBuffer(mesh.DeltaNormals, 3);
+        UseComputeDeform = useCompute;
 
         gl.BindVertexArray(0);
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
     }
 
-    protected override void OnUpdate(GL gl, float deltaTime)
+    private void InitializeComputeBuffers(GL gl, Mesh mesh,
+        float[] srcPositionData, float[] srcNormalData,
+        bool hasSkinning, bool hasMorphTargets)
     {
-        UpdateMorphTargets(gl);
-        UpdateSkinning(gl);
+        // Source (immutable) SSBOs
+        _srcPositionSsbo = GlBufferOperations.CreateStorageBuffer(gl, srcPositionData, BufferUsageARB.StaticDraw);
+        if (srcNormalData.Length > 0)
+            _srcNormalSsbo = GlBufferOperations.CreateStorageBuffer(gl, srcNormalData, BufferUsageARB.StaticDraw);
+
+        // Destination VBOs that double as compute write targets
+        AddDynamicVbo(gl, 0, srcPositionData, 3);
+        if (srcNormalData.Length > 0)
+            AddDynamicVbo(gl, 1, srcNormalData, 3);
+        if (mesh.UVLayers is not null)
+            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 2, mesh.UVLayers, 0, 2, BufferUsageARB.StaticDraw));
+
+        if (hasMorphTargets)
+            InitializeMorphSsbos(gl, mesh);
+        if (hasSkinning)
+            InitializeSkinSsbos(gl, mesh);
+    }
+
+    private void InitializeStaticBuffers(GL gl, Mesh mesh)
+    {
+        _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 0, mesh.Positions!, 0, 3, BufferUsageARB.StaticDraw));
+        if (mesh.Normals is not null)
+            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 1, mesh.Normals, 0, 3, BufferUsageARB.StaticDraw));
+        if (mesh.UVLayers is not null)
+            _vertexBufferObjects.Add(CreateVertexBufferObject(gl, 2, mesh.UVLayers, 0, 2, BufferUsageARB.StaticDraw));
+    }
+
+    private void InitializeMorphSsbos(GL gl, Mesh mesh)
+    {
+        int vertexCount = mesh.VertexCount;
+        int targetCount = mesh.MorphTargetCount;
+        int deltaSize = vertexCount * targetCount * 3;
+
+        float[] morphPosDeltas = mesh.DeltaPositions is not null
+            ? ExtractMorphFloatBuffer(mesh.DeltaPositions, 3) : new float[deltaSize];
+        float[] morphNrmDeltas = mesh.DeltaNormals is not null
+            ? ExtractMorphFloatBuffer(mesh.DeltaNormals, 3) : new float[deltaSize];
+
+        _morphPosDeltaSsbo = GlBufferOperations.CreateStorageBuffer(gl, morphPosDeltas, BufferUsageARB.StaticDraw);
+        _morphNrmDeltaSsbo = GlBufferOperations.CreateStorageBuffer(gl, morphNrmDeltas, BufferUsageARB.StaticDraw);
+        _morphWeightSsbo = GlBufferOperations.CreateEmptyStorageBuffer(
+            gl, Math.Max(targetCount, 1) * sizeof(float), BufferUsageARB.DynamicDraw);
+    }
+
+    private void InitializeSkinSsbos(GL gl, Mesh mesh)
+    {
+        int boneCount = mesh.SkinnedBones!.Count;
+        (int[] ranges, float[] influenceData, _) =
+            BuildSkinInfluenceData(mesh.BoneIndices!, mesh.BoneWeights!, boneCount);
+
+        _influenceSsbo = GlBufferOperations.CreateStorageBuffer(gl, influenceData, BufferUsageARB.StaticDraw);
+
+        unsafe
+        {
+            _influenceRangeSsbo = gl.GenBuffer();
+            gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, _influenceRangeSsbo);
+            fixed (int* ptr = ranges)
+            {
+                gl.BufferData(BufferTargetARB.ShaderStorageBuffer,
+                    (nuint)(ranges.Length * sizeof(int)), ptr, BufferUsageARB.StaticDraw);
+            }
+            gl.BindBuffer(BufferTargetARB.ShaderStorageBuffer, 0);
+        }
+
+        _boneMatrixSsbo = GlBufferOperations.CreateEmptyStorageBuffer(
+            gl, Math.Max(boneCount, 1) * 16 * sizeof(float), BufferUsageARB.DynamicDraw);
+
+        BoneCount = boneCount;
+    }
+
+    private void InitializeIndexBuffer(GL gl, Mesh mesh)
+    {
+        if (!mesh.IsIndexed || mesh.FaceIndices is null)
+            return;
+
+        uint[] indices = ExtractIndexBuffer(mesh.FaceIndices);
+        IndexCount = indices.Length;
+        IsIndexed = true;
+
+        unsafe
+        {
+            _ebo = gl.GenBuffer();
+            gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
+            fixed (uint* ptr = indices)
+            {
+                gl.BufferData(BufferTargetARB.ElementArrayBuffer,
+                    (nuint)(indices.Length * sizeof(uint)), ptr, BufferUsageARB.StaticDraw);
+            }
+        }
+    }
+
+    private void AddDynamicVbo(GL gl, uint index, float[] data, int componentCount)
+    {
+        uint vbo = GlBufferOperations.UploadFloatAttributeBuffer(gl, data, BufferUsageARB.DynamicDraw);
+        gl.EnableVertexAttribArray(index);
+        gl.VertexAttribPointer(index, componentCount, VertexAttribPointerType.Float, false, 0, 0);
+        _vertexBufferObjects.Add(vbo);
     }
 
     public void Draw(GL gl)
@@ -167,45 +205,52 @@ public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHand
         gl.BindVertexArray(0);
     }
 
-    public void BindSkinningTextures(GL gl)
+    internal void UploadComputeData(GL gl)
     {
-        gl.ActiveTexture(TextureUnit.Texture1);
-        gl.BindTexture(TextureTarget.Texture2D, _influenceTexture);
+        if (HasMorphTargets && MorphTargetCount > 0 && _morphWeightSsbo != 0)
+        {
+            float[] weights = BlendShapeEvaluator.ResolveMorphWeights(_mesh, MorphTargetCount);
+            GlBufferOperations.UploadStorageBuffer(gl, _morphWeightSsbo, weights);
+        }
 
-        gl.ActiveTexture(TextureUnit.Texture2);
-        gl.BindTexture(TextureTarget.Texture2D, _boneMatrixTexture);
+        if (HasSkinning && BoneCount > 0 && _boneMatrixSsbo != 0)
+        {
+            Matrix4x4[] matrices = new Matrix4x4[BoneCount];
+            int count = _mesh.CopySkinTransforms(matrices);
+            if (count > 0)
+            {
+                Matrix4x4 meshWorld = _mesh.GetActiveWorldMatrix();
+                Matrix4x4.Invert(meshWorld, out Matrix4x4 inverseMeshWorld);
+
+                float[] boneData = new float[BoneCount * 16];
+                for (int i = 0; i < count; i++)
+                    WriteBoneMatrix(matrices[i] * inverseMeshWorld, boneData, i * 16);
+
+                GlBufferOperations.UploadStorageBuffer(gl, _boneMatrixSsbo, boneData);
+            }
+        }
     }
 
-    public void UnbindSkinningTextures(GL gl)
+    /// <summary>Binds all SSBOs to their respective binding points for the compute dispatch.</summary>
+    internal void BindComputeBuffers(GL gl)
     {
-        gl.ActiveTexture(TextureUnit.Texture2);
-        gl.BindTexture(TextureTarget.Texture2D, 0);
-        gl.ActiveTexture(TextureUnit.Texture1);
-        gl.BindTexture(TextureTarget.Texture2D, 0);
-        gl.ActiveTexture(TextureUnit.Texture0);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 0, _srcPositionSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, _srcNormalSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 2, _vertexBufferObjects.Count > 0 ? _vertexBufferObjects[0] : 0);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 3, _vertexBufferObjects.Count > 1 ? _vertexBufferObjects[1] : 0);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 4, _morphPosDeltaSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 5, _morphNrmDeltaSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 6, _morphWeightSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 7, _boneMatrixSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 8, _influenceSsbo);
+        gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 9, _influenceRangeSsbo);
     }
 
-    private void UpdateMorphTargets(GL gl)
+    /// <summary>Unbinds all SSBO binding points after compute dispatch.</summary>
+    internal void UnbindComputeBuffers(GL gl)
     {
-        // TODO: This should be done in a shader imo
-    }
-
-    private void UpdateSkinning(GL gl)
-    {
-        if (!HasSkinning || _boneMatrixTexture == 0 || BoneCount <= 0)
-            return;
-
-        Matrix4x4[] matrices = new Matrix4x4[BoneCount];
-        int count = _mesh.CopySkinTransforms(matrices);
-        if (count == 0)
-            return;
-
-        float[] textureData = new float[BoneMatrixTextureWidth * BoneMatrixTextureHeight * 4];
-        for (int i = 0; i < count; i++)
-            GlBufferOperations.WriteMatrixTexels(matrices[i], textureData, i * 4);
-
-        GlBufferOperations.UploadFloatTexture(gl, _boneMatrixTexture,
-            BoneMatrixTextureWidth, BoneMatrixTextureHeight, textureData);
+        for (uint i = 0; i <= 9; i++)
+            gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, i, 0);
     }
 
     protected override void OnDispose(GL gl)
@@ -214,80 +259,57 @@ public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHand
 
         try
         {
-            if (_vao != 0)
-                gl.DeleteVertexArray(_vao);
+            if (_vao != 0) gl.DeleteVertexArray(_vao);
+            if (_ebo != 0) gl.DeleteBuffer(_ebo);
 
-            foreach (var vertexBufferObject in _vertexBufferObjects)
-                if (vertexBufferObject != 0)
-                    gl.DeleteBuffer(vertexBufferObject);
+            foreach (uint vbo in _vertexBufferObjects)
+                if (vbo != 0) gl.DeleteBuffer(vbo);
 
-            if (_influenceRangeVbo != 0)
-                gl.DeleteBuffer(_influenceRangeVbo);
-            if (_influenceTexture != 0)
-                gl.DeleteTexture(_influenceTexture);
-            if (_boneMatrixTexture != 0)
-                gl.DeleteTexture(_boneMatrixTexture);
-            if (_ebo != 0)
-                gl.DeleteBuffer(_ebo);
+            DeleteBuffer(gl, _srcPositionSsbo);
+            DeleteBuffer(gl, _srcNormalSsbo);
+            DeleteBuffer(gl, _morphPosDeltaSsbo);
+            DeleteBuffer(gl, _morphNrmDeltaSsbo);
+            DeleteBuffer(gl, _morphWeightSsbo);
+            DeleteBuffer(gl, _boneMatrixSsbo);
+            DeleteBuffer(gl, _influenceSsbo);
+            DeleteBuffer(gl, _influenceRangeSsbo);
         }
         catch { }
     }
 
-    private static bool DetermineFrontFaceClockwise(float[] positions, float[]? normals, uint[]? indices, int vertexCount)
+    private static void DeleteBuffer(GL gl, uint id)
     {
-        const float epsilon = 1e-10f;
-        if (normals is null || positions.Length < 9 || normals.Length < 9)
-            return false;
-
-        int triangleCount = indices is not null ? indices.Length / 3 : vertexCount / 3;
-        if (triangleCount <= 0)
-            return false;
-
-        int positiveCount = 0;
-        int negativeCount = 0;
-        int sampleCount = Math.Min(triangleCount, 512);
-        int triangleStep = Math.Max(triangleCount / sampleCount, 1);
-
-        for (int t = 0; t < triangleCount; t += triangleStep)
-        {
-            int b = t * 3;
-            int i0 = indices is not null ? (int)indices[b] : b;
-            int i1 = indices is not null ? (int)indices[b + 1] : b + 1;
-            int i2 = indices is not null ? (int)indices[b + 2] : b + 2;
-
-            Vector3 p0 = ReadVec3(positions, i0);
-            Vector3 p1 = ReadVec3(positions, i1);
-            Vector3 p2 = ReadVec3(positions, i2);
-
-            Vector3 faceNormal = Vector3.Cross(p1 - p0, p2 - p0);
-            if (faceNormal.LengthSquared() <= epsilon)
-                continue;
-
-            Vector3 avgNormal = ReadVec3(normals, i0) + ReadVec3(normals, i1) + ReadVec3(normals, i2);
-            if (avgNormal.LengthSquared() <= epsilon)
-                continue;
-
-            float orientation = Vector3.Dot(faceNormal, avgNormal);
-            if (orientation > epsilon) positiveCount++;
-            else if (orientation < -epsilon) negativeCount++;
-        }
-
-        return negativeCount > positiveCount;
+        if (id != 0) gl.DeleteBuffer(id);
     }
 
-    private static Vector3 ReadVec3(float[] v, int i) => new(v[i * 3], v[i * 3 + 1], v[i * 3 + 2]);
+    public static uint CreateVertexBufferObject(GL gl, uint index, DataBuffer buffer, int valueIndex, int componentCount, BufferUsageARB usage)
+    {
+        float[] data = ExtractVertexFloatBuffer(buffer, valueIndex, componentCount);
+        uint vbo = GlBufferOperations.UploadFloatAttributeBuffer(gl, data, usage);
+        gl.EnableVertexAttribArray(index);
+        gl.VertexAttribPointer(index, componentCount, VertexAttribPointerType.Float, false, 0, 0);
+        return vbo;
+    }
 
-    private static (int[] Ranges, float[] TexData, int EntryCount) BuildSkinInfluenceTextureData(
+    private static void WriteBoneMatrix(Matrix4x4 m, float[] dst, int offset)
+    {
+        dst[offset]      = m.M11; dst[offset + 1]  = m.M12; dst[offset + 2]  = m.M13; dst[offset + 3]  = m.M14;
+        dst[offset + 4]  = m.M21; dst[offset + 5]  = m.M22; dst[offset + 6]  = m.M23; dst[offset + 7]  = m.M24;
+        dst[offset + 8]  = m.M31; dst[offset + 9]  = m.M32; dst[offset + 10] = m.M33; dst[offset + 11] = m.M34;
+        dst[offset + 12] = m.M41; dst[offset + 13] = m.M42; dst[offset + 14] = m.M43; dst[offset + 15] = m.M44;
+    }
+
+    private static (int[] Ranges, float[] InfluenceData, int EntryCount) BuildSkinInfluenceData(
         DataBuffer boneIndices, DataBuffer boneWeights, int boneCount)
     {
         int vertexCount = boneIndices.ElementCount;
         int influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
         int[] ranges = new int[vertexCount * 2];
-        List<float> texData = [];
+        List<float> data = [];
 
         for (int vi = 0; vi < vertexCount; vi++)
         {
-            int startIndex = texData.Count / 4;
+            int startIndex = data.Count / 2;
             float totalWeight = 0.0f;
             List<(int BoneIndex, float Weight)> influences = [];
 
@@ -311,17 +333,15 @@ public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHand
             float invTotal = 1.0f / totalWeight;
             foreach ((int boneIndex, float weight) in influences)
             {
-                texData.Add(boneIndex);
-                texData.Add(weight * invTotal);
-                texData.Add(0.0f);
-                texData.Add(0.0f);
+                data.Add(boneIndex);
+                data.Add(weight * invTotal);
             }
         }
 
-        return (ranges, [.. texData], texData.Count / 4);
+        return (ranges, [.. data], data.Count / 2);
     }
 
-    private static float[] ExtractVertexFloatBuffer(DataBuffer buffer, int valueIndex, int componentCount)
+    internal static float[] ExtractVertexFloatBuffer(DataBuffer buffer, int valueIndex, int componentCount)
     {
         float[] result = new float[buffer.ElementCount * componentCount];
         for (int ei = 0; ei < buffer.ElementCount; ei++)
@@ -337,7 +357,7 @@ public sealed class MeshRenderHandle(Mesh mesh, int maxTextureSize) : RenderHand
         return result;
     }
 
-    private static float[] ExtractMorphFloatBuffer(DataBuffer buffer, int componentCount)
+    internal static float[] ExtractMorphFloatBuffer(DataBuffer buffer, int componentCount)
     {
         float[] result = new float[buffer.ElementCount * buffer.ValueCount * componentCount];
         for (int ei = 0; ei < buffer.ElementCount; ei++)

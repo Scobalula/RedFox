@@ -110,22 +110,10 @@ public sealed class GeometryPass : IRenderPass
         if (handle is null)
             return;
 
-        handle.Update(renderer.GL, 0);
-
         Matrix4x4 model = mesh.GetActiveWorldMatrix();
         _meshShader.SetUniform("uModel", model);
         _meshShader.SetUniform("uNormalMatrix", Matrix3x3.FromModelMatrix(model));
         _meshShader.SetUniform("uHasNormals", handle.HasNormals);
-        _meshShader.SetUniform("uHasSkinning", handle.HasSkinning);
-
-        if (handle.HasSkinning)
-        {
-            handle.BindSkinningTextures(_gl);
-            _meshShader.SetUniform("uInfluenceTexture", 1);
-            _meshShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
-            _meshShader.SetUniform("uBoneMatrixTexture", 2);
-            _meshShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
-        }
 
         Material? material = mesh.Materials?.FirstOrDefault();
         ConfigureCullState(settings, handle, material, model);
@@ -138,9 +126,6 @@ public sealed class GeometryPass : IRenderPass
         }
 
         handle.Draw(_gl);
-
-        if (handle.HasSkinning)
-            handle.UnbindSkinningTextures(_gl);
     }
 
     private bool ApplyGeometryPolygonMode(RenderSettings settings)

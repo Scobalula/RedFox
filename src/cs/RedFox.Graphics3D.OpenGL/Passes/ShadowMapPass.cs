@@ -148,25 +148,10 @@ public sealed class ShadowMapPass : IRenderPass
         if (handle is null)
             return;
 
-        handle.Update(renderer.GL, 0);
-
         Matrix4x4 model = mesh.GetActiveWorldMatrix();
         _shadowShader.SetUniform("uModel", model);
-        _shadowShader.SetUniform("uHasSkinning", handle.HasSkinning);
-
-        if (handle.HasSkinning)
-        {
-            handle.BindSkinningTextures(_gl);
-            _shadowShader.SetUniform("uInfluenceTexture", 1);
-            _shadowShader.SetUniform("uInfluenceTextureSize", new Vector2(handle.InfluenceTextureWidth, handle.InfluenceTextureHeight));
-            _shadowShader.SetUniform("uBoneMatrixTexture", 2);
-            _shadowShader.SetUniform("uBoneMatrixTextureSize", new Vector2(handle.BoneMatrixTextureWidth, handle.BoneMatrixTextureHeight));
-        }
 
         handle.Draw(_gl);
-
-        if (handle.HasSkinning)
-            handle.UnbindSkinningTextures(_gl);
     }
 
     private static (Vector3 center, float radius) ComputeSceneBounds(Scene scene, RenderSettings settings)
