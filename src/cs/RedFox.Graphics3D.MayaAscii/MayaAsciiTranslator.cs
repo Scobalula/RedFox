@@ -36,11 +36,10 @@ public sealed class MayaAsciiTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">Unused.</param>
     /// <param name="stream">Unused.</param>
-    /// <param name="name">Unused.</param>
-    /// <param name="options">Unused.</param>
+    /// <param name="context">Unused.</param>
     /// <param name="token">Unused.</param>
     /// <exception cref="NotSupportedException">Always thrown. This translator is write-only.</exception>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token) =>
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token) =>
         throw new NotSupportedException("MayaAsciiTranslator does not support reading Maya ASCII files.");
 
     /// <summary>
@@ -49,18 +48,17 @@ public sealed class MayaAsciiTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">The scene to export. Must not be <see langword="null"/>.</param>
     /// <param name="stream">The output stream to write the Maya ASCII data to. Must be writable.</param>
-    /// <param name="name">The file or scene name used in the output file header.</param>
-    /// <param name="options">The scene translator options. The <see cref="SceneTranslatorOptions.WriteRawVertices"/> setting is forwarded to the writer.</param>
+    /// <param name="context">The translation context. The <see cref="SceneTranslatorOptions.WriteRawVertices"/> setting is forwarded to the writer.</param>
     /// <param name="token">An optional cancellation token. Currently unused but reserved for future support.</param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(stream);
 
         MayaAsciiWriteOptions writeOptions = WriteOptions;
-        writeOptions.WriteRawVertices = options.WriteRawVertices;
+        writeOptions.WriteRawVertices = context.Options.WriteRawVertices;
 
         MayaAsciiWriter writer = new(stream, writeOptions);
-        writer.Write(scene, name);
+        writer.Write(scene, context.Name);
     }
 }

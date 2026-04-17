@@ -28,7 +28,7 @@ public class SeanimTranslator : SceneTranslator
     public override ReadOnlySpan<byte> MagicValue => "SEAnim"u8;
 
     /// <inheritdoc/>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
@@ -64,7 +64,7 @@ public class SeanimTranslator : SceneTranslator
         bool hasScales       = (dataFlags & 4) != 0;
         bool highPrecision   = (dataPropFlags & 1) != 0;
 
-        var skelAnim = new SkeletonAnimation(name, null, boneCount, transformType)
+        var skelAnim = new SkeletonAnimation(context.Name, null, boneCount, transformType)
         {
             Framerate     = frameRate,
             TransformType = transformType,
@@ -138,7 +138,7 @@ public class SeanimTranslator : SceneTranslator
     }
 
     /// <inheritdoc/>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         var data = scene.FirstOfType<SkeletonAnimation>() ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");
 

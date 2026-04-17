@@ -44,12 +44,11 @@ public sealed class BvhTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">The scene that receives parsed skeleton and animation data.</param>
     /// <param name="stream">The input stream containing BVH text data.</param>
-    /// <param name="name">The logical scene name or source file name.</param>
-    /// <param name="options">Translator options that control read behaviour.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        BvhReader reader = new(stream, name, options);
+        BvhReader reader = new(stream, context.Name, context.Options);
         reader.Read(scene);
     }
 
@@ -58,12 +57,11 @@ public sealed class BvhTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">The scene to serialize.</param>
     /// <param name="stream">The output stream that receives BVH text data.</param>
-    /// <param name="name">The logical scene name or destination file name.</param>
-    /// <param name="options">Translator options that control write behaviour.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        BvhWriter writer = new(stream, name, options);
+        BvhWriter writer = new(stream, context.Name, context.Options);
         writer.Write(scene);
     }
 }

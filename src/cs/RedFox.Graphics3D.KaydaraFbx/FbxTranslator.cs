@@ -20,24 +20,24 @@ public sealed class FbxTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".fbx"];
 
     /// <inheritdoc/>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(stream);
 
         FbxDocument document = FbxDocumentIO.Read(stream);
-        Scene translatedScene = FbxSceneMapper.ImportScene(document, name);
+        Scene translatedScene = FbxSceneMapper.ImportScene(document, context.Name);
 
         MergeScene(scene, translatedScene);
     }
 
     /// <inheritdoc/>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(stream);
 
-        FbxFormat targetFormat = ResolveWriteFormat(name, stream);
+        FbxFormat targetFormat = ResolveWriteFormat(context.Name, stream);
         FbxDocument document = FbxSceneMapper.ExportScene(scene, targetFormat);
         FbxDocumentIO.Write(stream, document, targetFormat);
     }

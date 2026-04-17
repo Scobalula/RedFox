@@ -44,12 +44,11 @@ public sealed class Md5MeshTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">The scene that receives parsed skeleton and mesh data.</param>
     /// <param name="stream">The input stream containing MD5 mesh text data.</param>
-    /// <param name="name">The logical scene name or source file name.</param>
-    /// <param name="options">Translator options that control read behaviour.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var reader = new Md5MeshReader(stream, name, options);
+        var reader = new Md5MeshReader(stream, context.Name, context.Options);
         reader.Read(scene);
     }
 
@@ -58,12 +57,11 @@ public sealed class Md5MeshTranslator : SceneTranslator
     /// </summary>
     /// <param name="scene">The scene to serialise.</param>
     /// <param name="stream">The output stream that receives MD5 mesh text data.</param>
-    /// <param name="name">The logical scene name or destination file name.</param>
-    /// <param name="options">Translator options that control write behaviour.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var writer = new Md5MeshWriter(stream, name, options);
+        var writer = new Md5MeshWriter(stream, context.Name, context.Options);
         writer.Write(scene);
     }
 }

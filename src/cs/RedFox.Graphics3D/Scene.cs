@@ -66,5 +66,12 @@ namespace RedFox.Graphics3D
 
         /// <inheritdoc/>
         public override string ToString() => Name;
+
+        public static Scene CreateFromNode(SceneNode node)
+        {
+            var scene = new Scene(node.Name);
+            node.MoveTo(scene.RootNode);
+            return scene;
+        }
     }
 }

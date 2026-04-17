@@ -1,36 +1,27 @@
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Opens a game data source from file input and produces a populated <see cref="IAssetSource"/>.
-/// The reader is responsible for enumerating entries; actual asset data is loaded lazily
-/// by the <see cref="IAssetHandler"/> for each entry.
+/// Probes and opens a concrete asset source from an <see cref="AssetSourceRequest"/>.
 /// </summary>
 public interface IAssetSourceReader
 {
     /// <summary>
-    /// Quickly determines whether this reader can attempt to open the given file path,
-    /// typically by inspecting the file extension or a known magic-byte signature.
-    /// Should not perform any I/O beyond reading the first few bytes when necessary.
+    /// Determines whether the reader can open the supplied source request.
     /// </summary>
-    /// <param name="path">Absolute file path to evaluate.</param>
-    /// <returns><see langword="true"/> if this reader should be attempted for the path.</returns>
-    bool CanRead(string path);
+    /// <param name="request">The source request to inspect.</param>
+    /// <returns><see langword="true"/> when the reader can open the request; otherwise, <see langword="false"/>.</returns>
+    bool CanOpen(AssetSourceRequest request);
 
     /// <summary>
-    /// Opens and enumerates the asset source from the provided stream.
-    /// VFS-aware readers should call <see cref="AssetManager.EnsureFileSystem"/> and mount
-    /// files into it; VFS-unaware readers may ignore <paramref name="assetManager"/> beyond
-    /// handler/reader lookups.
+    /// Opens a source request and returns a populated asset source.
     /// </summary>
-    /// <param name="stream">Readable stream positioned at the start of the source data.</param>
-    /// <param name="path">Absolute path of the source file being opened.</param>
-    /// <param name="assetManager">The owning asset manager.</param>
-    /// <param name="progress">Optional progress reporter for the enumeration phase.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A populated <see cref="IAssetSource"/> ready for use.</returns>
-    Task<IAssetSource> ReadAsync(
-        Stream stream,
-        string path,
+    /// <param name="request">The source request to open.</param>
+    /// <param name="assetManager">The manager coordinating the mount, providing access to services and the shared virtual file system.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The mounted asset source.</returns>
+    Task<IAssetSource> OpenAsync(
+        AssetSourceRequest request,
         AssetManager assetManager,
         IProgress<string>? progress,
         CancellationToken cancellationToken);

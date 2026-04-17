@@ -105,67 +105,61 @@ public abstract class DataBuffer
 
     /// <summary>
     /// Retrieves a <see cref="Vector2"/> from the specified element and value indices.
+    /// If the buffer has fewer than 2 components, the missing components are set to zero.
     /// </summary>
     /// <param name="elementIndex">The zero-based index of the element.</param>
     /// <param name="valueIndex">The zero-based index of the value within the element.</param>
     /// <returns>A <see cref="Vector2"/> containing the first two components of the value.</returns>
-    public Vector2 GetVector2(int elementIndex, int valueIndex)
+    public virtual Vector2 GetVector2(int elementIndex, int valueIndex)
     {
-        if (ComponentCount < 2)
-        {
-            throw new InvalidOperationException($"Cannot retrieve a Vector2 from a buffer with only {ComponentCount} components per value.");
-        }
-
         Span<float> buffer = stackalloc float[2];
-        Get(elementIndex, valueIndex, buffer);
+        int count = Math.Min(2, ComponentCount);
+        for (int i = 0; i < count; i++)
+            buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector2(buffer);
     }
 
     /// <summary>
     /// Retrieves a <see cref="Vector3"/> from the specified element and value indices.
+    /// If the buffer has fewer than 3 components, the missing components are set to zero.
     /// </summary>
     /// <param name="elementIndex">The zero-based index of the element.</param>
     /// <param name="valueIndex">The zero-based index of the value within the element.</param>
     /// <returns>A <see cref="Vector3"/> containing the first three components of the value.</returns>
-    public Vector3 GetVector3(int elementIndex, int valueIndex)
+    public virtual Vector3 GetVector3(int elementIndex, int valueIndex)
     {
-        if (ComponentCount < 3)
-        {
-            throw new InvalidOperationException($"Cannot retrieve a Vector3 from a buffer with only {ComponentCount} components per value.");
-        }
-
         Span<float> buffer = stackalloc float[3];
-        Get(elementIndex, valueIndex, buffer);
+        int count = Math.Min(3, ComponentCount);
+        for (int i = 0; i < count; i++)
+            buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector3(buffer);
     }
 
-
     /// <summary>
     /// Retrieves a <see cref="Vector4"/> from the specified element and value indices.
+    /// If the buffer has fewer than 4 components, the missing components are set to zero.
     /// </summary>
     /// <param name="elementIndex">The zero-based index of the element.</param>
     /// <param name="valueIndex">The zero-based index of the value within the element.</param>
     /// <returns>A <see cref="Vector4"/> containing the first four components of the value.</returns>
-    public Vector4 GetVector4(int elementIndex, int valueIndex)
+    public virtual Vector4 GetVector4(int elementIndex, int valueIndex)
     {
-        if (ComponentCount < 4)
-        {
-            throw new InvalidOperationException($"Cannot retrieve a Vector4 from a buffer with only {ComponentCount} components per value.");
-        }
-
         Span<float> buffer = stackalloc float[4];
-        Get(elementIndex, valueIndex, buffer);
+        int count = Math.Min(4, ComponentCount);
+        for (int i = 0; i < count; i++)
+            buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector4(buffer);
     }
 
     /// <summary>
     /// Retrieves a <see cref="Vector4"/> from the specified element and value indices, using a default value for missing components.
+    /// If the buffer has fewer than 4 components, the missing components are set to <paramref name="defaultValue"/>.
     /// </summary>
     /// <param name="elementIndex">The zero-based index of the element.</param>
     /// <param name="valueIndex">The zero-based index of the value within the element.</param>
     /// <param name="defaultValue">The value to use for any vector components that are not present or cannot be retrieved.</param>
     /// <returns>A <see cref="Vector4"/> containing the retrieved values, with missing components set to <paramref name="defaultValue"/>.</returns>
-    public Vector4 GetVector4(int elementIndex, int valueIndex, float defaultValue)
+    public virtual Vector4 GetVector4(int elementIndex, int valueIndex, float defaultValue)
     {
         Span<float> buffer =
         [
@@ -174,7 +168,9 @@ public abstract class DataBuffer
             defaultValue,
             defaultValue
         ];
-        Get(elementIndex, valueIndex, buffer);
+        int count = Math.Min(4, ComponentCount);
+        for (int i = 0; i < count; i++)
+            buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector4(buffer);
     }
 }

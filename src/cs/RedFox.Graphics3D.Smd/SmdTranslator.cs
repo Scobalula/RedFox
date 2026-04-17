@@ -60,18 +60,15 @@ public sealed class SmdTranslator : SceneTranslator
     /// <param name="stream">
     /// The input stream containing SMD text data.
     /// </param>
-    /// <param name="name">
-    /// The logical scene name or source file name.
-    /// </param>
-    /// <param name="options">
-    /// Translator options that control read behaviour.
+    /// <param name="context">
+    /// The translation context for this operation.
     /// </param>
     /// <param name="token">
     /// Optional cancellation token propagated by the translator pipeline.
     /// </param>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var reader = new SmdReader(stream, name, options);
+        var reader = new SmdReader(stream, context.Name, context.Options);
         reader.Read(scene);
     }
 
@@ -84,18 +81,15 @@ public sealed class SmdTranslator : SceneTranslator
     /// <param name="stream">
     /// The output stream that receives SMD text data.
     /// </param>
-    /// <param name="name">
-    /// The logical scene name or destination file name.
-    /// </param>
-    /// <param name="options">
-    /// Translator options that control write behaviour.
+    /// <param name="context">
+    /// The translation context for this operation.
     /// </param>
     /// <param name="token">
     /// Optional cancellation token propagated by the translator pipeline.
     /// </param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var writer = new SmdWriter(stream, name, options);
+        var writer = new SmdWriter(stream, context.Name, context.Options);
         writer.Write(scene);
     }
 }

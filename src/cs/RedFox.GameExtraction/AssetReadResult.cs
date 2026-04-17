@@ -1,44 +1,19 @@
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// The base result of a successful <see cref="IAssetHandler.ReadAsync"/> call.
-/// Use <see cref="AssetReadResult{T}"/> to carry strongly-typed decoded data.
+/// Represents the result of reading an asset.
 /// </summary>
 public abstract class AssetReadResult
 {
-    /// <summary>The entry that was read.</summary>
-    public required IAssetEntry Entry { get; init; }
+    private static readonly IReadOnlyList<AssetExportReference> EmptyReferences = [];
 
     /// <summary>
-    /// Gets whether the read phase was intentionally skipped.
+    /// Gets the asset associated with the read.
     /// </summary>
-    public bool IsSkipped { get; init; }
+    public required Asset Asset { get; init; }
 
     /// <summary>
-    /// Gets an optional human-readable skip reason.
+    /// Gets referenced assets discovered while reading the asset.
     /// </summary>
-    public string? SkipReason { get; init; }
-
-    /// <summary>
-    /// Other entries that this asset references (e.g., textures referenced by a model,
-    /// or dependent materials). <see langword="null"/> when no references are known.
-    /// </summary>
-    public IReadOnlyList<IAssetEntry>? References { get; init; }
-}
-
-/// <summary>
-/// A strongly-typed asset read result carrying decoded asset data of type <typeparamref name="T"/>.
-/// </summary>
-/// <typeparam name="T">The decoded asset type (e.g., an image, model, or animation).</typeparam>
-public sealed class AssetReadResult<T> : AssetReadResult
-{
-    /// <summary>The decoded asset data.</summary>
-    public required T Data { get; init; }
-}
-
-/// <summary>
-/// Read result used when an asset read is intentionally skipped.
-/// </summary>
-public sealed class SkippedAssetReadResult : AssetReadResult
-{
+    public IReadOnlyList<AssetExportReference> References { get; init; } = EmptyReferences;
 }

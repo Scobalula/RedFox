@@ -640,7 +640,7 @@ namespace RedFox.Graphics3D
             return Parent?.EnumerateChildren().Where(n => n != this) ?? [];
         }
 
-        public SceneNode[] GetSiblings() => EnumerateSiblings().ToArray();
+        public SceneNode[] GetSiblings() => [.. EnumerateSiblings()];
 
         public void Detach()
         {

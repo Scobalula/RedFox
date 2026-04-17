@@ -1,36 +1,40 @@
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Handles reading and exporting a specific type of game asset.
-/// Register implementations with <see cref="AssetManager.RegisterHandler"/>.
+/// Reads and exports a specific class of assets.
 /// </summary>
 public interface IAssetHandler
 {
     /// <summary>
-    /// Determines whether this handler is capable of processing the given entry.
-    /// Implementations should inspect the file extension of <see cref="IAssetEntry.FullPath"/>
-    /// or fields in <see cref="IAssetEntry.Metadata"/>.
+    /// Determines whether the handler can process the supplied asset.
     /// </summary>
-    /// <param name="entry">The entry to evaluate.</param>
-    /// <returns><see langword="true"/> if this handler can read and export the entry.</returns>
-    bool CanHandle(IAssetEntry entry);
+    /// <param name="asset">The asset to inspect.</param>
+    /// <returns><see langword="true"/> when the handler can process the asset; otherwise, <see langword="false"/>.</returns>
+    bool CanHandle(Asset asset);
 
     /// <summary>
-    /// Reads and decodes the asset data for the given entry.
+    /// Reads an asset for preview or export.
     /// </summary>
-    /// <param name="entry">The entry to load. Must satisfy <see cref="CanHandle"/>.</param>
-    /// <param name="context">Operation context including optional export settings.</param>
-    /// <param name="exportDirectory">The effective export directory for this read operation.</param>
-    /// <param name="token">Cancellation token.</param>
-    /// <returns>An <see cref="AssetReadResult"/> containing the decoded asset data and any discovered reference entries.</returns>
-    Task<AssetReadResult> ReadAsync(IAssetEntry entry, AssetOperationContext context, string? exportDirectory, CancellationToken token);
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="context">The read context for the operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The read result.</returns>
+    Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Exports a previously decoded asset to disk.
+    /// Determines whether the supplied asset should be exported for the current configuration.
     /// </summary>
-    /// <param name="result">The result returned by <see cref="ReadAsync"/>.</param>
-    /// <param name="context">Operation context including export configuration and flags.</param>
-    /// <param name="exportDirectory">The effective export directory for this write operation.</param>
-    /// <param name="token">Cancellation token.</param>
-    Task WriteAsync(AssetReadResult result, AssetOperationContext context, string? exportDirectory, CancellationToken token);
+    /// <param name="asset">The asset that may be exported.</param>
+    /// <param name="context">The export context for the operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns><see langword="true"/> when the asset should be exported; otherwise, <see langword="false"/>.</returns>
+    Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Exports a previously read asset result.
+    /// </summary>
+    /// <param name="result">The read result to export.</param>
+    /// <param name="context">The export context for the operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    Task ExportAsync(AssetReadResult result, AssetExportContext context, CancellationToken cancellationToken);
 }

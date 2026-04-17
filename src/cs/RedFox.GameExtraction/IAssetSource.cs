@@ -1,22 +1,27 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Represents an opened game asset source: a file archive, VFS bundle, or memory-mapped region.
-/// Provides a flat enumeration of all contained <see cref="IAssetEntry"/> items.
+/// Represents a mounted asset source that exposes discovered assets.
 /// </summary>
-public interface IAssetSource : IDisposable
+public interface IAssetSource : IAsyncDisposable, IDisposable
 {
-    /// <summary>Display name for this source (e.g., archive file name or process name).</summary>
+    /// <summary>
+    /// Gets the display name for the mounted source.
+    /// </summary>
     string Name { get; }
 
-    /// <summary>All asset entries contained in this source.</summary>
-    IReadOnlyList<IAssetEntry> Entries { get; }
+    /// <summary>
+    /// Gets the assets exposed by the source.
+    /// </summary>
+    IReadOnlyList<Asset> Assets { get; }
 
     /// <summary>
-    /// Attempts to locate an entry by its full virtual path.
+    /// Attempts to resolve an asset by virtual path.
     /// </summary>
-    /// <param name="path">The full virtual path to look up.</param>
-    /// <param name="entry">The matching entry, or <see langword="null"/> if not found.</param>
-    /// <returns><see langword="true"/> if a matching entry was found; otherwise <see langword="false"/>.</returns>
-    bool TryGetEntry(string path, out IAssetEntry? entry);
+    /// <param name="path">The virtual path of the asset to resolve.</param>
+    /// <param name="asset">The resolved asset when one is found.</param>
+    /// <returns><see langword="true"/> when the asset exists; otherwise, <see langword="false"/>.</returns>
+    bool TryGetAsset(string path, [NotNullWhen(true)] out Asset? asset);
 }

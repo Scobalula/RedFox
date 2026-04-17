@@ -24,24 +24,24 @@ public sealed class CastTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".cast"];
 
     /// <inheritdoc/>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         var cast = CastReader.Load(stream);
         var root = cast.RootNodes[0];
 
         foreach (var modelNode in root.EnumerateChildrenOfType<ModelNode>())
         {
-            CastModelTranslator.Read(scene, modelNode, name);
+            CastModelTranslator.Read(scene, modelNode, context.Name);
         }
 
         foreach (var animationNode in root.EnumerateChildrenOfType<AnimationNode>())
         {
-            CastAnimationTranslator.Read(scene, animationNode, name);
+            CastAnimationTranslator.Read(scene, animationNode, context.Name);
         }
     }
 
     /// <inheritdoc/>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
+    public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         var root = new CastNode(CastNodeIdentifier.Root);
 
