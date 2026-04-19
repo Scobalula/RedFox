@@ -7,8 +7,8 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class Asset
 {
-    private static readonly IReadOnlyDictionary<string, object?> EmptyMetadata =
-        new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, object?> EmptyMetadata = new(StringComparer.OrdinalIgnoreCase);
+
     private IAssetHandler? _handler;
 
     /// <summary>

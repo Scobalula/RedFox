@@ -109,6 +109,12 @@ public sealed class AssetManager
     /// Registers a service instance for later retrieval.
     /// </summary>
     /// <typeparam name="T">The service type.</typeparam>
+    public void RegisterService<T>() where T : class, new() => RegisterService<T>(new T());
+
+    /// <summary>
+    /// Registers a service instance for later retrieval.
+    /// </summary>
+    /// <typeparam name="T">The service type.</typeparam>
     /// <param name="service">The service instance to register.</param>
     public void RegisterService<T>(T service) where T : class
     {

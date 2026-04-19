@@ -220,6 +220,16 @@ namespace RedFox.Graphics3D.Buffers
         }
 
         /// <inheritdoc/>
+        protected override int ReserveElement()
+        {
+            int elementIndex = _elementCount;
+            int requiredCapacity = (elementIndex + 1) * _valueCount * _componentCount;
+            EnsureCapacity(requiredCapacity);
+            _elementCount++;
+            return elementIndex;
+        }
+
+        /// <inheritdoc/>
         public override void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value)
         {
             if (elementIndex > _elementCount || elementIndex < 0)

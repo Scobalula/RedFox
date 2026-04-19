@@ -187,6 +187,56 @@ public class PackedVectorTests
     }
 
     [Fact]
+    public void PackedBuffer_AddVector4_AppendsElement()
+    {
+        var buffer = new PackedBuffer<Color>(4);
+
+        var element = buffer.Add(new Vector4(0.5f, 0.25f, 0.75f, 1.0f));
+
+        Assert.Equal(1, buffer.ElementCount);
+        Assert.True(element.IsComplete);
+        Assert.True(MathF.Abs(buffer.Get<float>(0, 0, 0) - 0.5f) < 0.01f);
+        Assert.True(MathF.Abs(buffer.Get<float>(0, 0, 1) - 0.25f) < 0.01f);
+        Assert.True(MathF.Abs(buffer.Get<float>(0, 0, 2) - 0.75f) < 0.01f);
+        Assert.True(MathF.Abs(buffer.Get<float>(0, 0, 3) - 1.0f) < 0.01f);
+    }
+
+    [Fact]
+    public void PackedBuffer_Cursor_AddScalar_FillsMultiValueElement()
+    {
+        var buffer = new PackedBuffer<Half2>(4, 2);
+
+        var element = buffer.Add();
+        element.Add(1f);
+        element.Add(2f);
+        element.Add(3f);
+        element.Add(4f);
+
+        Assert.Equal(1f, buffer.Get<float>(0, 0, 0), Epsilon);
+        Assert.Equal(2f, buffer.Get<float>(0, 0, 1), Epsilon);
+        Assert.Equal(3f, buffer.Get<float>(0, 1, 0), Epsilon);
+        Assert.Equal(4f, buffer.Get<float>(0, 1, 1), Epsilon);
+        Assert.True(element.IsComplete);
+    }
+
+    [Fact]
+    public void PackedBuffer_AddVector4_ScaleOffset_WithAppendApi()
+    {
+        var scale = new Vector4(2.0f, 2.0f, 2.0f, 2.0f);
+        var offset = new Vector4(1.0f, 1.0f, 1.0f, 1.0f);
+        var buffer = new PackedBuffer<UByteN4>(4, 1, scale, offset);
+        var value = new Vector4(1f, 2f, 3f, 1f);
+
+        var element = buffer.Add(value);
+
+        Assert.True(element.IsComplete);
+        Assert.True(ApproxEqual(buffer.GetVector4(0, 0), value, 0.01f));
+
+        var unpacked = buffer.AsSpan()[0].Unpack();
+        Assert.True(ApproxEqual(unpacked, new Vector4(0f, 0.5f, 1f, 0f), 0.01f));
+    }
+
+    [Fact]
     public void PackedBuffer_Set_OverwritesValue()
     {
         var buffer = new PackedBuffer<UByteN4>(10);

@@ -109,6 +109,10 @@ namespace RedFox.Graphics3D.Buffers
         }
 
         /// <inheritdoc/>
+        protected override int ReserveElement()
+            => throw new NotSupportedException("DataBufferView is read-only.");
+
+        /// <inheritdoc/>
         public override void Set<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value)
             => throw new NotSupportedException("DataBufferView is read-only.");
 

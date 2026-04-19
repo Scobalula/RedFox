@@ -13,7 +13,8 @@ public abstract class DataBuffer
     public abstract int ElementCount { get; }
 
     /// <summary>
-    /// Gets the number of values associated with each element.
+    /// Gets the fixed number of values associated with each element.
+    /// This is the per-element stride/max slot count, not a per-element active value count.
     /// </summary>
     public abstract int ValueCount { get; }
 
@@ -68,6 +69,12 @@ public abstract class DataBuffer
     public abstract void Set<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value) where TInput : INumber<TInput>;
 
     /// <summary>
+    /// Reserves storage for one new element and returns its element index.
+    /// </summary>
+    /// <returns>The zero-based index of the newly reserved element.</returns>
+    protected abstract int ReserveElement();
+
+    /// <summary>
     /// Adds a value to a specific component in the buffer at the given element, value, and component indices. If <paramref name="elementIndex"/> equals the number of elements, a new element is added.
     /// </summary>
     /// <typeparam name="TInput">The numeric type to store, which must implement <see cref="INumber{TInput}"/>.</typeparam>
@@ -76,6 +83,66 @@ public abstract class DataBuffer
     /// <param name="componentIndex">The zero-based index of the component within the value.</param>
     /// <param name="value">The value to add.</param>
     public abstract void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value) where TInput : INumber<TInput>;
+
+    /// <summary>
+    /// Reserves a new element and returns a cursor for sequential writes within it.
+    /// </summary>
+    /// <returns>A cursor positioned at the first value/component of the new element.</returns>
+    public DataBufferElement Add()
+    {
+        int elementIndex = ReserveElement();
+        return new DataBufferElement(this, elementIndex);
+    }
+
+    /// <summary>
+    /// Appends a new element and writes a single scalar value to value 0/component 0.
+    /// Remaining slots in the element stay default-initialized.
+    /// </summary>
+    /// <typeparam name="TInput">The numeric type to store.</typeparam>
+    /// <param name="value">The scalar value to write.</param>
+    /// <returns>The updated cursor for the appended element.</returns>
+    public DataBufferElement Add<TInput>(TInput value) where TInput : INumber<TInput>
+    {
+        EnsureCanAppendToNewElement(1);
+        var element = Add();
+        return element.Add(value);
+    }
+
+    /// <summary>
+    /// Appends a new element and writes a <see cref="Vector2"/> to value 0 starting at component 0.
+    /// </summary>
+    /// <param name="value">The vector value to write.</param>
+    /// <returns>The updated cursor for the appended element.</returns>
+    public DataBufferElement Add(Vector2 value)
+    {
+        EnsureCanAppendToNewElement(2);
+        var element = Add();
+        return element.Add(value);
+    }
+
+    /// <summary>
+    /// Appends a new element and writes a <see cref="Vector3"/> to value 0 starting at component 0.
+    /// </summary>
+    /// <param name="value">The vector value to write.</param>
+    /// <returns>The updated cursor for the appended element.</returns>
+    public DataBufferElement Add(Vector3 value)
+    {
+        EnsureCanAppendToNewElement(3);
+        var element = Add();
+        return element.Add(value);
+    }
+
+    /// <summary>
+    /// Appends a new element and writes a <see cref="Vector4"/> to value 0 starting at component 0.
+    /// </summary>
+    /// <param name="value">The vector value to write.</param>
+    /// <returns>The updated cursor for the appended element.</returns>
+    public DataBufferElement Add(Vector4 value)
+    {
+        EnsureCanAppendToNewElement(4);
+        var element = Add();
+        return element.Add(value);
+    }
 
     /// <summary>
     /// Creates a writable copy of the specified source buffer using the requested component type.
@@ -120,6 +187,18 @@ public abstract class DataBuffer
     }
 
     /// <summary>
+    /// Stores a <see cref="Vector2"/> into the specified element/value starting at component 0.
+    /// </summary>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <param name="valueIndex">The zero-based index of the value within the element.</param>
+    /// <param name="value">The vector value to store.</param>
+    public virtual void SetVector2(int elementIndex, int valueIndex, Vector2 value)
+    {
+        Set(elementIndex, valueIndex, 0, value.X);
+        Set(elementIndex, valueIndex, 1, value.Y);
+    }
+
+    /// <summary>
     /// Retrieves a <see cref="Vector3"/> from the specified element and value indices.
     /// If the buffer has fewer than 3 components, the missing components are set to zero.
     /// </summary>
@@ -136,6 +215,19 @@ public abstract class DataBuffer
     }
 
     /// <summary>
+    /// Stores a <see cref="Vector3"/> into the specified element/value starting at component 0.
+    /// </summary>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <param name="valueIndex">The zero-based index of the value within the element.</param>
+    /// <param name="value">The vector value to store.</param>
+    public virtual void SetVector3(int elementIndex, int valueIndex, Vector3 value)
+    {
+        Set(elementIndex, valueIndex, 0, value.X);
+        Set(elementIndex, valueIndex, 1, value.Y);
+        Set(elementIndex, valueIndex, 2, value.Z);
+    }
+
+    /// <summary>
     /// Retrieves a <see cref="Vector4"/> from the specified element and value indices.
     /// If the buffer has fewer than 4 components, the missing components are set to zero.
     /// </summary>
@@ -149,6 +241,20 @@ public abstract class DataBuffer
         for (int i = 0; i < count; i++)
             buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector4(buffer);
+    }
+
+    /// <summary>
+    /// Stores a <see cref="Vector4"/> into the specified element/value starting at component 0.
+    /// </summary>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <param name="valueIndex">The zero-based index of the value within the element.</param>
+    /// <param name="value">The vector value to store.</param>
+    public virtual void SetVector4(int elementIndex, int valueIndex, Vector4 value)
+    {
+        Set(elementIndex, valueIndex, 0, value.X);
+        Set(elementIndex, valueIndex, 1, value.Y);
+        Set(elementIndex, valueIndex, 2, value.Z);
+        Set(elementIndex, valueIndex, 3, value.W);
     }
 
     /// <summary>
@@ -172,5 +278,13 @@ public abstract class DataBuffer
         for (int i = 0; i < count; i++)
             buffer[i] = Get<float>(elementIndex, valueIndex, i);
         return new Vector4(buffer);
+    }
+
+    private void EnsureCanAppendToNewElement(int componentCount)
+    {
+        if (ValueCount <= 0 || ComponentCount < componentCount)
+        {
+            throw new InvalidOperationException($"Buffer layout must provide at least one value with {componentCount} components to append that shape.");
+        }
     }
 }

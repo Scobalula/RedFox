@@ -208,4 +208,83 @@ public static class StreamExtensions
             stream.Position = originalPosition;
         }
     }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> from the current position of the specified stream.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance anchored at the current stream position.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    public static StreamPointer<T> AsPointer<T>(this Stream stream) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return new StreamPointer<T>(stream);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> from the specified position in the stream.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the data begins.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance anchored at the specified position.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    public static StreamPointer<T> AsPointer<T>(this Stream stream, long pointer) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return new StreamPointer<T>(stream, pointer);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> for a contiguous array at the specified position.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance for the specified array range.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> AsPointer<T>(this Stream stream, long pointer, int count) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return new StreamPointer<T>(stream, pointer, count);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> with pointer-chase mode control.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the data or pointer array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <param name="isPointerArray">
+    /// If <c>true</c>, the index accesses a pointer table where each index points to the actual data;
+    /// if <c>false</c>, accesses are direct contiguous reads.
+    /// </param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance with the specified configuration.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> AsPointer<T>(this Stream stream, long pointer, int count, bool isPointerArray) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return new StreamPointer<T>(stream, pointer, count, isPointerArray);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> for a contiguous array at the specified position.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance for the specified array range.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> CreatePointer<T>(this Stream stream, long pointer, int count) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return new StreamPointer<T>(stream, pointer, count);
+    }
 }

@@ -197,9 +197,8 @@ public class AnimationCurve
         Keys ??= new DataBuffer<float>(0, 1, 1);
         Values ??= new DataBuffer<float>(0, 1, 1);
 
-        var idx = Keys.ElementCount;
-        Keys.Add(idx, 0, 0, time);
-        Values.Add(idx, 0, 0, value);
+        Keys.Add(time);
+        Values.Add(value);
     }
 
     /// <summary>
@@ -213,11 +212,8 @@ public class AnimationCurve
         Keys ??= new DataBuffer<float>(0, 1, 1);
         Values ??= new DataBuffer<float>(0, 1, 3);
 
-        var idx = Keys.ElementCount;
-        Keys.Add(idx, 0, 0, time);
-        Values.Add(idx, 0, 0, value.X);
-        Values.Set(idx, 0, 1, value.Y);
-        Values.Set(idx, 0, 2, value.Z);
+        Keys.Add(time);
+        Values.Add(value);
     }
 
     /// <summary>
@@ -231,17 +227,9 @@ public class AnimationCurve
         Keys ??= new DataBuffer<float>(0, 1, 1);
         Values ??= new DataBuffer<float>(0, 1, 4);
 
-        var idx = Keys.ElementCount;
-        Keys.Add(idx, 0, 0, time);
-        Values.Add(idx, 0, 0, value.X);
-        Values.Set(idx, 0, 1, value.Y);
-        Values.Set(idx, 0, 2, value.Z);
-        Values.Set(idx, 0, 3, value.W);
+        Keys.Add(time);
+        Values.Add(new Vector4(value.X, value.Y, value.Z, value.W));
     }
-
-    // ------------------------------------------------------------------
-    // Keyframe access — read individual keyframe data
-    // ------------------------------------------------------------------
 
     /// <summary>
     /// Gets the time of the keyframe at the specified index.
@@ -270,10 +258,6 @@ public class AnimationCurve
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Quaternion GetQuaternion(int index) => Values!.GetVector4(index, 0).AsQuaternion();
-
-    // ------------------------------------------------------------------
-    // Frame pair lookup — binary search for surrounding keyframes
-    // ------------------------------------------------------------------
 
     /// <summary>
     /// Finds the indices of the two keyframes that bracket the given <paramref name="time"/>.
@@ -345,10 +329,6 @@ public class AnimationCurve
         var (prev, next) = GetFramePairIndex(time);
         return (prev, next, prev);
     }
-
-    // ------------------------------------------------------------------
-    // Sampling — interpolate values at arbitrary times
-    // ------------------------------------------------------------------
 
     /// <summary>
     /// Computes the interpolation factor between two keyframes at the given time.

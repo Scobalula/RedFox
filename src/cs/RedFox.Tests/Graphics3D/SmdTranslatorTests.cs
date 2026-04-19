@@ -388,8 +388,10 @@ public sealed class SmdTranslatorTests
         var boneWeights = new DataBuffer<float>(3, 2, 1);
         for (int v = 0; v < 3; v++)
         {
-            boneIndices.Add(v, 0, 0, 0);   boneWeights.Add(v, 0, 0, 0.6f);
-            boneIndices.Add(v, 1, 0, 1);   boneWeights.Add(v, 1, 0, 0.4f);
+            var boneIndexElement = boneIndices.Add();
+            var boneWeightElement = boneWeights.Add();
+            boneIndexElement.Add(0); boneWeightElement.Add(0.6f);
+            boneIndexElement.Add(1); boneWeightElement.Add(0.4f);
         }
         mesh.BoneIndices = boneIndices;
         mesh.BoneWeights = boneWeights;
@@ -445,11 +447,7 @@ public sealed class SmdTranslatorTests
     {
         var buf = new DataBuffer<float>(vectors.Count, 1, 3);
         for (int i = 0; i < vectors.Count; i++)
-        {
-            buf.Add(i, 0, 0, vectors[i].X);
-            buf.Add(i, 0, 1, vectors[i].Y);
-            buf.Add(i, 0, 2, vectors[i].Z);
-        }
+            buf.Add(vectors[i]);
         return buf;
     }
 
@@ -457,10 +455,7 @@ public sealed class SmdTranslatorTests
     {
         var buf = new DataBuffer<float>(vectors.Count, 1, 2);
         for (int i = 0; i < vectors.Count; i++)
-        {
-            buf.Add(i, 0, 0, vectors[i].X);
-            buf.Add(i, 0, 1, vectors[i].Y);
-        }
+            buf.Add(vectors[i]);
         return buf;
     }
 
@@ -468,7 +463,7 @@ public sealed class SmdTranslatorTests
     {
         var buf = new DataBuffer<int>(values.Count, 1, 1);
         for (int i = 0; i < values.Count; i++)
-            buf.Add(i, 0, 0, values[i]);
+            buf.Add(values[i]);
         return buf;
     }
 

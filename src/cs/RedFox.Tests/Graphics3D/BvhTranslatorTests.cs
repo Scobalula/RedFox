@@ -376,11 +376,7 @@ Frame Time: 0.033333
     {
         DataBuffer<float> buffer = new(values.Count, 1, 3);
         for (int i = 0; i < values.Count; i++)
-        {
-            buffer.Add(i, 0, 0, values[i].X);
-            buffer.Add(i, 0, 1, values[i].Y);
-            buffer.Add(i, 0, 2, values[i].Z);
-        }
+            buffer.Add(values[i]);
 
         return buffer;
     }
@@ -389,9 +385,7 @@ Frame Time: 0.033333
     {
         DataBuffer<int> buffer = new(values.Count, 1, 1);
         for (int i = 0; i < values.Count; i++)
-        {
-            buffer.Add(i, 0, 0, values[i]);
-        }
+            buffer.Add(values[i]);
 
         return buffer;
     }

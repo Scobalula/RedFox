@@ -216,6 +216,16 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         }
 
         /// <inheritdoc/>
+        protected override int ReserveElement()
+        {
+            int elementIndex = _elementCount;
+            int requiredCapacity = (elementIndex + 1) * _valueCount;
+            EnsureCapacity(requiredCapacity);
+            _elementCount++;
+            return elementIndex;
+        }
+
+        /// <inheritdoc/>
         public override void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value)
         {
             if (elementIndex < 0 || elementIndex > _elementCount)

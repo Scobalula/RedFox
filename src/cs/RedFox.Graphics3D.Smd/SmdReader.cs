@@ -364,18 +364,14 @@ public sealed class SmdReader
         {
             ref readonly var vtx = ref span[i];
 
-            positions.Add(i, 0, 0, vtx.Position.X);
-            positions.Add(i, 0, 1, vtx.Position.Y);
-            positions.Add(i, 0, 2, vtx.Position.Z);
-
-            normals.Add(i, 0, 0, vtx.Normal.X);
-            normals.Add(i, 0, 1, vtx.Normal.Y);
-            normals.Add(i, 0, 2, vtx.Normal.Z);
-
-            uvLayers.Add(i, 0, 0, vtx.UV.X);
-            uvLayers.Add(i, 0, 1, vtx.UV.Y);
+            positions.Add(vtx.Position);
+            normals.Add(vtx.Normal);
+            uvLayers.Add(vtx.UV);
 
             if (boneIndices is null || boneWeights is null) continue;
+
+            var boneIndexElement = boneIndices.Add();
+            var boneWeightElement = boneWeights.Add();
 
             if (vtx.Links.Length > 0)
             {
@@ -383,20 +379,20 @@ public sealed class SmdReader
                 {
                     int   boneIdx = j < vtx.Links.Length ? vtx.Links[j].BoneIndex : 0;
                     float weight  = j < vtx.Links.Length ? vtx.Links[j].Weight : 0f;
-                    boneIndices.Add(i, j, 0, boneIdx);
-                    boneWeights.Add(i, j, 0, weight);
+                    boneIndexElement.Add(boneIdx);
+                    boneWeightElement.Add(weight);
                 }
             }
             else
             {
                 // Rigidly bound to parent bone (weight 1)
                 int parentBoneIdx = Math.Clamp(vtx.ParentBone, 0, allBones.Length - 1);
-                boneIndices.Add(i, 0, 0, parentBoneIdx);
-                boneWeights.Add(i, 0, 0, 1f);
+                boneIndexElement.Add(parentBoneIdx);
+                boneWeightElement.Add(1f);
                 for (int j = 1; j < maxInfluences; j++)
                 {
-                    boneIndices.Add(i, j, 0, 0);
-                    boneWeights.Add(i, j, 0, 0f);
+                    boneIndexElement.Add(0);
+                    boneWeightElement.Add(0f);
                 }
             }
         }
@@ -405,7 +401,7 @@ public sealed class SmdReader
         int faceIndexCount = (vertCount / 3) * 3;
         var faceIndices    = new DataBuffer<int>(faceIndexCount, 1, 1);
         for (int f = 0; f < faceIndexCount; f++)
-            faceIndices.Add(f, 0, 0, f);
+            faceIndices.Add(f);
 
         mesh.Positions  = positions;
         mesh.Normals    = normals;

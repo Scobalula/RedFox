@@ -561,9 +561,7 @@ namespace RedFox.Graphics3D
             if (this is T tSelf)
                 return tSelf;
             var found = EnumerateDescendants<T>().FirstOrDefault();
-            if (found is null)
-                throw new SceneNodeNotFoundException($"No node of type {typeof(T)} found in: {Name}");
-            return found;
+            return found is null ? throw new SceneNodeNotFoundException($"No node of type {typeof(T)} found in: {Name}") : found;
         }
 
         public T? TryGetFirstOfType<T>() where T : SceneNode

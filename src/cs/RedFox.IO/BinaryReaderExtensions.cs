@@ -541,4 +541,83 @@ public static class BinaryReaderExtensions
 
         return reader.BaseStream.Position;
     }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> from the current position of the <see cref="BinaryReader.BaseStream"/>.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="reader">The binary reader whose base stream will be used.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance anchored at the current stream position.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is null.</exception>
+    public static StreamPointer<T> AsPointer<T>(this BinaryReader reader) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return new StreamPointer<T>(reader.BaseStream);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> from the specified position in the <see cref="BinaryReader.BaseStream"/>.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="reader">The binary reader whose base stream will be used.</param>
+    /// <param name="pointer">The offset in the stream where the data begins.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance anchored at the specified position.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is null.</exception>
+    public static StreamPointer<T> AsPointer<T>(this BinaryReader reader, long pointer) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return new StreamPointer<T>(reader.BaseStream, pointer);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> for a contiguous array at the specified position in the <see cref="BinaryReader.BaseStream"/>.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="reader">The binary reader whose base stream will be used.</param>
+    /// <param name="pointer">The offset in the stream where the array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance for the specified array range.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> AsPointer<T>(this BinaryReader reader, long pointer, int count) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return new StreamPointer<T>(reader.BaseStream, pointer, count);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> with pointer-chase mode control from the <see cref="BinaryReader.BaseStream"/>.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="reader">The binary reader whose base stream will be used.</param>
+    /// <param name="pointer">The offset in the stream where the data or pointer array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <param name="isPointerArray">
+    /// If <c>true</c>, the index accesses a pointer table where each index points to the actual data;
+    /// if <c>false</c>, accesses are direct contiguous reads.
+    /// </param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance with the specified configuration.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> AsPointer<T>(this BinaryReader reader, long pointer, int count, bool isPointerArray) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return new StreamPointer<T>(reader.BaseStream, pointer, count, isPointerArray);
+    }
+
+    /// <summary>
+    /// Creates a <see cref="StreamPointer{T}"/> for a contiguous array at the specified position in the <see cref="BinaryReader.BaseStream"/>.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged structure type to read.</typeparam>
+    /// <param name="reader">The binary reader whose base stream will be used.</param>
+    /// <param name="pointer">The offset in the stream where the array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <returns>A new <see cref="StreamPointer{T}"/> instance for the specified array range.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="reader"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public static StreamPointer<T> CreatePointer<T>(this BinaryReader reader, long pointer, int count) where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        return new StreamPointer<T>(reader.BaseStream, pointer, count);
+    }
 }
