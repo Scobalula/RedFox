@@ -62,6 +62,6 @@ public sealed class Md5MeshTranslator : SceneTranslator
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         var writer = new Md5MeshWriter(stream, context.Name, context.Options);
-        writer.Write(scene);
+        writer.Write(context.GetSelection(scene));
     }
 }

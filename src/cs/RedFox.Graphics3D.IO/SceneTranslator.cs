@@ -83,7 +83,9 @@ public abstract class SceneTranslator
     public virtual void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
     {
         using var stream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.Asynchronous);
-        Write(scene, stream, CreateWriteContext(filePath, options), token);
+        var context = CreateWriteContext(filePath, options);
+        context.GetSelection(scene);
+        Write(scene, stream, context, token);
     }
 
     /// <summary>
@@ -106,7 +108,9 @@ public abstract class SceneTranslator
     public virtual void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
     {
         ArgumentNullException.ThrowIfNull(options);
-        Write(scene, stream, new SceneTranslationContext(name, options), token);
+        var context = new SceneTranslationContext(name, options);
+        context.GetSelection(scene);
+        Write(scene, stream, context, token);
     }
 
     /// <summary>

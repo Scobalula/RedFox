@@ -1,3 +1,5 @@
+using RedFox.Graphics3D;
+
 namespace RedFox.Graphics3D.IO;
 
 /// <summary>
@@ -29,6 +31,12 @@ public sealed class SceneTranslationContext
     public SceneTranslatorOptions Options { get; }
 
     /// <summary>
+    /// Gets the scene selection view associated with this operation, when one has been created.
+    /// This is typically populated for write operations.
+    /// </summary>
+    public SceneTranslationSelection? Selection { get; internal set; }
+
+    /// <summary>
     /// Gets the full source file path for read operations, when available.
     /// </summary>
     public string? SourceFilePath { get; init; }
@@ -47,4 +55,19 @@ public sealed class SceneTranslationContext
     /// Gets the target directory path for emitting portable relative references during write operations.
     /// </summary>
     public string? TargetDirectoryPath { get; init; }
+
+    /// <summary>
+    /// Gets the filtered selection view for the specified scene, creating it on demand if needed.
+    /// </summary>
+    /// <param name="scene">The scene being translated.</param>
+    /// <returns>The selection view for this operation and scene.</returns>
+    public SceneTranslationSelection GetSelection(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
+        if (Selection is null || !ReferenceEquals(Selection.Scene, scene) || Selection.Filter != Options.Filter)
+            Selection = new SceneTranslationSelection(scene, Options.Filter);
+
+        return Selection;
+    }
 }

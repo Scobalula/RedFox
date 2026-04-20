@@ -106,7 +106,7 @@ public sealed class GltfTranslator : SceneTranslator
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         GltfWriter writer = new(context.Options, context.TargetDirectoryPath);
-        writer.Write(scene, stream, context.Name);
+        writer.Write(context.GetSelection(scene), stream, context.Name);
     }
 
     /// <summary>

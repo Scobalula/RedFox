@@ -58,8 +58,18 @@ public sealed class BvhWriter
     /// <exception cref="IOException">Thrown when the destination stream cannot be written.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the scene contains data that cannot be represented by BVH.</exception>
     public void Write(Scene scene)
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
+
+    /// <summary>
+    /// Serializes the supplied scene selection to the output stream in BVH format.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to serialize.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="selection"/> is <see langword="null"/>.</exception>
+    /// <exception cref="IOException">Thrown when the destination stream cannot be written.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the selection contains data that cannot be represented by BVH.</exception>
+    public void Write(SceneTranslationSelection selection)
     {
-        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(selection);
 
         if (!Stream.CanWrite)
         {
@@ -68,22 +78,22 @@ public sealed class BvhWriter
 
         _ = Options;
 
-        ValidateSupportedNodes(scene);
+        ValidateSupportedNodes(selection);
 
-        Skeleton skeleton = GetSingleSkeleton(scene);
-        SkeletonBone rootBone = GetSingleRootBone(skeleton);
-        SkeletonAnimation? animation = GetSingleAnimation(scene);
-        SkeletonBone[] bones = skeleton.GetBones();
-        Dictionary<string, SkeletonAnimationTrack> tracksByName = BuildTrackMap(animation, bones);
+        SkeletonBone[] bones = GetExportBones(selection);
+        SkeletonBone rootBone = GetSingleRootBone(bones);
+        SkeletonAnimation? animation = GetSingleAnimation(selection);
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
+        Dictionary<string, SkeletonAnimationTrack> tracksByName = BuildTrackMap(animation);
         int frameCount = GetFrameCount(animation);
         float frameTime = GetFrameTime(animation);
-        Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = BuildChannelMap(bones, rootBone, tracksByName);
+        Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = BuildChannelMap(bones, rootBone, exportedBoneNodes, tracksByName);
 
         ValidateTracksAndBindTransforms(bones, tracksByName);
 
         using StreamWriter writer = new(Stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: 4096, leaveOpen: true);
-        WriteHierarchy(writer, rootBone, channelsByBone, 0, true);
-        WriteMotion(writer, bones, animation, tracksByName, channelsByBone, frameCount, frameTime);
+        WriteHierarchy(writer, rootBone, bones, exportedBoneNodes, channelsByBone, 0, true);
+        WriteMotion(writer, bones, exportedBoneNodes, animation, tracksByName, channelsByBone, frameCount, frameTime);
         writer.Flush();
     }
 
@@ -92,8 +102,15 @@ public sealed class BvhWriter
     /// </summary>
     /// <param name="scene">The scene to validate.</param>
     public static void ValidateSupportedNodes(Scene scene)
+        => ValidateSupportedNodes(new SceneTranslationSelection(scene, SceneNodeFlags.None));
+
+    /// <summary>
+    /// Validates that the selection contains only nodes representable by BVH.
+    /// </summary>
+    /// <param name="selection">The scene selection to validate.</param>
+    public static void ValidateSupportedNodes(SceneTranslationSelection selection)
     {
-        foreach (SceneNode node in scene.RootNode.EnumerateDescendants())
+        foreach (SceneNode node in selection.Scene.RootNode.EnumerateDescendants(selection.Filter))
         {
             if (node is Skeleton or SkeletonBone or SkeletonAnimation)
             {
@@ -110,30 +127,25 @@ public sealed class BvhWriter
     /// </summary>
     /// <param name="scene">The scene to inspect.</param>
     /// <returns>The single exportable skeleton.</returns>
-    public static Skeleton GetSingleSkeleton(Scene scene)
+    public static SkeletonBone[] GetExportBones(SceneTranslationSelection selection)
     {
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
-        if (skeletons.Length == 0)
+        SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
+        if (bones.Length == 0)
         {
-            throw new InvalidOperationException("BVH export requires exactly one Skeleton node, but the scene does not contain one.");
+            throw new InvalidOperationException("BVH export requires at least one SkeletonBone node in the export selection.");
         }
 
-        if (skeletons.Length > 1)
-        {
-            throw new InvalidOperationException("BVH export requires exactly one Skeleton node, but the scene contains multiple skeletons.");
-        }
-
-        return skeletons[0];
+        return bones;
     }
 
     /// <summary>
     /// Gets the single animation clip that can be exported from the scene.
     /// </summary>
-    /// <param name="scene">The scene to inspect.</param>
+    /// <param name="selection">The scene selection to inspect.</param>
     /// <returns>The single exportable animation, or <see langword="null"/> when the scene is static.</returns>
-    public static SkeletonAnimation? GetSingleAnimation(Scene scene)
+    public static SkeletonAnimation? GetSingleAnimation(SceneTranslationSelection selection)
     {
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
+        SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
         if (animations.Length > 1)
         {
             throw new InvalidOperationException("BVH export supports a single SkeletonAnimation clip per file.");
@@ -145,19 +157,26 @@ public sealed class BvhWriter
     /// <summary>
     /// Gets the single root bone that can be exported from the skeleton.
     /// </summary>
-    /// <param name="skeleton">The skeleton to inspect.</param>
+    /// <param name="bones">The exported bones to inspect.</param>
     /// <returns>The exportable root bone.</returns>
-    public static SkeletonBone GetSingleRootBone(Skeleton skeleton)
+    public static SkeletonBone GetSingleRootBone(IReadOnlyList<SkeletonBone> bones)
     {
-        List<SkeletonBone> rootBones = [.. skeleton.EnumerateChildren().OfType<SkeletonBone>()];
+        SceneNode[] exportedBoneNodes = Array.ConvertAll([.. bones], static bone => (SceneNode)bone);
+        List<SkeletonBone> rootBones = [];
+        for (int i = 0; i < bones.Count; i++)
+        {
+            if (SceneNode.GetBestParent(bones[i], exportedBoneNodes) is null)
+                rootBones.Add(bones[i]);
+        }
+
         if (rootBones.Count == 0)
         {
-            throw new InvalidOperationException($"Skeleton '{skeleton.Name}' does not contain a root bone.");
+            throw new InvalidOperationException("BVH export could not resolve a root bone from the export selection.");
         }
 
         if (rootBones.Count > 1)
         {
-            throw new InvalidOperationException($"Skeleton '{skeleton.Name}' contains multiple root bones, but BVH supports only one root hierarchy.");
+            throw new InvalidOperationException("BVH export supports only one root hierarchy, but the export selection contains multiple root bones.");
         }
 
         ValidateNodeName(rootBones[0].Name, "root joint");
@@ -170,18 +189,12 @@ public sealed class BvhWriter
     /// <param name="animation">The optional animation clip.</param>
     /// <param name="bones">The bones that will be written.</param>
     /// <returns>A dictionary keyed by joint name.</returns>
-    public static Dictionary<string, SkeletonAnimationTrack> BuildTrackMap(SkeletonAnimation? animation, IReadOnlyList<SkeletonBone> bones)
+    public static Dictionary<string, SkeletonAnimationTrack> BuildTrackMap(SkeletonAnimation? animation)
     {
         Dictionary<string, SkeletonAnimationTrack> tracksByName = new(StringComparer.OrdinalIgnoreCase);
         if (animation is null)
         {
             return tracksByName;
-        }
-
-        HashSet<string> boneNames = new(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < bones.Count; i++)
-        {
-            boneNames.Add(bones[i].Name);
         }
 
         for (int i = 0; i < animation.Tracks.Count; i++)
@@ -190,11 +203,6 @@ public sealed class BvhWriter
             if (string.IsNullOrWhiteSpace(track.Name))
             {
                 throw new InvalidOperationException("BVH export encountered a skeleton animation track without a valid target name.");
-            }
-
-            if (!boneNames.Contains(track.Name))
-            {
-                throw new InvalidOperationException($"BVH export cannot write animation track '{track.Name}' because no matching joint exists in the skeleton hierarchy.");
             }
 
             if (!tracksByName.TryAdd(track.Name, track))
@@ -259,7 +267,7 @@ public sealed class BvhWriter
     /// <param name="rootBone">The root bone.</param>
     /// <param name="tracksByName">The animation-track lookup keyed by joint name.</param>
     /// <returns>A dictionary mapping each bone to its BVH channel sequence.</returns>
-    public static Dictionary<SkeletonBone, BvhChannelType[]> BuildChannelMap(IReadOnlyList<SkeletonBone> bones, SkeletonBone rootBone, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName)
+    public static Dictionary<SkeletonBone, BvhChannelType[]> BuildChannelMap(IReadOnlyList<SkeletonBone> bones, SkeletonBone rootBone, SceneNode[] exportedBoneNodes, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName)
     {
         Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = new(bones.Count);
 
@@ -267,7 +275,8 @@ public sealed class BvhWriter
         {
             SkeletonBone bone = bones[i];
             SkeletonAnimationTrack? track = tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? mappedTrack) ? mappedTrack : null;
-            BvhChannelType[] channels = ResolveChannelSequence(bone == rootBone, track);
+            bool isReparented = !ReferenceEquals(SceneNode.GetBestParent(bone, exportedBoneNodes), bone.Parent);
+            BvhChannelType[] channels = ResolveChannelSequence(bone == rootBone, track, isReparented);
             channelsByBone.Add(bone, channels);
         }
 
@@ -280,9 +289,9 @@ public sealed class BvhWriter
     /// <param name="isRoot">Whether the joint is the root joint.</param>
     /// <param name="track">The optional animation track for the joint.</param>
     /// <returns>The channel sequence to write.</returns>
-    public static BvhChannelType[] ResolveChannelSequence(bool isRoot, SkeletonAnimationTrack? track)
+    public static BvhChannelType[] ResolveChannelSequence(bool isRoot, SkeletonAnimationTrack? track, bool isReparented)
     {
-        bool includePositionChannels = isRoot || track?.TranslationCurve is { KeyFrameCount: > 0 };
+        bool includePositionChannels = isRoot || isReparented || track?.TranslationCurve is { KeyFrameCount: > 0 };
         return BvhFormat.CreateDefaultChannelSequence(includePositionChannels);
     }
 
@@ -293,10 +302,18 @@ public sealed class BvhWriter
     /// <param name="tracksByName">The animation-track lookup keyed by joint name.</param>
     public static void ValidateTracksAndBindTransforms(IReadOnlyList<SkeletonBone> bones, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName)
     {
+        HashSet<SkeletonBone> exportedBones = [.. bones];
+        HashSet<SkeletonBone> relevantBones = [];
         for (int i = 0; i < bones.Count; i++)
         {
-            SkeletonBone bone = bones[i];
-            ValidateNodeName(bone.Name, "joint");
+            for (SkeletonBone? current = bones[i]; current is not null; current = current.Parent as SkeletonBone)
+                relevantBones.Add(current);
+        }
+
+        foreach (SkeletonBone bone in relevantBones)
+        {
+            if (exportedBones.Contains(bone))
+                ValidateNodeName(bone.Name, "joint");
 
             if (bone.BindTransform.Scale is Vector3 bindScale && !ApproximatelyEquals(bindScale, Vector3.One))
             {
@@ -355,6 +372,85 @@ public sealed class BvhWriter
         }
     }
 
+    private static IEnumerable<SkeletonBone> EnumerateExportChildren(SkeletonBone parentBone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes)
+    {
+        for (int i = 0; i < bones.Count; i++)
+        {
+            if (ReferenceEquals(SceneNode.GetBestParent(bones[i], exportedBoneNodes), parentBone))
+                yield return bones[i];
+        }
+    }
+
+    private static void GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes, out Vector3 position, out Quaternion rotation)
+    {
+        Vector3 worldPosition = bone.GetBindWorldPosition();
+        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
+
+        if (SceneNode.GetBestParent(bone, exportedBoneNodes) is SkeletonBone exportedParent)
+        {
+            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
+            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
+            position = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
+            rotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation);
+            return;
+        }
+
+        position = worldPosition;
+        rotation = worldRotation;
+    }
+
+    private static void GetRelativeAnimatedTransform(
+        SkeletonBone bone,
+        SceneNode[] exportedBoneNodes,
+        IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName,
+        float time,
+        out Vector3 position,
+        out Quaternion rotation)
+    {
+        ComputeAnimatedWorldTransform(bone, tracksByName, time, out Vector3 worldPosition, out Quaternion worldRotation);
+
+        if (SceneNode.GetBestParent(bone, exportedBoneNodes) is SkeletonBone exportedParent)
+        {
+            ComputeAnimatedWorldTransform(exportedParent, tracksByName, time, out Vector3 parentWorldPosition, out Quaternion parentWorldRotation);
+            position = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
+            rotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation);
+            return;
+        }
+
+        position = worldPosition;
+        rotation = worldRotation;
+    }
+
+    private static void ComputeAnimatedWorldTransform(
+        SkeletonBone bone,
+        IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName,
+        float time,
+        out Vector3 worldPosition,
+        out Quaternion worldRotation)
+    {
+        Vector3 localPosition = bone.BindTransform.LocalPosition ?? Vector3.Zero;
+        Quaternion localRotation = Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+
+        if (tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
+        {
+            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+                localPosition = translationCurve.SampleVector3(time);
+            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+                localRotation = rotationCurve.SampleQuaternion(time);
+        }
+
+        if (bone.Parent is SkeletonBone parentBone)
+        {
+            ComputeAnimatedWorldTransform(parentBone, tracksByName, time, out Vector3 parentWorldPosition, out Quaternion parentWorldRotation);
+            worldRotation = Quaternion.Normalize(parentWorldRotation * localRotation);
+            worldPosition = parentWorldPosition + Vector3.Transform(localPosition, parentWorldRotation);
+            return;
+        }
+
+        worldPosition = localPosition;
+        worldRotation = localRotation;
+    }
+
     /// <summary>
     /// Writes the BVH hierarchy block for the supplied bone tree.
     /// </summary>
@@ -363,7 +459,7 @@ public sealed class BvhWriter
     /// <param name="channelsByBone">The channel sequence for each bone.</param>
     /// <param name="depth">The current hierarchy depth.</param>
     /// <param name="isRoot">Whether the current bone is the root joint.</param>
-    public static void WriteHierarchy(StreamWriter writer, SkeletonBone bone, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int depth, bool isRoot)
+    public static void WriteHierarchy(StreamWriter writer, SkeletonBone bone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int depth, bool isRoot)
     {
         string indent = new(' ', depth * 2);
         if (isRoot)
@@ -377,7 +473,7 @@ public sealed class BvhWriter
         writer.Write(indent);
         writer.WriteLine("{");
 
-        Vector3 offset = bone.BindTransform.LocalPosition ?? Vector3.Zero;
+        GetRelativeBindTransform(bone, exportedBoneNodes, out Vector3 offset, out _);
         writer.Write(indent);
         writer.Write("  OFFSET ");
         writer.Write(FormatNumber(offset.X));
@@ -398,9 +494,9 @@ public sealed class BvhWriter
 
         writer.WriteLine();
 
-        foreach (SkeletonBone childBone in bone.EnumerateChildren().OfType<SkeletonBone>())
+        foreach (SkeletonBone childBone in EnumerateExportChildren(bone, bones, exportedBoneNodes))
         {
-            WriteHierarchy(writer, childBone, channelsByBone, depth + 1, false);
+            WriteHierarchy(writer, childBone, bones, exportedBoneNodes, channelsByBone, depth + 1, false);
         }
 
         writer.Write(indent);
@@ -417,7 +513,7 @@ public sealed class BvhWriter
     /// <param name="channelsByBone">The channel sequence for each bone.</param>
     /// <param name="frameCount">The number of frames to write.</param>
     /// <param name="frameTime">The frame time in seconds.</param>
-    public static void WriteMotion(StreamWriter writer, IReadOnlyList<SkeletonBone> bones, SkeletonAnimation? animation, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int frameCount, float frameTime)
+    public static void WriteMotion(StreamWriter writer, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes, SkeletonAnimation? animation, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int frameCount, float frameTime)
     {
         writer.WriteLine("MOTION");
         writer.Write("Frames: ");
@@ -437,10 +533,8 @@ public sealed class BvhWriter
             {
                 SkeletonBone bone = bones[boneIndex];
                 BvhChannelType[] channels = channelsByBone[bone];
-                SkeletonAnimationTrack? track = tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? mappedTrack) ? mappedTrack : null;
-                Vector3 offset = bone.BindTransform.LocalPosition ?? Vector3.Zero;
-                Vector3 localPosition = track?.TranslationCurve is { KeyFrameCount: > 0 } translationCurve ? translationCurve.SampleVector3(sampleTime) : offset;
-                Quaternion localRotation = track?.RotationCurve is { KeyFrameCount: > 0 } rotationCurve ? Quaternion.Normalize(rotationCurve.SampleQuaternion(sampleTime)) : Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+                GetRelativeBindTransform(bone, exportedBoneNodes, out Vector3 offset, out _);
+                GetRelativeAnimatedTransform(bone, exportedBoneNodes, tracksByName, sampleTime, out Vector3 localPosition, out Quaternion localRotation);
                 Vector3 rotationDegrees = BvhRotation.ToEulerDegrees(localRotation, channels, previousEulerDegrees[boneIndex]);
                 Quaternion recomposedRotation = BvhRotation.ComposeDegrees(rotationDegrees, channels);
                 float alignment = MathF.Abs(Quaternion.Dot(recomposedRotation, localRotation));

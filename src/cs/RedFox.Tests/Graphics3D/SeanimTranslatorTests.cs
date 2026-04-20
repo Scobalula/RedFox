@@ -70,6 +70,75 @@ public sealed class SeanimTranslatorTests
         }
     }
 
+    [Fact]
+    public void SeanimTranslator_Write_Filter_ExportsSelectedAnimation()
+    {
+        Scene scene = new("FilteredSeanimScene");
+
+        SkeletonAnimation selectedAnimation = scene.RootNode.AddNode(new SkeletonAnimation("SelectedAnim", null, 1, TransformType.Relative)
+        {
+            Framerate = 30f,
+            TransformType = TransformType.Relative,
+            Flags = SceneNodeFlags.Selected,
+        });
+        SkeletonAnimationTrack selectedTrack = new("selected_root")
+        {
+            TransformType = TransformType.Relative,
+        };
+        selectedTrack.AddTranslationFrame(0f, Vector3.Zero);
+        selectedTrack.AddTranslationFrame(5f, new Vector3(1f, 2f, 3f));
+        selectedAnimation.Tracks.Add(selectedTrack);
+
+        SkeletonAnimation ignoredAnimation = scene.RootNode.AddNode(new SkeletonAnimation("IgnoredAnim", null, 1, TransformType.Relative)
+        {
+            Framerate = 24f,
+            TransformType = TransformType.Relative,
+        });
+        SkeletonAnimationTrack ignoredTrack = new("ignored_root")
+        {
+            TransformType = TransformType.Relative,
+        };
+        ignoredTrack.AddTranslationFrame(0f, new Vector3(9f, 9f, 9f));
+        ignoredAnimation.Tracks.Add(ignoredTrack);
+
+        SceneTranslatorManager manager = CreateManagerWithSeanimTranslator();
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
+
+        byte[] data = WriteSceneWithManager(manager, scene, "filtered.seanim", options);
+        Scene loaded = ReadSceneWithManager(manager, data, "filtered.seanim");
+        SkeletonAnimation animation = loaded.FirstOfType<SkeletonAnimation>();
+
+        Assert.Single(animation.Tracks);
+        Assert.Equal("selected_root", animation.Tracks[0].Name);
+        Assert.InRange(animation.Tracks[0].TranslationCurve!.GetVector3(1).X, 0.9999f, 1.0001f);
+    }
+
+    [Fact]
+    public void SeanimTranslator_Write_Filter_ThrowsWhenNoAnimationMatchesSelection()
+    {
+        Scene scene = new("FilteredOutSeanimScene");
+        scene.RootNode.AddNode(new SkeletonAnimation("IgnoredAnim", null, 1, TransformType.Relative)
+        {
+            Framerate = 30f,
+            TransformType = TransformType.Relative,
+        });
+
+        SceneTranslatorManager manager = CreateManagerWithSeanimTranslator();
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteSceneWithManager(manager, scene, "filtered_out.seanim", options));
+
+        Assert.Contains("matched the export selection", ex.Message);
+        Assert.Contains(SceneNodeFlags.Selected.ToString(), ex.Message);
+    }
+
     private static Scene CreateSeanimSampleScene()
     {
         Scene scene = new("SeanimSampleScene");
@@ -223,8 +292,13 @@ public sealed class SeanimTranslatorTests
 
     private static byte[] WriteSceneWithManager(SceneTranslatorManager manager, Scene scene, string sourcePath)
     {
+        return WriteSceneWithManager(manager, scene, sourcePath, CreateDefaultOptions());
+    }
+
+    private static byte[] WriteSceneWithManager(SceneTranslatorManager manager, Scene scene, string sourcePath, SceneTranslatorOptions options)
+    {
         using MemoryStream stream = new();
-        manager.Write(stream, sourcePath, scene, CreateDefaultOptions(), token: null);
+        manager.Write(stream, sourcePath, scene, options, token: null);
         return stream.ToArray();
     }
 

@@ -34,9 +34,22 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// Thrown when the scene contains no meshes or no skeleton bones.
     /// </exception>
     public void Write(Scene scene)
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
+
+    /// <summary>
+    /// Serialises the selected scene view to the output stream in MD5 mesh format.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to serialise.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the selection contains no meshes or no skeleton bones.
+    /// </exception>
+    public void Write(SceneTranslationSelection selection)
     {
-        var meshes = scene.RootNode.GetDescendants<Mesh>();
-        var allBones = scene.RootNode.GetDescendants<SkeletonBone>();
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var meshes = selection.GetDescendants<Mesh>();
+        var allBones = selection.GetDescendants<SkeletonBone>();
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(allBones, static bone => (SceneNode)bone);
 
         if (meshes.Length == 0)
             throw new InvalidOperationException("Scene must contain at least one mesh to write as MD5 mesh.");
@@ -59,10 +72,10 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         var boneIndexMap = BuildBoneIndexMap(allBones);
 
         ComputeWorldBindTransforms(allBones, boneIndexMap, worldPositions, worldOrientations);
-        WriteJoints(writer, allBones, boneIndexMap, worldPositions, worldOrientations);
+        WriteJoints(writer, allBones, exportedBoneNodes, worldPositions, worldOrientations);
 
         foreach (var mesh in meshes)
-            WriteMesh(writer, mesh, allBones, boneIndexMap, worldPositions, worldOrientations);
+            WriteMesh(writer, mesh, allBones, boneIndexMap, worldPositions, worldOrientations, selection);
 
         writer.Flush();
     }
@@ -72,16 +85,16 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// </summary>
     /// <param name="writer">The output writer.</param>
     /// <param name="bones">The ordered bone array.</param>
-    /// <param name="boneIndexMap">Maps each bone to its index.</param>
+    /// <param name="exportedBoneNodes">The ordered exported bones as scene nodes.</param>
     /// <param name="worldPositions">Pre-computed world-space positions.</param>
     /// <param name="worldOrientations">Pre-computed world-space orientations.</param>
-    public static void WriteJoints(StreamWriter writer, SkeletonBone[] bones, Dictionary<SkeletonBone, int> boneIndexMap, Vector3[] worldPositions, Quaternion[] worldOrientations)
+    public static void WriteJoints(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes, Vector3[] worldPositions, Quaternion[] worldOrientations)
     {
         writer.WriteLine();
         writer.WriteLine("joints {");
         for (int i = 0; i < bones.Length; i++)
         {
-            int parentIdx = bones[i].Parent is SkeletonBone parentBone && boneIndexMap.TryGetValue(parentBone, out int pi) ? pi : -1;
+            int parentIdx = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes);
 
             var pos = worldPositions[i];
             var q = worldOrientations[i];
@@ -104,14 +117,13 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// <param name="boneIndexMap">The global bone index lookup.</param>
     /// <param name="worldPositions">Pre-computed world-space joint positions.</param>
     /// <param name="worldOrientations">Pre-computed world-space joint orientations.</param>
-    public static void WriteMesh(StreamWriter writer, Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap, Vector3[] worldPositions, Quaternion[] worldOrientations)
+    /// <param name="selection">The filtered scene selection being exported.</param>
+    public static void WriteMesh(StreamWriter writer, Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap, Vector3[] worldPositions, Quaternion[] worldOrientations, SceneTranslationSelection selection)
     {
         if (mesh.Positions is null || mesh.FaceIndices is null)
             return;
 
-        string shader = mesh.Materials is { Count: > 0 } mats && !string.IsNullOrWhiteSpace(mats[0].Name)
-            ? mats[0].Name
-            : (string.IsNullOrWhiteSpace(mesh.Name) ? "default" : mesh.Name);
+        string shader = ResolveShaderName(mesh, selection);
 
         int vertCount = mesh.Positions.ElementCount;
         int triCount = mesh.FaceIndices.ElementCount / 3;
@@ -138,7 +150,13 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
                     float weight = mesh.BoneWeights.Get<float>(v, j, 0);
                     if (weight <= 0f) continue;
                     int localIdx = mesh.BoneIndices.Get<int>(v, j, 0);
-                    int globalIdx = (uint)localIdx < (uint)globalBoneTable.Length ? globalBoneTable[localIdx] : 0;
+                    if ((uint)localIdx >= (uint)globalBoneTable.Length)
+                    {
+                        throw new InvalidDataException(
+                            $"Cannot write MD5 mesh: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
+                    }
+
+                    int globalIdx = globalBoneTable[localIdx];
 
                     // Decompose: weight.Position = Conjugate(joint.Orientation) * (vertPos - joint.Position)
                     // But since bias weights the contribution, we need to find the local pos that produces the right result
@@ -229,13 +247,25 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         if (skinnedBones is null || skinnedBones.Count == 0)
             return [];
 
+        List<string> missingBones = [];
         var table = new int[skinnedBones.Count];
         for (int i = 0; i < skinnedBones.Count; i++)
         {
             if (!boneIndexMap.TryGetValue(skinnedBones[i], out int globalIdx))
-                globalIdx = 0;
+            {
+                missingBones.Add(skinnedBones[i].Name);
+                continue;
+            }
+
             table[i] = globalIdx;
         }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Cannot write MD5 mesh: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+        }
+
         return table;
     }
 
@@ -250,20 +280,28 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     {
         for (int i = 0; i < bones.Length; i++)
         {
-            var localPos = bones[i].BindTransform.LocalPosition ?? Vector3.Zero;
-            var localRot = Quaternion.Normalize(bones[i].BindTransform.LocalRotation ?? Quaternion.Identity);
-
-            if (bones[i].Parent is SkeletonBone parentBone && boneIndexMap.TryGetValue(parentBone, out int pi))
-            {
-                worldOrientations[i] = Quaternion.Normalize(worldOrientations[pi] * localRot);
-                worldPositions[i] = worldPositions[pi] + Vector3.Transform(localPos, worldOrientations[pi]);
-            }
-            else
-            {
-                worldPositions[i] = localPos;
-                worldOrientations[i] = localRot;
-            }
+            _ = boneIndexMap;
+            worldPositions[i] = bones[i].GetBindWorldPosition();
+            worldOrientations[i] = Quaternion.Normalize(bones[i].GetBindWorldRotation());
         }
+    }
+
+    private static string ResolveShaderName(Mesh mesh, SceneTranslationSelection selection)
+    {
+        if (mesh.Materials is { Count: > 0 } mats)
+        {
+            Material material = mats[0];
+            if (!selection.Includes(material))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write MD5 mesh: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(material.Name))
+                return material.Name;
+        }
+
+        return string.IsNullOrWhiteSpace(mesh.Name) ? "default" : mesh.Name;
     }
 
     /// <summary>

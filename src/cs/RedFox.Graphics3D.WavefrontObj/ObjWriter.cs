@@ -40,7 +40,23 @@ public sealed class ObjWriter
     /// </param>
     /// <returns>An ordered collection of materials referenced by the exported meshes.</returns>
     public IReadOnlyList<Material> Write(Scene scene, string? mtlFileName)
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), mtlFileName);
+
+    /// <summary>
+    /// Writes all meshes and material references from the selected scene view to the OBJ stream.
+    /// Returns the set of materials referenced by exported meshes so that an accompanying
+    /// MTL file can be written.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to export.</param>
+    /// <param name="mtlFileName">
+    /// The filename (not path) of the associated material library,
+    /// or <see langword="null"/> to omit the mtllib directive.
+    /// </param>
+    /// <returns>An ordered collection of materials referenced by the exported meshes.</returns>
+    public IReadOnlyList<Material> Write(SceneTranslationSelection selection, string? mtlFileName)
     {
+        ArgumentNullException.ThrowIfNull(selection);
+
         using StreamWriter writer = new(_stream, leaveOpen: true);
         writer.NewLine = "\n";
 
@@ -54,7 +70,7 @@ public sealed class ObjWriter
             writer.WriteLine();
         }
 
-        Mesh[] meshes = scene.GetDescendants<Mesh>();
+        Mesh[] meshes = selection.GetDescendants<Mesh>();
 
         // Track global running offsets for v/vt/vn (OBJ uses 1-based global indices).
         int positionOffset = 0;
@@ -101,11 +117,15 @@ public sealed class ObjWriter
             }
 
             // Write material reference
-            string? meshMaterialName = null;
             if (mesh.Materials is { Count: > 0 })
             {
                 Material mat = mesh.Materials[0];
-                meshMaterialName = mat.Name;
+                if (!selection.Includes(mat))
+                {
+                    throw new InvalidDataException(
+                        $"Cannot write OBJ: mesh '{mesh.Name}' references material '{mat.Name}' that is not included in the export selection.");
+                }
+
                 writer.WriteLine($"usemtl {mat.Name}");
 
                 if (seenMaterialNames.Add(mat.Name))

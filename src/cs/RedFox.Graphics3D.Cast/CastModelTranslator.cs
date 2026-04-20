@@ -1,5 +1,6 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
+using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.Cast;
@@ -46,12 +47,13 @@ internal static class CastModelTranslator
         }
     }
 
-    public static void Write(CastNode root, Model model, Scene scene)
+    public static void Write(CastNode root, Model model, SceneTranslationSelection selection)
     {
         var modelNode = root.AddNode<ModelNode>();
 
         // Skeleton — find bones from the scene
-        var bones = scene.RootNode.GetDescendants<SkeletonBone>();
+        var bones = selection.GetDescendants<SkeletonBone>();
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
 
         if (bones.Length > 0)
         {
@@ -80,9 +82,8 @@ internal static class CastModelTranslator
             // Second pass — resolve parent indices
             for (int i = 0; i < bones.Length; i++)
             {
-                uint parentIndex = bones[i].Parent is SkeletonBone parent
-                    ? (uint)Array.IndexOf(bones, parent)
-                    : uint.MaxValue;
+                int bestParentIndex = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes);
+                uint parentIndex = bestParentIndex >= 0 ? (uint)bestParentIndex : uint.MaxValue;
                 boneNodes[i].AddValue("p", parentIndex);
             }
         }
@@ -92,13 +93,13 @@ internal static class CastModelTranslator
         for (int i = 0; i < bones.Length; i++)
             boneTable[bones[i]] = i;
 
-        foreach (var mesh in model.GetMeshes())
+        foreach (Mesh mesh in model.GetDescendants<Mesh>(selection.Filter))
         {
-            CastMeshTranslator.Write(modelNode, mesh, boneTable);
+            CastMeshTranslator.Write(modelNode, mesh, boneTable, selection);
         }
 
         // Materials
-        foreach (var material in model.GetMaterials())
+        foreach (Material material in model.GetDescendants<Material>(selection.Filter))
         {
             var materialNode = modelNode.AddNode(new MaterialNode(material.Name, "pbr"));
 

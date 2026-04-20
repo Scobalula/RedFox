@@ -236,6 +236,80 @@ public sealed class Md5TranslatorTests
         Assert.Contains("numweights", text);
     }
 
+    [Fact]
+    public void Md5MeshTranslator_Write_Filter_ExportsSelectedBonesAndRemapsParents()
+    {
+        Scene scene = new("FilteredMd5MeshScene");
+
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Skeleton"));
+        SkeletonBone root = skeleton.AddNode(new SkeletonBone("root"));
+        SkeletonBone mid = root.AddNode(new SkeletonBone("mid") { Flags = SceneNodeFlags.Selected });
+        SkeletonBone tip = mid.AddNode(new SkeletonBone("tip") { Flags = SceneNodeFlags.Selected });
+
+        Model model = scene.RootNode.AddNode(new Model { Name = "Model" });
+        Material material = model.AddNode(new Material("selected_material") { Flags = SceneNodeFlags.Selected });
+        Mesh mesh = model.AddNode(new Mesh { Name = "selected_mesh", Flags = SceneNodeFlags.Selected });
+        mesh.Positions = MakeFloat3Buffer([new Vector3(0f, 0f, 0f), new Vector3(1f, 0f, 0f), new Vector3(0f, 1f, 0f)]);
+        mesh.UVLayers = MakeFloat2Buffer([Vector2.Zero, Vector2.UnitX, Vector2.UnitY]);
+        mesh.FaceIndices = MakeIntBuffer([0, 1, 2]);
+        mesh.BoneIndices = new DataBuffer<int>([0, 1, 0, 1, 0, 1], 2, 1);
+        mesh.BoneWeights = new DataBuffer<float>([0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f], 2, 1);
+        mesh.SetSkinBinding([mid, tip]);
+        mesh.Materials = [material];
+
+        var manager = CreateMeshManager();
+        byte[] data = WriteScene(manager, scene, "filtered.md5mesh", new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected });
+        Scene loaded = ReadScene(manager, data, "filtered.md5mesh");
+
+        SkeletonBone[] loadedBones = loaded.GetDescendants<SkeletonBone>();
+        Assert.Equal(2, loadedBones.Length);
+        Assert.Equal("mid", loadedBones[0].Name);
+        Assert.Equal("tip", loadedBones[1].Name);
+        Assert.False(loadedBones[0].Parent is SkeletonBone);
+        Assert.Same(loadedBones[0], loadedBones[1].Parent);
+    }
+
+    [Fact]
+    public void Md5MeshTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
+    {
+        Scene scene = CreateSkinnedMeshScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+        Material material = scene.GetDescendants<Material>().Single();
+        foreach (SkeletonBone bone in scene.GetDescendants<SkeletonBone>())
+            bone.Flags = SceneNodeFlags.Selected;
+
+        mesh.Flags = SceneNodeFlags.Selected;
+        material.Flags = SceneNodeFlags.None;
+
+        var manager = CreateMeshManager();
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteScene(manager, scene, "filtered.md5mesh", new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected }));
+
+        Assert.Contains(mesh.Name, ex.Message);
+        Assert.Contains(material.Name, ex.Message);
+    }
+
+    [Fact]
+    public void Md5MeshTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesUnexportedBones()
+    {
+        Scene scene = CreateSkinnedMeshScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+        Material material = scene.GetDescendants<Material>().Single();
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
+
+        mesh.Flags = SceneNodeFlags.Selected;
+        material.Flags = SceneNodeFlags.Selected;
+        bones[0].Flags = SceneNodeFlags.Selected;
+        bones[1].Flags = SceneNodeFlags.None;
+
+        var manager = CreateMeshManager();
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteScene(manager, scene, "filtered.md5mesh", new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected }));
+
+        Assert.Contains(mesh.Name, ex.Message);
+        Assert.Contains(bones[1].Name, ex.Message);
+    }
+
     // ------------------------------------------------------------------
     // MD5 Anim round-trip tests
     // ------------------------------------------------------------------
@@ -376,6 +450,66 @@ public sealed class Md5TranslatorTests
         Assert.Contains("bounds {", text);
         Assert.Contains("baseframe {", text);
         Assert.Contains("frame 0 {", text);
+    }
+
+    [Fact]
+    public void Md5AnimTranslator_Write_Filter_ExportsSelectedBonesAndAnimation()
+    {
+        Scene scene = new("FilteredMd5AnimScene");
+
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Skeleton"));
+        SkeletonBone root = skeleton.AddNode(new SkeletonBone("root"));
+        SkeletonBone mid = root.AddNode(new SkeletonBone("mid") { Flags = SceneNodeFlags.Selected });
+        SkeletonBone tip = mid.AddNode(new SkeletonBone("tip") { Flags = SceneNodeFlags.Selected });
+
+        SkeletonAnimation animation = scene.RootNode.AddNode(new SkeletonAnimation("SelectedAnim", skeleton, 2, TransformType.Absolute)
+        {
+            Framerate = 24f,
+            TransformSpace = TransformSpace.Local,
+            TransformType = TransformType.Absolute,
+            Flags = SceneNodeFlags.Selected,
+        });
+
+        SkeletonAnimationTrack rootTrack = new("root") { TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
+        rootTrack.AddTranslationFrame(0f, Vector3.Zero);
+        rootTrack.AddTranslationFrame(1f, new Vector3(1f, 0f, 0f));
+
+        SkeletonAnimationTrack midTrack = new("mid") { TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
+        midTrack.AddTranslationFrame(0f, Vector3.Zero);
+        midTrack.AddTranslationFrame(1f, Vector3.Zero);
+
+        SkeletonAnimationTrack tipTrack = new("tip") { TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
+        tipTrack.AddTranslationFrame(0f, Vector3.Zero);
+        tipTrack.AddTranslationFrame(1f, Vector3.Zero);
+
+        animation.Tracks.Add(rootTrack);
+        animation.Tracks.Add(midTrack);
+        animation.Tracks.Add(tipTrack);
+
+        var manager = CreateAnimManager();
+        byte[] data = WriteScene(manager, scene, "filtered.md5anim", new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected });
+        Scene loaded = ReadScene(manager, data, "filtered.md5anim");
+
+        SkeletonBone[] loadedBones = loaded.GetDescendants<SkeletonBone>();
+        Assert.Equal(2, loadedBones.Length);
+        Assert.Equal("mid", loadedBones[0].Name);
+        Assert.Equal("tip", loadedBones[1].Name);
+        Assert.False(loadedBones[0].Parent is SkeletonBone);
+        Assert.Same(loadedBones[0], loadedBones[1].Parent);
+    }
+
+    [Fact]
+    public void Md5AnimTranslator_Write_Filter_ThrowsWhenNoAnimationMatchesSelection()
+    {
+        Scene scene = CreateAnimationScene();
+        foreach (SkeletonBone bone in scene.GetDescendants<SkeletonBone>())
+            bone.Flags = SceneNodeFlags.Selected;
+
+        var manager = CreateAnimManager();
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteScene(manager, scene, "filtered.md5anim", new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected }));
+
+        Assert.Contains("matched the export selection", ex.Message);
     }
 
     // ------------------------------------------------------------------
@@ -712,8 +846,13 @@ public sealed class Md5TranslatorTests
 
     private static byte[] WriteScene(SceneTranslatorManager manager, Scene scene, string fileName)
     {
+        return WriteScene(manager, scene, fileName, CreateDefaultOptions());
+    }
+
+    private static byte[] WriteScene(SceneTranslatorManager manager, Scene scene, string fileName, SceneTranslatorOptions options)
+    {
         using var ms = new MemoryStream();
-        manager.Write(ms, fileName, scene, CreateDefaultOptions(), token: null);
+        manager.Write(ms, fileName, scene, options, token: null);
         return ms.ToArray();
     }
 

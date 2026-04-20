@@ -1,6 +1,7 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -92,7 +93,7 @@ internal static class CastMeshTranslator
         }
     }
 
-    public static void Write(ModelNode modelNode, Mesh mesh, Dictionary<SkeletonBone, int> boneTable)
+    public static void Write(ModelNode modelNode, Mesh mesh, Dictionary<SkeletonBone, int> boneTable, SceneTranslationSelection selection)
     {
         if (mesh.Positions is null)
             return;
@@ -141,7 +142,23 @@ internal static class CastMeshTranslator
             int influenceCount = mesh.BoneIndices.ValueCount;
             meshNode.AddValue<byte>("mi", (byte)influenceCount);
 
-            int[] globalBoneIndices = mesh.GetBoneIndices(boneTable);
+            int[] globalBoneIndices;
+            try
+            {
+                globalBoneIndices = mesh.GetBoneIndices(boneTable);
+            }
+            catch (KeyNotFoundException)
+            {
+                List<string> missingBones = [];
+                foreach (SkeletonBone bone in mesh.SkinnedBones)
+                {
+                    if (!boneTable.ContainsKey(bone))
+                        missingBones.Add(bone.Name);
+                }
+
+                throw new InvalidDataException(
+                    $"Cannot write Cast: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+            }
 
             var boneIndexArray = meshNode.AddArray<uint>("wb", vertexCount * influenceCount);
             var boneWeightArray = meshNode.AddArray<float>("wv", vertexCount * influenceCount);
@@ -168,6 +185,12 @@ internal static class CastMeshTranslator
         // Material hash
         if (mesh.Materials is [{ } firstMaterial, ..])
         {
+            if (!selection.Includes(firstMaterial))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write Cast: mesh '{mesh.Name}' references material '{firstMaterial.Name}' that is not included in the export selection.");
+            }
+
             meshNode.AddValue("m", CastHasher.Compute(firstMaterial.Name));
         }
     }

@@ -59,6 +59,6 @@ public sealed class MayaAsciiTranslator : SceneTranslator
         writeOptions.WriteRawVertices = context.Options.WriteRawVertices;
 
         MayaAsciiWriter writer = new(stream, writeOptions);
-        writer.Write(scene, context.Name);
+        writer.Write(context.GetSelection(scene), context.Name);
     }
 }

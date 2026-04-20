@@ -44,17 +44,18 @@ public sealed class CastTranslator : SceneTranslator
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         var root = new CastNode(CastNodeIdentifier.Root);
+        SceneTranslationSelection selection = context.GetSelection(scene);
 
         var metaDataNode = root.AddNode<MetadataNode>();
         metaDataNode.AddString("up", "z");
         metaDataNode.AddString("s", Assembly.GetEntryAssembly()?.GetName().Name ?? string.Empty);
 
-        foreach (var model in scene.RootNode.EnumerateDescendants<Model>())
+        foreach (var model in GetExportModels(selection))
         {
-            CastModelTranslator.Write(root, model, scene);
+            CastModelTranslator.Write(root, model, selection);
         }
 
-        foreach (var animation in scene.RootNode.EnumerateDescendants<SkeletonAnimation>())
+        foreach (var animation in selection.GetDescendants<SkeletonAnimation>())
         {
             CastAnimationTranslator.Write(root, animation);
         }
@@ -81,5 +82,28 @@ public sealed class CastTranslator : SceneTranslator
             TransformType.Additive => "additive",
             _                      => "relative",
         };
+    }
+
+    private static IReadOnlyList<Model> GetExportModels(SceneTranslationSelection selection)
+    {
+        List<Model> models = [];
+        HashSet<Model> seen = [];
+
+        static void AddModel(List<Model> models, HashSet<Model> seen, Model? model)
+        {
+            if (model is not null && seen.Add(model))
+                models.Add(model);
+        }
+
+        foreach (Model model in selection.GetDescendants<Model>())
+            AddModel(models, seen, model);
+
+        foreach (Mesh mesh in selection.GetDescendants<Mesh>())
+            AddModel(models, seen, mesh.EnumerateAncestors<Model>().FirstOrDefault());
+
+        foreach (Material material in selection.GetDescendants<Material>())
+            AddModel(models, seen, material.EnumerateAncestors<Model>().FirstOrDefault());
+
+        return models;
     }
 }

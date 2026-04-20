@@ -38,7 +38,8 @@ public sealed class FbxTranslator : SceneTranslator
         ArgumentNullException.ThrowIfNull(stream);
 
         FbxFormat targetFormat = ResolveWriteFormat(context.Name, stream);
-        FbxDocument document = FbxSceneMapper.ExportScene(scene, targetFormat);
+        SceneTranslationSelection selection = context.GetSelection(scene);
+        FbxDocument document = FbxSceneMapper.ExportScene(scene, targetFormat, selection);
         FbxDocumentIO.Write(stream, document, targetFormat);
     }
 

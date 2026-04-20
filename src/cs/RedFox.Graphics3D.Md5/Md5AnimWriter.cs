@@ -41,20 +41,40 @@ public sealed class Md5AnimWriter
     /// Thrown when the scene contains no skeleton animation.
     /// </exception>
     public void Write(Scene scene)
-    {
-        var skelAnim = scene.TryGetFirstOfType<SkeletonAnimation>()
-            ?? throw new InvalidOperationException("Scene must contain a skeleton animation to write as MD5 anim.");
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
 
-        var allBones = scene.RootNode.GetDescendants<SkeletonBone>();
+    /// <summary>
+    /// Serialises the selected scene view to the output stream in MD5 animation format.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to serialise.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the selection contains no skeleton bones.
+    /// </exception>
+    /// <exception cref="InvalidDataException">
+    /// Thrown when no animation matches the selection.
+    /// </exception>
+    public void Write(SceneTranslationSelection selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var skelAnim = selection.TryGetFirstOfType<SkeletonAnimation>()
+            ?? throw new InvalidDataException(
+                $"Cannot write MD5 anim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
+
+        var allBones = selection.GetDescendants<SkeletonBone>();
         if (allBones.Length == 0)
             throw new InvalidOperationException("Scene must contain a skeleton to write as MD5 anim.");
 
-        var boneIndexMap = Md5MeshWriter.BuildBoneIndexMap(allBones);
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(allBones, static bone => (SceneNode)bone);
 
         // Compute world-space bind transforms
         var worldPositions = new Vector3[allBones.Length];
         var worldOrientations = new Quaternion[allBones.Length];
-        Md5MeshWriter.ComputeWorldBindTransforms(allBones, boneIndexMap, worldPositions, worldOrientations);
+        for (int i = 0; i < allBones.Length; i++)
+        {
+            worldPositions[i] = allBones[i].GetBindWorldPosition();
+            worldOrientations[i] = Quaternion.Normalize(allBones[i].GetBindWorldRotation());
+        }
 
         // Build track lookup
         var trackByName = new Dictionary<string, SkeletonAnimationTrack>(StringComparer.OrdinalIgnoreCase);
@@ -101,7 +121,7 @@ public sealed class Md5AnimWriter
 
         // Write hierarchy
         writer.WriteLine();
-        WriteHierarchy(writer, allBones, boneIndexMap, perJointFlags, perJointStartIndex);
+        WriteHierarchy(writer, allBones, exportedBoneNodes, perJointFlags, perJointStartIndex);
 
         // Write bounds (dummy bounds for now)
         writer.WriteLine();
@@ -125,33 +145,7 @@ public sealed class Md5AnimWriter
                 int flags = perJointFlags[j];
                 if (flags == 0) continue;
 
-                // Get local-space animation data at this time
-                var localPos = allBones[j].BindTransform.LocalPosition ?? Vector3.Zero;
-                var localRot = Quaternion.Normalize(allBones[j].BindTransform.LocalRotation ?? Quaternion.Identity);
-
-                if (trackByName.TryGetValue(allBones[j].Name, out var track))
-                {
-                    if (track.TranslationCurve is { KeyFrameCount: > 0 } tCurve)
-                        localPos = tCurve.SampleVector3(time);
-                    if (track.RotationCurve is { KeyFrameCount: > 0 } rCurve)
-                        localRot = rCurve.SampleQuaternion(time);
-                }
-
-                // Convert local to world
-                Vector3 worldPos;
-                Quaternion worldOri;
-                if (allBones[j].Parent is SkeletonBone parentBone && boneIndexMap.TryGetValue(parentBone, out int pi))
-                {
-                    var parentWorldPos = ComputeAnimWorldPosition(pi, allBones, boneIndexMap, trackByName, time);
-                    var parentWorldOri = ComputeAnimWorldOrientation(pi, allBones, boneIndexMap, trackByName, time);
-                    worldOri = Quaternion.Normalize(parentWorldOri * localRot);
-                    worldPos = parentWorldPos + Vector3.Transform(localPos, parentWorldOri);
-                }
-                else
-                {
-                    worldPos = localPos;
-                    worldOri = localRot;
-                }
+                ComputeAnimWorldTransform(allBones[j], trackByName, time, out Vector3 worldPos, out Quaternion worldOri);
 
                 if ((flags & 1) != 0) { sb.Append('\t'); sb.Append(F(worldPos.X)); }
                 if ((flags & 2) != 0) { sb.Append('\t'); sb.Append(F(worldPos.Y)); }
@@ -177,16 +171,15 @@ public sealed class Md5AnimWriter
     /// </summary>
     /// <param name="writer">The output writer.</param>
     /// <param name="bones">The ordered bone array.</param>
-    /// <param name="boneIndexMap">Maps each bone to its index.</param>
+    /// <param name="exportedBoneNodes">The ordered exported bones as scene nodes.</param>
     /// <param name="flags">Per-joint animation flags.</param>
     /// <param name="startIndices">Per-joint start indices into the component array.</param>
-    public static void WriteHierarchy(StreamWriter writer, SkeletonBone[] bones, Dictionary<SkeletonBone, int> boneIndexMap, int[] flags, int[] startIndices)
+    public static void WriteHierarchy(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes, int[] flags, int[] startIndices)
     {
         writer.WriteLine("hierarchy {");
         for (int i = 0; i < bones.Length; i++)
         {
-            int parentIdx = bones[i].Parent is SkeletonBone parentBone
-                         && boneIndexMap.TryGetValue(parentBone, out int pi) ? pi : -1;
+            int parentIdx = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes);
 
             string parentComment = parentIdx >= 0 ? bones[parentIdx].Name : string.Empty;
             writer.Write($"\t\"{bones[i].Name}\"\t{parentIdx} {flags[i]} {startIndices[i]}");
@@ -233,96 +226,40 @@ public sealed class Md5AnimWriter
     // ------------------------------------------------------------------
 
     /// <summary>
-    /// Computes the world-space position of a bone at a given animation time
-    /// by walking up the parent chain.
+    /// Computes the world-space transform of a bone at a given animation time
+    /// by walking up the full parent chain in the scene graph.
     /// </summary>
-    /// <param name="boneIndex">The bone index.</param>
-    /// <param name="bones">The bone array.</param>
-    /// <param name="boneIndexMap">The bone-to-index lookup.</param>
+    /// <param name="bone">The bone to evaluate.</param>
     /// <param name="trackByName">Animation track lookup by bone name.</param>
     /// <param name="time">The animation time.</param>
-    /// <returns>The world-space position.</returns>
-    public static Vector3 ComputeAnimWorldPosition(int boneIndex, SkeletonBone[] bones, Dictionary<SkeletonBone, int> boneIndexMap, Dictionary<string, SkeletonAnimationTrack> trackByName, float time)
+    /// <param name="worldPosition">Receives the sampled world-space position.</param>
+    /// <param name="worldOrientation">Receives the sampled world-space orientation.</param>
+    public static void ComputeAnimWorldTransform(SkeletonBone bone, IReadOnlyDictionary<string, SkeletonAnimationTrack> trackByName, float time, out Vector3 worldPosition, out Quaternion worldOrientation)
     {
-        // Build chain from root
-        Span<int> chain = stackalloc int[64];
-        int depth = 0;
-        int current = boneIndex;
-        while (current >= 0 && depth < 64)
+        ArgumentNullException.ThrowIfNull(bone);
+        ArgumentNullException.ThrowIfNull(trackByName);
+
+        Vector3 localPosition = bone.BindTransform.LocalPosition ?? Vector3.Zero;
+        Quaternion localRotation = Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+
+        if (trackByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
         {
-            chain[depth++] = current;
-            current = bones[current].Parent is SkeletonBone p && boneIndexMap.TryGetValue(p, out int pi) ? pi : -1;
+            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+                localPosition = translationCurve.SampleVector3(time);
+            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+                localRotation = rotationCurve.SampleQuaternion(time);
         }
 
-        var worldPos = Vector3.Zero;
-        var worldOri = Quaternion.Identity;
-
-        for (int d = depth - 1; d >= 0; d--)
+        if (bone.Parent is SkeletonBone parentBone)
         {
-            int j = chain[d];
-            var localPos = bones[j].BindTransform.LocalPosition ?? Vector3.Zero;
-            var localRot = Quaternion.Normalize(bones[j].BindTransform.LocalRotation ?? Quaternion.Identity);
-
-            if (trackByName.TryGetValue(bones[j].Name, out var track))
-            {
-                if (track.TranslationCurve is { KeyFrameCount: > 0 } tCurve)
-                    localPos = tCurve.SampleVector3(time);
-                if (track.RotationCurve is { KeyFrameCount: > 0 } rCurve)
-                    localRot = rCurve.SampleQuaternion(time);
-            }
-
-            if (d == depth - 1)
-            {
-                worldPos = localPos;
-                worldOri = localRot;
-            }
-            else
-            {
-                worldPos += Vector3.Transform(localPos, worldOri);
-                worldOri = Quaternion.Normalize(worldOri * localRot);
-            }
+            ComputeAnimWorldTransform(parentBone, trackByName, time, out Vector3 parentWorldPosition, out Quaternion parentWorldOrientation);
+            worldOrientation = Quaternion.Normalize(parentWorldOrientation * localRotation);
+            worldPosition = parentWorldPosition + Vector3.Transform(localPosition, parentWorldOrientation);
+            return;
         }
 
-        return worldPos;
-    }
-
-    /// <summary>
-    /// Computes the world-space orientation of a bone at a given animation time
-    /// by walking up the parent chain.
-    /// </summary>
-    /// <param name="boneIndex">The bone index.</param>
-    /// <param name="bones">The bone array.</param>
-    /// <param name="boneIndexMap">The bone-to-index lookup.</param>
-    /// <param name="trackByName">Animation track lookup by bone name.</param>
-    /// <param name="time">The animation time.</param>
-    /// <returns>The world-space orientation.</returns>
-    public static Quaternion ComputeAnimWorldOrientation(int boneIndex, SkeletonBone[] bones, Dictionary<SkeletonBone, int> boneIndexMap, Dictionary<string, SkeletonAnimationTrack> trackByName, float time)
-    {
-        Span<int> chain = stackalloc int[64];
-        int depth = 0;
-        int current = boneIndex;
-        while (current >= 0 && depth < 64)
-        {
-            chain[depth++] = current;
-            current = bones[current].Parent is SkeletonBone p && boneIndexMap.TryGetValue(p, out int pi) ? pi : -1;
-        }
-
-        var worldOri = Quaternion.Identity;
-        for (int d = depth - 1; d >= 0; d--)
-        {
-            int j = chain[d];
-            var localRot = Quaternion.Normalize(bones[j].BindTransform.LocalRotation ?? Quaternion.Identity);
-
-            if (trackByName.TryGetValue(bones[j].Name, out var track))
-            {
-                if (track.RotationCurve is { KeyFrameCount: > 0 } rCurve)
-                    localRot = rCurve.SampleQuaternion(time);
-            }
-
-            worldOri = d == depth - 1 ? localRot : Quaternion.Normalize(worldOri * localRot);
-        }
-
-        return worldOri;
+        worldPosition = localPosition;
+        worldOrientation = localRotation;
     }
 
     // ------------------------------------------------------------------

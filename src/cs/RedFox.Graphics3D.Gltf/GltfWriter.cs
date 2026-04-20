@@ -32,6 +32,11 @@ public sealed class GltfWriter
     private readonly Dictionary<SkeletonBone, int> _boneNodeIndices = [];
 
     /// <summary>
+    /// Mapping from RedFox <see cref="SkeletonBone"/> to its index within the exported glTF skin joint array.
+    /// </summary>
+    private readonly Dictionary<SkeletonBone, int> _jointIndices = [];
+
+    /// <summary>
     /// Initializes a new <see cref="GltfWriter"/> with the specified translation options.
     /// </summary>
     /// <param name="options">Options that control how the scene data is written.</param>
@@ -48,33 +53,44 @@ public sealed class GltfWriter
     /// <param name="stream">The output stream for the GLB data.</param>
     /// <param name="name">The scene name.</param>
     public void Write(Scene scene, Stream stream, string name)
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), stream, name);
+
+    /// <summary>
+    /// Writes the specified scene selection to the output stream in GLB binary format.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to export.</param>
+    /// <param name="stream">The output stream for the GLB data.</param>
+    /// <param name="name">The scene name.</param>
+    public void Write(SceneTranslationSelection selection, Stream stream, string name)
     {
+        ArgumentNullException.ThrowIfNull(selection);
+
         _doc.Scene = 0;
 
         // Collect scene data
-        Material[] materials = scene.GetDescendants<Material>();
-        Mesh[] meshes = scene.GetDescendants<Mesh>();
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
+        Material[] materials = selection.GetDescendants<Material>();
+        Mesh[] meshes = selection.GetDescendants<Mesh>();
+        SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
+        IReadOnlyList<(string Name, SkeletonBone[] Bones)> skeletons = GetSelectedSkeletons(selection);
 
         // Write materials first
         foreach (Material mat in materials)
             WriteMaterial(mat);
 
         // Write skeletons (create joint nodes)
-        Dictionary<Skeleton, int> skinIndices = [];
-        foreach (Skeleton skeleton in skeletons)
+        Dictionary<string, int> skinIndices = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string skeletonName, SkeletonBone[] bones) in skeletons)
         {
-            int skinIdx = WriteSkeleton(skeleton);
+            int skinIdx = WriteSkeleton(skeletonName, bones);
             if (skinIdx >= 0)
-                skinIndices[skeleton] = skinIdx;
+                skinIndices[skeletonName] = skinIdx;
         }
 
         // Write meshes
         List<int> meshNodeIndices = [];
         foreach (Mesh mesh in meshes)
         {
-            int nodeIdx = WriteMesh(mesh, skinIndices);
+            int nodeIdx = WriteMesh(mesh, skinIndices, selection);
             if (nodeIdx >= 0)
                 meshNodeIndices.Add(nodeIdx);
         }
@@ -226,10 +242,12 @@ public sealed class GltfWriter
     /// Writes a <see cref="Mesh"/> to the glTF document, returning the node index.
     /// </summary>
     /// <param name="mesh">The mesh to write.</param>
-    /// <param name="skinIndices">A mapping from <see cref="Skeleton"/> instances to their glTF skin indices.</param>
+    /// <param name="skinIndices">A mapping from skeleton names to their glTF skin indices.</param>
+    /// <param name="selection">The filtered scene selection being exported.</param>
     /// <returns>The index of the glTF node created for this mesh.</returns>
-    public int WriteMesh(Mesh mesh, Dictionary<Skeleton, int> skinIndices)
+    public int WriteMesh(Mesh mesh, Dictionary<string, int> skinIndices, SceneTranslationSelection selection)
     {
+        _ = selection;
         GltfMeshPrimitive prim = new();
 
         // Positions
@@ -333,8 +351,17 @@ public sealed class GltfWriter
         WriteMorphTargets(mesh, prim);
 
         // Material reference
-        if (mesh.Materials is { Count: > 0 } && _materialIndices.TryGetValue(mesh.Materials[0], out int matIdx))
+        if (mesh.Materials is { Count: > 0 })
+        {
+            Material material = mesh.Materials[0];
+            if (!_materialIndices.TryGetValue(material, out int matIdx))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write glTF: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+            }
+
             prim.Material = matIdx;
+        }
 
         // Create glTF mesh
         int gltfMeshIdx = _doc.Meshes.Count;
@@ -350,20 +377,26 @@ public sealed class GltfWriter
             Mesh = gltfMeshIdx
         };
 
-        // Apply transform
-        WriteNodeTransform(mesh.BindTransform, node);
+        // Mesh transforms are exported without model/group containers, so write world-space bind TRS.
+        WriteNodeTransform(CreateWorldBindTransform(mesh), node);
 
         // Skinning reference
         if (mesh.SkinBindingName is not null)
         {
-            foreach (KeyValuePair<Skeleton, int> kvp in skinIndices)
-            {
-                if (kvp.Key.Name.Equals(mesh.SkinBindingName, StringComparison.OrdinalIgnoreCase))
-                {
-                    node.Skin = kvp.Value;
-                    break;
-                }
-            }
+            if (skinIndices.TryGetValue(mesh.SkinBindingName, out int skinIndex))
+                node.Skin = skinIndex;
+            else if (mesh.HasSkinning)
+                throw new InvalidDataException(
+                    $"Cannot write glTF: mesh '{mesh.Name}' references skin '{mesh.SkinBindingName}' that is not included in the export selection.");
+        }
+        else if (mesh.HasSkinning && mesh.SkinnedBones is not null && mesh.SkinnedBones.Count > 0)
+        {
+            string? skeletonName = GetOwningSkeletonName(mesh.SkinnedBones[0]);
+            if (skeletonName is not null && skinIndices.TryGetValue(skeletonName, out int skinIndex))
+                node.Skin = skinIndex;
+            else
+                throw new InvalidDataException(
+                    $"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection.");
         }
 
         _doc.Nodes.Add(node);
@@ -380,6 +413,11 @@ public sealed class GltfWriter
         if (mesh.BoneIndices is null || mesh.BoneWeights is null)
             return;
 
+        if (mesh.SkinnedBones is not { Count: > 0 })
+            throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' contains skin weights but has no skinned bone table.");
+
+        int[] jointIndexTable = BuildExportJointIndexTable(mesh);
+
         int vertexCount = mesh.BoneIndices.ElementCount;
         int influenceCount = mesh.BoneIndices.ValueCount;
         int numSets = (influenceCount + 3) / 4;
@@ -394,7 +432,16 @@ public sealed class GltfWriter
             for (int v = 0; v < vertexCount; v++)
             {
                 for (int c = 0; c < setSize; c++)
-                    joints[v * 4 + c] = mesh.BoneIndices.Get<int>(v, startInfluence + c, 0);
+                {
+                    int localBoneIndex = mesh.BoneIndices.Get<int>(v, startInfluence + c, 0);
+                    if ((uint)localBoneIndex >= (uint)jointIndexTable.Length)
+                    {
+                        throw new InvalidDataException(
+                            $"Cannot write glTF: mesh '{mesh.Name}' contains skin index {localBoneIndex} outside the exported skin table.");
+                    }
+
+                    joints[v * 4 + c] = jointIndexTable[localBoneIndex];
+                }
             }
 
             // Use unsigned short for joints
@@ -477,46 +524,47 @@ public sealed class GltfWriter
     }
 
     /// <summary>
-    /// Writes a <see cref="Skeleton"/> to the glTF document, creating nodes for each bone
+    /// Writes a skeleton to the glTF document, creating nodes for each exported bone
     /// and a skin definition. Returns the skin index.
     /// </summary>
-    /// <param name="skeleton">The skeleton to write.</param>
+    /// <param name="skeletonName">The skeleton name to write.</param>
+    /// <param name="bones">The exported bones belonging to the skeleton.</param>
     /// <returns>The index of the glTF skin, or -1 if the skeleton has no bones.</returns>
-    public int WriteSkeleton(Skeleton skeleton)
+    public int WriteSkeleton(string skeletonName, SkeletonBone[] bones)
     {
-        SkeletonBone[] bones = skeleton.GetBones();
         if (bones.Length == 0) return -1;
 
         List<int> jointNodeIndices = [];
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
 
         // Create a node for each bone
-        foreach (SkeletonBone bone in bones)
+        for (int i = 0; i < bones.Length; i++)
         {
+            SkeletonBone bone = bones[i];
             int nodeIdx = _doc.Nodes.Count;
             GltfNode node = new() { Name = bone.Name };
-            WriteNodeTransform(bone.BindTransform, node);
+            WriteNodeTransform(GetRelativeBindTransform(bone, exportedBoneNodes), node);
             _doc.Nodes.Add(node);
             _boneNodeIndices[bone] = nodeIdx;
+            _jointIndices[bone] = i;
             jointNodeIndices.Add(nodeIdx);
         }
 
         // Set up parent-child relationships
         foreach (SkeletonBone bone in bones)
         {
-            int parentIdx = _boneNodeIndices[bone];
-            GltfNode parentNode = _doc.Nodes[parentIdx];
+            int parentNodeIndex = _boneNodeIndices[bone];
+            GltfNode parentNode = _doc.Nodes[parentNodeIndex];
 
-            if (bone.Children is not null)
+            List<int> childIndices = [];
+            foreach (SkeletonBone childBone in EnumerateExportChildren(bone, bones, exportedBoneNodes))
             {
-                List<int> childIndices = [];
-                foreach (SceneNode child in bone.Children)
-                {
-                    if (child is SkeletonBone childBone && _boneNodeIndices.TryGetValue(childBone, out int childIdx))
-                        childIndices.Add(childIdx);
-                }
-                if (childIndices.Count > 0)
-                    parentNode.Children = [.. childIndices];
+                if (_boneNodeIndices.TryGetValue(childBone, out int childIdx))
+                    childIndices.Add(childIdx);
             }
+
+            if (childIndices.Count > 0)
+                parentNode.Children = [.. childIndices];
         }
 
         // Write inverse bind matrices
@@ -530,7 +578,7 @@ public sealed class GltfWriter
         int skeletonRoot = -1;
         foreach (SkeletonBone bone in bones)
         {
-            if (bone.Parent == skeleton && _boneNodeIndices.TryGetValue(bone, out int rootIdx))
+            if (SceneNode.GetBestParent(bone, exportedBoneNodes) is null && _boneNodeIndices.TryGetValue(bone, out int rootIdx))
             {
                 skeletonRoot = rootIdx;
                 break;
@@ -540,13 +588,126 @@ public sealed class GltfWriter
         int skinIdx = _doc.Skins.Count;
         _doc.Skins.Add(new GltfSkin
         {
-            Name = skeleton.Name,
+            Name = skeletonName,
             Joints = [.. jointNodeIndices],
             InverseBindMatrices = ibmAccessor,
             SkeletonRoot = skeletonRoot
         });
 
         return skinIdx;
+    }
+
+    private static IReadOnlyList<(string Name, SkeletonBone[] Bones)> GetSelectedSkeletons(SceneTranslationSelection selection)
+    {
+        Dictionary<Skeleton, List<SkeletonBone>> bonesBySkeleton = [];
+
+        foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
+        {
+            Skeleton? skeleton = GetExactSkeletonParent(bone);
+            if (skeleton is null)
+                continue;
+
+            if (!bonesBySkeleton.TryGetValue(skeleton, out List<SkeletonBone>? bones))
+            {
+                bones = [];
+                bonesBySkeleton.Add(skeleton, bones);
+            }
+
+            bones.Add(bone);
+        }
+
+        List<(string Name, SkeletonBone[] Bones)> result = [];
+        foreach ((Skeleton skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
+            result.Add((skeleton.Name, [.. bones]));
+
+        return result;
+    }
+
+    private static Skeleton? GetExactSkeletonParent(SceneNode node)
+    {
+        for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (current.GetType() == typeof(Skeleton))
+                return (Skeleton)current;
+        }
+
+        return null;
+    }
+
+    private static string? GetOwningSkeletonName(SkeletonBone bone) => GetExactSkeletonParent(bone)?.Name;
+
+    private int[] BuildExportJointIndexTable(Mesh mesh)
+    {
+        if (mesh.SkinnedBones is null || mesh.SkinnedBones.Count == 0)
+            return [];
+
+        List<string> missingBones = [];
+        int[] jointIndexTable = new int[mesh.SkinnedBones.Count];
+        for (int i = 0; i < mesh.SkinnedBones.Count; i++)
+        {
+            SkeletonBone bone = mesh.SkinnedBones[i];
+            if (!_jointIndices.TryGetValue(bone, out int jointIndex))
+            {
+                missingBones.Add(bone.Name);
+                continue;
+            }
+
+            jointIndexTable[i] = jointIndex;
+        }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+        }
+
+        return jointIndexTable;
+    }
+
+    private static Transform GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes)
+    {
+        SceneNode? exportedParent = SceneNode.GetBestParent(bone, exportedBoneNodes);
+        Vector3 worldPosition = bone.GetBindWorldPosition();
+        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
+        Vector3 localScale = bone.GetBindLocalScale();
+
+        if (exportedParent is not null)
+        {
+            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
+            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
+            return new Transform
+            {
+                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
+                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
+                Scale = localScale,
+            };
+        }
+
+        return new Transform
+        {
+            LocalPosition = worldPosition,
+            LocalRotation = worldRotation,
+            Scale = localScale,
+        };
+    }
+
+    private static Transform CreateWorldBindTransform(SceneNode node)
+    {
+        return new Transform
+        {
+            LocalPosition = node.GetBindWorldPosition(),
+            LocalRotation = Quaternion.Normalize(node.GetBindWorldRotation()),
+            Scale = node.GetBindLocalScale(),
+        };
+    }
+
+    private static IEnumerable<SkeletonBone> EnumerateExportChildren(SkeletonBone parentBone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes)
+    {
+        for (int i = 0; i < bones.Count; i++)
+        {
+            if (ReferenceEquals(SceneNode.GetBestParent(bones[i], exportedBoneNodes), parentBone))
+                yield return bones[i];
+        }
     }
 
     /// <summary>

@@ -432,6 +432,54 @@ public sealed class ObjTranslatorTests
         Assert.Equal(1, loadedMesh.FaceCount);
     }
 
+    [Fact]
+    public void ObjTranslator_Write_Filter_ExportsSelectedMeshAndMaterial()
+    {
+        Scene scene = new("FilteredObjScene");
+        Model model = scene.RootNode.AddNode(new Model { Name = "Model" });
+
+        Material selectedMaterial = model.AddNode(new Material("SelectedMaterial") { Flags = SceneNodeFlags.Selected });
+        Mesh selectedMesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
+        selectedMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        selectedMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        selectedMesh.Materials = [selectedMaterial];
+
+        Material ignoredMaterial = model.AddNode(new Material("IgnoredMaterial"));
+        Mesh ignoredMesh = model.AddNode(new Mesh { Name = "IgnoredMesh" });
+        ignoredMesh.Positions = new DataBuffer<float>([0f, 0f, 1f, 1f, 0f, 1f, 0f, 1f, 1f], 1, 3);
+        ignoredMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        ignoredMesh.Materials = [ignoredMaterial];
+
+        SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+        byte[] objData = WriteSceneToObj(manager, scene, new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected });
+        Scene loaded = ReadSceneFromObj(manager, objData);
+
+        Mesh loadedMesh = loaded.GetDescendants<Mesh>().Single();
+        Assert.Equal("SelectedMesh", loadedMesh.Name);
+        Assert.NotNull(loadedMesh.Materials);
+        Assert.Single(loadedMesh.Materials!);
+        Assert.Equal("SelectedMaterial", loadedMesh.Materials[0].Name);
+    }
+
+    [Fact]
+    public void ObjTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
+    {
+        Scene scene = new("FilteredObjMaterialScene");
+        Model model = scene.RootNode.AddNode(new Model { Name = "Model" });
+        Material material = model.AddNode(new Material("FilteredMaterial"));
+        Mesh mesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
+        mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        mesh.Materials = [material];
+
+        SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteSceneToObj(manager, scene, new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected }));
+
+        Assert.Contains(mesh.Name, ex.Message);
+        Assert.Contains(material.Name, ex.Message);
+    }
+
     // ---- Helper methods ----
 
     private static Scene CreateTriangleScene()
@@ -564,8 +612,13 @@ public sealed class ObjTranslatorTests
 
     private static byte[] WriteSceneToObj(SceneTranslatorManager manager, Scene scene)
     {
+        return WriteSceneToObj(manager, scene, new SceneTranslatorOptions());
+    }
+
+    private static byte[] WriteSceneToObj(SceneTranslatorManager manager, Scene scene, SceneTranslatorOptions options)
+    {
         using MemoryStream stream = new();
-        manager.Write(stream, "test.obj", scene, new SceneTranslatorOptions(), token: null);
+        manager.Write(stream, "test.obj", scene, options, token: null);
         return stream.ToArray();
     }
 

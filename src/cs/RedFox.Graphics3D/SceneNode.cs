@@ -93,6 +93,9 @@ namespace RedFox.Graphics3D
             Flags = flags;
         }
 
+        private bool MatchesFilter(SceneNodeFlags filter) =>
+            filter == SceneNodeFlags.None || (Flags & filter) == filter;
+
         /// <summary>
         /// Moves this node to a new parent while preserving world transforms.
         /// </summary>
@@ -165,14 +168,22 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <param name="node">The potential ancestor node.</param>
         /// <returns><see langword="true"/> if this node is a descendant; otherwise <see langword="false"/>.</returns>
-        public bool IsDescendantOf(SceneNode node)
+        public bool IsDescendantOf(SceneNode node) => IsDescendantOf(node, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Determines whether this node is a descendant of the specified node that matches the given filter.
+        /// </summary>
+        /// <param name="node">The potential ancestor node.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns><see langword="true"/> if a matching ancestor is found; otherwise <see langword="false"/>.</returns>
+        public bool IsDescendantOf(SceneNode node, SceneNodeFlags filter)
         {
             var current = Parent;
 
             while (current != null)
             {
                 if (current == node)
-                    return true;
+                    return current.MatchesFilter(filter);
 
                 current = current.Parent;
             }
@@ -186,7 +197,17 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <param name="name">The name of the ancestor to test for.</param>
         /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
-        public bool IsDescendantOf(string name) => IsDescendantOf(name, StringComparison.CurrentCulture);
+        public bool IsDescendantOf(string name) => IsDescendantOf(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Determines whether this node is a descendant of an ancestor with the specified name
+        /// using the current culture for comparison and the provided filter.
+        /// </summary>
+        /// <param name="name">The name of the ancestor to test for.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
+        public bool IsDescendantOf(string name, SceneNodeFlags filter) =>
+            IsDescendantOf(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Determines whether this node is a descendant of an ancestor with the specified name
@@ -195,13 +216,24 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name of the ancestor to test for.</param>
         /// <param name="comparisonType">The string comparison to use when comparing names.</param>
         /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
-        public bool IsDescendantOf(string name, StringComparison comparisonType)
+        public bool IsDescendantOf(string name, StringComparison comparisonType) =>
+            IsDescendantOf(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Determines whether this node is a descendant of an ancestor with the specified name
+        /// using the provided string comparison and filter.
+        /// </summary>
+        /// <param name="name">The name of the ancestor to test for.</param>
+        /// <param name="comparisonType">The string comparison to use when comparing names.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
+        public bool IsDescendantOf(string name, StringComparison comparisonType, SceneNodeFlags filter)
         {
             var current = Parent;
 
             while (current != null)
             {
-                if (current.Name.Equals(name, comparisonType))
+                if (current.Name.Equals(name, comparisonType) && current.MatchesFilter(filter))
                     return true;
 
                 current = current.Parent;
@@ -214,16 +246,24 @@ namespace RedFox.Graphics3D
         /// Enumerates all descendant nodes in depth-first order.
         /// </summary>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding descendant nodes.</returns>
-        public IEnumerable<SceneNode> EnumerateDescendants()
+        public IEnumerable<SceneNode> EnumerateDescendants() => EnumerateDescendants(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates all descendant nodes in depth-first order that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding descendant nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateDescendants(SceneNodeFlags filter)
         {
             if (_children is null)
                 yield break;
 
             foreach (var child in _children)
             {
-                yield return child;
+                if (child.MatchesFilter(filter))
+                    yield return child;
 
-                foreach (var descendant in child.EnumerateDescendants())
+                foreach (var descendant in child.EnumerateDescendants(filter))
                 {
                     yield return descendant;
                 }
@@ -234,13 +274,22 @@ namespace RedFox.Graphics3D
         /// Enumerates ancestor nodes from the immediate parent up to the root.
         /// </summary>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding ancestor nodes.</returns>
-        public IEnumerable<SceneNode> EnumerateAncestors()
+        public IEnumerable<SceneNode> EnumerateAncestors() => EnumerateAncestors(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates ancestor nodes from the immediate parent up to the root that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding ancestor nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateAncestors(SceneNodeFlags filter)
         {
             var current = Parent;
 
             while (current != null)
             {
-                yield return current;
+                if (current.MatchesFilter(filter))
+                    yield return current;
+
                 current = current.Parent;
             }
         }
@@ -249,28 +298,36 @@ namespace RedFox.Graphics3D
         /// Enumerates direct child nodes of this node.
         /// </summary>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> of child nodes (empty if none).</returns>
-        public IEnumerable<SceneNode> EnumerateChildren() => _children ?? Enumerable.Empty<SceneNode>();
+        public IEnumerable<SceneNode> EnumerateChildren() => EnumerateChildren(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates direct child nodes of this node that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of child nodes (empty if none).</returns>
+        public IEnumerable<SceneNode> EnumerateChildren(SceneNodeFlags filter) =>
+            _children?.Where(x => x.MatchesFilter(filter)) ?? Enumerable.Empty<SceneNode>();
 
         /// <summary>
         /// Enumerates descendant nodes of the specified type.
         /// </summary>
         /// <typeparam name="T">The node type to filter for.</typeparam>
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
-        public IEnumerable<T> EnumerateDescendants<T>() where T : SceneNode
+        public IEnumerable<T> EnumerateDescendants<T>() where T : SceneNode =>
+            EnumerateDescendants<T>(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates descendant nodes of the specified type that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
+        public IEnumerable<T> EnumerateDescendants<T>(SceneNodeFlags filter) where T : SceneNode
         {
-            if (_children is null)
-                yield break;
-
-            foreach (var child in _children)
+            foreach (var descendant in EnumerateDescendants(filter))
             {
-                if (child.GetType() == typeof(T))
-                    yield return (T)child;
-
-                foreach (var descendant in child.EnumerateDescendants())
-                {
-                    if (descendant.GetType() == typeof(T))
-                        yield return (T)descendant;
-                }
+                if (descendant.GetType() == typeof(T))
+                    yield return (T)descendant;
             }
         }
 
@@ -279,34 +336,78 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <typeparam name="T">The node type to filter for.</typeparam>
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching ancestor nodes.</returns>
-        public IEnumerable<T> EnumerateAncestors<T>() where T : SceneNode => EnumerateAncestors().OfType<T>();
+        public IEnumerable<T> EnumerateAncestors<T>() where T : SceneNode =>
+            EnumerateAncestors(SceneNodeFlags.None).OfType<T>();
+
+        /// <summary>
+        /// Enumerates ancestor nodes of the specified type that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> yielding matching ancestor nodes.</returns>
+        public IEnumerable<T> EnumerateAncestors<T>(SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateAncestors(filter).OfType<T>();
 
         /// <summary>
         /// Enumerates child nodes of the specified type.
         /// </summary>
         /// <typeparam name="T">The node type to filter for.</typeparam>
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching child nodes.</returns>
-        public IEnumerable<T> EnumerateChildren<T>() where T : SceneNode => EnumerateChildren().OfType<T>();
+        public IEnumerable<T> EnumerateChildren<T>() where T : SceneNode =>
+            EnumerateChildren(SceneNodeFlags.None).OfType<T>();
+
+        /// <summary>
+        /// Enumerates child nodes of the specified type that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> yielding matching child nodes.</returns>
+        public IEnumerable<T> EnumerateChildren<T>(SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateChildren(filter).OfType<T>();
 
         /// <summary>
         /// Returns an array containing all descendant nodes.
         /// </summary>
-        public SceneNode[] GetDescendants() => [.. EnumerateDescendants()];
+        public SceneNode[] GetDescendants() => GetDescendants(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        public SceneNode[] GetDescendants(SceneNodeFlags filter) => [.. EnumerateDescendants(filter)];
 
         /// <summary>
         /// Returns an array containing all ancestor nodes.
         /// </summary>
-        public SceneNode[] GetAncestors() => [.. EnumerateAncestors()];
+        public SceneNode[] GetAncestors() => GetAncestors(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        public SceneNode[] GetAncestors(SceneNodeFlags filter) => [.. EnumerateAncestors(filter)];
 
         /// <summary>
         /// Returns an array containing all descendant nodes of the specified type.
         /// </summary>
-        public T[] GetDescendants<T>() where T : SceneNode => [.. EnumerateDescendants<T>()];
+        public T[] GetDescendants<T>() where T : SceneNode => GetDescendants<T>(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes of the specified type that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        public T[] GetDescendants<T>(SceneNodeFlags filter) where T : SceneNode => [.. EnumerateDescendants<T>(filter)];
 
         /// <summary>
         /// Returns an array containing all ancestor nodes of the specified type.
         /// </summary>
-        public T[] GetAncestors<T>() where T : SceneNode => [.. EnumerateAncestors<T>()];
+        public T[] GetAncestors<T>() where T : SceneNode => GetAncestors<T>(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes of the specified type that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        public T[] GetAncestors<T>(SceneNodeFlags filter) where T : SceneNode => [.. EnumerateAncestors<T>(filter)];
 
         /// <summary>
         /// Attempts to find a direct child with the specified name using current culture comparison.
@@ -314,7 +415,18 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
-        public bool TryFindChild(string name, [NotNullWhen(true)] out SceneNode? node) => TryFindChild(name, StringComparison.CurrentCulture, out node);
+        public bool TryFindChild(string name, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a direct child with the specified name and filter using current culture comparison.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
+        public bool TryFindChild(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindChild(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find a direct child with the specified name using the provided comparison.
@@ -323,9 +435,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
-        public bool TryFindChild(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node)
+        public bool TryFindChild(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindChild(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a direct child with the specified name using the provided comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
+        public bool TryFindChild(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node)
         {
-            node = EnumerateChildren().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateChildren(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -336,7 +459,17 @@ namespace RedFox.Graphics3D
         /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
         public bool TryFindDescendant(string name, [NotNullWhen(true)] out SceneNode? node) =>
-            TryFindDescendant(name, StringComparison.CurrentCulture, out node);
+            TryFindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a descendant with the specified name and filter using current culture comparison.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
+        public bool TryFindDescendant(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindDescendant(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find a descendant with the specified name using the provided comparison.
@@ -345,9 +478,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
-        public bool TryFindDescendant(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node)
+        public bool TryFindDescendant(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindDescendant(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a descendant with the specified name using the provided comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
+        public bool TryFindDescendant(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node)
         {
-            node = EnumerateDescendants().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateDescendants(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -358,7 +502,17 @@ namespace RedFox.Graphics3D
         /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
         public bool TryFindAncestor(string name, [NotNullWhen(true)] out SceneNode? node) =>
-            TryFindAncestor(name, StringComparison.CurrentCulture, out node);
+            TryFindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find an ancestor with the specified name and filter using current culture comparison.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+        public bool TryFindAncestor(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindAncestor(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find an ancestor with the specified name using the provided comparison.
@@ -367,9 +521,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
-        public bool TryFindAncestor(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node)
+        public bool TryFindAncestor(string name, StringComparison comparisonType, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindAncestor(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find an ancestor with the specified name using the provided comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+        public bool TryFindAncestor(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node)
         {
-            node = EnumerateAncestors().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateAncestors(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -381,7 +546,18 @@ namespace RedFox.Graphics3D
         /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
         public bool TryFindChild<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-            TryFindChild(name, StringComparison.CurrentCulture, out node);
+            TryFindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a direct child of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
+        public bool TryFindChild<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindChild(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find a direct child of the specified type and name using the provided comparison.
@@ -391,9 +567,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
-        public bool TryFindChild<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode
+        public bool TryFindChild<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindChild(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a direct child of the specified type and name using the provided comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
+        public bool TryFindChild<T>(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
         {
-            node = EnumerateChildren<T>().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateChildren<T>(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -405,7 +593,18 @@ namespace RedFox.Graphics3D
         /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
         public bool TryFindDescendant<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-            TryFindDescendant(name, StringComparison.CurrentCulture, out node);
+            TryFindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a descendant of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
+        public bool TryFindDescendant<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindDescendant(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find a descendant of the specified type and name using the provided comparison.
@@ -415,9 +614,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
-        public bool TryFindDescendant<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode
+        public bool TryFindDescendant<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindDescendant(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a descendant of the specified type and name using the provided comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
+        public bool TryFindDescendant<T>(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
         {
-            node = EnumerateDescendants<T>().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateDescendants<T>(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -429,7 +640,18 @@ namespace RedFox.Graphics3D
         /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
         public bool TryFindAncestor<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-            TryFindAncestor(name, StringComparison.CurrentCulture, out node);
+            TryFindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find an ancestor of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+        public bool TryFindAncestor<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindAncestor(name, StringComparison.CurrentCulture, filter, out node);
 
         /// <summary>
         /// Attempts to find an ancestor of the specified type and name using the provided comparison.
@@ -439,9 +661,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The comparison to use.</param>
         /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
         /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
-        private bool TryFindAncestor<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode
+        private bool TryFindAncestor<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryFindAncestor(name, comparisonType, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find an ancestor of the specified type and name using the provided comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The comparison to use.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+        private bool TryFindAncestor<T>(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
         {
-            node = EnumerateAncestors<T>().FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+            node = EnumerateAncestors<T>(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
             return node is not null;
         }
 
@@ -451,7 +685,16 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching child node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-        public SceneNode FindChild(string name) => FindChild(name, StringComparison.CurrentCulture);
+        public SceneNode FindChild(string name) => FindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a direct child by name using current culture comparison and the provided filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <returns>The matching child node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
+        public SceneNode FindChild(string name, SceneNodeFlags filter) => FindChild(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds a direct child by name using the specified comparison.
@@ -460,9 +703,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching child node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-        public SceneNode FindChild(string name, StringComparison comparisonType)
+        public SceneNode FindChild(string name, StringComparison comparisonType) =>
+            FindChild(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a direct child by name using the specified comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <returns>The matching child node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
+        public SceneNode FindChild(string name, StringComparison comparisonType, SceneNodeFlags filter)
         {
-            if (TryFindChild(name, comparisonType, out var node))
+            if (TryFindChild(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"A child with the name: {name} was not found in: {Name}");
@@ -474,7 +728,17 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching descendant node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
-        public SceneNode FindDescendant(string name) => FindDescendant(name, StringComparison.CurrentCulture);
+        public SceneNode FindDescendant(string name) => FindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a descendant by name using current culture comparison and the provided filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <returns>The matching descendant node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
+        public SceneNode FindDescendant(string name, SceneNodeFlags filter) =>
+            FindDescendant(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds a descendant by name using the specified comparison.
@@ -483,9 +747,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching descendant node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
-        public SceneNode FindDescendant(string name, StringComparison comparisonType)
+        public SceneNode FindDescendant(string name, StringComparison comparisonType) =>
+            FindDescendant(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a descendant by name using the specified comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <returns>The matching descendant node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
+        public SceneNode FindDescendant(string name, StringComparison comparisonType, SceneNodeFlags filter)
         {
-            if (TryFindDescendant(name, comparisonType, out var node))
+            if (TryFindDescendant(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"A descendant with the name: {name} was not found in: {Name}");
@@ -497,7 +772,16 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching ancestor node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-        public SceneNode FindAncestor(string name) => FindAncestor(name, StringComparison.CurrentCulture);
+        public SceneNode FindAncestor(string name) => FindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds an ancestor by name using current culture comparison and the provided filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns>The matching ancestor node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
+        public SceneNode FindAncestor(string name, SceneNodeFlags filter) => FindAncestor(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds an ancestor by name using the specified comparison.
@@ -506,9 +790,20 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching ancestor node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-        public SceneNode FindAncestor(string name, StringComparison comparisonType)
+        public SceneNode FindAncestor(string name, StringComparison comparisonType) =>
+            FindAncestor(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds an ancestor by name using the specified comparison and filter.
+        /// </summary>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns>The matching ancestor node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
+        public SceneNode FindAncestor(string name, StringComparison comparisonType, SceneNodeFlags filter)
         {
-            if (TryFindAncestor(name, comparisonType, out var node))
+            if (TryFindAncestor(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"An ancestor with the name: {name} was not found in: {Name}");
@@ -521,7 +816,19 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching child node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-        public T FindChild<T>(string name) where T : SceneNode => FindChild<T>(name, StringComparison.CurrentCulture);
+        public T FindChild<T>(string name) where T : SceneNode =>
+            FindChild<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a direct child of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <returns>The matching child node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
+        public T FindChild<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
+            FindChild<T>(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds a direct child of the specified type and name using the specified comparison.
@@ -531,9 +838,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching child node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-        public T FindChild<T>(string name, StringComparison comparisonType) where T : SceneNode
+        public T FindChild<T>(string name, StringComparison comparisonType) where T : SceneNode =>
+            FindChild<T>(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a direct child of the specified type and name using the specified comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching child must contain.</param>
+        /// <returns>The matching child node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
+        public T FindChild<T>(string name, StringComparison comparisonType, SceneNodeFlags filter) where T : SceneNode
         {
-            if (TryFindChild<T>(name, comparisonType, out var node))
+            if (TryFindChild<T>(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"A child with the name: {name} of type: {typeof(T)} was not found in: {Name}");
@@ -546,7 +865,19 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching descendant node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
-        public T FindDescendant<T>(string name) where T : SceneNode => FindDescendant<T>(name, StringComparison.CurrentCulture);
+        public T FindDescendant<T>(string name) where T : SceneNode =>
+            FindDescendant<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a descendant of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <returns>The matching descendant node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
+        public T FindDescendant<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
+            FindDescendant<T>(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds a descendant of the specified type and name using the specified comparison.
@@ -556,9 +887,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching descendant node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
-        public T FindDescendant<T>(string name, StringComparison comparisonType) where T : SceneNode
+        public T FindDescendant<T>(string name, StringComparison comparisonType) where T : SceneNode =>
+            FindDescendant<T>(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a descendant of the specified type and name using the specified comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching descendant must contain.</param>
+        /// <returns>The matching descendant node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
+        public T FindDescendant<T>(string name, StringComparison comparisonType, SceneNodeFlags filter) where T : SceneNode
         {
-            if (TryFindDescendant<T>(name, comparisonType, out var node))
+            if (TryFindDescendant<T>(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"A descendant with the name: {name} of type: {typeof(T)} was not found in: {Name}");
@@ -571,7 +914,19 @@ namespace RedFox.Graphics3D
         /// <param name="name">The name to search for.</param>
         /// <returns>The matching ancestor node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-        public T FindAncestor<T>(string name) where T : SceneNode => FindAncestor<T>(name, StringComparison.CurrentCulture);
+        public T FindAncestor<T>(string name) where T : SceneNode =>
+            FindAncestor<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds an ancestor of the specified type and name using current culture comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns>The matching ancestor node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
+        public T FindAncestor<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
+            FindAncestor<T>(name, StringComparison.CurrentCulture, filter);
 
         /// <summary>
         /// Finds an ancestor of the specified type and name using the specified comparison.
@@ -581,9 +936,21 @@ namespace RedFox.Graphics3D
         /// <param name="comparisonType">The string comparison to use.</param>
         /// <returns>The matching ancestor node.</returns>
         /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-        public T FindAncestor<T>(string name, StringComparison comparisonType) where T : SceneNode
+        public T FindAncestor<T>(string name, StringComparison comparisonType) where T : SceneNode =>
+            FindAncestor<T>(name, comparisonType, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds an ancestor of the specified type and name using the specified comparison and filter.
+        /// </summary>
+        /// <typeparam name="T">The node type.</typeparam>
+        /// <param name="name">The name to search for.</param>
+        /// <param name="comparisonType">The string comparison to use.</param>
+        /// <param name="filter">The flags the matching ancestor must contain.</param>
+        /// <returns>The matching ancestor node.</returns>
+        /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
+        public T FindAncestor<T>(string name, StringComparison comparisonType, SceneNodeFlags filter) where T : SceneNode
         {
-            if (TryFindAncestor<T>(name, comparisonType, out var node))
+            if (TryFindAncestor<T>(name, comparisonType, filter, out var node))
                 return node;
 
             throw new SceneNodeNotFoundException($"An ancestor with the name: {name} of type: {typeof(T)} was not found in: {Name}");
@@ -715,11 +1082,19 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <typeparam name="T">The node type to find.</typeparam>
         /// <returns>The first matching node.</returns>
-        public T FirstOfType<T>() where T : SceneNode
+        public T FirstOfType<T>() where T : SceneNode => FirstOfType<T>(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Gets the first node of the specified type, starting from this node, that matches the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to find.</typeparam>
+        /// <param name="filter">The flags the matching node must contain.</param>
+        /// <returns>The first matching node.</returns>
+        public T FirstOfType<T>(SceneNodeFlags filter) where T : SceneNode
         {
-            if (this is T tSelf)
+            if (this is T tSelf && MatchesFilter(filter))
                 return tSelf;
-            var found = EnumerateDescendants<T>().FirstOrDefault();
+            var found = EnumerateDescendants<T>(filter).FirstOrDefault();
             return found is null ? throw new SceneNodeNotFoundException($"No node of type {typeof(T)} found in: {Name}") : found;
         }
 
@@ -728,14 +1103,22 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <typeparam name="T">The node type to find.</typeparam>
         /// <returns>The first matching node, or null if not found.</returns>
-        public T? TryGetFirstOfType<T>() where T : SceneNode
+        public T? TryGetFirstOfType<T>() where T : SceneNode => TryGetFirstOfType<T>(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Attempts to get the first node of the specified type, starting from this node, that matches the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to find.</typeparam>
+        /// <param name="filter">The flags the matching node must contain.</param>
+        /// <returns>The first matching node, or null if not found.</returns>
+        public T? TryGetFirstOfType<T>(SceneNodeFlags filter) where T : SceneNode
         {
-            if (this is T tSelf)
+            if (this is T tSelf && MatchesFilter(filter))
             {
                 return tSelf;
             }
 
-            return EnumerateDescendants<T>().FirstOrDefault();
+            return EnumerateDescendants<T>(filter).FirstOrDefault();
         }
 
         /// <summary>
@@ -744,14 +1127,24 @@ namespace RedFox.Graphics3D
         /// <typeparam name="T">The node type to find.</typeparam>
         /// <param name="node">The found node, or null if not found.</param>
         /// <returns>True if a matching node was found; otherwise false.</returns>
-        public bool TryGetFirstOfType<T>([NotNullWhen(true)] out T? node) where T : SceneNode
+        public bool TryGetFirstOfType<T>([NotNullWhen(true)] out T? node) where T : SceneNode =>
+            TryGetFirstOfType(SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to get the first node of the specified type, starting from this node, that matches the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to find.</typeparam>
+        /// <param name="filter">The flags the matching node must contain.</param>
+        /// <param name="node">The found node, or null if not found.</param>
+        /// <returns>True if a matching node was found; otherwise false.</returns>
+        public bool TryGetFirstOfType<T>(SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
         {
-            if (this is T tSelf)
+            if (this is T tSelf && MatchesFilter(filter))
             {
                 node = tSelf;
                 return true;
             }
-            node = EnumerateDescendants<T>().FirstOrDefault();
+            node = EnumerateDescendants<T>(filter).FirstOrDefault();
             return node is not null;
         }
 
@@ -762,7 +1155,17 @@ namespace RedFox.Graphics3D
         /// <returns>The node at the specified path.</returns>
         /// <exception cref="ArgumentException">Thrown if path is null or empty.</exception>
         /// <exception cref="SceneNodeNotFoundException">Thrown if the node at the path is not found.</exception>
-        public SceneNode FindByPath(string path)
+        public SceneNode FindByPath(string path) => FindByPath(path, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Finds a node by its path and requires the final node to match the provided filter.
+        /// </summary>
+        /// <param name="path">The path to the node (e.g., "Root/Child/Grandchild").</param>
+        /// <param name="filter">The flags the final node must contain.</param>
+        /// <returns>The node at the specified path.</returns>
+        /// <exception cref="ArgumentException">Thrown if path is null or empty.</exception>
+        /// <exception cref="SceneNodeNotFoundException">Thrown if the node at the path is not found.</exception>
+        public SceneNode FindByPath(string path, SceneNodeFlags filter)
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Path cannot be null or empty.", nameof(path));
@@ -774,7 +1177,7 @@ namespace RedFox.Graphics3D
             {
                 current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.CurrentCultureIgnoreCase));
             }
-            if (current == null)
+            if (current == null || !current.MatchesFilter(filter))
                 throw new SceneNodeNotFoundException($"Node at path '{path}' not found.");
             return current;
         }
@@ -785,7 +1188,17 @@ namespace RedFox.Graphics3D
         /// <param name="path">The path to the node (e.g., "Root/Child/Grandchild").</param>
         /// <param name="node">The found node, or null if not found.</param>
         /// <returns>True if the node was found; otherwise false.</returns>
-        public bool TryFindByPath(string path, [NotNullWhen(true)] out SceneNode? node)
+        public bool TryFindByPath(string path, [NotNullWhen(true)] out SceneNode? node) =>
+            TryFindByPath(path, SceneNodeFlags.None, out node);
+
+        /// <summary>
+        /// Attempts to find a node by its path and requires the final node to match the provided filter.
+        /// </summary>
+        /// <param name="path">The path to the node (e.g., "Root/Child/Grandchild").</param>
+        /// <param name="filter">The flags the final node must contain.</param>
+        /// <param name="node">The found node, or null if not found.</param>
+        /// <returns>True if the node was found; otherwise false.</returns>
+        public bool TryFindByPath(string path, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node)
         {
             node = null;
             if (string.IsNullOrWhiteSpace(path))
@@ -798,7 +1211,7 @@ namespace RedFox.Graphics3D
             {
                 current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.CurrentCultureIgnoreCase));
             }
-            if (current == null)
+            if (current == null || !current.MatchesFilter(filter))
                 return false;
             node = current;
             return true;
@@ -824,15 +1237,26 @@ namespace RedFox.Graphics3D
         /// Enumerates sibling nodes (nodes with the same parent).
         /// </summary>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding sibling nodes.</returns>
-        public IEnumerable<SceneNode> EnumerateSiblings()
-        {
-            return Parent?.EnumerateChildren().Where(n => n != this) ?? [];
-        }
+        public IEnumerable<SceneNode> EnumerateSiblings() => EnumerateSiblings(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates sibling nodes (nodes with the same parent) that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding sibling nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateSiblings(SceneNodeFlags filter) =>
+            Parent?.EnumerateChildren(filter).Where(n => n != this) ?? [];
 
         /// <summary>
         /// Returns an array containing all sibling nodes.
         /// </summary>
-        public SceneNode[] GetSiblings() => [.. EnumerateSiblings()];
+        public SceneNode[] GetSiblings() => GetSiblings(SceneNodeFlags.None);
+
+        /// <summary>
+        /// Returns an array containing all sibling nodes that match the provided filter.
+        /// </summary>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        public SceneNode[] GetSiblings(SceneNodeFlags filter) => [.. EnumerateSiblings(filter)];
 
         /// <summary>
         /// Detaches this node from its parent.
@@ -846,11 +1270,17 @@ namespace RedFox.Graphics3D
         /// Traverses this node and all descendants, performing an action on each.
         /// </summary>
         /// <param name="action">The action to perform on each node.</param>
-        public void Traverse(Action<SceneNode> action)
+        public void Traverse(Action<SceneNode> action) => Traverse(action, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Traverses this node and all descendants that match the provided filter, performing an action on each.
+        /// </summary>
+        /// <param name="action">The action to perform on each node.</param>
+        /// <param name="filter">The flags nodes must contain to be visited.</param>
+        public void Traverse(Action<SceneNode> action, SceneNodeFlags filter)
         {
-            action(this);
-            foreach (var child in EnumerateDescendants())
-                action(child);
+            foreach (var node in EnumerateHierarchy(filter))
+                action(node);
         }
 
         /// <summary>
@@ -863,6 +1293,46 @@ namespace RedFox.Graphics3D
             while (current.Parent != null)
                 current = current.Parent;
             return current;
+        }
+
+        /// <summary>
+        /// Gets the nearest ancestor of <paramref name="node"/> that is present in <paramref name="nodes"/>.
+        /// </summary>
+        /// <param name="node">The node whose ancestors should be searched.</param>
+        /// <param name="nodes">The candidate nodes to search for.</param>
+        /// <returns>The nearest matching ancestor, or <see langword="null"/> if no ancestor is present in <paramref name="nodes"/>.</returns>
+        public static SceneNode? GetBestParent(SceneNode node, SceneNode[] nodes)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            ArgumentNullException.ThrowIfNull(nodes);
+
+            if (nodes.Length == 0)
+                return null;
+
+            HashSet<SceneNode> candidates = [.. nodes];
+            SceneNode? current = node.Parent;
+
+            while (current is not null)
+            {
+                if (candidates.Contains(current))
+                    return current;
+
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Gets the index of the nearest ancestor of <paramref name="node"/> that is present in <paramref name="nodes"/>.
+        /// </summary>
+        /// <param name="node">The node whose ancestors should be searched.</param>
+        /// <param name="nodes">The candidate nodes to search for.</param>
+        /// <returns>The index of the nearest matching ancestor, or -1 if no ancestor is present in <paramref name="nodes"/>.</returns>
+        public static int GetBestParentIndex(SceneNode node, SceneNode[] nodes)
+        {
+            SceneNode? parent = GetBestParent(node, nodes);
+            return parent is null ? -1 : Array.IndexOf(nodes, parent);
         }
 
         /// <summary>
@@ -1001,11 +1471,20 @@ namespace RedFox.Graphics3D
         /// Useful for traversing an entire hierarchy including the root node itself.
         /// </summary>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding this node then all descendants.</returns>
-        public IEnumerable<SceneNode> EnumerateHierarchy()
-        {
-            yield return this;
+        public IEnumerable<SceneNode> EnumerateHierarchy() => EnumerateHierarchy(SceneNodeFlags.None);
 
-            foreach (var descendant in EnumerateDescendants())
+        /// <summary>
+        /// Enumerates this node followed by all its descendants in depth-first order that match the provided filter.
+        /// Useful for traversing an entire hierarchy including the root node itself.
+        /// </summary>
+        /// <param name="filter">The flags nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> yielding this node then all descendants.</returns>
+        public IEnumerable<SceneNode> EnumerateHierarchy(SceneNodeFlags filter)
+        {
+            if (MatchesFilter(filter))
+                yield return this;
+
+            foreach (var descendant in EnumerateDescendants(filter))
             {
                 yield return descendant;
             }
@@ -1016,7 +1495,17 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <typeparam name="T">The node type to filter for.</typeparam>
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching nodes.</returns>
-        public IEnumerable<T> EnumerateHierarchy<T>() where T : SceneNode => EnumerateHierarchy().OfType<T>();
+        public IEnumerable<T> EnumerateHierarchy<T>() where T : SceneNode =>
+            EnumerateHierarchy(SceneNodeFlags.None).OfType<T>();
+
+        /// <summary>
+        /// Enumerates this node and all descendants of the specified type that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="filter">The flags nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> yielding matching nodes.</returns>
+        public IEnumerable<T> EnumerateHierarchy<T>(SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateHierarchy(filter).OfType<T>();
 
         /// <summary>
         /// Gets the active local position from <see cref="LiveTransform"/>, falling back

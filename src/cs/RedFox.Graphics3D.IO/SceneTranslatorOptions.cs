@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using RedFox.Graphics3D;
 
 namespace RedFox.Graphics3D.IO;
 
@@ -15,6 +16,12 @@ public class SceneTranslatorOptions
     /// without taking bind matrices into account.
     /// </summary>
     public bool WriteRawVertices { get; set; }
+
+    /// <summary>
+    /// Gets or sets a node flag filter that translators may use to restrict which scene nodes are exported.
+    /// Translators that do not support filtered export may ignore this option.
+    /// </summary>
+    public SceneNodeFlags Filter { get; set; }
 
     /// <summary>
     /// Gets the full source file path for the current read operation.

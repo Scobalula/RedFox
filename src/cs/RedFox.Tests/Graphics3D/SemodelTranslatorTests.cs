@@ -360,6 +360,111 @@ public sealed class SemodelTranslatorTests
         }
     }
 
+    [Fact]
+    public void SemodelTranslator_Write_Filter_ExportsSelectedNodesAndRemapsBoneParents()
+    {
+        Scene scene = new("FilteredSemodelScene");
+
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Armature"));
+        SkeletonBone rootBone = skeleton.AddNode(new SkeletonBone("root"));
+        SkeletonBone midBone = rootBone.AddNode(new SkeletonBone("mid") { Flags = SceneNodeFlags.Selected });
+        SkeletonBone tipBone = midBone.AddNode(new SkeletonBone("tip") { Flags = SceneNodeFlags.Selected });
+
+        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        Mesh mesh = model.AddNode(new Mesh { Name = "mesh_0", Flags = SceneNodeFlags.Selected });
+        mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        mesh.Normals = new DataBuffer<float>([0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f], 1, 3);
+        mesh.UVLayers = new DataBuffer<float>([0f, 0f, 1f, 0f, 0f, 1f], 1, 2);
+        mesh.BoneIndices = new DataBuffer<byte>([0, 1, 0, 1, 0, 1], 2, 1);
+        mesh.BoneWeights = new DataBuffer<float>([0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f], 2, 1);
+        mesh.SetSkinBinding([midBone, tipBone]);
+        mesh.FaceIndices = new DataBuffer<ushort>(new ushort[] { 0, 1, 2 }, 1, 1);
+
+        Material selectedMaterial = model.AddNode(new Material("material_selected") { Flags = SceneNodeFlags.Selected });
+        selectedMaterial.AddNode(new Texture("textures\\selected.dds", "diffuse"));
+        mesh.Materials = [selectedMaterial];
+
+        SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
+
+        Scene loaded = ReadSceneWithManager(manager, WriteSceneWithManager(manager, scene, "filtered.semodel", options), "filtered.semodel");
+
+        SkeletonBone[] loadedBones = loaded.GetDescendants<SkeletonBone>();
+        Assert.Equal(2, loadedBones.Length);
+        Assert.Equal("mid", loadedBones[0].Name);
+        Assert.Equal("tip", loadedBones[1].Name);
+        Assert.False(loadedBones[0].Parent is SkeletonBone);
+        Assert.Same(loadedBones[0], loadedBones[1].Parent);
+
+        Mesh loadedMesh = loaded.GetDescendants<Mesh>().Single();
+        Assert.NotNull(loadedMesh.Materials);
+        Assert.Single(loadedMesh.Materials!);
+        Assert.Equal("material_selected", loadedMesh.Materials[0].Name);
+    }
+
+    [Fact]
+    public void SemodelTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
+    {
+        Scene scene = CreateSemodelSampleScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+        Material material = scene.GetDescendants<Material>().Single();
+        foreach (SkeletonBone bone in scene.GetDescendants<SkeletonBone>())
+            bone.Flags = SceneNodeFlags.Selected;
+        Material fallbackMaterial = material.Parent!.AddNode(new Material("material_fallback")
+        {
+            Flags = SceneNodeFlags.Selected,
+            DiffuseMapName = "diffuse_fallback",
+        });
+        fallbackMaterial.AddNode(new Texture("textures\\fallback.dds", "diffuse"));
+
+        mesh.Flags = SceneNodeFlags.Selected;
+        mesh.Materials = [material, fallbackMaterial];
+        material.Flags = SceneNodeFlags.None;
+
+        SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteSceneWithManager(manager, scene, "filtered_materials.semodel", options));
+
+        Assert.Contains("references material", ex.Message);
+        Assert.Contains(mesh.Name, ex.Message);
+        Assert.Contains(material.Name, ex.Message);
+    }
+
+    [Fact]
+    public void SemodelTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesUnexportedBones()
+    {
+        Scene scene = CreateSemodelSampleScene();
+        Mesh mesh = scene.GetDescendants<Mesh>().Single();
+        Material material = scene.GetDescendants<Material>().Single();
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
+
+        mesh.Flags = SceneNodeFlags.Selected;
+        material.Flags = SceneNodeFlags.Selected;
+        bones[0].Flags = SceneNodeFlags.Selected;
+        bones[1].Flags = SceneNodeFlags.None;
+
+        SceneTranslatorManager manager = CreateManagerWithSemodelTranslator();
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
+
+        InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
+            WriteSceneWithManager(manager, scene, "filtered_bones.semodel", options));
+
+        Assert.Contains("not included in the export selection", ex.Message);
+        Assert.Contains(mesh.Name, ex.Message);
+        Assert.Contains(bones[1].Name, ex.Message);
+    }
+
     private static void AssertSceneStructureEquivalent(Scene expectedScene, Scene actualScene)
     {
         Skeleton[] expectedSkeletons = [.. expectedScene.GetDescendants<Skeleton>().Where(static skeleton => skeleton is not SkeletonBone)];

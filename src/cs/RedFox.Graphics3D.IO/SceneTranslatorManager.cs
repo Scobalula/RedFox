@@ -453,6 +453,7 @@ public sealed class SceneTranslatorManager
     {
         var extension = Path.GetExtension(filePath);
         var context = SceneTranslator.CreateWriteContext(filePath, options);
+        context.GetSelection(scene);
 
         if (!TryGetTranslator(filePath, extension, context, out var translator))
             throw new IOException($"No suitable translator found for file: {filePath}");
@@ -498,6 +499,7 @@ public sealed class SceneTranslatorManager
     {
         var extension = Path.GetExtension(filePath);
         var context = SceneTranslator.CreateWriteContext(filePath, options);
+        context.GetSelection(scene);
 
         if (!TryGetTranslator(filePath, extension, context, out var translator))
             throw new IOException($"No suitable translator found for file: {filePath}");
@@ -529,6 +531,7 @@ public sealed class SceneTranslatorManager
     {
         var extension = Path.GetExtension(filePath);
         var context = SceneTranslator.CreateWriteContext(filePath, options);
+        context.GetSelection(scene);
 
         if (!TryGetTranslator(filePath, extension, context, out var translator))
             throw new IOException($"No suitable translator found for file: {filePath}");
@@ -570,6 +573,7 @@ public sealed class SceneTranslatorManager
     {
         var extension = Path.GetExtension(filePath);
         var context = SceneTranslator.CreateWriteContext(filePath, options);
+        context.GetSelection(scene);
 
         if (!TryGetTranslator(filePath, extension, context, out var translator))
             throw new IOException($"No suitable translator found for file: {filePath}");

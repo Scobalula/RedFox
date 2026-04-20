@@ -140,7 +140,18 @@ public class SeanimTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var data = scene.FirstOfType<SkeletonAnimation>() ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");
+        SceneTranslationSelection selection = context.GetSelection(scene);
+        var data = selection.TryGetFirstOfType<SkeletonAnimation>();
+        if (data is null)
+        {
+            if (selection.Filter != SceneNodeFlags.None && scene.TryGetFirstOfType<SkeletonAnimation>() is not null)
+            {
+                throw new InvalidDataException(
+                    $"Cannot write SEAnim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
+            }
+
+            throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");
+        }
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 

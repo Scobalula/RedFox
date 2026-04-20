@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.IO;
 
 namespace RedFox.Graphics3D.KaydaraFbx;
 
@@ -667,8 +668,24 @@ public static class FbxSceneMapper
     /// <param name="format">The target FBX format.</param>
     /// <returns>The exported FBX document.</returns>
     public static FbxDocument ExportScene(Scene scene, FbxFormat format)
+        => ExportScene(scene, format, new SceneTranslationSelection(scene, SceneNodeFlags.None));
+
+    /// <summary>
+    /// Exports a scene into an FBX document using a filtered scene selection.
+    /// </summary>
+    /// <param name="scene">The source scene.</param>
+    /// <param name="format">The target FBX format.</param>
+    /// <param name="selection">The filtered scene selection for this export.</param>
+    /// <returns>The exported FBX document.</returns>
+    public static FbxDocument ExportScene(Scene scene, FbxFormat format, SceneTranslationSelection selection)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        if (!ReferenceEquals(selection.Scene, scene))
+        {
+            throw new ArgumentException("The supplied selection does not belong to the provided scene.", nameof(selection));
+        }
 
         FbxDocument document = new() { Format = format, Version = 7700 };
         FbxNode objectsNode = new("Objects");
@@ -681,21 +698,34 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneIds = [];
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
-        Model[] models = scene.GetDescendants<Model>();
-        Group[] groups = scene.GetDescendants<Group>();
-        Mesh[] meshes = scene.GetDescendants<Mesh>();
-        Material[] materials = scene.GetDescendants<Material>();
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
-        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
-        Camera[] cameras = scene.GetDescendants<Camera>();
-        Light[] lights = scene.GetDescendants<Light>();
+        Model[] models = selection.GetDescendants<Model>();
+        Group[] groups = selection.GetDescendants<Group>();
+        Mesh[] meshes = selection.GetDescendants<Mesh>();
+        Material[] materials = selection.GetDescendants<Material>();
+        Skeleton[] skeletons = selection.GetDescendants<Skeleton>();
+        SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
+        Camera[] cameras = selection.GetDescendants<Camera>();
+        Light[] lights = selection.GetDescendants<Light>();
+
+        List<SceneNode> exportedModelNodeList =
+        [
+            .. models,
+            .. groups,
+            .. skeletons.Where(static skeleton => skeleton is not SkeletonBone),
+            .. bones,
+            .. meshes,
+            .. cameras,
+            .. lights,
+        ];
+        SceneNode[] exportedModelNodes = [.. exportedModelNodeList];
 
         for (int i = 0; i < models.Length; i++)
         {
             Model model = models[i];
             long id = nextId++;
             modelIds[model] = id;
-            objectsNode.Children.Add(CreateModelObject(id, model.Name, "Null", model));
+            SceneNode? exportedParent = SceneNode.GetBestParent(model, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(id, model.Name, "Null", model, exportedParent));
             ExportNullNodeAttributeIfNeeded(model, id, objectsNode, connectionsNode, ref nextId);
         }
 
@@ -704,7 +734,8 @@ public static class FbxSceneMapper
             Group group = groups[i];
             long id = nextId++;
             modelIds[group] = id;
-            objectsNode.Children.Add(CreateModelObject(id, group.Name, "Null", group));
+            SceneNode? exportedParent = SceneNode.GetBestParent(group, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(id, group.Name, "Null", group, exportedParent));
             ExportNullNodeAttributeIfNeeded(group, id, objectsNode, connectionsNode, ref nextId);
         }
 
@@ -718,7 +749,8 @@ public static class FbxSceneMapper
 
             long id = nextId++;
             modelIds[skeleton] = id;
-            objectsNode.Children.Add(CreateModelObject(id, skeleton.Name, "Null", skeleton));
+            SceneNode? exportedParent = SceneNode.GetBestParent(skeleton, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(id, skeleton.Name, "Null", skeleton, exportedParent));
             ExportNullNodeAttributeIfNeeded(skeleton, id, objectsNode, connectionsNode, ref nextId);
         }
 
@@ -730,7 +762,8 @@ public static class FbxSceneMapper
             boneIds[bone] = modelId;
             boneAttributeIds[bone] = nodeAttributeId;
             modelIds[bone] = modelId;
-            objectsNode.Children.Add(CreateModelObject(modelId, bone.Name, "LimbNode", bone));
+            SceneNode? exportedParent = SceneNode.GetBestParent(bone, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(modelId, bone.Name, "LimbNode", bone, exportedParent));
             objectsNode.Children.Add(CreateBoneNodeAttribute(nodeAttributeId, bone));
             AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
         }
@@ -748,7 +781,8 @@ public static class FbxSceneMapper
             long geometryId = nextId++;
             modelIds[mesh] = modelId;
             geometryIds[mesh] = geometryId;
-            objectsNode.Children.Add(CreateModelObject(modelId, mesh.Name, "Mesh", mesh));
+            SceneNode? exportedParent = SceneNode.GetBestParent(mesh, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(modelId, mesh.Name, "Mesh", mesh, exportedParent));
             objectsNode.Children.Add(FbxGeometryMapper.ExportGeometry(geometryId, mesh));
             AddConnection(connectionsNode, "OO", geometryId, modelId);
         }
@@ -767,7 +801,8 @@ public static class FbxSceneMapper
             long modelId = nextId++;
             long nodeAttributeId = nextId++;
             modelIds[camera] = modelId;
-            objectsNode.Children.Add(CreateModelObject(modelId, camera.Name, "Camera", camera));
+            SceneNode? exportedParent = SceneNode.GetBestParent(camera, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(modelId, camera.Name, "Camera", camera, exportedParent));
             objectsNode.Children.Add(CreateCameraNodeAttribute(nodeAttributeId, camera));
             AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
         }
@@ -778,7 +813,8 @@ public static class FbxSceneMapper
             long modelId = nextId++;
             long nodeAttributeId = nextId++;
             modelIds[light] = modelId;
-            objectsNode.Children.Add(CreateModelObject(modelId, light.Name, "Light", light));
+            SceneNode? exportedParent = SceneNode.GetBestParent(light, exportedModelNodes);
+            objectsNode.Children.Add(CreateModelObject(modelId, light.Name, "Light", light, exportedParent));
             objectsNode.Children.Add(CreateLightNodeAttribute(nodeAttributeId, light));
             AddConnection(connectionsNode, "OO", nodeAttributeId, modelId);
         }
@@ -790,6 +826,8 @@ public static class FbxSceneMapper
             {
                 continue;
             }
+
+            ValidateExportMaterialConnections(mesh, materialIds);
 
             if (mesh.Materials is { Count: > 0 } meshMaterials)
             {
@@ -805,6 +843,7 @@ public static class FbxSceneMapper
 
             if (mesh.HasSkinning && geometryIds.TryGetValue(mesh, out long geometryId))
             {
+                ValidateExportSkinning(mesh, boneIds);
                 FbxSkinningMapper.ExportSkinning(objectsNode, connectionsNode, mesh, geometryId, boneIds, ref nextId);
 
                 long bindPoseId = nextId++;
@@ -815,7 +854,8 @@ public static class FbxSceneMapper
         foreach ((SceneNode node, long childId) in modelIds)
         {
             long parentId = RootConnectionId;
-            if (node.Parent is not null && modelIds.TryGetValue(node.Parent, out long resolvedParentId))
+            SceneNode? exportedParent = SceneNode.GetBestParent(node, exportedModelNodes);
+            if (exportedParent is not null && modelIds.TryGetValue(exportedParent, out long resolvedParentId))
             {
                 parentId = resolvedParentId;
             }
@@ -1947,6 +1987,18 @@ public static class FbxSceneMapper
     /// <param name="sourceNode">The source scene node providing the local transform.</param>
     /// <returns>The generated FBX Model node.</returns>
     public static FbxNode CreateModelObject(long id, string name, string type, SceneNode sourceNode)
+        => CreateModelObject(id, name, type, sourceNode, sourceNode.Parent);
+
+    /// <summary>
+    /// Creates an FBX Model object for export using the node's nearest exported parent as the local transform basis.
+    /// </summary>
+    /// <param name="id">The FBX object identifier.</param>
+    /// <param name="name">The scene node name.</param>
+    /// <param name="type">The FBX model type token.</param>
+    /// <param name="sourceNode">The source scene node.</param>
+    /// <param name="exportedParent">The nearest exported ancestor, or <see langword="null"/> when the node is exported at the root.</param>
+    /// <returns>The generated FBX Model node.</returns>
+    public static FbxNode CreateModelObject(long id, string name, string type, SceneNode sourceNode, SceneNode? exportedParent)
     {
         FbxNode modelNode = new("Model");
         modelNode.Properties.Add(new FbxProperty('L', id));
@@ -1954,7 +2006,7 @@ public static class FbxSceneMapper
         modelNode.Properties.Add(new FbxProperty('S', type));
         modelNode.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 232) } });
         FbxNode properties = modelNode.AddChild("Properties70");
-        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(sourceNode);
+        (Vector3 localTranslation, Quaternion localRotation, Vector3 localScale) = ResolveExportLocalTransform(sourceNode, exportedParent);
         Vector3 exportedLocalTranslation = localTranslation;
         Vector3 exportedLocalRotation = FbxRotation.ToEulerDegreesXyz(localRotation);
         Vector3 exportedLocalScale = localScale;
@@ -2196,6 +2248,35 @@ public static class FbxSceneMapper
             Quaternion.Normalize(sourceNode.GetBindLocalRotation()),
             sourceNode.GetBindLocalScale()
         );
+    }
+
+    /// <summary>
+    /// Resolves the exported local transform for a node relative to its nearest exported ancestor.
+    /// </summary>
+    /// <param name="sourceNode">The node being exported.</param>
+    /// <param name="exportedParent">The nearest exported ancestor, or <see langword="null"/> when the node is exported at the scene root.</param>
+    /// <returns>The exported local transform relative to <paramref name="exportedParent"/>.</returns>
+    public static (Vector3 Translation, Quaternion Rotation, Vector3 Scale) ResolveExportLocalTransform(SceneNode sourceNode, SceneNode? exportedParent)
+    {
+        ArgumentNullException.ThrowIfNull(sourceNode);
+
+        if (ReferenceEquals(exportedParent, sourceNode.Parent))
+        {
+            return ResolveExportLocalTransform(sourceNode);
+        }
+
+        Matrix4x4 sourceWorld = GetExportActiveWorldMatrix(sourceNode);
+        Matrix4x4 parentWorld = exportedParent is null ? Matrix4x4.Identity : GetExportActiveWorldMatrix(exportedParent);
+        Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 inverseParent)
+            ? sourceWorld * inverseParent
+            : sourceWorld;
+
+        if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+        {
+            return (translation, Quaternion.Normalize(rotation), scale);
+        }
+
+        return (new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43), Quaternion.Identity, Vector3.One);
     }
 
     /// <summary>
@@ -2875,4 +2956,46 @@ public static class FbxSceneMapper
         "Vector3D" => "Vector",
         _ => string.Empty,
     };
+
+    private static void ValidateExportMaterialConnections(Mesh mesh, IReadOnlyDictionary<Material, long> materialIds)
+    {
+        if (mesh.Materials is not { Count: > 0 })
+        {
+            return;
+        }
+
+        for (int materialIndex = 0; materialIndex < mesh.Materials.Count; materialIndex++)
+        {
+            Material material = mesh.Materials[materialIndex];
+            if (!materialIds.ContainsKey(material))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write FBX: mesh '{mesh.Name}' references material '{material.Name}' for slot {materialIndex} that is not included in the export selection.");
+            }
+        }
+    }
+
+    private static void ValidateExportSkinning(Mesh mesh, IReadOnlyDictionary<SkeletonBone, long> boneIds)
+    {
+        if (!mesh.HasSkinning || mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+        {
+            return;
+        }
+
+        List<string> missingBones = [];
+        for (int boneIndex = 0; boneIndex < skinnedBones.Count; boneIndex++)
+        {
+            SkeletonBone bone = skinnedBones[boneIndex];
+            if (!boneIds.ContainsKey(bone))
+            {
+                missingBones.Add(bone.Name);
+            }
+        }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Cannot write FBX: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+        }
+    }
 }

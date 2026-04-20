@@ -851,6 +851,13 @@ public sealed class FbxTranslatorTests
         return stream.ToArray();
     }
 
+    private static byte[] WriteScene(SceneTranslatorManager manager, Scene scene, string sourcePath, SceneTranslatorOptions options)
+    {
+        using MemoryStream stream = new();
+        manager.Write(stream, sourcePath, scene, options, token: null);
+        return stream.ToArray();
+    }
+
     private static Scene ReadScene(SceneTranslatorManager manager, byte[] data, string sourcePath)
     {
         using MemoryStream stream = new(data, writable: false);
@@ -928,6 +935,100 @@ public sealed class FbxTranslatorTests
 
         mesh.Materials = [material];
         return scene;
+    }
+
+    [Fact]
+    public void FbxTranslator_Write_Filter_ReparentsSelectedNodesToNearestExportedAncestorAndPreservesWorldTransform()
+    {
+        Scene scene = new("filtered-fbx");
+        Model exportRoot = scene.RootNode.AddNode(new Model
+        {
+            Name = "ExportRoot",
+            Flags = SceneNodeFlags.Selected,
+        });
+        exportRoot.BindTransform.LocalPosition = new Vector3(5f, 0f, 0f);
+
+        Group omittedGroup = exportRoot.AddNode(new Group("FilteredOutMid"));
+        omittedGroup.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+
+        Mesh mesh = omittedGroup.AddNode(new Mesh
+        {
+            Name = "SelectedMesh",
+            Flags = SceneNodeFlags.Selected,
+        });
+        mesh.BindTransform.LocalPosition = new Vector3(1f, 0f, 0f);
+        mesh.Positions = new DataBuffer<float>(
+        [
+            0f, 0f, 0f,
+            1f, 0f, 0f,
+            0f, 1f, 0f,
+        ], 1, 3);
+        mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+
+        SceneTranslatorManager manager = CreateManager();
+        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+
+        byte[] data = WriteScene(manager, scene, "filtered_hierarchy.fbx", options);
+        Scene reloaded = ReadScene(manager, data, "filtered_hierarchy.fbx");
+
+        Mesh reloadedMesh = Assert.Single(reloaded.GetDescendants<Mesh>());
+        Assert.Equal("ExportRoot", reloadedMesh.Parent?.Name);
+        Assert.True(Vector3.Distance(reloadedMesh.GetBindWorldPosition(), new Vector3(8f, 0f, 0f)) < 0.01f,
+            $"Expected SelectedMesh world position to remain <8,0,0>, got {reloadedMesh.GetBindWorldPosition()}");
+        Assert.Empty(reloaded.GetDescendants<Group>());
+    }
+
+    [Fact]
+    public void FbxTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
+    {
+        Scene scene = CreateSampleScene();
+        SceneTranslatorManager manager = CreateManager();
+
+        Model model = Assert.Single(scene.GetDescendants<Model>());
+        Mesh mesh = Assert.Single(scene.GetDescendants<Mesh>());
+        Skeleton skeleton = Assert.Single(scene.GetDescendants<Skeleton>(), static skeleton => skeleton is not SkeletonBone);
+
+        model.Flags = SceneNodeFlags.Selected;
+        mesh.Flags = SceneNodeFlags.Selected;
+        skeleton.Flags = SceneNodeFlags.Selected;
+
+        foreach (SkeletonBone bone in scene.GetDescendants<SkeletonBone>())
+        {
+            bone.Flags = SceneNodeFlags.Selected;
+        }
+
+        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+
+        using MemoryStream stream = new();
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => manager.Write(stream, "filtered_missing_material.fbx", scene, options, token: null));
+
+        Assert.Contains("references material", exception.Message);
+        Assert.Contains("material_0", exception.Message);
+    }
+
+    [Fact]
+    public void FbxTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesUnexportedBones()
+    {
+        Scene scene = CreateSampleScene();
+        SceneTranslatorManager manager = CreateManager();
+
+        Model model = Assert.Single(scene.GetDescendants<Model>());
+        Mesh mesh = Assert.Single(scene.GetDescendants<Mesh>());
+        Material material = Assert.Single(scene.GetDescendants<Material>());
+
+        model.Flags = SceneNodeFlags.Selected;
+        mesh.Flags = SceneNodeFlags.Selected;
+        material.Flags = SceneNodeFlags.Selected;
+
+        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+
+        using MemoryStream stream = new();
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(
+            () => manager.Write(stream, "filtered_missing_bones.fbx", scene, options, token: null));
+
+        Assert.Contains("references skinned bones", exception.Message);
+        Assert.Contains("root", exception.Message);
     }
 
 

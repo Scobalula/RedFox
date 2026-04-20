@@ -62,6 +62,6 @@ public sealed class BvhTranslator : SceneTranslator
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         BvhWriter writer = new(stream, context.Name, context.Options);
-        writer.Write(scene);
+        writer.Write(context.GetSelection(scene));
     }
 }

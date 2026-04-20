@@ -105,7 +105,7 @@ public sealed class ObjTranslator : SceneTranslator
         string baseName = context.Name;
         string mtlFileName = $"{baseName}.mtl";
         ObjWriter writer = new(stream, baseName, context.Options);
-        IReadOnlyList<Material> materials = writer.Write(scene, mtlFileName);
+        IReadOnlyList<Material> materials = writer.Write(context.GetSelection(scene), mtlFileName);
 
         if (materials.Count > 0 && !string.IsNullOrWhiteSpace(context.TargetDirectoryPath))
         {

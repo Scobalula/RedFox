@@ -220,19 +220,30 @@ public class SemodelTranslator : SceneTranslator
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-        => WriteInternal(scene, stream, name, options, targetDirectoryPath: null, token);
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var context = new SceneTranslationContext(name, options);
+        context.GetSelection(scene);
+        WriteInternal(scene, stream, context, token);
+    }
 
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
-        => WriteInternal(scene, stream, context.Name, context.Options, context.TargetDirectoryPath, token);
+        => WriteInternal(scene, stream, context, token);
 
-    private void WriteInternal(Scene scene, Stream stream, string name, SceneTranslatorOptions options, string? targetDirectoryPath, CancellationToken? token)
+    private void WriteInternal(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         using var writer = new BinaryWriter(stream, Encoding.Default, true);
 
-        var meshes    = scene.GetDescendants<Mesh>() ?? [];
-        var materials = scene.GetDescendants<Material>() ?? [];
-        var bones     = scene.GetDescendants<SkeletonBone>() ?? [];
+        SceneTranslationSelection selection = context.GetSelection(scene);
+        SceneTranslatorOptions options = context.Options;
+        string? targetDirectoryPath = context.TargetDirectoryPath;
+        var meshes    = selection.GetDescendants<Mesh>();
+        var materials = selection.GetDescendants<Material>();
+        var bones     = selection.GetDescendants<SkeletonBone>();
         var boneTable = new Dictionary<SkeletonBone, int>();
+        var materialTable = new Dictionary<Material, int>();
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
 
         // Determine data presence flags from actual data
         bool hasBones  = bones.Length > 0;
@@ -275,7 +286,7 @@ public class SemodelTranslator : SceneTranslator
         foreach (var bone in bones)
         {
             writer.Write((byte)0); // flags
-            writer.Write(bone.Parent is SkeletonBone parent ? Array.IndexOf(bones, parent) : -1);
+            writer.Write(SceneNode.GetBestParentIndex(bone, exportedBoneNodes));
 
             writer.WriteStruct(bone.GetActiveWorldPosition());
             writer.WriteStruct(bone.GetActiveWorldRotation());
@@ -285,6 +296,9 @@ public class SemodelTranslator : SceneTranslator
 
             boneTable[bone] = boneIndex++;
         }
+
+        for (int i = 0; i < materials.Length; i++)
+            materialTable[materials[i]] = i;
 
         bool hasUVs     = (meshDataPresence & (1 << 0)) != 0;
         bool hasNormals = (meshDataPresence & (1 << 1)) != 0;
@@ -305,7 +319,7 @@ public class SemodelTranslator : SceneTranslator
                               mesh.BoneWeights is not null &&
                               mesh.SkinnedBones is not null ? mesh.BoneIndices.ValueCount : 0;
 
-            int[] globalBoneIndexTable = influences > 0 ? mesh.GetBoneIndices(boneTable) : [];
+            int[] globalBoneIndexTable = influences > 0 ? GetExportBoneIndices(mesh, boneTable) : [];
 
             writer.Write((byte)0); // flags
             writer.Write((byte)layerCount);
@@ -411,9 +425,11 @@ public class SemodelTranslator : SceneTranslator
                     writer.Write(mesh.FaceIndices.Get<int>(f, 0, 0));
             }
 
-            // Material indices per layer (skip for now TODO)
+            int[] meshMaterialIndices = GetExportMaterialIndices(mesh, layerCount, materialTable);
+
+            // Material indices per layer
             for (int l = 0; l < layerCount; l++)
-                writer.Write(0); // default material index
+                writer.Write(meshMaterialIndices[l]);
         }
 
         // ---- Materials ----
@@ -519,5 +535,63 @@ public class SemodelTranslator : SceneTranslator
             return;
 
         mesh.SetSkinBinding(bones);
+    }
+
+    private static int[] GetExportBoneIndices(Mesh mesh, Dictionary<SkeletonBone, int> boneTable)
+    {
+        if (mesh.SkinnedBones is null)
+            return [];
+
+        List<string> missingBones = [];
+        foreach (SkeletonBone skinnedBone in mesh.SkinnedBones)
+        {
+            if (!boneTable.ContainsKey(skinnedBone))
+                missingBones.Add(skinnedBone.Name);
+        }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Cannot write SEModel: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+        }
+
+        return mesh.GetBoneIndices(boneTable);
+    }
+
+    private static int[] GetExportMaterialIndices(Mesh mesh, int layerCount, IReadOnlyDictionary<Material, int> materialTable)
+    {
+        if (layerCount <= 0)
+            return [];
+
+        int[] indices = new int[layerCount];
+
+        for (int layerIndex = 0; layerIndex < layerCount; layerIndex++)
+            indices[layerIndex] = ResolveExportMaterialIndex(mesh, layerIndex, materialTable);
+
+        return indices;
+    }
+
+    private static int ResolveExportMaterialIndex(Mesh mesh, int layerIndex, IReadOnlyDictionary<Material, int> materialTable)
+    {
+        if (mesh.Materials is null || mesh.Materials.Count == 0 || materialTable.Count == 0)
+            return -1;
+
+        if (layerIndex < mesh.Materials.Count)
+        {
+            Material exactMaterial = mesh.Materials[layerIndex];
+            if (materialTable.TryGetValue(exactMaterial, out int exactIndex))
+                return exactIndex;
+
+            throw new InvalidDataException(
+                $"Cannot write SEModel: mesh '{mesh.Name}' references material '{exactMaterial.Name}' for layer {layerIndex} that is not included in the export selection.");
+        }
+
+        foreach (Material material in mesh.Materials)
+        {
+            if (materialTable.TryGetValue(material, out int fallbackIndex))
+                return fallbackIndex;
+        }
+
+        return -1;
     }
 }

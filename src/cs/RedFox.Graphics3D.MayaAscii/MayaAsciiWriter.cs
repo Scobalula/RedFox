@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.MayaAscii;
@@ -33,6 +34,7 @@ public sealed class MayaAsciiWriter
     private readonly List<MayaConnection> _connections = [];
     private readonly Dictionary<SceneNode, string> _nodeNames = [];
     private readonly HashSet<string> _usedNames = [];
+    private SceneTranslationSelection? _selection;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MayaAsciiWriter"/> class that writes to the specified stream.
@@ -59,24 +61,33 @@ public sealed class MayaAsciiWriter
     /// <param name="scene">The scene to export. Must not be <see langword="null"/>.</param>
     /// <param name="name">The file or scene name used in the file header.</param>
     public void Write(Scene scene, string name)
+        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), name);
+
+    /// <summary>
+    /// Writes the selected scene view to the output stream as a Maya ASCII file.
+    /// </summary>
+    /// <param name="selection">The filtered scene selection to export.</param>
+    /// <param name="name">The file or scene name used in the file header.</param>
+    public void Write(SceneTranslationSelection selection, string name)
     {
-        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(selection);
 
         _connections.Clear();
         _nodeNames.Clear();
         _usedNames.Clear();
+        _selection = selection;
 
         WriteHeader(name);
 
-        Model[] models = scene.GetDescendants<Model>();
-        Group[] groups = scene.GetDescendants<Group>();
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>().Where(s => s is not SkeletonBone).ToArray();
-        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
-        Mesh[] meshes = scene.GetDescendants<Mesh>();
-        Camera[] cameras = scene.GetDescendants<Camera>();
-        Light[] lights = scene.GetDescendants<Light>();
-        ConstraintNode[] constraints = scene.GetDescendants<ConstraintNode>();
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
+        Model[] models = selection.GetDescendants<Model>();
+        Group[] groups = selection.GetDescendants<Group>();
+        Skeleton[] skeletons = selection.GetDescendants<Skeleton>();
+        SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
+        Mesh[] meshes = selection.GetDescendants<Mesh>();
+        Camera[] cameras = selection.GetDescendants<Camera>();
+        Light[] lights = selection.GetDescendants<Light>();
+        ConstraintNode[] constraints = selection.GetDescendants<ConstraintNode>();
+        SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
 
         Dictionary<Material, string> materialNodeNames = [];
         Dictionary<Mesh, string> meshShapeNames = [];
@@ -181,20 +192,21 @@ public sealed class MayaAsciiWriter
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        Vector3 translation = node.GetBindLocalPosition();
+        Transform transform = GetExportBindTransform(node);
+        Vector3 translation = transform.LocalPosition ?? Vector3.Zero;
         if (translation != Vector3.Zero)
         {
             _writer.WriteLine($"setAttr \".t\" -type \"double3\" {FormatFloat(translation.X)} {FormatFloat(translation.Y)} {FormatFloat(translation.Z)};");
         }
 
-        Quaternion rotation = Quaternion.Normalize(node.GetBindLocalRotation());
+        Quaternion rotation = Quaternion.Normalize(transform.LocalRotation ?? Quaternion.Identity);
         if (rotation != Quaternion.Identity)
         {
             Vector3 euler = QuaternionToEulerDegrees(rotation);
             _writer.WriteLine($"setAttr \".r\" -type \"double3\" {FormatFloat(euler.X)} {FormatFloat(euler.Y)} {FormatFloat(euler.Z)};");
         }
 
-        Vector3 scale = node.GetBindLocalScale();
+        Vector3 scale = transform.Scale ?? Vector3.One;
         if (scale != Vector3.One)
         {
             _writer.WriteLine($"setAttr \".s\" -type \"double3\" {FormatFloat(scale.X)} {FormatFloat(scale.Y)} {FormatFloat(scale.Z)};");
@@ -275,6 +287,12 @@ public sealed class MayaAsciiWriter
         {
             foreach (Material material in mesh.Materials)
             {
+                if (_selection is not null && !_selection.Includes(material))
+                {
+                    throw new InvalidDataException(
+                        $"Cannot write Maya ASCII: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+                }
+
                 if (!materialNodeNames.ContainsKey(material))
                 {
                     WriteMaterial(material, materialNodeNames);
@@ -533,6 +551,19 @@ public sealed class MayaAsciiWriter
         if (mesh.SkinnedBones is null || mesh.BoneIndices is null || mesh.BoneWeights is null)
         {
             return;
+        }
+
+        List<string> missingBones = [];
+        foreach (SkeletonBone bone in mesh.SkinnedBones)
+        {
+            if (!_nodeNames.ContainsKey(bone))
+                missingBones.Add(bone.Name);
+        }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException(
+                $"Cannot write Maya ASCII: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
         string baseName = SanitizeMayaName(mesh.Name);
@@ -928,22 +959,23 @@ public sealed class MayaAsciiWriter
     public void WriteJointAttributes(SkeletonBone bone)
     {
         ArgumentNullException.ThrowIfNull(bone);
+        Transform transform = GetExportBindTransform(bone);
 
         _writer.WriteLine("addAttr -ci true -sn \"liw\" -ln \"lockInfluenceWeights\" -bt \"lock\" -min 0 -max 1 -at \"bool\";");
         _writer.WriteLine("setAttr \".uoc\" yes;");
         _writer.WriteLine("setAttr \".ove\" yes;");
 
-        Vector3 translation = bone.GetBindLocalPosition();
+        Vector3 translation = transform.LocalPosition ?? Vector3.Zero;
         _writer.WriteLine($"setAttr \".t\" -type \"double3\" {FormatFloat(translation.X)} {FormatFloat(translation.Y)} {FormatFloat(translation.Z)};");
 
         _writer.WriteLine("setAttr \".mnrl\" -type \"double3\" -360 -360 -360;");
         _writer.WriteLine("setAttr \".mxrl\" -type \"double3\" 360 360 360;");
 
-        Quaternion rotation = Quaternion.Normalize(bone.GetBindLocalRotation());
+        Quaternion rotation = Quaternion.Normalize(transform.LocalRotation ?? Quaternion.Identity);
         Vector3 euler = QuaternionToEulerDegrees(rotation);
         _writer.WriteLine($"setAttr \".jo\" -type \"double3\" {FormatFloat(euler.X)} {FormatFloat(euler.Y)} {FormatFloat(euler.Z)};");
 
-        Vector3 scale = bone.GetBindLocalScale();
+        Vector3 scale = transform.Scale ?? Vector3.One;
         _writer.WriteLine($"setAttr \".scale\" -type \"double3\" {FormatFloat(scale.X)} {FormatFloat(scale.Y)} {FormatFloat(scale.Z)};");
 
         _writer.WriteLine("setAttr \".radi\" 0.5;");
@@ -1010,12 +1042,52 @@ public sealed class MayaAsciiWriter
     /// <returns>The parent Maya node name, or <see langword="null"/> if no parent is registered.</returns>
     public string? GetParentDagName(SceneNode node)
     {
-        if (node.Parent is not null && _nodeNames.TryGetValue(node.Parent, out string? parentName))
+        SceneNode? exportParent = GetExportParent(node);
+        if (exportParent is not null && _nodeNames.TryGetValue(exportParent, out string? parentName))
         {
             return parentName;
         }
 
         return null;
+    }
+
+    private SceneNode? GetExportParent(SceneNode node)
+    {
+        for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (_nodeNames.ContainsKey(current))
+                return current;
+        }
+
+        return null;
+    }
+
+    private Transform GetExportBindTransform(SceneNode node)
+    {
+        SceneNode? exportParent = GetExportParent(node);
+        Vector3 worldPosition = node.GetBindWorldPosition();
+        Quaternion worldRotation = Quaternion.Normalize(node.GetBindWorldRotation());
+        Vector3 localScale = node.GetBindLocalScale();
+
+        if (exportParent is not null)
+        {
+            Vector3 parentWorldPosition = exportParent.GetBindWorldPosition();
+            Quaternion parentWorldRotation = Quaternion.Normalize(exportParent.GetBindWorldRotation());
+
+            return new Transform
+            {
+                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
+                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
+                Scale = localScale,
+            };
+        }
+
+        return new Transform
+        {
+            LocalPosition = worldPosition,
+            LocalRotation = worldRotation,
+            Scale = localScale,
+        };
     }
 
 
@@ -1175,6 +1247,11 @@ public sealed class MayaAsciiWriter
         {
             constrainedParent = constrainedName;
         }
+        else
+        {
+            throw new InvalidDataException(
+                $"Cannot write Maya ASCII: constraint '{constraint.Name}' targets node '{constraint.ConstrainedNode.Name}' that is not included in the export selection.");
+        }
 
         if (constraint is ParentConstraintNode parentConstraint)
         {
@@ -1206,13 +1283,16 @@ public sealed class MayaAsciiWriter
                 _connections.Add(new MayaConnection(constraintName + ".crz", constrainedName + ".rz", false));
             }
 
-            if (_nodeNames.TryGetValue(parentConstraint.SourceNode, out string? sourceName))
+            if (!_nodeNames.TryGetValue(parentConstraint.SourceNode, out string? sourceName))
             {
-                _connections.Add(new MayaConnection(sourceName + ".t", constraintName + ".tg[0].tt", false));
-                _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
-                _connections.Add(new MayaConnection(sourceName + ".ro", constraintName + ".tg[0].tro", false));
-                _connections.Add(new MayaConnection(sourceName + ".pm", constraintName + ".tg[0].tpm", false));
+                throw new InvalidDataException(
+                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{parentConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
+
+            _connections.Add(new MayaConnection(sourceName + ".t", constraintName + ".tg[0].tt", false));
+            _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
+            _connections.Add(new MayaConnection(sourceName + ".ro", constraintName + ".tg[0].tro", false));
+            _connections.Add(new MayaConnection(sourceName + ".pm", constraintName + ".tg[0].tpm", false));
         }
         else if (constraint is OrientConstraintNode orientConstraint)
         {
@@ -1235,11 +1315,14 @@ public sealed class MayaAsciiWriter
                 _connections.Add(new MayaConnection(constraintName + ".crz", constrainedName + ".rz", false));
             }
 
-            if (_nodeNames.TryGetValue(orientConstraint.SourceNode, out string? sourceName))
+            if (!_nodeNames.TryGetValue(orientConstraint.SourceNode, out string? sourceName))
             {
-                _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
-                _connections.Add(new MayaConnection(sourceName + ".ro", constraintName + ".tg[0].tro", false));
+                throw new InvalidDataException(
+                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{orientConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
+
+            _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
+            _connections.Add(new MayaConnection(sourceName + ".ro", constraintName + ".tg[0].tro", false));
         }
     }
 }
