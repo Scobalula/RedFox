@@ -51,7 +51,7 @@ internal static class CastModelTranslator
         var modelNode = root.AddNode<ModelNode>();
 
         // Skeleton — find bones from the scene
-        var bones = scene.RootNode.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
+        var bones = scene.RootNode.GetDescendants<SkeletonBone>();
 
         if (bones.Length > 0)
         {

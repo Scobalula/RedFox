@@ -42,10 +42,10 @@ public sealed class Md5AnimWriter
     /// </exception>
     public void Write(Scene scene)
     {
-        var skelAnim = scene.TryGetFirstOfType<SkeletonAnimation>(SceneNodeFlags.NoExport)
+        var skelAnim = scene.TryGetFirstOfType<SkeletonAnimation>()
             ?? throw new InvalidOperationException("Scene must contain a skeleton animation to write as MD5 anim.");
 
-        var allBones = scene.RootNode.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
+        var allBones = scene.RootNode.GetDescendants<SkeletonBone>();
         if (allBones.Length == 0)
             throw new InvalidOperationException("Scene must contain a skeleton to write as MD5 anim.");
 

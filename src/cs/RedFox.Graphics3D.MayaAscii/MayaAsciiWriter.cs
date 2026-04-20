@@ -68,15 +68,15 @@ public sealed class MayaAsciiWriter
 
         WriteHeader(name);
 
-        Model[] models = scene.GetDescendants<Model>(SceneNodeFlags.NoExport);
-        Group[] groups = scene.GetDescendants<Group>(SceneNodeFlags.NoExport);
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>(SceneNodeFlags.NoExport).Where(s => s is not SkeletonBone).ToArray();
-        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
-        Mesh[] meshes = scene.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
-        Camera[] cameras = scene.GetDescendants<Camera>(SceneNodeFlags.NoExport);
-        Light[] lights = scene.GetDescendants<Light>(SceneNodeFlags.NoExport);
-        ConstraintNode[] constraints = scene.GetDescendants<ConstraintNode>(SceneNodeFlags.NoExport);
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>(SceneNodeFlags.NoExport);
+        Model[] models = scene.GetDescendants<Model>();
+        Group[] groups = scene.GetDescendants<Group>();
+        Skeleton[] skeletons = scene.GetDescendants<Skeleton>().Where(s => s is not SkeletonBone).ToArray();
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
+        Mesh[] meshes = scene.GetDescendants<Mesh>();
+        Camera[] cameras = scene.GetDescendants<Camera>();
+        Light[] lights = scene.GetDescendants<Light>();
+        ConstraintNode[] constraints = scene.GetDescendants<ConstraintNode>();
+        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
 
         Dictionary<Material, string> materialNodeNames = [];
         Dictionary<Mesh, string> meshShapeNames = [];

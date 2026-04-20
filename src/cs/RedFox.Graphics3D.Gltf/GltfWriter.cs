@@ -52,10 +52,10 @@ public sealed class GltfWriter
         _doc.Scene = 0;
 
         // Collect scene data
-        Material[] materials = scene.GetDescendants<Material>(SceneNodeFlags.NoExport);
-        Mesh[] meshes = scene.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>(SceneNodeFlags.NoExport);
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>(SceneNodeFlags.NoExport);
+        Material[] materials = scene.GetDescendants<Material>();
+        Mesh[] meshes = scene.GetDescendants<Mesh>();
+        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
+        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
 
         // Write materials first
         foreach (Material mat in materials)

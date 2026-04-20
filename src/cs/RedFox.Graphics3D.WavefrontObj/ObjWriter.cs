@@ -54,7 +54,7 @@ public sealed class ObjWriter
             writer.WriteLine();
         }
 
-        Mesh[] meshes = scene.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
+        Mesh[] meshes = scene.GetDescendants<Mesh>();
 
         // Track global running offsets for v/vt/vn (OBJ uses 1-based global indices).
         int positionOffset = 0;

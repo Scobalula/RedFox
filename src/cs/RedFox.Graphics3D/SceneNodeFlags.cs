@@ -18,12 +18,12 @@ public enum SceneNodeFlags
     NoDraw,
 
     /// <summary>
-    /// Indicates that exporting is disabled for this node.
-    /// </summary>
-    NoExport,
-
-    /// <summary>
     /// Indicates that no update operation should be performed.
     /// </summary>
     NoUpdate,
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the item is selected.
+    /// </summary>
+    Selected,
 }

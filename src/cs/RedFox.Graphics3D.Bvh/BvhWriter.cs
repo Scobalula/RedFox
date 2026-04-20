@@ -93,7 +93,7 @@ public sealed class BvhWriter
     /// <param name="scene">The scene to validate.</param>
     public static void ValidateSupportedNodes(Scene scene)
     {
-        foreach (SceneNode node in scene.RootNode.EnumerateDescendants(SceneNodeFlags.NoExport))
+        foreach (SceneNode node in scene.RootNode.EnumerateDescendants())
         {
             if (node is Skeleton or SkeletonBone or SkeletonAnimation)
             {
@@ -112,7 +112,7 @@ public sealed class BvhWriter
     /// <returns>The single exportable skeleton.</returns>
     public static Skeleton GetSingleSkeleton(Scene scene)
     {
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>(SceneNodeFlags.NoExport);
+        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
         if (skeletons.Length == 0)
         {
             throw new InvalidOperationException("BVH export requires exactly one Skeleton node, but the scene does not contain one.");
@@ -133,7 +133,7 @@ public sealed class BvhWriter
     /// <returns>The single exportable animation, or <see langword="null"/> when the scene is static.</returns>
     public static SkeletonAnimation? GetSingleAnimation(Scene scene)
     {
-        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>(SceneNodeFlags.NoExport);
+        SkeletonAnimation[] animations = scene.GetDescendants<SkeletonAnimation>();
         if (animations.Length > 1)
         {
             throw new InvalidOperationException("BVH export supports a single SkeletonAnimation clip per file.");

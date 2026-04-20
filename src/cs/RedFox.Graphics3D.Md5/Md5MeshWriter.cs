@@ -35,8 +35,8 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// </exception>
     public void Write(Scene scene)
     {
-        var meshes = scene.RootNode.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
-        var allBones = scene.RootNode.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
+        var meshes = scene.RootNode.GetDescendants<Mesh>();
+        var allBones = scene.RootNode.GetDescendants<SkeletonBone>();
 
         if (meshes.Length == 0)
             throw new InvalidOperationException("Scene must contain at least one mesh to write as MD5 mesh.");
