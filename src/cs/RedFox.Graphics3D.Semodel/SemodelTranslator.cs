@@ -195,8 +195,8 @@ public class SemodelTranslator : SceneTranslator
         }
 
         // Fix up materials
-        Material[] allMaterials = model.GetDescendants<Material>();
-        Mesh[] allMeshes = model.GetDescendants<Mesh>();
+        Material[] allMaterials = model.GetDescendants<Material>(SceneNodeFlags.NoExport);
+        Mesh[] allMeshes = model.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
 
         for (int i = 0; i < allMeshes.Length && i < materialIndices.Count; i++)
         {
@@ -229,9 +229,9 @@ public class SemodelTranslator : SceneTranslator
     {
         using var writer = new BinaryWriter(stream, Encoding.Default, true);
 
-        var meshes    = scene.RootNode.GetDescendants<Mesh>() ?? [];
-        var materials = scene.RootNode.GetDescendants<Material>() ?? [];
-        var bones     = scene.RootNode.GetDescendants<SkeletonBone>() ?? [];
+        var meshes    = scene.GetDescendants<Mesh>(SceneNodeFlags.NoExport) ?? [];
+        var materials = scene.GetDescendants<Material>(SceneNodeFlags.NoExport) ?? [];
+        var bones     = scene.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport) ?? [];
         var boneTable = new Dictionary<SkeletonBone, int>();
 
         // Determine data presence flags from actual data
@@ -495,7 +495,7 @@ public class SemodelTranslator : SceneTranslator
 
     private static string? ResolveMaterialTextureName(Material material, string? fallbackName, string slot, string? targetDirectoryPath)
     {
-        foreach (var texture in material.EnumerateChildren<Texture>())
+        foreach (var texture in material.EnumerateChildren<Texture>(SceneNodeFlags.NoExport))
         {
             if (texture.Slot.Equals(slot, StringComparison.OrdinalIgnoreCase))
                 return GetPortableTextureReference(texture, targetDirectoryPath);

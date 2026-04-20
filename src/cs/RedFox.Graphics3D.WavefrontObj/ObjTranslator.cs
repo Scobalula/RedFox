@@ -132,7 +132,7 @@ public sealed class ObjTranslator : SceneTranslator
     private static Dictionary<string, Material> BuildMaterialDictionary(Scene scene)
     {
         Dictionary<string, Material> result = new(StringComparer.Ordinal);
-        foreach (Material material in scene.EnumerateDescendants<Material>())
+        foreach (Material material in scene.EnumerateDescendants<Material>(SceneNodeFlags.NoExport))
         {
             result.TryAdd(material.Name, material);
         }

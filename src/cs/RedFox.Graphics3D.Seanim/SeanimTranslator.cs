@@ -140,7 +140,7 @@ public class SeanimTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var data = scene.FirstOfType<SkeletonAnimation>() ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");
+        var data = scene.FirstOfType<SkeletonAnimation>(SceneNodeFlags.NoExport) ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 

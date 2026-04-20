@@ -42,8 +42,8 @@ public sealed class SmdWriter
     /// </param>
     public void Write(Scene scene)
     {
-        var meshes   = scene.RootNode.GetDescendants<Mesh>();
-        var skelAnim = scene.TryGetFirstOfType<SkeletonAnimation>();
+        var meshes   = scene.RootNode.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
+        var skelAnim = scene.TryGetFirstOfType<SkeletonAnimation>(SceneNodeFlags.NoExport);
 
         bool hasMeshes = meshes.Length > 0;
         bool hasAnim   = skelAnim is not null;
@@ -55,7 +55,7 @@ public sealed class SmdWriter
 
         writer.WriteLine("version 1");
 
-        var allBones = scene.RootNode.GetDescendants<SkeletonBone>();
+        var allBones = scene.RootNode.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
 
         if (hasMeshes)
         {

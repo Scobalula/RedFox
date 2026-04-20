@@ -681,14 +681,14 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneIds = [];
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
-        Model[] models = scene.GetDescendants<Model>();
-        Group[] groups = scene.GetDescendants<Group>();
-        Mesh[] meshes = scene.GetDescendants<Mesh>();
-        Material[] materials = scene.GetDescendants<Material>();
-        Skeleton[] skeletons = scene.GetDescendants<Skeleton>();
-        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
-        Camera[] cameras = scene.GetDescendants<Camera>();
-        Light[] lights = scene.GetDescendants<Light>();
+        Model[] models = scene.GetDescendants<Model>(SceneNodeFlags.NoExport);
+        Group[] groups = scene.GetDescendants<Group>(SceneNodeFlags.NoExport);
+        Mesh[] meshes = scene.GetDescendants<Mesh>(SceneNodeFlags.NoExport);
+        Material[] materials = scene.GetDescendants<Material>(SceneNodeFlags.NoExport);
+        Skeleton[] skeletons = scene.GetDescendants<Skeleton>(SceneNodeFlags.NoExport);
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>(SceneNodeFlags.NoExport);
+        Camera[] cameras = scene.GetDescendants<Camera>(SceneNodeFlags.NoExport);
+        Light[] lights = scene.GetDescendants<Light>(SceneNodeFlags.NoExport);
 
         for (int i = 0; i < models.Length; i++)
         {

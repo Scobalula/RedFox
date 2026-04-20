@@ -24,7 +24,7 @@ namespace RedFox.IO;
 internal sealed class StreamPointerDebugView<T> where T : unmanaged
 {
     private const int DefaultPreviewCount = 4;
-    private const int MaxPreviewCount = 16;
+    private const int MaxPreviewCount = 32;
 
     private readonly StreamPointer<T> _collection;
 
@@ -60,7 +60,7 @@ internal sealed class StreamPointerDebugView<T> where T : unmanaged
             }
             else
             {
-                count = Math.Min(count, DefaultPreviewCount);
+                count = Math.Min(count, MaxPreviewCount);
             }
 
             T[] items = new T[count];

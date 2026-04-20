@@ -1,4 +1,6 @@
-﻿namespace RedFox.Graphics3D;
+using System.Threading;
+
+namespace RedFox.Graphics3D;
 
 /// <summary>
 /// Provides functionality for generating unique identifiers for scene nodes in a thread-safe manner.
@@ -10,6 +12,6 @@ public static class SceneNodeId
     /// <summary>
     /// Generates and returns a unique identifier for a scene node in a thread-safe manner.
     /// </summary>
-    /// <returns>A unique integer identifier that can be used to distinguish scene nodes.</returns>
+    /// <returns>A unique integer identifier.</returns>
     public static int GetNextId() => Interlocked.Increment(ref _idCounter);
 }

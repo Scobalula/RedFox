@@ -38,80 +38,12 @@ namespace RedFox.IO;
 [DebuggerTypeProxy(typeof(StreamPointerDebugView<>))]
 public sealed class StreamPointer<T> where T : unmanaged
 {
+    private readonly int _count;
+
     /// <summary>
     /// Gets the size, in bytes, of type <typeparamref name="T"/>.
     /// </summary>
     public static readonly int SizeOf = Unsafe.SizeOf<T>();
-
-    private readonly int _count;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class from the current stream position.
-    /// </summary>
-    /// <param name="stream">The base stream to read from.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
-    public StreamPointer(Stream stream)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-        BaseStream = stream;
-        Pointer = stream.Position;
-        _count = -1;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class from the specified position.
-    /// </summary>
-    /// <param name="stream">The base stream to read from.</param>
-    /// <param name="pointer">The offset in the stream where the data begins.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
-    public StreamPointer(Stream stream, long pointer)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-        BaseStream = stream;
-        Pointer = pointer;
-        _count = -1;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class for a contiguous array.
-    /// </summary>
-    /// <param name="stream">The base stream to read from.</param>
-    /// <param name="pointer">The offset in the stream where the array begins.</param>
-    /// <param name="count">The number of items in the array.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
-    public StreamPointer(Stream stream, long pointer, int count)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-
-        BaseStream = stream;
-        Pointer = pointer;
-        _count = count;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class with pointer-chase mode control.
-    /// </summary>
-    /// <param name="stream">The base stream to read from.</param>
-    /// <param name="pointer">The offset in the stream where the data or pointer array begins.</param>
-    /// <param name="count">The number of items in the array.</param>
-    /// <param name="isPointerArray">
-    /// If <c>true</c>, the index accesses a pointer table where each index points to the actual data;
-    /// if <c>false</c>, accesses are direct contiguous reads.
-    /// </param>
-    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
-    public StreamPointer(Stream stream, long pointer, int count, bool isPointerArray)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-        ArgumentOutOfRangeException.ThrowIfNegative(count);
-
-        BaseStream = stream;
-        Pointer = pointer;
-        _count = count;
-        IsPointerArray = isPointerArray;
-    }
 
     /// <summary>
     /// Gets the base stream from which data is read.
@@ -181,6 +113,74 @@ public sealed class StreamPointer<T> where T : unmanaged
                 BaseStream.Position = originalPosition;
             }
         }
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class from the current stream position.
+    /// </summary>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    public StreamPointer(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        BaseStream = stream;
+        Pointer = stream.Position;
+        _count = -1;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class from the specified position.
+    /// </summary>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the data begins.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    public StreamPointer(Stream stream, long pointer)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        BaseStream = stream;
+        Pointer = pointer;
+        _count = -1;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class for a contiguous array.
+    /// </summary>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public StreamPointer(Stream stream, long pointer, int count)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+        BaseStream = stream;
+        Pointer = pointer;
+        _count = count;
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StreamPointer{T}"/> class with pointer-chase mode control.
+    /// </summary>
+    /// <param name="stream">The base stream to read from.</param>
+    /// <param name="pointer">The offset in the stream where the data or pointer array begins.</param>
+    /// <param name="count">The number of items in the array.</param>
+    /// <param name="isPointerArray">
+    /// If <c>true</c>, the index accesses a pointer table where each index points to the actual data;
+    /// if <c>false</c>, accesses are direct contiguous reads.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="stream"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is negative.</exception>
+    public StreamPointer(Stream stream, long pointer, int count, bool isPointerArray)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+
+        BaseStream = stream;
+        Pointer = pointer;
+        _count = count;
+        IsPointerArray = isPointerArray;
     }
 
     /// <summary>
