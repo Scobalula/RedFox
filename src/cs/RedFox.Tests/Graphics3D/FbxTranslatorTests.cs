@@ -205,7 +205,7 @@ public sealed class FbxTranslatorTests
         importedRoot.BindTransform.LocalRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
         importedRoot.BindTransform.Scale = Vector3.One;
 
-        Skeleton skeleton = importedRoot.AddNode(new Skeleton("Rig"));
+        SkeletonBone skeleton = importedRoot.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("t7:Bone"));
         bone.BindTransform.LocalPosition = Vector3.Zero;
         bone.BindTransform.LocalRotation = Quaternion.Identity;
@@ -260,7 +260,7 @@ public sealed class FbxTranslatorTests
         importedRoot.BindTransform.LocalRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
         importedRoot.BindTransform.Scale = Vector3.One;
 
-        Skeleton skeleton = importedRoot.AddNode(new Skeleton("Rig"));
+        SkeletonBone skeleton = importedRoot.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("t7:Bone"));
         bone.BindTransform.LocalPosition = new Vector3(7f, 0f, 0f); // Imported/model local (live pose)
         bone.BindTransform.LocalRotation = Quaternion.Identity;
@@ -311,7 +311,7 @@ public sealed class FbxTranslatorTests
         importedRoot.BindTransform.LocalRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
         importedRoot.BindTransform.Scale = Vector3.One;
 
-        Skeleton skeleton = importedRoot.AddNode(new Skeleton("Rig"));
+        SkeletonBone skeleton = importedRoot.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("SmallOffsetBone"));
         bone.BindTransform.LocalPosition = new Vector3(5.3f, 0f, 0f);
         bone.BindTransform.LocalRotation = Quaternion.Identity;
@@ -354,7 +354,7 @@ public sealed class FbxTranslatorTests
     public void FbxTranslator_Write_UsesExactBindLocalTransforms()
     {
         Scene sourceScene = CreateSampleScene();
-        Skeleton skeleton = sourceScene.GetDescendants<Skeleton>()[0];
+        SkeletonBone skeleton = sourceScene.GetDescendants<SkeletonBone>()[0];
         skeleton.BindTransform.LocalPosition = new Vector3(4f, -3f, 2f);
         skeleton.BindTransform.LocalRotation = Quaternion.Normalize(Quaternion.CreateFromYawPitchRoll(0.5f, -0.25f, 0.1f));
         skeleton.BindTransform.Scale = new Vector3(1.1f, 0.9f, 1.25f);
@@ -393,7 +393,7 @@ public sealed class FbxTranslatorTests
     public void FbxTranslator_Write_UsesLiveModelTransformsButPreservesBindClusterMatrices()
     {
         Scene scene = new("live-vs-bind-export");
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Rig"));
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("t7:Bone"));
         bone.BindTransform.LocalPosition = new Vector3(5f, 0f, 0f);
         bone.BindTransform.LocalRotation = Quaternion.Identity;
@@ -432,7 +432,7 @@ public sealed class FbxTranslatorTests
     public void FbxTranslator_Write_UsesLiveModelTransformsForNonT7BonesAndPreservesBindClusterMatrices()
     {
         Scene scene = new("live-vs-bind-export-non-t7");
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Rig"));
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("Bone"));
         bone.BindTransform.LocalPosition = new Vector3(5f, 0f, 0f);
         bone.BindTransform.LocalRotation = Quaternion.Identity;
@@ -584,9 +584,9 @@ public sealed class FbxTranslatorTests
         FbxDocument document = CreateImportClassificationDocument();
 
         Scene scene = FbxSceneMapper.ImportScene(document, "classification-test");
-        Skeleton rigRoot = Assert.Single(scene.EnumerateChildren().OfType<Skeleton>(), static skeleton => skeleton.Name == "RigRoot");
+        SkeletonBone rigRoot = Assert.Single(scene.EnumerateChildren().OfType<SkeletonBone>(), static bone => bone.Name == "RigRoot");
 
-        Assert.Equal(2, rigRoot.GetBones().Length);
+        Assert.Equal(2, rigRoot.EnumerateHierarchy<SkeletonBone>().Count());
         Assert.DoesNotContain(scene.EnumerateChildren(), static child => child.Name == "FbxSkeleton");
         Assert.DoesNotContain(scene.EnumerateChildren(), static child => child.Name == "FbxModelRoot");
         Assert.DoesNotContain(scene.GetDescendants<Group>(), static group => group.Name == "RigRoot");
@@ -658,7 +658,7 @@ public sealed class FbxTranslatorTests
 
         Scene scene = FbxSceneMapper.ImportScene(document, "constraint-owner-test");
         ParentConstraintNode constraint = Assert.Single(scene.GetDescendants<ParentConstraintNode>());
-        Skeleton rigRoot = Assert.Single(scene.EnumerateChildren().OfType<Skeleton>(), static skeleton => skeleton.Name == "RigRoot");
+        SkeletonBone rigRoot = Assert.Single(scene.EnumerateChildren().OfType<SkeletonBone>(), static bone => bone.Name == "RigRoot");
 
         Assert.Same(rigRoot, constraint.Parent);
     }
@@ -868,8 +868,8 @@ public sealed class FbxTranslatorTests
     {
         Scene scene = new("FbxSample");
 
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Armature"));
-        SkeletonBone rootBone = skeleton.AddNode(new SkeletonBone("root"));
+        SkeletonBone armature = scene.RootNode.AddNode(new SkeletonBone("Armature"));
+        SkeletonBone rootBone = armature.AddNode(new SkeletonBone("root"));
         rootBone.BindTransform.LocalPosition = new Vector3(0f, 0f, 0f);
         rootBone.BindTransform.LocalRotation = Quaternion.Identity;
         rootBone.BindTransform.Scale = Vector3.One;
@@ -986,7 +986,7 @@ public sealed class FbxTranslatorTests
 
         Model model = Assert.Single(scene.GetDescendants<Model>());
         Mesh mesh = Assert.Single(scene.GetDescendants<Mesh>());
-        Skeleton skeleton = Assert.Single(scene.GetDescendants<Skeleton>(), static skeleton => skeleton is not SkeletonBone);
+        SkeletonBone skeleton = Assert.Single(scene.GetDescendants<SkeletonBone>().Where(b => b.Parent is not SkeletonBone));
 
         model.Flags = SceneNodeFlags.Selected;
         mesh.Flags = SceneNodeFlags.Selected;

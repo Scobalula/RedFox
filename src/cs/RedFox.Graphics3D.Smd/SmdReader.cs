@@ -98,7 +98,7 @@ public sealed class SmdReader
         }
 
         // ---- Build skeleton hierarchy ----
-        var skeleton = scene.RootNode.AddNode<Skeleton>($"{_name}_Skeleton");
+        var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{_name}_Skeleton"));
         foreach (var (idx, _, parentIdx) in boneInfos)
         {
             if (parentIdx < 0)
@@ -430,7 +430,7 @@ public sealed class SmdReader
     /// </returns>
     public static SkeletonAnimation BuildAnimation(Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>> frameData, SkeletonBone[] bones)
     {
-        var anim = new SkeletonAnimation("Animation", null, bones.Length, TransformType.Absolute)
+        var anim = new SkeletonAnimation("Animation", bones.Length, TransformType.Absolute)
         {
             Framerate     = 30f,
             TransformType = TransformType.Absolute,

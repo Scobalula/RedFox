@@ -106,7 +106,7 @@ public class SemodelTranslator : SceneTranslator
         }
 
         // ---- Build skeleton hierarchy ----
-        var skeleton = scene.RootNode.AddNode<Skeleton>($"{name}_Skeleton");
+                    var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{name}_Skeleton"));
 
         for (int i = 0; i < bones.Length; i++)
         {
@@ -529,7 +529,7 @@ public class SemodelTranslator : SceneTranslator
         return texture.FilePath;
     }
 
-    private static void AssignSkinBinding(Mesh mesh, Skeleton skeleton, SkeletonBone[] bones)
+    private static void AssignSkinBinding(Mesh mesh, SkeletonBone skeleton, SkeletonBone[] bones)
     {
         if (mesh.BoneIndices is null || mesh.BoneWeights is null)
             return;

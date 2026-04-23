@@ -43,7 +43,6 @@
     <ProjectReference Include="..\RedFox.Graphics3D.Semodel\RedFox.Graphics3D.Semodel.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Preview\RedFox.Graphics3D.Preview.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />

@@ -13,12 +13,21 @@ namespace RedFox.Graphics3D
     {
         private SkeletonBone[]? _skinnedBones;
         private Matrix4x4[]? _inverseBindMatrices;
+        private SceneBounds[]? _cachedSkinBounds;
         private bool _hasExplicitInverseBindMatrices;
 
         /// <summary>
         /// Gets or sets the data buffer that contains vertex position information for the mesh.
         /// </summary>
-        public DataBuffer? Positions { get; set; }
+        public DataBuffer? Positions
+        {
+            get;
+            set
+            {
+                field = value;
+                InvalidateSkinBoundsCache();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the normals data associated with the geometry.
@@ -52,13 +61,29 @@ namespace RedFox.Graphics3D
         /// When <see cref="SkinnedBones"/> is present, values map into that ordered bone table.
         /// Importers that preserve source skeleton order can populate <see cref="SkinnedBones"/> with the full ordered skeleton.
         /// </summary>
-        public DataBuffer? BoneIndices { get; set; }
+        public DataBuffer? BoneIndices
+        {
+            get;
+            set
+            {
+                field = value;
+                InvalidateSkinBoundsCache();
+            }
+        }
 
         /// <summary>
         /// Gets or sets the bone weights associated with the mesh, which determine the influence of each bone on the
         /// mesh's vertices.
         /// </summary>
-        public DataBuffer? BoneWeights { get; set; }
+        public DataBuffer? BoneWeights
+        {
+            get;
+            set
+            {
+                field = value;
+                InvalidateSkinBoundsCache();
+            }
+        }
 
         /// <summary>
         /// Gets or Sets the delta positions for use in morph animations. The index points to the morph target in the main model that owns this mesh.
@@ -126,6 +151,7 @@ namespace RedFox.Graphics3D
                 else
                     _inverseBindMatrices = CopyToArray(value);
 
+                _cachedSkinBounds = null;
                 _hasExplicitInverseBindMatrices = true;
             }
         }
@@ -135,6 +161,96 @@ namespace RedFox.Graphics3D
         /// rather than generated from the active bind transforms.
         /// </summary>
         public bool HasExplicitInverseBindMatrices => _hasExplicitInverseBindMatrices;
+
+        /// <summary>
+        /// Invalidates the cached animated bounds. Call this after mutating skinning-related buffers in place.
+        /// </summary>
+        public void InvalidateSkinBoundsCache()
+            => _cachedSkinBounds = null;
+
+        internal bool TryGetActiveSkinBounds(out SceneBounds bounds)
+        {
+            if (!HasSkinning
+                || Positions is not { ElementCount: > 0 }
+                || BoneIndices is null
+                || BoneWeights is null
+                || _skinnedBones is not { Length: > 0 } skinnedBones)
+            {
+                bounds = SceneBounds.Invalid;
+                return false;
+            }
+
+            EnsureInverseBindMatrices();
+            if (_inverseBindMatrices is not { Length: var inverseBindCount } || inverseBindCount != skinnedBones.Length)
+            {
+                bounds = SceneBounds.Invalid;
+                return false;
+            }
+
+            _cachedSkinBounds ??= BuildSkinBounds();
+            if (_cachedSkinBounds.Length == 0)
+            {
+                bounds = SceneBounds.Invalid;
+                return false;
+            }
+
+            bool hasBounds = false;
+            Vector3 min = new(float.MaxValue, float.MaxValue, float.MaxValue);
+            Vector3 max = new(float.MinValue, float.MinValue, float.MinValue);
+
+            for (int i = 0; i < _cachedSkinBounds.Length; i++)
+            {
+                SceneBounds boneBounds = _cachedSkinBounds[i];
+                if (!boneBounds.IsValid)
+                {
+                    continue;
+                }
+
+                ExpandBounds(boneBounds, skinnedBones[i].GetActiveWorldMatrix(), ref hasBounds, ref min, ref max);
+            }
+
+            bounds = hasBounds ? new SceneBounds(min, max) : SceneBounds.Invalid;
+            return bounds.IsValid;
+        }
+
+        /// <inheritdoc/>
+        public override bool TryGetSceneBounds(out SceneBounds bounds)
+        {
+            if (TryGetActiveSkinBounds(out bounds))
+            {
+                return true;
+            }
+
+            if (Positions is not { ElementCount: > 0 })
+            {
+                bounds = SceneBounds.Invalid;
+                return false;
+            }
+
+            bool hasBounds = false;
+            Vector3 min = new(float.MaxValue, float.MaxValue, float.MaxValue);
+            Vector3 max = new(float.MinValue, float.MinValue, float.MinValue);
+            Matrix4x4 world = GetActiveWorldMatrix();
+
+            for (int i = 0; i < Positions.ElementCount; i++)
+            {
+                Vector3 worldPosition = Vector3.Transform(Positions.GetVector3(i, 0), world);
+                if (!hasBounds)
+                {
+                    min = worldPosition;
+                    max = worldPosition;
+                    hasBounds = true;
+                }
+                else
+                {
+                    min = Vector3.Min(min, worldPosition);
+                    max = Vector3.Max(max, worldPosition);
+                }
+            }
+
+            bounds = hasBounds ? new SceneBounds(min, max) : SceneBounds.Invalid;
+            return bounds.IsValid;
+        }
 
         /// <summary>
         /// Sets the skin binding for this mesh and keeps the inverse bind matrices aligned.
@@ -161,6 +277,7 @@ namespace RedFox.Graphics3D
             {
                 _skinnedBones = null;
                 _inverseBindMatrices = null;
+                _cachedSkinBounds = null;
                 _hasExplicitInverseBindMatrices = false;
                 return;
             }
@@ -171,11 +288,13 @@ namespace RedFox.Graphics3D
             if (inverseBindMatrices is not null)
             {
                 _inverseBindMatrices = CopyAndFillInverseBindMatrices(skinnedBoneArray, inverseBindMatrices);
+                _cachedSkinBounds = null;
                 _hasExplicitInverseBindMatrices = true;
                 return;
             }
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBoneArray);
+            _cachedSkinBounds = null;
             _hasExplicitInverseBindMatrices = false;
         }
 
@@ -191,6 +310,7 @@ namespace RedFox.Graphics3D
                 return;
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
+            _cachedSkinBounds = null;
             _hasExplicitInverseBindMatrices = false;
         }
 
@@ -207,6 +327,7 @@ namespace RedFox.Graphics3D
             }
 
             _inverseBindMatrices = CreateInverseBindMatrices(skinnedBones);
+            _cachedSkinBounds = null;
             _hasExplicitInverseBindMatrices = false;
         }
 
@@ -237,6 +358,7 @@ namespace RedFox.Graphics3D
             }
 
             _inverseBindMatrices = result;
+            _cachedSkinBounds = null;
             _hasExplicitInverseBindMatrices = false;
         }
 
@@ -280,12 +402,14 @@ namespace RedFox.Graphics3D
 
                 _skinnedBones = newSkinnedBones;
                 _inverseBindMatrices = newInverseBindMatrices;
+                _cachedSkinBounds = null;
                 _hasExplicitInverseBindMatrices = _hasExplicitInverseBindMatrices && inverseBindMatrix.HasValue;
             }
             else
             {
                 _skinnedBones = [bone];
                 _inverseBindMatrices = [inverseBindMatrix ?? CreateInverseBindMatrix(bone, new())];
+                _cachedSkinBounds = null;
                 _hasExplicitInverseBindMatrices = inverseBindMatrix.HasValue;
             }
 
@@ -332,6 +456,7 @@ namespace RedFox.Graphics3D
             {
                 _skinnedBones = null;
                 _inverseBindMatrices = null;
+                _cachedSkinBounds = null;
                 ZeroAllSkinInfluences();
                 return true;
             }
@@ -354,6 +479,7 @@ namespace RedFox.Graphics3D
 
             _skinnedBones = newSkinnedBones;
             _inverseBindMatrices = newInverseBindMatrices;
+            _cachedSkinBounds = null;
 
             RemapSkinInfluencesAfterSkinRemoval(skinIndex, oldSkinnedBoneCount);
 
@@ -382,6 +508,9 @@ namespace RedFox.Graphics3D
                 skinnedBones[i] = replacement;
                 remappedCount++;
             }
+
+            if (remappedCount > 0)
+                _cachedSkinBounds = null;
 
             return remappedCount;
         }
@@ -461,6 +590,7 @@ namespace RedFox.Graphics3D
             BoneWeights = null;
             _skinnedBones = null;
             _inverseBindMatrices = null;
+            _cachedSkinBounds = null;
             SkinBindingName = null;
         }
 
@@ -540,6 +670,8 @@ namespace RedFox.Graphics3D
             _inverseBindMatrices is not null
             && _skinnedBones is not null
             && _inverseBindMatrices.Length == _skinnedBones.Length;
+
+        public MeshFaceOrder FaceOrder { get; private set; }
 
         /// <summary>
         /// Gets the vertex position for the specified vertex index, applying the current skin pose when available.
@@ -699,6 +831,40 @@ namespace RedFox.Graphics3D
             return ApplySkinning(bitangent, vertexIndex, transformAsDirection: true, skinTransforms);
         }
 
+        /// <summary>
+        /// Generates vertex normals for this mesh.
+        /// </summary>
+        public void GenerateNormals()
+            => GenerateNormals(NormalGenerationMode.EqualWeight, preserveExisting: false);
+
+        /// <summary>
+        /// Generates vertex normals for this mesh using the specified normal generation mode.
+        /// </summary>
+        /// <param name="mode">The algorithm or strategy to use when generating normals for the mesh.</param>
+        public void GenerateNormals(NormalGenerationMode mode)
+            => GenerateNormals(mode, preserveExisting: false);
+
+
+        /// <summary>
+        /// Generates vertex normals for this mesh.
+        /// </summary>
+        /// <param name="preserveExisting">If <see langword="true"/>, existing normals are preserved and normals are only generated if none exist.</param>
+        public void GenerateNormals(bool preserveExisting)
+            => GenerateNormals(NormalGenerationMode.EqualWeight, preserveExisting);
+
+        /// <summary>
+        /// Generates vertex normals for this mesh using the specified normal generation mode.
+        /// </summary>
+        /// <param name="mode">The algorithm or strategy to use when generating normals for the mesh.</param>
+        /// <param name="preserveExisting">If <see langword="true"/>, existing normals are preserved and normals are only generated if none exist.</param>
+        public void GenerateNormals(NormalGenerationMode mode, bool preserveExisting)
+        {
+            if (Normals is not null && preserveExisting)
+                return;
+
+            MeshNormals.Generate(this, mode, FaceOrder);
+        }
+
         private Vector3 ApplySkinningDirect(Vector3 value, int vertexIndex, bool transformAsDirection)
         {
             if (BoneIndices is null || BoneWeights is null || _skinnedBones is not { Length: > 0 } skinnedBones)
@@ -818,6 +984,102 @@ namespace RedFox.Graphics3D
             for (int i = 0; i < source.Count; i++)
                 result[i] = source[i];
             return result;
+        }
+
+        private SceneBounds[] BuildSkinBounds()
+        {
+            if (Positions is null
+                || BoneIndices is null
+                || BoneWeights is null
+                || _skinnedBones is not { Length: > 0 } skinnedBones
+                || _inverseBindMatrices is not { Length: var inverseBindCount }
+                || inverseBindCount != skinnedBones.Length)
+            {
+                return [];
+            }
+
+            DataBuffer positions = Positions;
+            DataBuffer boneIndices = BoneIndices;
+            DataBuffer boneWeights = BoneWeights;
+            int influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+
+            Vector3[] mins = new Vector3[skinnedBones.Length];
+            Vector3[] maxs = new Vector3[skinnedBones.Length];
+            bool[] valid = new bool[skinnedBones.Length];
+
+            for (int vertexIndex = 0; vertexIndex < positions.ElementCount; vertexIndex++)
+            {
+                Vector3 localPosition = positions.GetVector3(vertexIndex, 0);
+
+                for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
+                {
+                    float weight = boneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+                    if (weight <= 0f)
+                    {
+                        continue;
+                    }
+
+                    int skinIndex = boneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                    if ((uint)skinIndex >= (uint)skinnedBones.Length)
+                    {
+                        throw new InvalidDataException($"Mesh '{Name}' contains an invalid skin index {skinIndex} at vertex {vertexIndex}.");
+                    }
+
+                    Vector3 bindSpacePosition = Vector3.Transform(localPosition, _inverseBindMatrices[skinIndex]);
+                    if (!valid[skinIndex])
+                    {
+                        mins[skinIndex] = bindSpacePosition;
+                        maxs[skinIndex] = bindSpacePosition;
+                        valid[skinIndex] = true;
+                        continue;
+                    }
+
+                    mins[skinIndex] = Vector3.Min(mins[skinIndex], bindSpacePosition);
+                    maxs[skinIndex] = Vector3.Max(maxs[skinIndex], bindSpacePosition);
+                }
+            }
+
+            SceneBounds[] result = new SceneBounds[skinnedBones.Length];
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] = valid[i] ? new SceneBounds(mins[i], maxs[i]) : SceneBounds.Invalid;
+            }
+
+            return result;
+        }
+
+        private static void Expand(Vector3 point, ref bool hasBounds, ref Vector3 min, ref Vector3 max)
+        {
+            if (!hasBounds)
+            {
+                min = point;
+                max = point;
+                hasBounds = true;
+                return;
+            }
+
+            min = Vector3.Min(min, point);
+            max = Vector3.Max(max, point);
+        }
+
+        private static void ExpandBounds(SceneBounds bounds, Matrix4x4 transform, ref bool hasBounds, ref Vector3 min, ref Vector3 max)
+        {
+            if (!bounds.IsValid)
+            {
+                return;
+            }
+
+            Vector3 minCorner = bounds.Min;
+            Vector3 maxCorner = bounds.Max;
+
+            Expand(Vector3.Transform(new Vector3(minCorner.X, minCorner.Y, minCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(maxCorner.X, minCorner.Y, minCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(minCorner.X, maxCorner.Y, minCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(maxCorner.X, maxCorner.Y, minCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(minCorner.X, minCorner.Y, maxCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(maxCorner.X, minCorner.Y, maxCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(minCorner.X, maxCorner.Y, maxCorner.Z), transform), ref hasBounds, ref min, ref max);
+            Expand(Vector3.Transform(new Vector3(maxCorner.X, maxCorner.Y, maxCorner.Z), transform), ref hasBounds, ref min, ref max);
         }
 
         private void ZeroAllSkinInfluences()

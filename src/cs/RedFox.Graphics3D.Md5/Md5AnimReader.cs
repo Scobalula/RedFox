@@ -146,7 +146,7 @@ public sealed class Md5AnimReader
             }
         }
 
-        var skeleton = scene.RootNode.AddNode<Skeleton>($"{_name}_Skeleton");
+            var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{_name}_Skeleton"));
         for (int i = 0; i < hierarchy.Length; i++)
         {
             int parentIdx = hierarchy[i].ParentIndex;
@@ -159,7 +159,7 @@ public sealed class Md5AnimReader
         // Build animation
         if (frames.Count > 0)
         {
-            var anim = new SkeletonAnimation(_name, null, hierarchy.Length, TransformType.Absolute)
+            var anim = new SkeletonAnimation(_name, hierarchy.Length, TransformType.Absolute)
             {
                 Framerate = frameRate,
                 TransformType = TransformType.Absolute,

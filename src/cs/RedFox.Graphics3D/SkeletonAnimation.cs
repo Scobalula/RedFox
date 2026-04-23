@@ -15,12 +15,6 @@ namespace RedFox.Graphics3D.Skeletal;
 public class SkeletonAnimation : Animation
 {
     /// <summary>
-    /// Gets or sets the skeleton tied to this animation, if any.
-    /// When set, the sampler uses this to resolve bone references.
-    /// </summary>
-    public Skeleton? Skeleton { get; set; }
-
-    /// <summary>
     /// Gets or sets the per-bone animation tracks. Each track contains
     /// translation, rotation, and/or scale curves for a single bone.
     /// </summary>
@@ -52,27 +46,14 @@ public class SkeletonAnimation : Animation
     }
 
     /// <summary>
-    /// Initializes a new <see cref="SkeletonAnimation"/> bound to the given skeleton.
-    /// </summary>
-    /// <param name="name">The animation name.</param>
-    /// <param name="skeleton">The target skeleton (may be <see langword="null"/>).</param>
-    public SkeletonAnimation(string name, Skeleton? skeleton) : base(name)
-    {
-        Tracks = [];
-        Skeleton = skeleton;
-    }
-
-    /// <summary>
     /// Initializes a new <see cref="SkeletonAnimation"/> with pre-allocated track
     /// capacity and a specified transform type.
     /// </summary>
     /// <param name="name">The animation name.</param>
-    /// <param name="skeleton">The target skeleton.</param>
     /// <param name="targetCount">Initial track list capacity.</param>
     /// <param name="type">The global transform type.</param>
-    public SkeletonAnimation(string name, Skeleton? skeleton, int targetCount, TransformType type) : base(name)
+    public SkeletonAnimation(string name, int targetCount, TransformType type) : base(name)
     {
-        Skeleton = skeleton;
         Tracks = new(targetCount);
         TransformType = type;
     }

@@ -59,6 +59,181 @@ public abstract class DataBuffer
     }
 
     /// <summary>
+    /// Tries to expose the populated component storage as a contiguous read-only span of <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="span">When this method returns <see langword="true"/>, receives the contiguous storage span.</param>
+    /// <returns><see langword="true"/> when a direct contiguous view is available for the requested type; otherwise <see langword="false"/>.</returns>
+    public virtual bool TryGetReadOnlySpan<T>(out ReadOnlySpan<T> span) where T : unmanaged, INumber<T>
+    {
+        span = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to expose the populated component storage as a contiguous writable span of <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="span">When this method returns <see langword="true"/>, receives the contiguous writable storage span.</param>
+    /// <returns><see langword="true"/> when a writable direct view is available for the requested type; otherwise <see langword="false"/>.</returns>
+    public virtual bool TryGetSpan<T>(out Span<T> span) where T : unmanaged, INumber<T>
+    {
+        span = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Returns all populated components as a read-only span of <typeparamref name="T"/>.
+    /// Uses a direct contiguous view when available; otherwise returns a span over a converted copy.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <returns>A read-only span covering all populated components.</returns>
+    public ReadOnlySpan<T> AsReadOnlySpan<T>() where T : unmanaged, INumber<T>
+    {
+        if (TryGetReadOnlySpan<T>(out ReadOnlySpan<T> span))
+        {
+            return span;
+        }
+
+        return ToArray<T>();
+    }
+
+    /// <summary>
+    /// Returns a writable span over all populated components as <typeparamref name="T"/> when a direct writable view is supported.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <returns>A writable span covering all populated components.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the buffer cannot expose a writable contiguous span for <typeparamref name="T"/>.</exception>
+    public Span<T> AsSpan<T>() where T : unmanaged, INumber<T>
+    {
+        if (TryGetSpan<T>(out Span<T> span))
+        {
+            return span;
+        }
+
+        throw new NotSupportedException($"A writable contiguous span of {typeof(T).Name} is not available for this buffer.");
+    }
+
+    /// <summary>
+    /// Returns all components for the specified value as a read-only span of <typeparamref name="T"/>.
+    /// For contiguous buffers of matching type this is a zero-allocation slice; otherwise it is a span over a copy.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <param name="valueIndex">The zero-based index of the value within the element.</param>
+    /// <returns>A read-only span containing all components for the requested value.</returns>
+    public ReadOnlySpan<T> AsReadOnlySpan<T>(int elementIndex, int valueIndex) where T : unmanaged, INumber<T>
+    {
+        if ((uint)elementIndex >= (uint)ElementCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elementIndex));
+        }
+
+        if ((uint)valueIndex >= (uint)ValueCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(valueIndex));
+        }
+
+        if (TryGetReadOnlySpan<T>(out ReadOnlySpan<T> contiguous))
+        {
+            int start = (elementIndex * ValueCount * ComponentCount) + (valueIndex * ComponentCount);
+            return contiguous.Slice(start, ComponentCount);
+        }
+
+        return GetValueArray<T>(elementIndex, valueIndex);
+    }
+
+    /// <summary>
+    /// Returns all values/components for the specified element as a read-only span of <typeparamref name="T"/>.
+    /// For contiguous buffers of matching type this is a zero-allocation slice; otherwise it is a span over a copy.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <returns>A read-only span containing one full element of data in value-major order.</returns>
+    public ReadOnlySpan<T> AsReadOnlySpan<T>(int elementIndex) where T : unmanaged, INumber<T>
+    {
+        if ((uint)elementIndex >= (uint)ElementCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elementIndex));
+        }
+
+        int elementWidth = ValueCount * ComponentCount;
+        if (TryGetReadOnlySpan<T>(out ReadOnlySpan<T> contiguous))
+        {
+            int start = elementIndex * elementWidth;
+            return contiguous.Slice(start, elementWidth);
+        }
+
+        return GetElementArray<T>(elementIndex);
+    }
+
+    /// <summary>
+    /// Returns all components for the specified value as a new array.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <param name="valueIndex">The zero-based index of the value within the element.</param>
+    /// <returns>A new array containing all components for the requested value.</returns>
+    public T[] GetValueArray<T>(int elementIndex, int valueIndex) where T : unmanaged, INumber<T>
+    {
+        T[] output = new T[ComponentCount];
+
+        for (int componentIndex = 0; componentIndex < ComponentCount; componentIndex++)
+        {
+            output[componentIndex] = Get<T>(elementIndex, valueIndex, componentIndex);
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    /// Returns all values/components for the specified element as a new array in value-major order.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <param name="elementIndex">The zero-based index of the element.</param>
+    /// <returns>A new array containing one full element of data.</returns>
+    public T[] GetElementArray<T>(int elementIndex) where T : unmanaged, INumber<T>
+    {
+        int elementWidth = ValueCount * ComponentCount;
+        T[] output = new T[elementWidth];
+        int outputIndex = 0;
+
+        for (int valueIndex = 0; valueIndex < ValueCount; valueIndex++)
+        {
+            for (int componentIndex = 0; componentIndex < ComponentCount; componentIndex++)
+            {
+                output[outputIndex++] = Get<T>(elementIndex, valueIndex, componentIndex);
+            }
+        }
+
+        return output;
+    }
+
+    /// <summary>
+    /// Returns all populated components as a new array in element-major, value-major order.
+    /// </summary>
+    /// <typeparam name="T">The requested unmanaged numeric component type.</typeparam>
+    /// <returns>A new array containing all populated components.</returns>
+    public T[] ToArray<T>() where T : unmanaged, INumber<T>
+    {
+        T[] output = new T[TotalComponentCount];
+        int outputIndex = 0;
+
+        for (int elementIndex = 0; elementIndex < ElementCount; elementIndex++)
+        {
+            for (int valueIndex = 0; valueIndex < ValueCount; valueIndex++)
+            {
+                for (int componentIndex = 0; componentIndex < ComponentCount; componentIndex++)
+                {
+                    output[outputIndex++] = Get<T>(elementIndex, valueIndex, componentIndex);
+                }
+            }
+        }
+
+        return output;
+    }
+
+    /// <summary>
     /// Sets the value of a specific component in the buffer at the given element, value, and component indices.
     /// </summary>
     /// <typeparam name="TInput">The numeric type to store, which must implement <see cref="INumber{TInput}"/>.</typeparam>

@@ -35,6 +35,32 @@ namespace RedFox.Graphics3D.Buffers
         /// <returns>A span covering all initialized scalar components.</returns>
         public Span<T> AsSpan() => _items.AsSpan(0, TotalComponentCount);
 
+        /// <inheritdoc/>
+        public override bool TryGetReadOnlySpan<TResult>(out ReadOnlySpan<TResult> span)
+        {
+            if (typeof(TResult) == typeof(T))
+            {
+                span = MemoryMarshal.Cast<T, TResult>(AsReadOnlySpan());
+                return true;
+            }
+
+            span = default;
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public override bool TryGetSpan<TResult>(out Span<TResult> span)
+        {
+            if (typeof(TResult) == typeof(T))
+            {
+                span = MemoryMarshal.Cast<T, TResult>(AsSpan());
+                return true;
+            }
+
+            span = default;
+            return false;
+        }
+
         /// <summary>
         /// Gets a read-only span over the populated component storage.
         /// </summary>

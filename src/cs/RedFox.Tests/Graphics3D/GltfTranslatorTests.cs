@@ -149,10 +149,10 @@ public sealed class GltfTranslatorTests
         byte[] glbData = WriteSceneToGlb(manager, sourceScene);
         Scene loadedScene = ReadSceneFromGlb(manager, glbData);
 
-        Skeleton[] skeletons = loadedScene.GetDescendants<Skeleton>();
+        SkeletonBone[] skeletons = loadedScene.GetDescendants<SkeletonBone>().Where(b => b.Parent is not SkeletonBone).ToArray();
         Assert.Single(skeletons);
 
-        SkeletonBone[] bones = skeletons[0].GetBones();
+        SkeletonBone[] bones = skeletons[0].EnumerateHierarchy<SkeletonBone>().ToArray();
         Assert.Equal(2, bones.Length);
 
         Mesh[] meshes = loadedScene.GetDescendants<Mesh>();
@@ -607,7 +607,7 @@ public sealed class GltfTranslatorTests
         Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
 
         // Create skeleton
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("TestSkeleton"));
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("TestSkeleton"));
         SkeletonBone root = skeleton.AddNode(new SkeletonBone("Root"));
         root.BindTransform.SetLocalPosition(Vector3.Zero);
         root.BindTransform.SetLocalRotation(Quaternion.Identity);
@@ -644,7 +644,7 @@ public sealed class GltfTranslatorTests
             1f, 0f, 0f, 0f,
         ], 4, 1);
 
-        SkeletonBone[] bones = skeleton.GetBones();
+        SkeletonBone[] bones = skeleton.EnumerateHierarchy<SkeletonBone>().ToArray();
         mesh.SetSkinBinding(bones, [Matrix4x4.Identity, Matrix4x4.Identity]);
         mesh.SkinBindingName = skeleton.Name;
 
@@ -657,7 +657,7 @@ public sealed class GltfTranslatorTests
         Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
 
         // Create skeleton
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton("Armature"));
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("Armature"));
         SkeletonBone root = skeleton.AddNode(new SkeletonBone("Root"));
         root.BindTransform.SetLocalPosition(Vector3.Zero);
         root.BindTransform.SetLocalRotation(Quaternion.Identity);

@@ -73,7 +73,7 @@ public sealed class BvhReader
         string rootJointName = ReadRequiredToken(ref tokenReader, "root joint name");
         ValidateNodeName(rootJointName, "root joint");
 
-        Skeleton skeleton = scene.RootNode.AddNode<Skeleton>($"{Name}_Skeleton");
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone($"{Name}_Skeleton"));
         HashSet<string> jointNames = new(StringComparer.OrdinalIgnoreCase);
         List<SkeletonBone> joints = [];
         List<BvhChannelType[]> channelsByJoint = [];
@@ -84,7 +84,7 @@ public sealed class BvhReader
         int frameCount = ReadFrameCount(ref tokenReader);
         float frameTime = ReadFrameTime(ref tokenReader);
 
-        SkeletonAnimation animation = new($"{Name}_Animation", skeleton, joints.Count, TransformType.Absolute) { Framerate = 1.0f / frameTime, Skeleton = skeleton, TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
+        SkeletonAnimation animation = new($"{Name}_Animation", joints.Count, TransformType.Absolute) { Framerate = 1.0f / frameTime, TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
         List<SkeletonAnimationTrack> tracks = new(joints.Count);
 
         for (int i = 0; i < joints.Count; i++)

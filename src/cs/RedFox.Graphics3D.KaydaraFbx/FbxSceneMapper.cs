@@ -702,7 +702,6 @@ public static class FbxSceneMapper
         Group[] groups = selection.GetDescendants<Group>();
         Mesh[] meshes = selection.GetDescendants<Mesh>();
         Material[] materials = selection.GetDescendants<Material>();
-        Skeleton[] skeletons = selection.GetDescendants<Skeleton>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
         Camera[] cameras = selection.GetDescendants<Camera>();
         Light[] lights = selection.GetDescendants<Light>();
@@ -711,7 +710,6 @@ public static class FbxSceneMapper
         [
             .. models,
             .. groups,
-            .. skeletons.Where(static skeleton => skeleton is not SkeletonBone),
             .. bones,
             .. meshes,
             .. cameras,
@@ -737,21 +735,6 @@ public static class FbxSceneMapper
             SceneNode? exportedParent = SceneNode.GetBestParent(group, exportedModelNodes);
             objectsNode.Children.Add(CreateModelObject(id, group.Name, "Null", group, exportedParent));
             ExportNullNodeAttributeIfNeeded(group, id, objectsNode, connectionsNode, ref nextId);
-        }
-
-        for (int i = 0; i < skeletons.Length; i++)
-        {
-            Skeleton skeleton = skeletons[i];
-            if (skeleton is SkeletonBone)
-            {
-                continue;
-            }
-
-            long id = nextId++;
-            modelIds[skeleton] = id;
-            SceneNode? exportedParent = SceneNode.GetBestParent(skeleton, exportedModelNodes);
-            objectsNode.Children.Add(CreateModelObject(id, skeleton.Name, "Null", skeleton, exportedParent));
-            ExportNullNodeAttributeIfNeeded(skeleton, id, objectsNode, connectionsNode, ref nextId);
         }
 
         for (int i = 0; i < bones.Length; i++)
@@ -1229,19 +1212,12 @@ public static class FbxSceneMapper
             return group;
         }
 
-        bool allSkeletonChildren = true;
         bool allModelChildren = true;
 
         for (int i = 0; i < children.Length; i++)
         {
             SceneNode child = children[i];
-            allSkeletonChildren &= child is SkeletonBone or Skeleton;
             allModelChildren &= child is Mesh or Model or Camera or Light;
-        }
-
-        if (allSkeletonChildren)
-        {
-            return new Skeleton(group.Name);
         }
 
         if (allModelChildren)
@@ -1572,7 +1548,7 @@ public static class FbxSceneMapper
 
             bool shouldReparent = (child, parent) switch
             {
-                (SkeletonBone, Skeleton or Model or Group) => true,
+                (SkeletonBone, Model or Group) => true,
                 (Mesh or Group or Model, Model or Group) => true,
                 (Camera or Light, _) => true,
                 _ => false,
@@ -2403,7 +2379,7 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="mesh">The skinned mesh to inspect.</param>
     /// <returns>The owning skeleton node, or <see langword="null"/> when not found.</returns>
-    public static Skeleton? FindBindPoseArmature(Mesh mesh)
+    public static SkeletonBone? FindBindPoseArmature(Mesh mesh)
     {
         if (mesh.SkinnedBones is not { Count: > 0 } bones)
         {
@@ -2413,9 +2389,9 @@ public static class FbxSceneMapper
         SceneNode? current = bones[0].Parent;
         while (current is not null)
         {
-            if (current is Skeleton skeleton && current is not SkeletonBone)
+            if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
             {
-                return skeleton;
+                return rootBone;
             }
 
             current = current.Parent;

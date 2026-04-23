@@ -1,0 +1,105 @@
+using RedFox.Graphics3D;
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+
+namespace RedFox.Rendering;
+
+/// <summary>
+/// Per-frame state passed through every <see cref="IRenderPass"/> in an <see cref="IRenderPipeline"/>.
+/// Carries the immutable inputs (scene, view, viewport, delta time) plus a typed services bag
+/// that backends use to publish/consume frame-scoped data (draw queues, light snapshots, etc.).
+/// </summary>
+public sealed class RenderFrameContext
+{
+    private readonly Dictionary<Type, object> _services = new();
+
+    /// <summary>
+    /// Initializes a new frame context.
+    /// </summary>
+    /// <param name="scene">The scene being rendered.</param>
+    /// <param name="view">The active camera view.</param>
+    /// <param name="viewportSize">The viewport size in pixels.</param>
+    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
+    public RenderFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
+    {
+        Scene = scene ?? throw new ArgumentNullException(nameof(scene));
+        View = view;
+        ViewportSize = viewportSize;
+        DeltaTime = deltaTime;
+    }
+
+    /// <summary>
+    /// Gets the scene being rendered.
+    /// </summary>
+    public Scene Scene { get; }
+
+    /// <summary>
+    /// Gets the active camera view.
+    /// </summary>
+    public CameraView View { get; }
+
+    /// <summary>
+    /// Gets the viewport size in pixels.
+    /// </summary>
+    public Vector2 ViewportSize { get; }
+
+    /// <summary>
+    /// Gets seconds elapsed since the previous frame.
+    /// </summary>
+    public float DeltaTime { get; }
+
+    /// <summary>
+    /// Publishes a frame-scoped service so subsequent passes can consume it.
+    /// Replaces any existing entry of the same type.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <param name="service">The service instance.</param>
+    public void Set<TService>(TService service) where TService : class
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        _services[typeof(TService)] = service;
+    }
+
+    /// <summary>
+    /// Resolves a frame-scoped service published earlier in the frame.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <returns>The published service instance.</returns>
+    /// <exception cref="InvalidOperationException">No service of the supplied type has been published.</exception>
+    public TService GetRequired<TService>() where TService : class
+    {
+        if (_services.TryGetValue(typeof(TService), out object? value))
+        {
+            return (TService)value;
+        }
+
+        throw new InvalidOperationException($"No frame service of type '{typeof(TService).FullName}' has been published.");
+    }
+
+    /// <summary>
+    /// Attempts to resolve a frame-scoped service.
+    /// </summary>
+    /// <typeparam name="TService">The service type.</typeparam>
+    /// <param name="service">The resolved service when present; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the service was published; otherwise <see langword="false"/>.</returns>
+    public bool TryGet<TService>(out TService? service) where TService : class
+    {
+        if (_services.TryGetValue(typeof(TService), out object? value))
+        {
+            service = (TService)value;
+            return true;
+        }
+
+        service = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Clears all published frame services. Called by the renderer at frame start.
+    /// </summary>
+    public void ResetServices()
+    {
+        _services.Clear();
+    }
+}

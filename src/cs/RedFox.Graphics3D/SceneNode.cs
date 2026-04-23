@@ -46,9 +46,9 @@ namespace RedFox.Graphics3D
         public Transform LiveTransform { get; set; } = new();
 
         /// <summary>
-        /// Gets or sets the graphics handle used for rendering operations.
+        /// Gets or sets the renderer-specific handle used for rendering operations.
         /// </summary>
-        public object? GraphicsHandle { get; set; }
+        public ISceneNodeRenderHandle? GraphicsHandle { get; set; }
 
         /// <summary>
         /// Gets or sets the flags that define the properties and behaviors of the scene node.
@@ -1591,6 +1591,19 @@ namespace RedFox.Graphics3D
             return Parent is not null
                 ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix()
                 : GetActiveLocalMatrix();
+        }
+
+        /// <summary>
+        /// Tries to compute world-space bounds for this node.
+        /// The default implementation returns <see langword="false"/>; override in concrete node
+        /// types that have spatial extent (e.g. <see cref="Mesh"/>, <see cref="SkeletonBone"/>).
+        /// </summary>
+        /// <param name="bounds">The computed bounds when successful; otherwise <see cref="SceneBounds.Invalid"/>.</param>
+        /// <returns><see langword="true"/> when bounds are available; otherwise <see langword="false"/>.</returns>
+        public virtual bool TryGetSceneBounds(out SceneBounds bounds)
+        {
+            bounds = SceneBounds.Invalid;
+            return false;
         }
 
         /// <summary>

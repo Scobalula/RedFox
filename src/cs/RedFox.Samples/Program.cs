@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -60,7 +60,7 @@ internal static class Program
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"Sample '{sampleName}' failed: {exception.Message}");
+            Console.Error.WriteLine($"Sample '{sampleName}' failed: {exception}");
             return 1;
         }
     }

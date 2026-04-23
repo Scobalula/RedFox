@@ -361,9 +361,10 @@ public static class FbxSkinningMapper
         SceneNode? current = bone.Parent;
         while (current is not null)
         {
-            if (current is Skeleton skeleton && current is not SkeletonBone)
+                if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
             {
-                return skeleton.GetBindWorldMatrix();
+                    // For root bones, return identity since the armature itself has no parent transform
+                    return Matrix4x4.Identity;
             }
 
             current = current.Parent;
@@ -383,9 +384,9 @@ public static class FbxSkinningMapper
         SceneNode? current = bone.Parent;
         while (current is not null)
         {
-            if (current is Skeleton skeleton && current is not SkeletonBone)
+            if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
             {
-                return FbxSceneMapper.GetExportBindWorldMatrix(skeleton);
+                return FbxSceneMapper.GetExportBindWorldMatrix(rootBone);
             }
 
             current = current.Parent;

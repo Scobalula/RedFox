@@ -81,7 +81,6 @@ public sealed class MayaAsciiWriter
 
         Model[] models = selection.GetDescendants<Model>();
         Group[] groups = selection.GetDescendants<Group>();
-        Skeleton[] skeletons = selection.GetDescendants<Skeleton>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
         Mesh[] meshes = selection.GetDescendants<Mesh>();
         Camera[] cameras = selection.GetDescendants<Camera>();
@@ -100,11 +99,6 @@ public sealed class MayaAsciiWriter
         foreach (Group group in groups)
         {
             WriteTransformNode(group);
-        }
-
-        foreach (Skeleton skeleton in skeletons)
-        {
-            WriteTransformNode(skeleton);
         }
 
         foreach (SkeletonBone bone in bones)

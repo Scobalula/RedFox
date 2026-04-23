@@ -45,6 +45,12 @@ public class AnimationPlayer(string name) : SceneNode(name)
     public float FrameTime => FrameRate > 0f ? 1.0f / FrameRate : 0f;
 
     /// <summary>
+    /// Gets or sets whether playback time should wrap to the beginning when
+    /// the animation reaches the end.
+    /// </summary>
+    public bool IsLooping { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets the post-process solvers (IK, constraints) that run
     /// after all animation layers have been applied.
     /// </summary>
@@ -171,7 +177,47 @@ public class AnimationPlayer(string name) : SceneNode(name)
     public void Update(float time, AnimationSampleType type)
     {
         foreach (var layer in Layers)
+        {
+            if (!IsLooping)
+            {
+                layer.Update(time, type);
+                continue;
+            }
+
+            if (type == AnimationSampleType.DeltaTime)
+            {
+                float frameCount = layer.FrameCount;
+                if (frameCount > 0.0f)
+                {
+                    float nextFrameTime = layer.CurrentTime + (time * layer.FrameRate);
+                    float wrappedFrameTime = nextFrameTime % frameCount;
+                    if (wrappedFrameTime < 0.0f)
+                    {
+                        wrappedFrameTime += frameCount;
+                    }
+
+                    layer.Update(wrappedFrameTime, AnimationSampleType.AbsoluteFrameTime);
+                    continue;
+                }
+            }
+            else if (type == AnimationSampleType.AbsoluteTime)
+            {
+                float length = layer.Length;
+                if (length > 0.0f)
+                {
+                    float wrappedSeconds = time % length;
+                    if (wrappedSeconds < 0.0f)
+                    {
+                        wrappedSeconds += length;
+                    }
+
+                    layer.Update(wrappedSeconds, AnimationSampleType.AbsoluteTime);
+                    continue;
+                }
+            }
+
             layer.Update(time, type);
+        }
 
         foreach (var solver in Solvers)
             solver.Solve(time);

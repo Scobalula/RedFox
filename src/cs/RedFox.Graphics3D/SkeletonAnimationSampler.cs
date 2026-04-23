@@ -34,18 +34,18 @@ public class SkeletonAnimationSampler : AnimationSampler
 
     /// <summary>
     /// Initializes a new <see cref="SkeletonAnimationSampler"/> that binds the
-    /// given animation's tracks to matching bones in the skeleton hierarchy.
+    /// given animation's tracks to matching bones in the hierarchy rooted at <paramref name="boneRoot"/>.
     /// Tracks are matched by name (case-sensitive).
     /// </summary>
     /// <param name="name">Name of this sampler (used as scene node name).</param>
     /// <param name="animation">The skeletal animation to sample.</param>
-    /// <param name="skeleton">The skeleton whose bones receive the sampled values.</param>
-    public SkeletonAnimationSampler(string name, SkeletonAnimation animation, Skeleton skeleton)
+    /// <param name="boneRoot">The root node whose bone hierarchy receives the sampled values.</param>
+    public SkeletonAnimationSampler(string name, SkeletonAnimation animation, SceneNode boneRoot)
         : base(name, animation)
     {
         Tracks = [];
 
-        foreach (var bone in skeleton.EnumerateHierarchy<SkeletonBone>())
+        foreach (var bone in boneRoot.EnumerateHierarchy<SkeletonBone>())
         {
             // Find the corresponding track for this bone (matched by name)
             var track = animation.Tracks.Find(x => x.Name.Equals(bone.Name));

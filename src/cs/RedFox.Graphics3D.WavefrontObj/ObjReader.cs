@@ -178,7 +178,7 @@ public sealed class ObjReader
     {
         string meshName = string.IsNullOrWhiteSpace(groupName)
             ? $"mesh_{meshIndex}"
-            : groupName;
+            : $"mesh_{groupName}";
 
         // Avoid duplicate names by appending the mesh index as a suffix.
         if (model.TryFindDescendant<Mesh>(meshName, out _))

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D
 {
@@ -10,6 +11,8 @@ namespace RedFox.Graphics3D
     /// </summary>
     public class Scene : IUpdatable
     {
+        private const float DefaultAnimationFrameRate = 30.0f;
+
         /// <summary>
         /// Gets or sets the name of the scene.
         /// </summary>
@@ -19,6 +22,12 @@ namespace RedFox.Graphics3D
         /// Gets the root node of the scene.
         /// </summary>
         public SceneRoot RootNode { get; internal set; }
+
+        /// <summary>
+        /// Gets the animation players owned by this scene.
+        /// Use <see cref="CreateAnimationPlayers"/> to rebuild this list from scene content.
+        /// </summary>
+        public List<AnimationPlayer> AnimationPlayers { get; } = [];
 
         /// <summary>
         /// Initializes a new instance with the specified name.
@@ -42,7 +51,121 @@ namespace RedFox.Graphics3D
         /// Updates the scene and all nodes.
         /// </summary>
         /// <param name="deltaTime">Time elapsed since last update in seconds.</param>
-        public void Update(float deltaTime) => RootNode.Update(deltaTime);
+        /// <summary>
+        /// Gets or sets a value indicating whether animation playback is paused.
+        /// When <see langword="true"/>, animation players are not updated but the scene graph
+        /// still updates (physics, constraints, etc. continue to run).
+        /// </summary>
+        public bool IsAnimationPaused { get; set; }
+
+        public void Update(float deltaTime)
+        {
+            if (!IsAnimationPaused && deltaTime > 0.0f && AnimationPlayers.Count > 0)
+            {
+                foreach (AnimationPlayer player in AnimationPlayers)
+                {
+                    player.Update(deltaTime, AnimationSampleType.DeltaTime);
+                }
+            }
+
+            RootNode.Update(deltaTime);
+        }
+
+        /// <summary>
+        /// Rebuilds <see cref="AnimationPlayers"/> by creating one player per discovered
+        /// <see cref="SkeletonAnimation"/> in the scene. Each animation is bound to bone hierarchies
+        /// found within the scene, with bones matched by name (case-sensitive).
+        /// </summary>
+        /// <returns>The rebuilt animation player list.</returns>
+        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers()
+        {
+            AnimationPlayers.Clear();
+
+            // Find all bone root nodes (SkeletonBone with no SkeletonBone parent).
+            List<SkeletonBone> boneRoots = [];
+            foreach (SkeletonBone bone in EnumerateDescendants<SkeletonBone>())
+            {
+                if (bone.Parent is SkeletonBone)
+                {
+                    continue;
+                }
+
+                boneRoots.Add(bone);
+            }
+
+            int playerIndex = 0;
+            foreach (SkeletonAnimation animation in EnumerateDescendants<SkeletonAnimation>())
+            {
+                SkeletonBone? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots);
+                if (boneRoot is null)
+                {
+                    continue;
+                }
+
+                float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f
+                    ? animation.Framerate
+                    : DefaultAnimationFrameRate;
+
+                string playerName = string.IsNullOrWhiteSpace(animation.Name)
+                    ? $"SkeletalPlayer_{playerIndex}"
+                    : $"{animation.Name}_Player";
+                string samplerName = string.IsNullOrWhiteSpace(animation.Name)
+                    ? $"SkeletalSampler_{playerIndex}"
+                    : $"{animation.Name}_Sampler";
+
+                AnimationPlayer player = new(playerName)
+                {
+                    FrameRate = frameRate
+                };
+
+                SkeletonAnimationSampler sampler = new(samplerName, animation, boneRoot)
+                {
+                    FrameRate = frameRate
+                };
+
+                player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+                AnimationPlayers.Add(player);
+                playerIndex++;
+            }
+
+            return AnimationPlayers;
+        }
+
+        private static SkeletonBone? ResolveSkeletonBoneRoot(SkeletonAnimation animation, IReadOnlyList<SkeletonBone> boneRoots)
+        {
+            if (boneRoots.Count == 0)
+            {
+                return null;
+            }
+
+            if (boneRoots.Count == 1)
+            {
+                return boneRoots[0];
+            }
+
+            SkeletonBone? bestRoot = null;
+            int bestMatchCount = 0;
+
+            foreach (SkeletonBone root in boneRoots)
+            {
+                int matchCount = 0;
+                foreach (SkeletonAnimationTrack track in animation.Tracks)
+                {
+                    if (root.EnumerateHierarchy<SkeletonBone>().Any(b => b.Name.Equals(track.Name)))
+                    {
+                        matchCount++;
+                    }
+                }
+
+                if (matchCount > bestMatchCount)
+                {
+                    bestMatchCount = matchCount;
+                    bestRoot = root;
+                }
+            }
+
+            return bestMatchCount > 0 ? bestRoot : null;
+        }
 
         /// <summary>
         /// Removes a node from the scene.

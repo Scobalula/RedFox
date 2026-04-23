@@ -29,6 +29,7 @@ internal static class SampleRegistry
             new MurMur3Sample(),
             new CompressionSample(),
             new ImageTranslationSample(),
+            new OpenGlMeshSample(),
             new ProcessFinderSample(),
             new ProcessReadWriteSample()
         ];

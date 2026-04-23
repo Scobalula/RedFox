@@ -64,7 +64,7 @@ public class SeanimTranslator : SceneTranslator
         bool hasScales       = (dataFlags & 4) != 0;
         bool highPrecision   = (dataPropFlags & 1) != 0;
 
-        var skelAnim = new SkeletonAnimation(context.Name, null, boneCount, transformType)
+        var skelAnim = new SkeletonAnimation(context.Name, boneCount, transformType)
         {
             Framerate     = frameRate,
             TransformType = transformType,

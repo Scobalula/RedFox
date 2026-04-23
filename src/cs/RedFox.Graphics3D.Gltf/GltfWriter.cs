@@ -599,11 +599,11 @@ public sealed class GltfWriter
 
     private static IReadOnlyList<(string Name, SkeletonBone[] Bones)> GetSelectedSkeletons(SceneTranslationSelection selection)
     {
-        Dictionary<Skeleton, List<SkeletonBone>> bonesBySkeleton = [];
+        Dictionary<SkeletonBone, List<SkeletonBone>> bonesBySkeleton = [];
 
         foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
         {
-            Skeleton? skeleton = GetExactSkeletonParent(bone);
+            SkeletonBone? skeleton = GetExactSkeletonParent(bone);
             if (skeleton is null)
                 continue;
 
@@ -617,18 +617,18 @@ public sealed class GltfWriter
         }
 
         List<(string Name, SkeletonBone[] Bones)> result = [];
-        foreach ((Skeleton skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
-            result.Add((skeleton.Name, [.. bones]));
+        foreach ((SkeletonBone skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
+            result.Add((skeleton?.Name ?? "", [.. bones]));
 
         return result;
     }
 
-    private static Skeleton? GetExactSkeletonParent(SceneNode node)
+    private static SkeletonBone? GetExactSkeletonParent(SceneNode node)
     {
         for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
         {
-            if (current.GetType() == typeof(Skeleton))
-                return (Skeleton)current;
+                if (current is SkeletonBone skeletonBone)
+                    return skeletonBone;
         }
 
         return null;

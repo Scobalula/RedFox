@@ -143,7 +143,7 @@ public sealed class GltfReader
         Material[] materials = BuildMaterials(model);
 
         // Build skeletons
-        Skeleton[] skeletons = BuildSkeletons(scene);
+        SkeletonBone[] skeletons = BuildSkeletons(scene);
 
         // Process scene nodes to build meshes
         int[] rootNodes = GetSceneRootNodes();
@@ -208,7 +208,7 @@ public sealed class GltfReader
     /// <param name="materials">The array of resolved materials to assign to mesh primitives.</param>
     /// <param name="skeletons">The array of resolved skeletons for skinning setup.</param>
     /// <param name="meshCounter">A running counter used to generate unique mesh names.</param>
-    public void ProcessNodeForMeshes(int nodeIdx, Model model, Material[] materials, Skeleton[] skeletons, ref int meshCounter)
+    public void ProcessNodeForMeshes(int nodeIdx, Model model, Material[] materials, SkeletonBone[] skeletons, ref int meshCounter)
     {
         if (nodeIdx < 0 || nodeIdx >= _doc.Nodes.Count) return;
 
@@ -658,21 +658,20 @@ public sealed class GltfReader
     }
 
     /// <summary>
-    /// Builds <see cref="Skeleton"/> nodes from the glTF skin definitions.
+    /// Builds <see cref="SkeletonBone"/> hierarchies from the glTF skin definitions.
     /// </summary>
-    /// <param name="scene">The scene to add skeleton nodes to.</param>
-    /// <returns>An array of <see cref="Skeleton"/> instances corresponding to each glTF skin.</returns>
-    public Skeleton[] BuildSkeletons(Scene scene)
+    /// <param name="scene">The scene to add bone hierarchies to.</param>
+    /// <returns>An array of root <see cref="SkeletonBone"/> instances corresponding to each glTF skin.</returns>
+    public SkeletonBone[] BuildSkeletons(Scene scene)
     {
-        Skeleton[] result = new Skeleton[_doc.Skins.Count];
+        SkeletonBone[] result = new SkeletonBone[_doc.Skins.Count];
 
         for (int skinIdx = 0; skinIdx < _doc.Skins.Count; skinIdx++)
         {
             GltfSkin skin = _doc.Skins[skinIdx];
             string skelName = skin.Name ?? $"Skeleton_{skinIdx}";
 
-            Skeleton skeleton = scene.RootNode.AddNode<Skeleton>(skelName);
-            result[skinIdx] = skeleton;
+            SkeletonBone rootBone = null;
 
             // Read inverse bind matrices
             Matrix4x4[]? ibms = null;
@@ -719,9 +718,13 @@ public sealed class GltfReader
                 else
                 {
                     // Root bone
-                    skeleton.AddNode(bone);
+                    if (rootBone == null)
+                        rootBone = bone;
+                    scene.RootNode.AddNode(bone);
                 }
             }
+
+            result[skinIdx] = rootBone;
         }
 
         return result;
@@ -771,7 +774,7 @@ public sealed class GltfReader
     /// <param name="skin">The glTF skin definition containing joint references and inverse bind matrices.</param>
     /// <param name="skeleton">The skeleton to bind the mesh to.</param>
     /// <param name="mesh">The mesh to apply skinning to.</param>
-    public void SetupSkinning(GltfSkin skin, Skeleton skeleton, Mesh mesh)
+    public void SetupSkinning(GltfSkin skin, SkeletonBone skeleton, Mesh mesh)
     {
         List<SkeletonBone> bones = [];
         List<Matrix4x4> ibmList = [];
@@ -807,17 +810,17 @@ public sealed class GltfReader
     /// Builds <see cref="SkeletonAnimation"/> nodes from the glTF animation definitions.
     /// </summary>
     /// <param name="scene">The scene to add animation nodes to.</param>
-    /// <param name="skeletons">The array of skeletons to associate animations with.</param>
-    public void BuildAnimations(Scene scene, Skeleton[] skeletons)
+    /// <param name="skeletons">The array of root bones corresponding to each skin.</param>
+    public void BuildAnimations(Scene scene, SkeletonBone[] skeletons)
     {
         for (int animIdx = 0; animIdx < _doc.Animations.Count; animIdx++)
         {
             GltfAnimation gltfAnim = _doc.Animations[animIdx];
             string animName = gltfAnim.Name ?? $"Animation_{animIdx}";
 
-            Skeleton? targetSkeleton = skeletons.Length > 0 ? skeletons[0] : null;
+            SkeletonBone? targetBone = skeletons.Length > 0 ? skeletons[0] : null;
 
-            SkeletonAnimation anim = new(animName, targetSkeleton);
+            SkeletonAnimation anim = new(animName);
             anim.TransformType = TransformType.Absolute;
             anim.TransformSpace = TransformSpace.Local;
 
