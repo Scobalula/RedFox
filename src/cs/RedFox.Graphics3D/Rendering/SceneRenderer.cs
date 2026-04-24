@@ -1,7 +1,7 @@
 using RedFox.Graphics3D;
 using System;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Provides an abstract high-level renderer contract for drawing a scene with a camera.

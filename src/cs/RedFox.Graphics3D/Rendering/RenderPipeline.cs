@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Default <see cref="IRenderPipeline"/> implementation. Passes are executed in ascending
@@ -120,7 +120,6 @@ public sealed class RenderPipeline : IRenderPipeline
 
         _executionOrder.Clear();
         _executionOrder.AddRange(_passes);
-        // Stable sort by phase (List<T>.Sort is not stable; emulate with index-tagged comparison).
         int[] indices = new int[_executionOrder.Count];
         for (int i = 0; i < indices.Length; i++)
         {

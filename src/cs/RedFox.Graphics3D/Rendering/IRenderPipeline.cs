@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Ordered, mutable collection of <see cref="IRenderPass"/> instances executed in phase order.
@@ -46,7 +46,7 @@ public interface IRenderPipeline : IDisposable
     void Resize(int width, int height);
 
     /// <summary>
-    /// Executes all enabled passes in phase/insertion order against <paramref name="context"/>.
+    /// Executes all enabled passes in phase and insertion order against <paramref name="context"/>.
     /// </summary>
     /// <param name="context">The frame context.</param>
     void Execute(RenderFrameContext context);

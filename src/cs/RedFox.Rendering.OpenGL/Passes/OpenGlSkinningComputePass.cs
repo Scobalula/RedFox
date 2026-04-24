@@ -1,4 +1,4 @@
-using RedFox.Rendering.Passes;
+using RedFox.Graphics3D.Rendering;
 using System;
 
 namespace RedFox.Rendering.OpenGL.Passes;
@@ -7,17 +7,19 @@ namespace RedFox.Rendering.OpenGL.Passes;
 /// Compute-phase pass that dispatches GPU skinning for every mesh handle that has
 /// skinning data and an available compute program.
 /// </summary>
-internal sealed class OpenGlSkinningComputePass : RenderPass, ISkinningPass
+internal sealed class OpenGlSkinningComputePass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
+
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Compute;
 
     public OpenGlSkinningComputePass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Compute;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         if (!context.TryGet<OpenGlFrameQueues>(out OpenGlFrameQueues? queues) || queues is null)

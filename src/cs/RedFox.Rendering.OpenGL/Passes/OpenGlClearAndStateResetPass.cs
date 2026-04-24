@@ -1,4 +1,5 @@
 using System;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Rendering.OpenGL.Passes;
 
@@ -11,13 +12,15 @@ internal sealed class OpenGlClearAndStateResetPass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
 
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Setup;
+
     public OpenGlClearAndStateResetPass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Setup;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         _resources.ViewportSize = context.ViewportSize;

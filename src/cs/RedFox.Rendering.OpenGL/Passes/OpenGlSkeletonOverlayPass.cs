@@ -1,4 +1,4 @@
-using RedFox.Rendering.Passes;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.OpenGL;
 using System;
 
@@ -9,17 +9,19 @@ namespace RedFox.Rendering.OpenGL.Passes;
 /// <see cref="OpenGlRenderSettings.BonesRenderOnTop"/> is enabled, depth testing is
 /// temporarily disabled so bones remain visible through geometry.
 /// </summary>
-internal sealed class OpenGlSkeletonOverlayPass : RenderPass, IOverlayPass
+internal sealed class OpenGlSkeletonOverlayPass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
+
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Overlay;
 
     public OpenGlSkeletonOverlayPass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Overlay;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         OpenGlRenderSettings settings = _resources.Settings;

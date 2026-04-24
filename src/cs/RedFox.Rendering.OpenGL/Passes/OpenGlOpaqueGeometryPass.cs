@@ -1,5 +1,5 @@
 using RedFox.Graphics3D.OpenGL.Resources;
-using RedFox.Rendering.Passes;
+using RedFox.Graphics3D.Rendering;
 using System;
 using System.Numerics;
 
@@ -10,17 +10,19 @@ namespace RedFox.Rendering.OpenGL.Passes;
 /// Per-frame uniforms (view/projection/lights) are bound here; per-mesh uniforms are bound
 /// inside <see cref="Handles.OpenGlMeshHandle.DrawOpaque"/>.
 /// </summary>
-internal sealed class OpenGlOpaqueGeometryPass : RenderPass, IOpaqueGeometryPass
+internal sealed class OpenGlOpaqueGeometryPass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
+
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Opaque;
 
     public OpenGlOpaqueGeometryPass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Opaque;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         if (!context.TryGet<OpenGlFrameQueues>(out OpenGlFrameQueues? queues) || queues is null || queues.Meshes.Count == 0)

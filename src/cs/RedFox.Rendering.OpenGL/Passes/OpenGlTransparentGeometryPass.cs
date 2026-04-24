@@ -1,5 +1,5 @@
 using RedFox.Rendering.OpenGL.Handles;
-using RedFox.Rendering.Passes;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -11,18 +11,20 @@ namespace RedFox.Rendering.OpenGL.Passes;
 /// Transparent-phase pass that sorts collected grid handles back-to-front and draws them
 /// with alpha blending and depth writes disabled.
 /// </summary>
-internal sealed class OpenGlTransparentGeometryPass : RenderPass, ITransparentGeometryPass
+internal sealed class OpenGlTransparentGeometryPass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
-    private readonly List<TransparentEntry> _sortedEntries = new();
+    private readonly List<OpenGlTransparentEntry> _sortedEntries = new();
+
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Transparent;
 
     public OpenGlTransparentGeometryPass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Transparent;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         if (!context.TryGet<OpenGlFrameQueues>(out OpenGlFrameQueues? queues) || queues is null || queues.Grids.Count == 0)
@@ -35,7 +37,7 @@ internal sealed class OpenGlTransparentGeometryPass : RenderPass, ITransparentGe
         {
             OpenGlGridHandle handle = queues.Grids[i];
             float distanceSquared = Vector3.DistanceSquared(handle.Grid.GetActiveWorldPosition(), context.View.Position);
-            _sortedEntries.Add(new TransparentEntry(handle, distanceSquared));
+            _sortedEntries.Add(new OpenGlTransparentEntry(handle, distanceSquared));
         }
 
         _sortedEntries.Sort(static (left, right) => right.DistanceSquared.CompareTo(left.DistanceSquared));
@@ -59,6 +61,4 @@ internal sealed class OpenGlTransparentGeometryPass : RenderPass, ITransparentGe
             _resources.Context.SetAlphaBlend(false);
         }
     }
-
-    private readonly record struct TransparentEntry(OpenGlGridHandle Handle, float DistanceSquared);
 }

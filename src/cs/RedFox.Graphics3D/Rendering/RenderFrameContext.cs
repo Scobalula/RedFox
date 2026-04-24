@@ -3,31 +3,16 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Per-frame state passed through every <see cref="IRenderPass"/> in an <see cref="IRenderPipeline"/>.
 /// Carries the immutable inputs (scene, view, viewport, delta time) plus a typed services bag
-/// that backends use to publish/consume frame-scoped data (draw queues, light snapshots, etc.).
+/// that backends use to publish and consume frame-scoped data.
 /// </summary>
 public sealed class RenderFrameContext
 {
     private readonly Dictionary<Type, object> _services = new();
-
-    /// <summary>
-    /// Initializes a new frame context.
-    /// </summary>
-    /// <param name="scene">The scene being rendered.</param>
-    /// <param name="view">The active camera view.</param>
-    /// <param name="viewportSize">The viewport size in pixels.</param>
-    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
-    public RenderFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
-    {
-        Scene = scene ?? throw new ArgumentNullException(nameof(scene));
-        View = view;
-        ViewportSize = viewportSize;
-        DeltaTime = deltaTime;
-    }
 
     /// <summary>
     /// Gets the scene being rendered.
@@ -48,6 +33,21 @@ public sealed class RenderFrameContext
     /// Gets seconds elapsed since the previous frame.
     /// </summary>
     public float DeltaTime { get; }
+
+    /// <summary>
+    /// Initializes a new frame context.
+    /// </summary>
+    /// <param name="scene">The scene being rendered.</param>
+    /// <param name="view">The active camera view.</param>
+    /// <param name="viewportSize">The viewport size in pixels.</param>
+    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
+    public RenderFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
+    {
+        Scene = scene ?? throw new ArgumentNullException(nameof(scene));
+        View = view;
+        ViewportSize = viewportSize;
+        DeltaTime = deltaTime;
+    }
 
     /// <summary>
     /// Publishes a frame-scoped service so subsequent passes can consume it.

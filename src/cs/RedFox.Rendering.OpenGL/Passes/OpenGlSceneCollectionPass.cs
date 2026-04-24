@@ -1,4 +1,5 @@
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Rendering.OpenGL.Handles;
 using System;
 using System.Collections.Generic;
@@ -10,19 +11,21 @@ namespace RedFox.Rendering.OpenGL.Passes;
 /// Collect-phase pass that walks the scene graph, refreshes per-node render handles,
 /// and publishes typed <see cref="OpenGlFrameQueues"/> for downstream passes.
 /// </summary>
-internal sealed class OpenGlSceneCollectionPass : RenderPass, IOpenGlSceneCollectionPass
+internal sealed class OpenGlSceneCollectionPass : RenderPass
 {
     private readonly OpenGlRenderResources _resources;
     private readonly OpenGlFrameQueues _queues = new();
     private readonly HashSet<SceneNode> _trackedNodes = new();
+
+    /// <inheritdoc/>
+    public override RenderPassPhase Phase => RenderPassPhase.Collect;
 
     public OpenGlSceneCollectionPass(OpenGlRenderResources resources)
     {
         _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     }
 
-    public override RenderPassPhase Phase => RenderPassPhase.Collect;
-
+    /// <inheritdoc/>
     protected override void ExecuteCore(RenderFrameContext context)
     {
         OpenGlRenderSettings settings = _resources.Settings;
@@ -99,6 +102,7 @@ internal sealed class OpenGlSceneCollectionPass : RenderPass, IOpenGlSceneCollec
         _trackedNodes.Clear();
     }
 
+    /// <inheritdoc/>
     protected override void DisposeCore()
     {
         DisposeTrackedHandles();

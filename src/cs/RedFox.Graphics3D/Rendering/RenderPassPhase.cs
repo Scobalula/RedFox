@@ -1,4 +1,4 @@
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Identifies the logical phase of the frame in which a render pass executes.
@@ -12,12 +12,12 @@ public enum RenderPassPhase
     Setup = 0,
 
     /// <summary>
-    /// Scene-graph traversal and per-frame node updates / draw-list collection.
+    /// Scene-graph traversal and per-frame node updates and draw-list collection.
     /// </summary>
     Collect = 100,
 
     /// <summary>
-    /// Compute work that must complete before geometry passes (e.g. skinning).
+    /// Compute work that must complete before geometry passes (for example skinning).
     /// </summary>
     Compute = 200,
 
@@ -32,22 +32,22 @@ public enum RenderPassPhase
     Opaque = 400,
 
     /// <summary>
-    /// Transparent / blended geometry rendering (back-to-front sorted).
+    /// Transparent and blended geometry rendering.
     /// </summary>
     Transparent = 500,
 
     /// <summary>
-    /// Overlay/debug rendering drawn on top of (or in place of) regular geometry.
+    /// Overlay and debug rendering drawn on top of regular geometry.
     /// </summary>
     Overlay = 600,
 
     /// <summary>
-    /// Post-processing passes (SSAO composite, tone-mapping, etc.).
+    /// Post-processing passes.
     /// </summary>
     PostProcess = 700,
 
     /// <summary>
-    /// Final present / framebuffer blit.
+    /// Final present and framebuffer blit.
     /// </summary>
-    Present = 800
+    Present = 800,
 }

@@ -1,5 +1,6 @@
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.OpenGL.Resources;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Rendering.OpenGL.Passes;
 using Silk.NET.OpenGL;
 using Silk.NET.Windowing;
@@ -30,17 +31,6 @@ public sealed class OpenGlSceneRenderer : SceneRenderer
     private bool _disposed;
 
     /// <summary>
-    /// Initializes a new <see cref="OpenGlSceneRenderer"/> bound to the supplied window's GL context.
-    /// </summary>
-    /// <param name="window">The host window owning the GL context.</param>
-    /// <param name="settings">The render settings.</param>
-    public OpenGlSceneRenderer(IWindow window, OpenGlRenderSettings settings)
-    {
-        _window = window ?? throw new ArgumentNullException(nameof(window));
-        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-    }
-
-    /// <summary>
     /// Gets the mutable render pipeline. Callers may add or remove passes between frames.
     /// </summary>
     public IRenderPipeline Pipeline => _pipeline;
@@ -54,6 +44,17 @@ public sealed class OpenGlSceneRenderer : SceneRenderer
     /// Gets the active render settings.
     /// </summary>
     public OpenGlRenderSettings Settings => _settings;
+
+    /// <summary>
+    /// Initializes a new <see cref="OpenGlSceneRenderer"/> bound to the supplied window's GL context.
+    /// </summary>
+    /// <param name="window">The host window owning the GL context.</param>
+    /// <param name="settings">The render settings.</param>
+    public OpenGlSceneRenderer(IWindow window, OpenGlRenderSettings settings)
+    {
+        _window = window ?? throw new ArgumentNullException(nameof(window));
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    }
 
     /// <inheritdoc/>
     public override void Initialize()

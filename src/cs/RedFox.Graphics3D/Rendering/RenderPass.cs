@@ -1,9 +1,9 @@
 using System;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
-/// Optional convenience base class for <see cref="IRenderPass"/> implementations that don't need
+/// Optional convenience base class for <see cref="IRenderPass"/> implementations that do not need
 /// resize handling or initialization. Implementations override <see cref="ExecuteCore"/>.
 /// </summary>
 public abstract class RenderPass : IRenderPass

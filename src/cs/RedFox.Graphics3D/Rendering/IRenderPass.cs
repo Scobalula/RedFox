@@ -1,12 +1,11 @@
 using System;
 
-namespace RedFox.Rendering;
+namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Represents a single stage of work executed by an <see cref="IRenderPipeline"/>.
 /// Implementations may produce, transform, or consume per-frame state via the supplied
-/// <see cref="RenderFrameContext"/>. Backends typically derive backend-specific marker
-/// interfaces (e.g. opaque/transparent/shadow/skinning) from this contract.
+/// <see cref="RenderFrameContext"/>.
 /// </summary>
 public interface IRenderPass : IDisposable
 {
