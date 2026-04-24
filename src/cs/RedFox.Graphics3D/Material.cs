@@ -1,5 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -8,11 +11,6 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public class Material(string name) : SceneNode(name)
 {
-    /// <summary>
-    /// Initializes a new instance of the Material class with default values.
-    /// </summary>
-    public Material() : this(string.Empty) { }
-
     /// <summary>
     /// Gets or sets the name of the diffuse <see cref="Texture"/> node.
     /// </summary>
@@ -124,6 +122,15 @@ public class Material(string name) : SceneNode(name)
     public float? SpecularStrength { get; set; }
 
     /// <summary>
+    /// Gets or sets the specular power.
+    /// </summary>
+    public float? SpecularPower
+    {
+        get => Shininess;
+        set => Shininess = value;
+    }
+
+    /// <summary>
     /// Gets or sets the metallic factor (0.0 = dielectric, 1.0 = metallic).
     /// Used for IBL and PBR rendering.
     /// </summary>
@@ -151,6 +158,27 @@ public class Material(string name) : SceneNode(name)
     public bool UseSpecularColorMap { get; set; }
 
     /// <summary>
+    /// Gets or sets the material type name used to resolve renderer material behavior.
+    /// </summary>
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// Gets the material-owned texture bindings.
+    /// </summary>
+    public IReadOnlyList<MaterialTextureBinding> Textures => GetTextureBindings();
+
+    /// <summary>
+    /// Initializes a new instance of the Material class with default values.
+    /// </summary>
+    public Material() : this(string.Empty) { }
+
+    /// <inheritdoc/>
+    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+    {
+        return new MaterialRenderHandle(graphicsDevice, materialTypes, this);
+    }
+
+    /// <summary>
     /// Returns the texture map name for the given semantic slot, or <see langword="null"/>
     /// if the slot is not assigned. Used by schema-driven renderers to resolve
     /// material texture references dynamically.
@@ -169,6 +197,60 @@ public class Material(string name) : SceneNode(name)
         "anisotropy" => AnisotropyMapName,
         _            => null,
     };
+
+    private MaterialTextureBinding[] GetTextureBindings()
+    {
+        List<MaterialTextureBinding> bindings = [];
+        int fallbackSlot = 0;
+        CollectTextureBindings(this, bindings, ref fallbackSlot);
+        return [.. bindings];
+    }
+
+    private void CollectTextureBindings(SceneNode node, List<MaterialTextureBinding> bindings, ref int fallbackSlot)
+    {
+        if (node.Children is null)
+        {
+            return;
+        }
+
+        foreach (SceneNode child in node.Children)
+        {
+            if (child is Texture texture)
+            {
+                int slot = ResolveTextureSlot(texture.Slot, fallbackSlot);
+                string samplerUniform = int.TryParse(texture.Slot, out _)
+                    ? $"Texture{slot}"
+                    : texture.Slot;
+
+                bindings.Add(new MaterialTextureBinding(texture, slot, samplerUniform));
+                fallbackSlot++;
+            }
+
+            CollectTextureBindings(child, bindings, ref fallbackSlot);
+        }
+    }
+
+    private static int ResolveTextureSlot(string slotName, int fallbackSlot)
+    {
+        if (int.TryParse(slotName, out int explicitSlot))
+        {
+            return explicitSlot;
+        }
+
+        return slotName switch
+        {
+            "diffuse" => 0,
+            "normal" => 1,
+            "specular" => 2,
+            "metallic" => 3,
+            "roughness" => 4,
+            "emissive" => 5,
+            "ao" => 6,
+            "cavity" => 7,
+            "anisotropy" => 8,
+            _ => fallbackSlot,
+        };
+    }
 
     /// <summary>
     /// Attempts to retrieve the diffuse map texture associated with this instance.

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Primitives\RedFox.Graphics2D.Primitives.csproj" />
   </ItemGroup>
 
 </Project>

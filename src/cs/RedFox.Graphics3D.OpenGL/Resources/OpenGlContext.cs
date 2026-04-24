@@ -13,7 +13,7 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 /// <see cref="OpenGlContext"/> does not own the underlying GL context lifetime;
 /// disposal here only releases resources allocated through this facade.
 /// </remarks>
-public sealed class OpenGlContext : IDisposable
+internal sealed class OpenGlContext : IDisposable
 {
     private bool _disposed;
 
@@ -34,7 +34,7 @@ public sealed class OpenGlContext : IDisposable
     /// Gets the underlying GL instance. Provided as an escape hatch for advanced consumers;
     /// prefer the helper methods on this class when possible.
     /// </summary>
-    public GL Gl { get; }
+    internal GL Gl { get; }
 
     /// <summary>
     /// Gets the GL major version reported by the active context.

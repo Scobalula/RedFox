@@ -1,4 +1,7 @@
 using System.Numerics;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D
 {
@@ -77,6 +80,12 @@ namespace RedFox.Graphics3D
         public Grid()
         {
             Name = "Grid";
+        }
+
+        /// <inheritdoc/>
+        public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+        {
+            return new GridRenderHandle(this);
         }
     }
 }

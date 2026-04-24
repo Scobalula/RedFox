@@ -2,6 +2,9 @@
 using System.Collections.Generic;
 using System.Text;
 using RedFox.Graphics2D;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -39,7 +42,23 @@ public class Texture(string filePath, string slot) : SceneNode(Path.GetFileNameW
     public Image? Data { get; set; }
 
     /// <summary>
+    /// Gets the image format for the loaded texture payload.
+    /// </summary>
+    public ImageFormat Format => Data?.Format ?? ImageFormat.Unknown;
+
+    /// <summary>
+    /// Gets the raw pixel payload for the loaded texture data.
+    /// </summary>
+    public ReadOnlyMemory<byte> RawBytes => Data?.PixelMemory ?? ReadOnlyMemory<byte>.Empty;
+
+    /// <summary>
     /// Gets or sets the image loader used to retrieve and process images.
     /// </summary>
     public IImageLoader? ImageLoader { get; set; } = FileSystemImageLoader.Shared;
+
+    /// <inheritdoc/>
+    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+    {
+        return new TextureRenderHandle(graphicsDevice, this);
+    }
 }

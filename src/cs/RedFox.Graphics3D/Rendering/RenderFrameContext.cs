@@ -35,6 +35,36 @@ public sealed class RenderFrameContext
     public float DeltaTime { get; }
 
     /// <summary>
+    /// Gets or sets the ambient color used for renderer lighting.
+    /// </summary>
+    public Vector3 AmbientColor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the fallback light direction used when scene lights are unavailable.
+    /// </summary>
+    public Vector3 FallbackLightDirection { get; set; } = -Vector3.UnitY;
+
+    /// <summary>
+    /// Gets or sets the fallback light color used when scene lights are unavailable.
+    /// </summary>
+    public Vector3 FallbackLightColor { get; set; } = Vector3.One;
+
+    /// <summary>
+    /// Gets or sets the fallback light intensity used when scene lights are unavailable.
+    /// </summary>
+    public float FallbackLightIntensity { get; set; } = 1.0f;
+
+    /// <summary>
+    /// Gets or sets a value indicating whether view-based lighting is enabled.
+    /// </summary>
+    public bool UseViewBasedLighting { get; set; }
+
+    /// <summary>
+    /// Gets or sets the skinning mode used during the frame.
+    /// </summary>
+    public SkinningMode SkinningMode { get; set; } = SkinningMode.Linear;
+
+    /// <summary>
     /// Initializes a new frame context.
     /// </summary>
     /// <param name="scene">The scene being rendered.</param>

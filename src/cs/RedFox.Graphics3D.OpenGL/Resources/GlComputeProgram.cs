@@ -8,7 +8,7 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 /// Compiled OpenGL compute shader program. Exposes <see cref="Dispatch"/> and
 /// helpers for resolving shader-storage block bindings.
 /// </summary>
-public sealed class GlComputeProgram : GlProgramBase
+internal sealed class GlComputeProgram : GlProgramBase
 {
     private const uint InvalidProgramResourceIndex = 0xFFFFFFFFu;
     private readonly Dictionary<string, uint> _cachedStorageBindings = new(StringComparer.Ordinal);

@@ -9,11 +9,25 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Silk.NET.Input" Version="2.23.0" />
     <PackageReference Include="Silk.NET.OpenGL" Version="2.23.0" />
+    <PackageReference Include="Silk.NET.Windowing" Version="2.23.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\RedFox.Rendering.OpenGL\**\*.cs" Exclude="..\RedFox.Rendering.OpenGL\bin\**\*;..\RedFox.Rendering.OpenGL\obj\**\*">
+      <Link>MergedRuntime\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Shaders\Glsl\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

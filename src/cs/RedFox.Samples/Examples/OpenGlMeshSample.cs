@@ -36,7 +36,7 @@ internal sealed class OpenGlMeshSample : ISample
     /// <inheritdoc />
     public int Run(string[] arguments)
     {
-        ParseOptions(arguments, out List<string> scenePaths, out bool showGrid, out OpenGlUpAxis upAxis, out OpenGlFaceWinding faceWinding, out bool useViewBasedLighting, out SkinningMode skinningMode);
+        ParseOptions(arguments, out List<string> scenePaths, out bool showGrid, out SceneUpAxis upAxis, out FaceWinding faceWinding, out bool useViewBasedLighting, out SkinningMode skinningMode);
 
         if (!TryCreateScene(scenePaths, out Scene? scene, out string? error))
         {
@@ -45,6 +45,12 @@ internal sealed class OpenGlMeshSample : ISample
         }
 
         ArgumentNullException.ThrowIfNull(scene);
+        scene.UpAxis = upAxis;
+        scene.FaceWinding = faceWinding;
+
+        SkeletonOverlay skeletonOverlay = scene.TryGetFirstOfType<SkeletonOverlay>(out SkeletonOverlay? existingOverlay) && existingOverlay is not null
+            ? existingOverlay
+            : scene.RootNode.AddNode<SkeletonOverlay>("SkeletonOverlay");
 
         IReadOnlyList<AnimationPlayer> animationPlayers = scene.CreateAnimationPlayers();
         if (animationPlayers.Count > 0)
@@ -69,7 +75,7 @@ internal sealed class OpenGlMeshSample : ISample
         camera.InvertY = true;
         camera.ApplyOrbit();
 
-        bool hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out SceneBounds bounds, node => ShouldIncludeInBounds(node, showSkeletonBones: true));
+        bool hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out SceneBounds bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
         bool refreshAnimatedSceneBounds = animationPlayers.Count > 0;
         if (hasSceneBounds)
         {
@@ -83,21 +89,6 @@ internal sealed class OpenGlMeshSample : ISample
             light.Color = new Vector3(1.0f, 0.98f, 0.9f);
             light.Intensity = 1.0f;
         }
-
-        OpenGlRenderSettings renderSettings = new(
-            new Vector4(0.07f, 0.09f, 0.13f, 1.0f),
-            new Vector3(0.13f, 0.13f, 0.16f),
-            new Vector3(-0.4f, -1.0f, -0.2f),
-            new Vector3(1.0f, 1.0f, 1.0f),
-            0.8f)
-        {
-            UpAxis = upAxis,
-            FaceWinding = faceWinding,
-            UseViewBasedLighting = useViewBasedLighting,
-            SkinningMode = skinningMode,
-            SpecularStrength = 0.14f,
-            SpecularPower = 24.0f
-        };
 
         Grid? grid = null;
         if (showGrid)
@@ -120,7 +111,17 @@ internal sealed class OpenGlMeshSample : ISample
         bool prevTKeyDown = false;
         bool prevGKeyDown = false;
 
-        using OpenGlRendererHost host = new("RedFox OpenGL Mesh Sample", 1280, 720, renderSettings);
+        using OpenGlRendererHost host = new(
+            "RedFox OpenGL Mesh Sample",
+            1280,
+            720,
+            new Vector4(0.07f, 0.09f, 0.13f, 1.0f),
+            new Vector3(0.13f, 0.13f, 0.16f),
+            new Vector3(-0.4f, -1.0f, -0.2f),
+            new Vector3(1.0f, 1.0f, 1.0f),
+            0.8f,
+            useViewBasedLighting,
+            skinningMode);
         host.Window.FramebufferResize += size =>
         {
             if (size.X > 0 && size.Y > 0)
@@ -146,27 +147,27 @@ internal sealed class OpenGlMeshSample : ISample
                 bool lKeyDown = keyboard?.IsKeyPressed(Key.L) ?? false;
                 if (lKeyDown && !prevLKeyDown)
                 {
-                    renderSettings.UseViewBasedLighting = !renderSettings.UseViewBasedLighting;
-                    Console.WriteLine($"[Toggle] UseViewBasedLighting: {renderSettings.UseViewBasedLighting}");
+                    renderer.UseViewBasedLighting = !renderer.UseViewBasedLighting;
+                    Console.WriteLine($"[Toggle] UseViewBasedLighting: {renderer.UseViewBasedLighting}");
                 }
 
                 bool bKeyDown = keyboard?.IsKeyPressed(Key.B) ?? false;
                 if (bKeyDown && !prevBKeyDown)
                 {
-                    renderSettings.ShowSkeletonBones = !renderSettings.ShowSkeletonBones;
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, renderSettings.ShowSkeletonBones));
-                    Console.WriteLine($"[Toggle] ShowSkeletonBones: {renderSettings.ShowSkeletonBones}");
+                    skeletonOverlay.ShowSkeletonBones = !skeletonOverlay.ShowSkeletonBones;
+                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
+                    Console.WriteLine($"[Toggle] ShowSkeletonBones: {skeletonOverlay.ShowSkeletonBones}");
                 }
 
                 if (refreshAnimatedSceneBounds)
                 {
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, renderSettings.ShowSkeletonBones));
+                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
                 }
 
                 bool fKeyDown = keyboard?.IsKeyPressed(Key.F) ?? false;
                 if (fKeyDown && !prevFKeyDown)
                 {
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, renderSettings.ShowSkeletonBones));
+                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
                     if (hasSceneBounds)
                     {
                         ApplyBoundsToCamera(bounds, camera, upAxis);
@@ -177,10 +178,10 @@ internal sealed class OpenGlMeshSample : ISample
                 bool kKeyDown = keyboard?.IsKeyPressed(Key.K) ?? false;
                 if (kKeyDown && !prevKKeyDown)
                 {
-                    renderSettings.SkinningMode = renderSettings.SkinningMode == SkinningMode.Linear
+                    renderer.SkinningMode = renderer.SkinningMode == SkinningMode.Linear
                         ? SkinningMode.DualQuaternion
                         : SkinningMode.Linear;
-                    Console.WriteLine($"[Toggle] SkinningMode: {renderSettings.SkinningMode}");
+                    Console.WriteLine($"[Toggle] SkinningMode: {renderer.SkinningMode}");
                 }
 
                 bool spaceKeyDown = keyboard?.IsKeyPressed(Key.Space) ?? false;
@@ -330,15 +331,15 @@ internal sealed class OpenGlMeshSample : ISample
         string[] arguments,
         out List<string> scenePaths,
         out bool showGrid,
-        out OpenGlUpAxis upAxis,
-        out OpenGlFaceWinding faceWinding,
+        out SceneUpAxis upAxis,
+        out FaceWinding faceWinding,
         out bool useViewBasedLighting,
         out SkinningMode skinningMode)
     {
         scenePaths = [];
         showGrid = true;
-        upAxis = OpenGlUpAxis.Y;
-        faceWinding = OpenGlFaceWinding.Ccw;
+        upAxis = SceneUpAxis.Y;
+        faceWinding = FaceWinding.CounterClockwise;
         useViewBasedLighting = false;
         skinningMode = SkinningMode.Linear;
 
@@ -362,15 +363,15 @@ internal sealed class OpenGlMeshSample : ISample
                 string value = arg[10..].Trim();
                 if (value.Equals("x", StringComparison.OrdinalIgnoreCase))
                 {
-                    upAxis = OpenGlUpAxis.X;
+                    upAxis = SceneUpAxis.X;
                 }
                 else if (value.Equals("z", StringComparison.OrdinalIgnoreCase))
                 {
-                    upAxis = OpenGlUpAxis.Z;
+                    upAxis = SceneUpAxis.Z;
                 }
                 else
                 {
-                    upAxis = OpenGlUpAxis.Y;
+                    upAxis = SceneUpAxis.Y;
                 }
 
                 continue;
@@ -380,8 +381,8 @@ internal sealed class OpenGlMeshSample : ISample
             {
                 string value = arg[10..].Trim();
                 faceWinding = value.Equals("cw", StringComparison.OrdinalIgnoreCase)
-                    ? OpenGlFaceWinding.Cw
-                    : OpenGlFaceWinding.Ccw;
+                    ? FaceWinding.Clockwise
+                    : FaceWinding.CounterClockwise;
                 continue;
             }
 
@@ -417,7 +418,7 @@ internal sealed class OpenGlMeshSample : ISample
         }
     }
 
-    private static void ApplyBoundsToCamera(SceneBounds bounds, OrbitCamera camera, OpenGlUpAxis upAxis)
+    private static void ApplyBoundsToCamera(SceneBounds bounds, OrbitCamera camera, SceneUpAxis upAxis)
     {
         SceneBounds adjustedBounds = GetAxisAdjustedBounds(bounds, upAxis);
         float radius = MathF.Max(adjustedBounds.Radius, 0.5f);
@@ -525,7 +526,7 @@ internal sealed class OpenGlMeshSample : ISample
         return MathF.Max(requiredDistance, bounds.Radius * 1.1f);
     }
 
-    private static SceneBounds GetAxisAdjustedBounds(SceneBounds bounds, OpenGlUpAxis upAxis)
+    private static SceneBounds GetAxisAdjustedBounds(SceneBounds bounds, SceneUpAxis upAxis)
     {
         Matrix4x4 sceneAxisMatrix = GetSceneAxisMatrix(upAxis);
         if (sceneAxisMatrix == Matrix4x4.Identity)
@@ -565,12 +566,12 @@ internal sealed class OpenGlMeshSample : ISample
         ];
     }
 
-    private static Matrix4x4 GetSceneAxisMatrix(OpenGlUpAxis upAxis)
+    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
     {
         return upAxis switch
         {
-            OpenGlUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
-            OpenGlUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
+            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
+            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
             _ => Matrix4x4.Identity
         };
     }

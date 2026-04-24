@@ -1,4 +1,7 @@
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -167,6 +170,12 @@ namespace RedFox.Graphics3D
         /// </summary>
         public void InvalidateSkinBoundsCache()
             => _cachedSkinBounds = null;
+
+        /// <inheritdoc/>
+        public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+        {
+            return new MeshRenderHandle(graphicsDevice, materialTypes, this);
+        }
 
         internal bool TryGetActiveSkinBounds(out SceneBounds bounds)
         {

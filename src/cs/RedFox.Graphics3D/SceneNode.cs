@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Xml.Linq;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D
 {
@@ -9,9 +11,10 @@ namespace RedFox.Graphics3D
     /// child nodes, carry transform information and optional rendering handles, and
     /// participate in update traversal.
     /// </summary>
-    public abstract class SceneNode : IUpdatable
+    public abstract class SceneNode : IUpdatable, IDisposable
     {
         private List<SceneNode>? _children = null;
+        private bool _disposed;
         private Scene? _scene = null;
 
         /// <summary>
@@ -48,7 +51,7 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Gets or sets the renderer-specific handle used for rendering operations.
         /// </summary>
-        public ISceneNodeRenderHandle? GraphicsHandle { get; set; }
+        public IRenderHandle? GraphicsHandle { get; set; }
 
         /// <summary>
         /// Gets or sets the flags that define the properties and behaviors of the scene node.
@@ -91,6 +94,19 @@ namespace RedFox.Graphics3D
         {
             Name = name;
             Flags = flags;
+        }
+
+        /// <summary>
+        /// Creates the render handle for this node.
+        /// </summary>
+        /// <param name="graphicsDevice">The graphics device that will own the handle resources.</param>
+        /// <param name="materialTypes">The material type registry used to resolve material pipelines.</param>
+        /// <returns>The created render handle, or <see langword="null"/> when this node does not render.</returns>
+        public virtual IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+        {
+            ArgumentNullException.ThrowIfNull(graphicsDevice);
+            ArgumentNullException.ThrowIfNull(materialTypes);
+            return null;
         }
 
         private bool MatchesFilter(SceneNodeFlags filter) =>
@@ -1617,6 +1633,50 @@ namespace RedFox.Graphics3D
             LiveTransform.WorldPosition = null;
             LiveTransform.WorldRotation = null;
             LiveTransform.Scale = null;
+        }
+
+        /// <summary>
+        /// Disposes this node, its render handle, and all descendant nodes.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (GraphicsHandle is { } graphicsHandle)
+            {
+                graphicsHandle.Release();
+                graphicsHandle.Dispose();
+            }
+
+            GraphicsHandle = null;
+
+            DisposeCore();
+
+            if (_children is not null)
+            {
+                for (int i = 0; i < _children.Count; i++)
+                {
+                    _children[i].Dispose();
+                    _children[i].Parent = null;
+                }
+
+                _children.Clear();
+            }
+
+            Parent = null;
+            _scene = null;
+            _disposed = true;
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Releases node-specific resources during disposal.
+        /// </summary>
+        protected virtual void DisposeCore()
+        {
         }
 
         /// <inheritdoc/>

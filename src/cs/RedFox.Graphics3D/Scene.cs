@@ -30,6 +30,22 @@ namespace RedFox.Graphics3D
         public List<AnimationPlayer> AnimationPlayers { get; } = [];
 
         /// <summary>
+        /// Gets or sets the scene up-axis used for renderer-side axis conversion.
+        /// </summary>
+        public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
+
+        /// <summary>
+        /// Gets or sets the front-face winding used for scene rendering.
+        /// </summary>
+        public FaceWinding FaceWinding { get; set; } = FaceWinding.CounterClockwise;
+
+        /// <summary>
+        /// Gets or sets a value indicating whether animation playback is paused.
+        /// When <see langword="true"/>, animation players are not updated but the scene graph still updates.
+        /// </summary>
+        public bool IsAnimationPaused { get; set; }
+
+        /// <summary>
         /// Initializes a new instance with the specified name.
         /// </summary>
         /// <param name="name">The scene name.</param>
@@ -51,13 +67,6 @@ namespace RedFox.Graphics3D
         /// Updates the scene and all nodes.
         /// </summary>
         /// <param name="deltaTime">Time elapsed since last update in seconds.</param>
-        /// <summary>
-        /// Gets or sets a value indicating whether animation playback is paused.
-        /// When <see langword="true"/>, animation players are not updated but the scene graph
-        /// still updates (physics, constraints, etc. continue to run).
-        /// </summary>
-        public bool IsAnimationPaused { get; set; }
-
         public void Update(float deltaTime)
         {
             if (!IsAnimationPaused && deltaTime > 0.0f && AnimationPlayers.Count > 0)

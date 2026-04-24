@@ -1,6 +1,8 @@
 using Silk.NET.OpenGL;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace RedFox.Graphics3D.OpenGL.Resources;
 
@@ -8,7 +10,7 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 /// Base class for compiled OpenGL programs. Owns shader compilation, program linking,
 /// and uniform-location caching. Disposable to release the underlying GL program object.
 /// </summary>
-public abstract class GlProgramBase : IDisposable
+internal abstract class GlProgramBase : IDisposable
 {
     private readonly Dictionary<string, int> _uniformLocations;
     private bool _disposed;
@@ -122,6 +124,87 @@ public abstract class GlProgramBase : IDisposable
         }
 
         Gl.Uniform1(location, value);
+    }
+
+    /// <summary>
+    /// Sets a single-precision float uniform value by name.
+    /// </summary>
+    /// <param name="uniformName">The uniform name.</param>
+    /// <param name="value">The float value.</param>
+    public void SetFloat(string uniformName, float value)
+    {
+        int location = GetUniformLocation(uniformName);
+        if (location < 0)
+        {
+            return;
+        }
+
+        Gl.Uniform1(location, value);
+    }
+
+    /// <summary>
+    /// Sets a 2-component vector uniform value by name.
+    /// </summary>
+    /// <param name="uniformName">The uniform name.</param>
+    /// <param name="value">The vector value.</param>
+    public void SetVector2(string uniformName, Vector2 value)
+    {
+        int location = GetUniformLocation(uniformName);
+        if (location < 0)
+        {
+            return;
+        }
+
+        Gl.Uniform2(location, value.X, value.Y);
+    }
+
+    /// <summary>
+    /// Sets a 3-component vector uniform value by name.
+    /// </summary>
+    /// <param name="uniformName">The uniform name.</param>
+    /// <param name="value">The vector value.</param>
+    public void SetVector3(string uniformName, Vector3 value)
+    {
+        int location = GetUniformLocation(uniformName);
+        if (location < 0)
+        {
+            return;
+        }
+
+        Gl.Uniform3(location, value.X, value.Y, value.Z);
+    }
+
+    /// <summary>
+    /// Sets a 4-component vector uniform value by name.
+    /// </summary>
+    /// <param name="uniformName">The uniform name.</param>
+    /// <param name="value">The vector value.</param>
+    public void SetVector4(string uniformName, Vector4 value)
+    {
+        int location = GetUniformLocation(uniformName);
+        if (location < 0)
+        {
+            return;
+        }
+
+        Gl.Uniform4(location, value.X, value.Y, value.Z, value.W);
+    }
+
+    /// <summary>
+    /// Sets a 4x4 matrix uniform value by name.
+    /// </summary>
+    /// <param name="uniformName">The uniform name.</param>
+    /// <param name="value">The matrix value.</param>
+    public unsafe void SetMatrix4(string uniformName, Matrix4x4 value)
+    {
+        int location = GetUniformLocation(uniformName);
+        if (location < 0)
+        {
+            return;
+        }
+
+        float* pointer = (float*)Unsafe.AsPointer(ref value.M11);
+        Gl.UniformMatrix4(location, 1, false, pointer);
     }
 
     /// <inheritdoc/>

@@ -1,4 +1,7 @@
 ﻿using System.Numerics;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -11,6 +14,12 @@ public class SkeletonBone : SceneNode
     public SkeletonBone(string name) : base(name) { }
 
     public SkeletonBone(string name, SceneNodeFlags flags) : base(name, flags) { }
+
+    /// <inheritdoc/>
+    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+    {
+        return new SkeletonBoneRenderHandle(this);
+    }
 
     /// <inheritdoc/>
     public override bool TryGetSceneBounds(out SceneBounds bounds)
