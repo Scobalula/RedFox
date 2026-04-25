@@ -48,20 +48,21 @@ public static class ObjMtlWriter
         }
     }
 
-    private static void WriteTextureMap(StreamWriter writer, string mapType, Material material, string? slotKey)
+    private static void WriteTextureMap(StreamWriter writer, string mapType, Material material, string? mapName)
     {
-        if (slotKey is null)
+        if (mapName is null)
         {
             return;
         }
 
-        if (material.TryGetTexture(slotKey, out Texture? texture))
+        // Try to find the actual texture node to get the file path
+        if (material.TryFindTexture(mapName, StringComparison.OrdinalIgnoreCase, out Texture? texture))
         {
             writer.WriteLine($"{mapType} {texture.FilePath}");
         }
         else
         {
-            writer.WriteLine($"{mapType} {slotKey}");
+            writer.WriteLine($"{mapType} {mapName}");
         }
     }
 }

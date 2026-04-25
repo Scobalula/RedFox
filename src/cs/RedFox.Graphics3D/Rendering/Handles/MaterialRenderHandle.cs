@@ -18,8 +18,6 @@ internal sealed class MaterialRenderHandle : RenderHandle
 
     private IGpuPipelineState? _pipeline;
     private string? _resolvedTypeName;
-    private MaterialTextureBinding[]? _textureBindingSnapshot;
-    private uint _bindingVersion = uint.MaxValue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MaterialRenderHandle"/> class.
@@ -112,19 +110,6 @@ internal sealed class MaterialRenderHandle : RenderHandle
         _pipeline?.Dispose();
         _pipeline = null;
         _resolvedTypeName = null;
-        _textureBindingSnapshot = null;
-        _bindingVersion = uint.MaxValue;
-    }
-
-    private MaterialTextureBinding[] GetTextureBindingSnapshot()
-    {
-        if (_textureBindingSnapshot is null || _material.Version != _bindingVersion)
-        {
-            _textureBindingSnapshot = [.. _material.Textures];
-            _bindingVersion = _material.Version;
-        }
-
-        return _textureBindingSnapshot;
     }
 
     private TextureRenderHandle EnsureTextureHandle(Texture texture)
@@ -148,6 +133,26 @@ internal sealed class MaterialRenderHandle : RenderHandle
         return textureHandle;
     }
 
+    private static int ResolveTextureSlot(Texture texture, int fallbackIndex)
+    {
+        if (int.TryParse(texture.Slot, out int explicitSlot))
+        {
+            return explicitSlot;
+        }
+
+        return texture.Slot switch
+        {
+            string slot when slot.Equals("diffuse", StringComparison.OrdinalIgnoreCase) => 0,
+            string slot when slot.Equals("normal", StringComparison.OrdinalIgnoreCase) => 1,
+            string slot when slot.Equals("specular", StringComparison.OrdinalIgnoreCase) => 2,
+            string slot when slot.Equals("metallic", StringComparison.OrdinalIgnoreCase) => 3,
+            string slot when slot.Equals("roughness", StringComparison.OrdinalIgnoreCase) => 4,
+            string slot when slot.Equals("emissive", StringComparison.OrdinalIgnoreCase) => 5,
+            string slot when slot.Equals("ao", StringComparison.OrdinalIgnoreCase) => 6,
+            _ => fallbackIndex,
+        };
+    }
+
     private void SetMaterialUniforms(ICommandList commandList)
     {
         commandList.SetUniformVector4("BaseColor", _material.DiffuseColor ?? Vector4.One);
@@ -157,10 +162,10 @@ internal sealed class MaterialRenderHandle : RenderHandle
 
     private void BindTextureResources(ICommandList commandList)
     {
-        MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
-        for (int i = 0; i < snapshot.Length; i++)
+        IReadOnlyList<MaterialTextureBinding> textureBindings = _material.Textures;
+        for (int i = 0; i < textureBindings.Count; i++)
         {
-            MaterialTextureBinding binding = snapshot[i];
+            MaterialTextureBinding binding = textureBindings[i];
             if (binding.Texture.GraphicsHandle is TextureRenderHandle textureHandle && textureHandle.IsOwnedBy(_graphicsDevice))
             {
                 textureHandle.Bind(commandList, binding.Slot);
@@ -170,10 +175,10 @@ internal sealed class MaterialRenderHandle : RenderHandle
 
     private void UpdateTextureHandles(ICommandList commandList)
     {
-        MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
-        for (int i = 0; i < snapshot.Length; i++)
+        IReadOnlyList<MaterialTextureBinding> textureBindings = _material.Textures;
+        for (int i = 0; i < textureBindings.Count; i++)
         {
-            TextureRenderHandle textureHandle = EnsureTextureHandle(snapshot[i].Texture);
+            TextureRenderHandle textureHandle = EnsureTextureHandle(textureBindings[i].Texture);
             textureHandle.Update(commandList);
         }
     }

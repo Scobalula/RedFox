@@ -312,13 +312,13 @@ public sealed class ObjTranslatorTests
     [Fact]
     public void MtlWriter_WritesExpectedContent()
     {
-        Material mat = new("TestMat");
-        Texture diffTex = mat.AddNode(new Texture("textures/diffuse_tex.tga"));
-        mat.DiffuseMapName = "diffuse";
-        mat.Connect("diffuse", diffTex);
-        Texture normTex = mat.AddNode(new Texture("textures/normal_tex.tga"));
-        mat.NormalMapName = "normal";
-        mat.Connect("normal", normTex);
+        Material mat = new("TestMat")
+        {
+            DiffuseMapName = "diffuse_tex",
+            NormalMapName = "normal_tex",
+        };
+        mat.AddNode(new Texture("textures/diffuse_tex.tga", "diffuse"));
+        mat.AddNode(new Texture("textures/normal_tex.tga", "normal"));
 
         using MemoryStream stream = new();
         ObjMtlWriter.Write(stream, [mat]);
@@ -565,10 +565,11 @@ public sealed class ObjTranslatorTests
         ], 1, 3);
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
 
-        Material material = model.AddNode(new Material("TestMaterial"));
-        Texture tex = material.AddNode(new Texture("textures/diffuse_a.tga"));
-        material.DiffuseMapName = "diffuse";
-        material.Connect("diffuse", tex);
+        Material material = model.AddNode(new Material("TestMaterial")
+        {
+            DiffuseMapName = "diffuse_a",
+        });
+        material.AddNode(new Texture("textures/diffuse_a.tga", "diffuse"));
 
         mesh.Materials = [material];
         return scene;

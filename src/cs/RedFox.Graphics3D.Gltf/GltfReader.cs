@@ -627,19 +627,19 @@ public sealed class GltfReader
 
         GltfImage image = _doc.Images[tex.Source];
         string imagePath = image.Uri ?? image.Name ?? $"image_{tex.Source}";
+        string texName = $"{slot}_{Path.GetFileNameWithoutExtension(imagePath)}";
         string? resolvedPath = ResolveTexturePath(imagePath);
 
-        setMapName(slot);
+        setMapName(texName);
 
-        if (!mat.TryGetTexture(slot, out _))
+        // Avoid duplicate texture names
+        if (mat.Children?.Any(c => c.Name.Equals(texName, StringComparison.OrdinalIgnoreCase)) != true)
         {
-            var texture = new Texture(imagePath)
+            mat.AddNode(new Texture(imagePath, slot)
             {
-                Name = $"{slot}_{Path.GetFileNameWithoutExtension(imagePath)}",
+                Name = texName,
                 ResolvedFilePath = resolvedPath,
-            };
-            mat.AddNode(texture);
-            mat.Connect(slot, texture);
+            });
         }
     }
 

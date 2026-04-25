@@ -214,7 +214,7 @@ public sealed class GltfWriter
         if (string.IsNullOrWhiteSpace(mapName))
             return false;
 
-        if (material.TryGetTexture(mapName, out Texture? texture))
+        if (material.TryFindTexture(mapName, StringComparison.OrdinalIgnoreCase, out Texture? texture))
         {
             imagePath = GetPortableTexturePath(texture);
             return !string.IsNullOrWhiteSpace(imagePath);
