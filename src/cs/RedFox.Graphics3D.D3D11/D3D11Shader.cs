@@ -1,22 +1,45 @@
 using RedFox.Graphics3D.Rendering.Backend;
+using System;
 
 namespace RedFox.Graphics3D.D3D11;
 
 /// <summary>
-/// Represents the placeholder D3D11 GPU shader resource for the backend skeleton.
+/// Represents compiled Direct3D 11 shader bytecode.
 /// </summary>
 public sealed class D3D11Shader : IGpuShader
 {
-    internal D3D11Shader()
+    private byte[] _bytecode;
+
+    internal D3D11Shader(byte[] bytecode, ShaderStage stage)
     {
+        _bytecode = bytecode ?? throw new ArgumentNullException(nameof(bytecode));
+        Stage = stage;
     }
 
+    internal ReadOnlySpan<byte> Bytecode
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(IsDisposed, this);
+            return _bytecode;
+        }
+    }
+
+    internal ShaderStage Stage { get; }
+
     /// <inheritdoc/>
-    public bool IsDisposed => throw D3D11BackendSkeleton.NotImplemented();
+    public bool IsDisposed { get; private set; }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        throw D3D11BackendSkeleton.NotImplemented();
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        _bytecode = [];
+        IsDisposed = true;
+        GC.SuppressFinalize(this);
     }
 }

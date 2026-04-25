@@ -99,6 +99,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Graphics3D.OpenGL", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Graphics3D.D3D11", "RedFox.Graphics3D.D3D11\RedFox.Graphics3D.D3D11.csproj", "{798F7133-3414-4610-92DE-EDDDA688EB7F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Graphics3D.Silk", "RedFox.Graphics3D.Silk\RedFox.Graphics3D.Silk.csproj", "{FE3562FC-3028-48D9-8052-18FD0B842406}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -625,6 +627,18 @@ Global
 		{798F7133-3414-4610-92DE-EDDDA688EB7F}.Release|x64.Build.0 = Release|Any CPU
 		{798F7133-3414-4610-92DE-EDDDA688EB7F}.Release|x86.ActiveCfg = Release|Any CPU
 		{798F7133-3414-4610-92DE-EDDDA688EB7F}.Release|x86.Build.0 = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|x64.Build.0 = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Debug|x86.Build.0 = Debug|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|x64.ActiveCfg = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|x64.Build.0 = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|x86.ActiveCfg = Release|Any CPU
+		{FE3562FC-3028-48D9-8052-18FD0B842406}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

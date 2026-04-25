@@ -23,8 +23,11 @@
     <ProjectReference Include="..\RedFox.Graphics3D.KaydaraFbx\RedFox.Graphics3D.KaydaraFbx.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.MayaAscii\RedFox.Graphics3D.MayaAscii.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Md5\RedFox.Graphics3D.Md5.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.D3D11\RedFox.Graphics3D.D3D11.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Seanim\RedFox.Graphics3D.Seanim.csproj" />    <ProjectReference Include="..\RedFox.Graphics3D.Semodel\RedFox.Graphics3D.Semodel.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Seanim\RedFox.Graphics3D.Seanim.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Semodel\RedFox.Graphics3D.Semodel.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Silk\RedFox.Graphics3D.Silk.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Smd\RedFox.Graphics3D.Smd.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.WavefrontObj\RedFox.Graphics3D.WavefrontObj.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />

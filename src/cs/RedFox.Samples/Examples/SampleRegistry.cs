@@ -28,6 +28,7 @@ internal static class SampleRegistry
             new VirtualFileSystemSample(),
             new MurMur3Sample(),
             new CompressionSample(),
+            new D3D11MeshSample(),
             new ImageTranslationSample(),
             new OpenGlMeshSample(),
             new ProcessFinderSample(),

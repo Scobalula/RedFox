@@ -1,9 +1,9 @@
 cbuffer FrameConstants : register(b0)
 {
-    float4x4 Model;
-    float4x4 SceneAxis;
-    float4x4 View;
-    float4x4 Projection;
+    row_major float4x4 Model;
+    row_major float4x4 SceneAxis;
+    row_major float4x4 View;
+    row_major float4x4 Projection;
 };
 
 struct VSInput
@@ -22,9 +22,10 @@ struct VSOutput
 VSOutput Main(VSInput input)
 {
     VSOutput output;
-    float4 worldPosition = mul(float4(input.Positions, 1.0f), mul(Model, SceneAxis));
+    row_major float4x4 worldMatrix = mul(Model, SceneAxis);
+    float4 worldPosition = mul(float4(input.Positions, 1.0f), worldMatrix);
     output.WorldPosition = worldPosition.xyz;
-    output.WorldNormal = normalize(mul(float4(input.Normals, 0.0f), Model).xyz);
+    output.WorldNormal = normalize(mul(float4(input.Normals, 0.0f), worldMatrix).xyz);
     output.Position = mul(worldPosition, mul(View, Projection));
     return output;
 }

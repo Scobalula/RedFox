@@ -20,5 +20,35 @@ struct PSInput
 
 float4 Main(PSInput input) : SV_Target
 {
-    return BaseColor;
+    float3 normal = normalize(input.WorldNormal);
+    float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
+    float3 ambient = AmbientColor;
+
+    if (UseViewBasedLighting != 0)
+    {
+        float facing = max(dot(normal, viewDirection), 0.0f);
+        float3 lit = (ambient + float3(facing, facing, facing)) * BaseColor.rgb;
+        return float4(lit, BaseColor.a);
+    }
+
+    float3 diffuse = float3(0.0f, 0.0f, 0.0f);
+    float3 specular = float3(0.0f, 0.0f, 0.0f);
+    int count = clamp(LightCount, 0, 4);
+    for (int lightIndex = 0; lightIndex < count; lightIndex++)
+    {
+        float3 lightDirection = normalize(-LightDirectionsAndIntensity[lightIndex].xyz);
+        float lightIntensity = LightDirectionsAndIntensity[lightIndex].w;
+        float normalDotLight = max(dot(normal, lightDirection), 0.0f);
+        diffuse += LightColors[lightIndex] * (lightIntensity * normalDotLight);
+
+        if (normalDotLight > 0.0f)
+        {
+            float3 reflected = reflect(-lightDirection, normal);
+            float spec = pow(max(dot(viewDirection, reflected), 0.0f), MaterialSpecularPower);
+            specular += LightColors[lightIndex] * (lightIntensity * spec * MaterialSpecularStrength);
+        }
+    }
+
+    float3 outputColor = ((ambient + diffuse) * BaseColor.rgb) + specular;
+    return float4(outputColor, BaseColor.a);
 }

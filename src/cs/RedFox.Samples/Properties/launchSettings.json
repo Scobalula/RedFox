@@ -2,7 +2,7 @@
   "profiles": {
     "RedFox.Samples": {
       "commandName": "Project",
-      "commandLineArgs": "run graphics3d-opengl-mesh \"D:\\Tools\\CordyCap\\Greyhound\\exported_files\\modern_warfare_4\\xmodels\\mp_eastern_vm_arms_t9kgb_20_5\\mp_eastern_vm_arms_t9kgb_20_5_LOD0.semodel\" \"D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xanims\\vm_sn_alpha50_reload_empty_mmag.seanim\" --winding=cw --up-axis=Z --view-lighting --skinning=dq"
+      "commandLineArgs": "run graphics3d-d3d11-mesh \"D:\\Tools\\CordyCap\\Greyhound\\exported_files\\modern_warfare_4\\xmodels\\mp_eastern_vm_arms_t9kgb_20_5\\mp_eastern_vm_arms_t9kgb_20_5_LOD0.semodel\" \"D:\\Tools\\JohnMadma\\Default\\exported_files\\modern_warfare_4\\xanims\\vm_sn_alpha50_reload_empty_mmag.seanim\" --winding=cw --up-axis=Z --view-lighting --skinning=dq"
     }
   }
 }

@@ -1,15 +1,37 @@
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.Rendering.Backend;
 using System;
 using System.Numerics;
 
 namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
-/// Provides an abstract high-level renderer contract for drawing a scene with a camera.
-/// Backends typically implement this in terms of an <see cref="IRenderPipeline"/> of <see cref="IRenderPass"/> instances.
+/// Provides a backend-driven scene renderer that draws a scene with a camera.
 /// </summary>
-public abstract class SceneRenderer : IDisposable
+public sealed class SceneRenderer : IDisposable
 {
+    private static readonly RenderPhase[] RenderPhases =
+    [
+        RenderPhase.SkinningCompute,
+        RenderPhase.Opaque,
+        RenderPhase.Transparent,
+        RenderPhase.Overlay,
+    ];
+
+    private readonly ClearAndStateResetPass _clearAndStateResetPass;
+    private readonly ICommandList _commandList;
+    private readonly IGraphicsDevice _graphicsDevice;
+
+    private bool _disposed;
+    private bool _initialized;
+    private int _viewportHeight = 1;
+    private int _viewportWidth = 1;
+
+    /// <summary>
+    /// Gets the graphics device used by the renderer.
+    /// </summary>
+    public IGraphicsDevice GraphicsDevice => _graphicsDevice;
+
     /// <summary>
     /// Gets or sets the ambient color used for renderer lighting.
     /// </summary>
@@ -43,13 +65,17 @@ public abstract class SceneRenderer : IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="SceneRenderer"/> class.
     /// </summary>
+    /// <param name="graphicsDevice">The graphics device that executes rendering work.</param>
+    /// <param name="clearColor">The clear color applied at frame start.</param>
     /// <param name="ambientColor">The ambient light contribution.</param>
     /// <param name="fallbackLightDirection">The fallback light direction.</param>
     /// <param name="fallbackLightColor">The fallback light color.</param>
     /// <param name="fallbackLightIntensity">The fallback light intensity.</param>
     /// <param name="useViewBasedLighting">Whether view-based lighting is enabled.</param>
     /// <param name="skinningMode">The active skinning mode.</param>
-    protected SceneRenderer(
+    public SceneRenderer(
+        IGraphicsDevice graphicsDevice,
+        Vector4 clearColor,
         Vector3 ambientColor,
         Vector3 fallbackLightDirection,
         Vector3 fallbackLightColor,
@@ -57,6 +83,9 @@ public abstract class SceneRenderer : IDisposable
         bool useViewBasedLighting,
         SkinningMode skinningMode)
     {
+        _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
+        _commandList = graphicsDevice.CreateCommandList();
+        _clearAndStateResetPass = new ClearAndStateResetPass(clearColor);
         AmbientColor = ambientColor;
         FallbackLightDirection = fallbackLightDirection;
         FallbackLightColor = fallbackLightColor;
@@ -68,14 +97,30 @@ public abstract class SceneRenderer : IDisposable
     /// <summary>
     /// Initializes renderer state and GPU resources.
     /// </summary>
-    public abstract void Initialize();
+    public void Initialize()
+    {
+        ThrowIfDisposed();
+        if (_initialized)
+        {
+            return;
+        }
+
+        _clearAndStateResetPass.Initialize();
+        _initialized = true;
+    }
 
     /// <summary>
     /// Resizes the active viewport.
     /// </summary>
     /// <param name="width">The viewport width in pixels.</param>
     /// <param name="height">The viewport height in pixels.</param>
-    public abstract void Resize(int width, int height);
+    public void Resize(int width, int height)
+    {
+        ThrowIfDisposed();
+        _viewportWidth = Math.Max(1, width);
+        _viewportHeight = Math.Max(1, height);
+        _clearAndStateResetPass.Resize(_viewportWidth, _viewportHeight);
+    }
 
     /// <summary>
     /// Renders the provided scene from the provided camera view.
@@ -83,12 +128,66 @@ public abstract class SceneRenderer : IDisposable
     /// <param name="scene">The scene to render.</param>
     /// <param name="view">The camera view (matrices and position) to render with.</param>
     /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
-    public abstract void Render(Scene scene, in CameraView view, float deltaTime);
+    public void Render(Scene scene, in CameraView view, float deltaTime)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(scene);
+
+        if (!_initialized)
+        {
+            throw new InvalidOperationException("Renderer must be initialized before rendering.");
+        }
+
+        Matrix4x4 sceneAxis = GetSceneAxisMatrix(scene.UpAxis);
+
+        _commandList.Reset();
+        _commandList.SetSceneAxis(sceneAxis);
+        _commandList.SetFrontFaceWinding(scene.FaceWinding);
+        _commandList.SetAmbientColor(AmbientColor);
+        _commandList.SetUseViewBasedLighting(UseViewBasedLighting);
+        _commandList.SetSkinningMode(SkinningMode);
+        _commandList.ResetLights(FallbackLightDirection, FallbackLightColor, FallbackLightIntensity);
+
+        Vector2 viewportSize = new(_viewportWidth, _viewportHeight);
+        RenderFrameContext context = CreateFrameContext(scene, view, viewportSize, deltaTime);
+        context.Set<ICommandList>(_commandList);
+        context.Set<IGraphicsDevice>(_graphicsDevice);
+
+        _clearAndStateResetPass.Execute(context);
+        SceneTraversal.Update(scene.RootNode, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
+
+        for (int i = 0; i < RenderPhases.Length; i++)
+        {
+            SceneTraversal.Render(
+                scene.RootNode,
+                _commandList,
+                RenderPhases[i],
+                view.ViewMatrix,
+                view.ProjectionMatrix,
+                sceneAxis,
+                view.Position,
+                viewportSize);
+        }
+
+        _graphicsDevice.Submit(_commandList);
+    }
 
     /// <summary>
     /// Releases renderer resources.
     /// </summary>
-    public abstract void Dispose();
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _clearAndStateResetPass.Dispose();
+        _graphicsDevice.Dispose();
+        _initialized = false;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
 
     /// <summary>
     /// Creates a frame context populated with the renderer's per-frame lighting and skinning configuration.
@@ -98,7 +197,7 @@ public abstract class SceneRenderer : IDisposable
     /// <param name="viewportSize">The active viewport size.</param>
     /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
     /// <returns>The populated frame context.</returns>
-    protected RenderFrameContext CreateFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
+    private RenderFrameContext CreateFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
     {
         RenderFrameContext context = new(scene, view, viewportSize, deltaTime)
         {
@@ -111,5 +210,20 @@ public abstract class SceneRenderer : IDisposable
         };
 
         return context;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
+    {
+        return upAxis switch
+        {
+            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI / 2.0f),
+            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI / 2.0f),
+            _ => Matrix4x4.Identity,
+        };
     }
 }

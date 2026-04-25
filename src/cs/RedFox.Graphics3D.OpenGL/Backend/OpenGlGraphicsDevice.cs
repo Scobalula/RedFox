@@ -227,7 +227,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new ArgumentOutOfRangeException(nameof(height));
         }
 
-        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
+        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
         {
             throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
         }
@@ -364,44 +364,44 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         ImageFormat format,
         TextureUsage usage,
         out SizedInternalFormat internalFormat,
-        out Silk.NET.OpenGL.PixelFormat pixelFormat,
+        out global::Silk.NET.OpenGL.PixelFormat pixelFormat,
         out PixelType pixelType)
     {
         switch (format)
         {
             case ImageFormat.R8G8B8A8Unorm:
                 internalFormat = SizedInternalFormat.Rgba8;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.Rgba;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Rgba;
                 pixelType = PixelType.UnsignedByte;
                 return true;
 
             case ImageFormat.R8G8B8A8UnormSrgb:
                 internalFormat = SizedInternalFormat.Srgb8Alpha8;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.Rgba;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Rgba;
                 pixelType = PixelType.UnsignedByte;
                 return true;
 
             case ImageFormat.B8G8R8A8Unorm:
                 internalFormat = SizedInternalFormat.Rgba8;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.Bgra;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Bgra;
                 pixelType = PixelType.UnsignedByte;
                 return true;
 
             case ImageFormat.B8G8R8A8UnormSrgb:
                 internalFormat = SizedInternalFormat.Srgb8Alpha8;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.Bgra;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Bgra;
                 pixelType = PixelType.UnsignedByte;
                 return true;
 
             case ImageFormat.D32Float when usage.HasFlag(TextureUsage.DepthStencil):
                 internalFormat = SizedInternalFormat.DepthComponent32f;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.DepthComponent;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.DepthComponent;
                 pixelType = PixelType.Float;
                 return true;
 
             case ImageFormat.D24UnormS8Uint when usage.HasFlag(TextureUsage.DepthStencil):
                 internalFormat = SizedInternalFormat.Depth24Stencil8;
-                pixelFormat = Silk.NET.OpenGL.PixelFormat.DepthStencil;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.DepthStencil;
                 pixelType = PixelType.UnsignedInt248;
                 return true;
 
