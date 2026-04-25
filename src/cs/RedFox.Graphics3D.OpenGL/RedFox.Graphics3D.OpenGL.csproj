@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\RedFox.Rendering.OpenGL\**\*.cs" Exclude="..\RedFox.Rendering.OpenGL\bin\**\*;..\RedFox.Rendering.OpenGL\obj\**\*">
+    <Compile Include="..\RedFox.Rendering.OpenGL\**\*.cs" Exclude="..\RedFox.Rendering.OpenGL\bin\**\*;..\RedFox.Rendering.OpenGL\obj\**\*;..\RedFox.Rendering.OpenGL\Handles\**\*;..\RedFox.Rendering.OpenGL\Passes\**\*;..\RedFox.Rendering.OpenGL\OpenGlFaceWinding.cs;..\RedFox.Rendering.OpenGL\OpenGlFrameQueues.cs;..\RedFox.Rendering.OpenGL\OpenGlLightFrameData.cs;..\RedFox.Rendering.OpenGL\OpenGlRenderResources.cs;..\RedFox.Rendering.OpenGL\OpenGlRenderSettings.cs;..\RedFox.Rendering.OpenGL\OpenGlSurfaceMaterial.cs;..\RedFox.Rendering.OpenGL\OpenGlUpAxis.cs;..\RedFox.Rendering.OpenGL\SkinningMode.cs">
       <Link>MergedRuntime\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Compile>
   </ItemGroup>

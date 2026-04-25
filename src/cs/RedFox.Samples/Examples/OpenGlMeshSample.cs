@@ -11,10 +11,13 @@ using RedFox.Graphics3D.SEAnim;
 using RedFox.Graphics3D.Semodel;
 using RedFox.Graphics3D.Smd;
 using RedFox.Graphics3D.WavefrontObj;
+using RedFox.Graphics3D.Rendering;
+using RedFox.Graphics3D.Rendering.Hosting;
 using RedFox.Rendering.OpenGL;
 using RedFox.Rendering.OpenGL.Hosting;
 using Silk.NET.Input;
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Numerics;
 
@@ -36,7 +39,7 @@ internal sealed class OpenGlMeshSample : ISample
     /// <inheritdoc />
     public int Run(string[] arguments)
     {
-        ParseOptions(arguments, out List<string> scenePaths, out bool showGrid, out SceneUpAxis upAxis, out FaceWinding faceWinding, out bool useViewBasedLighting, out SkinningMode skinningMode);
+        ParseOptions(arguments, out List<string> scenePaths, out bool showGrid, out SceneUpAxis upAxis, out FaceWinding faceWinding, out bool useViewBasedLighting, out SkinningMode skinningMode, out float exitAfterSeconds);
 
         if (!TryCreateScene(scenePaths, out Scene? scene, out string? error))
         {
@@ -75,12 +78,16 @@ internal sealed class OpenGlMeshSample : ISample
         camera.InvertY = true;
         camera.ApplyOrbit();
 
-        bool hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out SceneBounds bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
-        bool refreshAnimatedSceneBounds = animationPlayers.Count > 0;
-        if (hasSceneBounds)
+        SceneViewportController viewportController = new(scene, camera)
         {
-            ApplyBoundsToCamera(bounds, camera, upAxis);
-            EnsurePreviewLights(scene, bounds, PreviewRandomLightCount);
+            RefreshAnimatedSceneBounds = animationPlayers.Count > 0,
+            IncludeNodeInBounds = node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones),
+        };
+
+        if (viewportController.RecomputeBounds())
+        {
+            viewportController.FitCameraToScene();
+            EnsurePreviewLights(scene, viewportController.Bounds, PreviewRandomLightCount);
         }
         else
         {
@@ -110,6 +117,7 @@ internal sealed class OpenGlMeshSample : ISample
         bool prevSpaceKeyDown = false;
         bool prevTKeyDown = false;
         bool prevGKeyDown = false;
+        float elapsedSeconds = 0.0f;
 
         using OpenGlRendererHost host = new(
             "RedFox OpenGL Mesh Sample",
@@ -126,7 +134,7 @@ internal sealed class OpenGlMeshSample : ISample
         {
             if (size.X > 0 && size.Y > 0)
             {
-                camera.AspectRatio = (float)size.X / size.Y;
+                viewportController.ResizeViewport(size.X, size.Y);
             }
         };
         try
@@ -155,22 +163,15 @@ internal sealed class OpenGlMeshSample : ISample
                 if (bKeyDown && !prevBKeyDown)
                 {
                     skeletonOverlay.ShowSkeletonBones = !skeletonOverlay.ShowSkeletonBones;
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
+                    viewportController.RecomputeBounds();
                     Console.WriteLine($"[Toggle] ShowSkeletonBones: {skeletonOverlay.ShowSkeletonBones}");
-                }
-
-                if (refreshAnimatedSceneBounds)
-                {
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
                 }
 
                 bool fKeyDown = keyboard?.IsKeyPressed(Key.F) ?? false;
                 if (fKeyDown && !prevFKeyDown)
                 {
-                    hasSceneBounds = SceneBoundsCalculator.TryCompute(scene, out bounds, node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones));
-                    if (hasSceneBounds)
+                    if (viewportController.RecomputeBounds() && viewportController.FitCameraToScene())
                     {
-                        ApplyBoundsToCamera(bounds, camera, upAxis);
                         Console.WriteLine("[Toggle] Camera re-fit to scene bounds.");
                     }
                 }
@@ -231,17 +232,13 @@ internal sealed class OpenGlMeshSample : ISample
                 prevTKeyDown = tKeyDown;
                 prevGKeyDown = gKeyDown;
 
-                CameraControllerInput cameraInput = cameraInputAdapter.ReadInput();
-                camera.UpdateInput((float)deltaTime, cameraInput);
+                viewportController.UpdateAndRender(renderer, cameraInputAdapter, (float)deltaTime);
 
-                if (hasSceneBounds)
+                elapsedSeconds += (float)deltaTime;
+                if (exitAfterSeconds > 0.0f && elapsedSeconds >= exitAfterSeconds)
                 {
-                    UpdateDynamicClipPlanes(GetAxisAdjustedBounds(bounds, upAxis), camera);
+                    host.Window.Close();
                 }
-
-                scene.Update((float)deltaTime);
-                CameraView view = camera.GetView();
-                renderer.Render(scene, view, (float)deltaTime);
             });
         }
         finally
@@ -334,7 +331,8 @@ internal sealed class OpenGlMeshSample : ISample
         out SceneUpAxis upAxis,
         out FaceWinding faceWinding,
         out bool useViewBasedLighting,
-        out SkinningMode skinningMode)
+        out SkinningMode skinningMode,
+        out float exitAfterSeconds)
     {
         scenePaths = [];
         showGrid = true;
@@ -342,6 +340,7 @@ internal sealed class OpenGlMeshSample : ISample
         faceWinding = FaceWinding.CounterClockwise;
         useViewBasedLighting = false;
         skinningMode = SkinningMode.Linear;
+        exitAfterSeconds = 0.0f;
 
         for (int i = 0; i < arguments.Length; i++)
         {
@@ -411,39 +410,22 @@ internal sealed class OpenGlMeshSample : ISample
                 continue;
             }
 
+            if (arg.StartsWith("--exit-after=", StringComparison.OrdinalIgnoreCase))
+            {
+                string value = arg[13..].Trim();
+                if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedSeconds) && parsedSeconds > 0.0f)
+                {
+                    exitAfterSeconds = parsedSeconds;
+                }
+
+                continue;
+            }
+
             if (!arg.StartsWith("--", StringComparison.Ordinal))
             {
                 scenePaths.Add(arg);
             }
         }
-    }
-
-    private static void ApplyBoundsToCamera(SceneBounds bounds, OrbitCamera camera, SceneUpAxis upAxis)
-    {
-        SceneBounds adjustedBounds = GetAxisAdjustedBounds(bounds, upAxis);
-        float radius = MathF.Max(adjustedBounds.Radius, 0.5f);
-        float diagonal = MathF.Max(adjustedBounds.DiagonalLength, 1.0f);
-
-        // Asset front in this sample pipeline is treated as +X.
-        Vector3 preferredForward = Vector3.Normalize(new Vector3(1.0f, -0.28f, -0.2f));
-        (float yaw, float pitch) = GetYawPitchFromForward(preferredForward);
-
-        camera.OrbitTarget = adjustedBounds.Center;
-        camera.YawRadians = yaw;
-        camera.PitchRadians = pitch;
-
-        camera.MinDistance = MathF.Max(radius * 0.0005f, 0.001f);
-        camera.MaxDistance = MathF.Max(diagonal * 24.0f, 2000.0f);
-        camera.MoveSpeed = MathF.Max(diagonal * 0.1f, 1.75f);
-        camera.BoostMultiplier = 2.5f;
-        camera.ZoomSensitivity = 1.0f;
-
-        float aspect = camera.AspectRatio > 0.0f ? camera.AspectRatio : (16.0f / 9.0f);
-        float fitDistance = ComputeBoundsFitDistance(adjustedBounds, preferredForward, camera.FieldOfView, aspect) * 1.15f;
-        camera.Distance = Math.Clamp(fitDistance, camera.MinDistance, camera.MaxDistance);
-        camera.ApplyOrbit();
-
-        UpdateDynamicClipPlanes(adjustedBounds, camera);
     }
 
     private static bool ShouldIncludeInBounds(SceneNode node, bool showSkeletonBones)
@@ -454,143 +436,6 @@ internal sealed class OpenGlMeshSample : ISample
         }
 
         return true;
-    }
-
-    private static void UpdateDynamicClipPlanes(SceneBounds bounds, OrbitCamera camera)
-    {
-        float radius = MathF.Max(bounds.Radius, 1.0f);
-        float distanceToCenter = Vector3.Distance(camera.Position, bounds.Center);
-
-        // Keep clipping conservative and stable while avoiding runaway near-plane growth.
-        float nearPlane = 0.01f;
-        float farPlane = MathF.Max(distanceToCenter + (radius * 8.0f), MathF.Max(radius * 24.0f, 5000.0f));
-
-        if (farPlane > 500000.0f)
-        {
-            nearPlane = MathF.Max(nearPlane, farPlane / 1000000.0f);
-        }
-
-        camera.NearPlane = nearPlane;
-        camera.FarPlane = farPlane;
-    }
-
-    private static float ComputeSphereFitDistance(float radius, float verticalFovDegrees, float aspectRatio)
-    {
-        float verticalFov = MathF.Max(verticalFovDegrees * (MathF.PI / 180.0f), 1e-3f);
-        float halfVertical = verticalFov * 0.5f;
-        float horizontalFov = 2.0f * MathF.Atan(MathF.Tan(halfVertical) * MathF.Max(aspectRatio, 1e-3f));
-        float limitingHalfFov = MathF.Min(halfVertical, horizontalFov * 0.5f);
-        float sinHalfFov = MathF.Max(MathF.Sin(limitingHalfFov), 1e-4f);
-        return MathF.Max(radius / sinHalfFov, radius * 1.1f);
-    }
-
-    private static float ComputeBoundsFitDistance(SceneBounds bounds, Vector3 forward, float verticalFovDegrees, float aspectRatio)
-    {
-        Vector3 normalizedForward = forward.LengthSquared() < 1e-8f ? -Vector3.UnitZ : Vector3.Normalize(forward);
-        Vector3 upHint = MathF.Abs(Vector3.Dot(normalizedForward, Vector3.UnitY)) > 0.98f
-            ? Vector3.UnitZ
-            : Vector3.UnitY;
-
-        Vector3 right = Vector3.Cross(normalizedForward, upHint);
-        if (right.LengthSquared() < 1e-8f)
-        {
-            right = Vector3.Cross(normalizedForward, Vector3.UnitX);
-        }
-
-        right = Vector3.Normalize(right);
-        Vector3 up = Vector3.Normalize(Vector3.Cross(right, normalizedForward));
-
-        float verticalFov = MathF.Max(verticalFovDegrees * (MathF.PI / 180.0f), 1e-3f);
-        float halfVertical = verticalFov * 0.5f;
-        float halfHorizontal = MathF.Atan(MathF.Tan(halfVertical) * MathF.Max(aspectRatio, 1e-3f));
-        float tanVertical = MathF.Max(MathF.Tan(halfVertical), 1e-4f);
-        float tanHorizontal = MathF.Max(MathF.Tan(halfHorizontal), 1e-4f);
-
-        Vector3[] corners = GetBoundsCorners(bounds);
-        Vector3 center = bounds.Center;
-        float requiredDistance = 0.0f;
-
-        for (int i = 0; i < corners.Length; i++)
-        {
-            Vector3 relative = corners[i] - center;
-            float x = MathF.Abs(Vector3.Dot(relative, right));
-            float y = MathF.Abs(Vector3.Dot(relative, up));
-            float z = Vector3.Dot(relative, normalizedForward);
-
-            float distanceForX = (x / tanHorizontal) - z;
-            float distanceForY = (y / tanVertical) - z;
-            float cornerDistance = MathF.Max(distanceForX, distanceForY);
-            requiredDistance = MathF.Max(requiredDistance, cornerDistance);
-        }
-
-        return MathF.Max(requiredDistance, bounds.Radius * 1.1f);
-    }
-
-    private static SceneBounds GetAxisAdjustedBounds(SceneBounds bounds, SceneUpAxis upAxis)
-    {
-        Matrix4x4 sceneAxisMatrix = GetSceneAxisMatrix(upAxis);
-        if (sceneAxisMatrix == Matrix4x4.Identity)
-        {
-            return bounds;
-        }
-
-        Vector3[] corners = GetBoundsCorners(bounds);
-        Vector3 transformedMin = new(float.MaxValue, float.MaxValue, float.MaxValue);
-        Vector3 transformedMax = new(float.MinValue, float.MinValue, float.MinValue);
-
-        for (int i = 0; i < corners.Length; i++)
-        {
-            Vector3 transformed = Vector3.Transform(corners[i], sceneAxisMatrix);
-            transformedMin = Vector3.Min(transformedMin, transformed);
-            transformedMax = Vector3.Max(transformedMax, transformed);
-        }
-
-        return new SceneBounds(transformedMin, transformedMax);
-    }
-
-    private static Vector3[] GetBoundsCorners(SceneBounds bounds)
-    {
-        Vector3 min = bounds.Min;
-        Vector3 max = bounds.Max;
-
-        return
-        [
-            new Vector3(min.X, min.Y, min.Z),
-            new Vector3(max.X, min.Y, min.Z),
-            new Vector3(min.X, max.Y, min.Z),
-            new Vector3(max.X, max.Y, min.Z),
-            new Vector3(min.X, min.Y, max.Z),
-            new Vector3(max.X, min.Y, max.Z),
-            new Vector3(min.X, max.Y, max.Z),
-            new Vector3(max.X, max.Y, max.Z)
-        ];
-    }
-
-    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
-    {
-        return upAxis switch
-        {
-            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
-            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
-            _ => Matrix4x4.Identity
-        };
-    }
-
-    private static (float YawRadians, float PitchRadians) GetYawPitchFromForward(Vector3 forward)
-    {
-        Vector3 normalized = forward;
-        if (normalized.LengthSquared() < 1e-8f)
-        {
-            normalized = -Vector3.UnitZ;
-        }
-        else
-        {
-            normalized = Vector3.Normalize(normalized);
-        }
-
-        float yaw = MathF.Atan2(normalized.X, -normalized.Z);
-        float pitch = MathF.Asin(Math.Clamp(normalized.Y, -1.0f, 1.0f));
-        return (yaw, pitch);
     }
 
     private static Vector3 GetForwardFromAngles(float yawRadians, float pitchRadians)

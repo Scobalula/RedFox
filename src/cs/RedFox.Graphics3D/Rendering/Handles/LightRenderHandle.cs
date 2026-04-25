@@ -35,6 +35,19 @@ internal sealed class LightRenderHandle : RenderHandle
         _color = _light.Color;
         _intensity = _light.Intensity;
         _enabled = _light.Enabled;
+
+        if (!_enabled)
+        {
+            return;
+        }
+
+        Vector3 direction = -_position;
+        if (direction.LengthSquared() < 1e-10f)
+        {
+            direction = -Vector3.UnitY;
+        }
+
+        commandList.AppendLight(Vector3.Normalize(direction), _color, _intensity);
     }
 
     /// <inheritdoc/>

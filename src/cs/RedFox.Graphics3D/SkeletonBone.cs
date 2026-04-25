@@ -18,7 +18,7 @@ public class SkeletonBone : SceneNode
     /// <inheritdoc/>
     public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
-        return new SkeletonBoneRenderHandle(this);
+        return new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, this);
     }
 
     /// <inheritdoc/>

@@ -2,13 +2,14 @@ using Silk.NET.Input;
 using System;
 using System.Numerics;
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.Rendering.Hosting;
 
 namespace RedFox.Rendering.OpenGL.Hosting;
 
 /// <summary>
 /// Adapts Silk.NET keyboard and mouse input into renderer-agnostic camera controller input.
 /// </summary>
-public sealed class SilkCameraInputAdapter : IDisposable
+public sealed class SilkCameraInputAdapter : IInputSource, IDisposable
 {
     private readonly IKeyboard? _keyboard;
     private readonly IMouse? _mouse;

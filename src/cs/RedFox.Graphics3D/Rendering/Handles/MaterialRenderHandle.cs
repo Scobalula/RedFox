@@ -59,8 +59,7 @@ internal sealed class MaterialRenderHandle : RenderHandle
 
         SetMaterialUniforms(commandList);
 
-        int fallbackIndex = 0;
-        BindTextureResources(commandList, _material, ref fallbackIndex);
+        BindTextureResources(commandList);
     }
 
     /// <inheritdoc/>
@@ -156,16 +155,12 @@ internal sealed class MaterialRenderHandle : RenderHandle
 
     private void SetMaterialUniforms(ICommandList commandList)
     {
-        commandList.SetUniformVector4("uMaterialDiffuseColor", _material.DiffuseColor ?? Vector4.One);
-        commandList.SetUniformVector4("uMaterialSpecularColor", _material.SpecularColor ?? Vector4.One);
-        commandList.SetUniformVector4("uMaterialEmissiveColor", _material.EmissiveColor ?? Vector4.Zero);
-        commandList.SetUniformFloat("uMaterialMetallic", _material.Metallic ?? 0.0f);
-        commandList.SetUniformFloat("uMaterialRoughness", _material.Roughness ?? 0.0f);
-        commandList.SetUniformFloat("uMaterialShininess", _material.Shininess ?? 0.0f);
-        commandList.SetUniformFloat("uMaterialSpecularStrength", _material.SpecularStrength ?? 0.0f);
+        commandList.SetUniformVector4("BaseColor", _material.DiffuseColor ?? Vector4.One);
+        commandList.SetUniformFloat("MaterialSpecularStrength", _material.SpecularStrength ?? 0.28f);
+        commandList.SetUniformFloat("MaterialSpecularPower", _material.SpecularPower ?? 32.0f);
     }
 
-    private void BindTextureResources(ICommandList commandList, SceneNode node, ref int fallbackIndex)
+    private void BindTextureResources(ICommandList commandList)
     {
         IReadOnlyList<MaterialTextureBinding> textureBindings = _material.Textures;
         for (int i = 0; i < textureBindings.Count; i++)

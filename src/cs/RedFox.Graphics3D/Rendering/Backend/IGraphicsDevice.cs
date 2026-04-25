@@ -29,6 +29,23 @@ public interface IGraphicsDevice : IDisposable
     IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage);
 
     /// <summary>
+    /// Creates a GPU buffer with initial data.
+    /// </summary>
+    /// <param name="sizeBytes">The buffer size in bytes.</param>
+    /// <param name="stride">The element stride in bytes.</param>
+    /// <param name="usage">The intended buffer usage.</param>
+    /// <param name="initialData">The initial buffer payload to upload.</param>
+    /// <returns>The created GPU buffer.</returns>
+    IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, ReadOnlySpan<byte> initialData);
+
+    /// <summary>
+    /// Updates an existing GPU buffer with new data.
+    /// </summary>
+    /// <param name="buffer">The buffer to update.</param>
+    /// <param name="data">The new payload to upload.</param>
+    void UpdateBuffer(IGpuBuffer buffer, ReadOnlySpan<byte> data);
+
+    /// <summary>
     /// Creates a GPU shader from UTF-8 source bytes.
     /// </summary>
     /// <param name="utf8Source">The UTF-8 encoded shader source.</param>

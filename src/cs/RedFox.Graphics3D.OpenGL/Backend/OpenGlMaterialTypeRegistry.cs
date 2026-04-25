@@ -157,7 +157,7 @@ internal sealed class OpenGlMaterialTypeRegistry : IMaterialTypeRegistry
                         BlendFactor.SourceAlpha,
                         BlendFactor.InverseSourceAlpha,
                         BlendOp.Add,
-                        true,
+                        false,
                         false,
                         CompareFunc.LessOrEqual,
                         PrimitiveTopology.Triangles);

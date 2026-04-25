@@ -85,7 +85,7 @@ namespace RedFox.Graphics3D
         /// <inheritdoc/>
         public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
         {
-            return new GridRenderHandle(this);
+            return new GridRenderHandle(graphicsDevice, materialTypes, this);
         }
     }
 }

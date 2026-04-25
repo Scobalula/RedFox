@@ -24,4 +24,6 @@ public enum RenderPhase
     /// Overlay and debug geometry renders in this phase.
     /// </summary>
     Overlay = 3,
+
+    NUMNUMS = 4,
 }

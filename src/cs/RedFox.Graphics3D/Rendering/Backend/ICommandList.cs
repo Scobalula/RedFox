@@ -43,6 +43,52 @@ public interface ICommandList
     void SetPipelineState(IGpuPipelineState pipelineState);
 
     /// <summary>
+    /// Sets the scene-axis transform used by frame-scoped state such as lighting.
+    /// </summary>
+    /// <param name="sceneAxis">The scene-axis transform matrix.</param>
+    void SetSceneAxis(Matrix4x4 sceneAxis);
+
+    /// <summary>
+    /// Sets the scene front-face winding for subsequent graphics pipeline binds.
+    /// </summary>
+    /// <param name="faceWinding">The scene front-face winding.</param>
+    void SetFrontFaceWinding(FaceWinding faceWinding);
+
+    /// <summary>
+    /// Sets the ambient light color used for scene rendering.
+    /// </summary>
+    /// <param name="ambientColor">The ambient light color.</param>
+    void SetAmbientColor(Vector3 ambientColor);
+
+    /// <summary>
+    /// Sets whether view-based lighting is enabled for scene rendering.
+    /// </summary>
+    /// <param name="enabled">Whether view-based lighting is enabled.</param>
+    void SetUseViewBasedLighting(bool enabled);
+
+    /// <summary>
+    /// Sets the active skinning mode used by compute skinning for the current frame.
+    /// </summary>
+    /// <param name="skinningMode">The active skinning mode.</param>
+    void SetSkinningMode(SkinningMode skinningMode);
+
+    /// <summary>
+    /// Resets the staged light collection for the current frame and defines the fallback light.
+    /// </summary>
+    /// <param name="fallbackDirection">The fallback light direction.</param>
+    /// <param name="fallbackColor">The fallback light color.</param>
+    /// <param name="fallbackIntensity">The fallback light intensity.</param>
+    void ResetLights(Vector3 fallbackDirection, Vector3 fallbackColor, float fallbackIntensity);
+
+    /// <summary>
+    /// Appends a scene light to the staged frame light collection.
+    /// </summary>
+    /// <param name="direction">The light direction.</param>
+    /// <param name="color">The light color.</param>
+    /// <param name="intensity">The light intensity.</param>
+    void AppendLight(Vector3 direction, Vector3 color, float intensity);
+
+    /// <summary>
     /// Binds a GPU buffer to the supplied slot.
     /// </summary>
     /// <param name="slot">The backend-defined binding slot.</param>

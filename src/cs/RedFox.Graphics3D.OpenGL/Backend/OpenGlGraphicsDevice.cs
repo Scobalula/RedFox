@@ -50,6 +50,12 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     /// <inheritdoc/>
     public unsafe IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage)
     {
+        return CreateBuffer(sizeBytes, stride, usage, ReadOnlySpan<byte>.Empty);
+    }
+
+    /// <inheritdoc/>
+    public unsafe IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, ReadOnlySpan<byte> initialData)
+    {
         ThrowIfDisposed();
 
         if (sizeBytes <= 0)
@@ -67,9 +73,55 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         BufferTargetARB target = GetAllocationTarget(usage);
         BufferUsageARB storageUsage = GetBufferUsage(usage);
         gl.BindBuffer(target, handle);
-        gl.BufferData(target, (nuint)sizeBytes, (void*)null, storageUsage);
+        if (initialData.IsEmpty)
+        {
+            gl.BufferData(target, (nuint)sizeBytes, (void*)null, storageUsage);
+        }
+        else
+        {
+            if (initialData.Length > sizeBytes)
+            {
+                throw new ArgumentException("Initial buffer data exceeds the requested buffer size.", nameof(initialData));
+            }
+
+            fixed (byte* initialDataPointer = initialData)
+            {
+                gl.BufferData(target, (nuint)sizeBytes, initialDataPointer, storageUsage);
+            }
+        }
+
         gl.BindBuffer(target, 0);
-        return new OpenGlBuffer(_context, handle, sizeBytes, stride, usage);
+        return new OpenGlBuffer(_context, handle, sizeBytes, stride, usage, target);
+    }
+
+    /// <inheritdoc/>
+    public unsafe void UpdateBuffer(IGpuBuffer buffer, ReadOnlySpan<byte> data)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(buffer);
+
+        OpenGlBuffer openGlBuffer = buffer as OpenGlBuffer
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlBuffer)}.");
+
+        if (data.Length > openGlBuffer.SizeBytes)
+        {
+            throw new ArgumentException("Buffer update data exceeds the allocated buffer size.", nameof(data));
+        }
+
+        GL gl = _context.Gl;
+        gl.BindBuffer(openGlBuffer.Target, openGlBuffer.Handle);
+        if (data.IsEmpty)
+        {
+            gl.BindBuffer(openGlBuffer.Target, 0);
+            return;
+        }
+
+        fixed (byte* dataPointer = data)
+        {
+            gl.BufferSubData(openGlBuffer.Target, 0, (nuint)data.Length, dataPointer);
+        }
+
+        gl.BindBuffer(openGlBuffer.Target, 0);
     }
 
     /// <inheritdoc/>

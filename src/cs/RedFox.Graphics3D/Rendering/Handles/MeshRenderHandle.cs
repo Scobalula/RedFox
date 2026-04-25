@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.Rendering.Materials;
 
@@ -10,30 +12,50 @@ namespace RedFox.Graphics3D.Rendering.Handles;
 /// </summary>
 internal sealed class MeshRenderHandle : RenderHandle
 {
-    private const int PositionBufferSlot = 0;
-    private const int NormalBufferSlot = 1;
-    private const int TangentBufferSlot = 2;
-    private const int BitangentBufferSlot = 3;
-    private const int ColorBufferSlot = 4;
-    private const int UvBufferSlot = 5;
-    private const int BoneIndexBufferSlot = 6;
-    private const int BoneWeightBufferSlot = 7;
+    private const int ComputeSourcePositionBufferSlot = 0;
+    private const int ComputeSourceNormalBufferSlot = 1;
+    private const int ComputeBoneIndexBufferSlot = 2;
+    private const int ComputeBoneWeightBufferSlot = 3;
+    private const int ComputeSkinTransformBufferSlot = 4;
+    private const int ComputeOutputPositionBufferSlot = 5;
+    private const int ComputeOutputNormalBufferSlot = 6;
+    private const int DrawPositionBufferSlot = 0;
+    private const int DrawNormalBufferSlot = 1;
     private const int IndexBufferSlot = 8;
 
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly IMaterialTypeRegistry _materialTypes;
     private readonly Mesh _mesh;
 
-    private IGpuBuffer? _bitangentBuffer;
+    private Buffers.DataBuffer? _cachedBoneIndices;
+    private Buffers.DataBuffer? _cachedBoneWeights;
+    private Buffers.DataBuffer? _cachedFaceIndices;
+    private Buffers.DataBuffer? _cachedNormals;
+    private Buffers.DataBuffer? _cachedPositions;
+    private bool _cachedUsesComputeSkinning;
     private IGpuBuffer? _boneIndexBuffer;
+    private int _boneIndexBufferSizeBytes;
+    private int _boneCount;
     private IGpuBuffer? _boneWeightBuffer;
-    private IGpuBuffer? _colorBuffer;
+    private int _boneWeightBufferSizeBytes;
+    private IGpuPipelineState? _defaultPipeline;
+    private int _indexBufferSizeBytes;
     private int _indexCount;
     private IGpuBuffer? _indexBuffer;
     private IGpuBuffer? _normalBuffer;
+    private int _normalBufferSizeBytes;
     private IGpuBuffer? _positionBuffer;
-    private IGpuBuffer? _tangentBuffer;
-    private IGpuBuffer? _uvBuffer;
+    private int _positionBufferSizeBytes;
+    private IGpuPipelineState? _skinningPipeline;
+    private int _skinInfluenceCount;
+    private IGpuBuffer? _skinTransformBuffer;
+    private int _skinTransformBufferSizeBytes;
+    private Matrix4x4[] _skinTransformsScratch = Array.Empty<Matrix4x4>();
+    private IGpuBuffer? _sourceNormalBuffer;
+    private int _sourceNormalBufferSizeBytes;
+    private IGpuBuffer? _sourcePositionBuffer;
+    private int _sourcePositionBufferSizeBytes;
+    private bool _skinningDispatchedThisFrame;
     private int _vertexCount;
 
     /// <summary>
@@ -55,33 +77,120 @@ internal sealed class MeshRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
+        _skinningDispatchedThisFrame = false;
+
         if (_mesh.Positions is not { ElementCount: > 0 } positions)
         {
             ReleaseBuffers();
             return;
         }
 
-        _mesh.GenerateNormals(preserveExisting: true);
+        if (_mesh.Normals is not { ElementCount: > 0 })
+        {
+            _mesh.GenerateNormals(preserveExisting: true);
+        }
+
+        if (_mesh.Normals is not { ElementCount: > 0 } normals)
+        {
+            ReleaseBuffers();
+            return;
+        }
 
         _vertexCount = positions.ElementCount;
-        _indexCount = _mesh.FaceIndices?.AsReadOnlySpan<uint>().Length ?? 0;
 
-        EnsureBuffer(ref _positionBuffer, positions.AsReadOnlySpan<float>().Length * sizeof(float), positions.ComponentCount * sizeof(float), BufferUsage.Vertex);
-        EnsureFloatBuffer(ref _normalBuffer, _mesh.Normals, BufferUsage.Vertex);
-        EnsureFloatBuffer(ref _tangentBuffer, _mesh.Tangents, BufferUsage.Vertex);
-        EnsureFloatBuffer(ref _bitangentBuffer, _mesh.BiTangents, BufferUsage.Vertex);
-        EnsureFloatBuffer(ref _colorBuffer, _mesh.ColorLayers, BufferUsage.Vertex);
-        EnsureFloatBuffer(ref _uvBuffer, _mesh.UVLayers, BufferUsage.Vertex);
-        EnsureUIntBuffer(ref _boneIndexBuffer, _mesh.BoneIndices, BufferUsage.Vertex | BufferUsage.Structured);
-        EnsureFloatBuffer(ref _boneWeightBuffer, _mesh.BoneWeights, BufferUsage.Vertex | BufferUsage.Structured);
+        bool geometryChanged = GeometryChanged(positions, normals, _mesh.FaceIndices);
+        bool computeSkinningRequested = _graphicsDevice.SupportsCompute
+            && _mesh.HasSkinning
+            && _mesh.BoneIndices is { ElementCount: > 0 }
+            && _mesh.BoneWeights is { ElementCount: > 0 }
+            && _mesh.SkinnedBones is { Count: > 0 };
 
-        if (_mesh.FaceIndices is { ElementCount: > 0 } faceIndices)
+        if (computeSkinningRequested)
         {
-            EnsureBuffer(ref _indexBuffer, faceIndices.AsReadOnlySpan<uint>().Length * sizeof(uint), sizeof(uint), BufferUsage.Index);
+            bool skinningInputsChanged = geometryChanged
+                || !_cachedUsesComputeSkinning
+                || !ReferenceEquals(_cachedBoneIndices, _mesh.BoneIndices)
+                || !ReferenceEquals(_cachedBoneWeights, _mesh.BoneWeights)
+                || _sourcePositionBuffer is null
+                || _sourceNormalBuffer is null
+                || _positionBuffer is null
+                || _normalBuffer is null
+                || _boneIndexBuffer is null
+                || _boneWeightBuffer is null;
+
+            if (skinningInputsChanged)
+            {
+                ReadOnlySpan<byte> positionBytes = MemoryMarshal.AsBytes(positions.AsReadOnlySpan<float>());
+                ReadOnlySpan<byte> normalBytes = MemoryMarshal.AsBytes(normals.AsReadOnlySpan<float>());
+                if (!TryBuildSkinningData(_mesh, _vertexCount, out uint[] skinIndexData, out float[] skinWeightData, out int influenceCount, out int boneCount))
+                {
+                    ReleaseComputeBuffers();
+                    computeSkinningRequested = false;
+                }
+                else
+                {
+                    _skinInfluenceCount = influenceCount;
+                    _boneCount = boneCount;
+
+                    EnsurePipeline(ref _skinningPipeline, "Skinning");
+                    EnsureOrUpdateBuffer(ref _sourcePositionBuffer, ref _sourcePositionBufferSizeBytes, positions.ComponentCount * sizeof(float), BufferUsage.ShaderStorage, positionBytes);
+                    EnsureOrUpdateBuffer(ref _sourceNormalBuffer, ref _sourceNormalBufferSizeBytes, normals.ComponentCount * sizeof(float), BufferUsage.ShaderStorage, normalBytes);
+                    EnsureOrUpdateBuffer(ref _positionBuffer, ref _positionBufferSizeBytes, positions.ComponentCount * sizeof(float), BufferUsage.Vertex | BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, positionBytes);
+                    EnsureOrUpdateBuffer(ref _normalBuffer, ref _normalBufferSizeBytes, normals.ComponentCount * sizeof(float), BufferUsage.Vertex | BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, normalBytes);
+                    EnsureOrUpdateBuffer(ref _boneIndexBuffer, ref _boneIndexBufferSizeBytes, sizeof(uint), BufferUsage.Structured | BufferUsage.ShaderStorage, MemoryMarshal.AsBytes(skinIndexData.AsSpan()));
+                    EnsureOrUpdateBuffer(ref _boneWeightBuffer, ref _boneWeightBufferSizeBytes, sizeof(float), BufferUsage.Structured | BufferUsage.ShaderStorage, MemoryMarshal.AsBytes(skinWeightData.AsSpan()));
+                    _cachedBoneIndices = _mesh.BoneIndices;
+                    _cachedBoneWeights = _mesh.BoneWeights;
+                    _cachedUsesComputeSkinning = true;
+                }
+            }
+
+            if (computeSkinningRequested)
+            {
+                _cachedPositions = positions;
+                _cachedNormals = normals;
+                _cachedFaceIndices = _mesh.FaceIndices;
+                _cachedUsesComputeSkinning = true;
+            }
+
+            UpdateSkinTransformBuffer();
         }
-        else
+
+        if (!computeSkinningRequested)
         {
-            DisposeBuffer(ref _indexBuffer);
+            _skinInfluenceCount = 0;
+            _boneCount = 0;
+
+            if (geometryChanged || _cachedUsesComputeSkinning || _positionBuffer is null || _normalBuffer is null)
+            {
+                ReadOnlySpan<byte> positionBytes = MemoryMarshal.AsBytes(positions.AsReadOnlySpan<float>());
+                ReadOnlySpan<byte> normalBytes = MemoryMarshal.AsBytes(normals.AsReadOnlySpan<float>());
+                EnsureOrUpdateBuffer(ref _positionBuffer, ref _positionBufferSizeBytes, positions.ComponentCount * sizeof(float), BufferUsage.Vertex, positionBytes);
+                EnsureOrUpdateBuffer(ref _normalBuffer, ref _normalBufferSizeBytes, normals.ComponentCount * sizeof(float), BufferUsage.Vertex, normalBytes);
+                ReleaseComputeBuffers();
+                _cachedPositions = positions;
+                _cachedNormals = normals;
+                _cachedBoneIndices = null;
+                _cachedBoneWeights = null;
+                _cachedUsesComputeSkinning = false;
+            }
+        }
+
+        if (geometryChanged || _indexBuffer is null != (_mesh.FaceIndices is not { ElementCount: > 0 }))
+        {
+            if (_mesh.FaceIndices is { ElementCount: > 0 } faceIndices)
+            {
+                ReadOnlySpan<byte> indexBytes = MemoryMarshal.AsBytes(faceIndices.AsReadOnlySpan<uint>());
+                EnsureOrUpdateBuffer(ref _indexBuffer, ref _indexBufferSizeBytes, sizeof(uint), BufferUsage.Index, indexBytes);
+                _indexCount = faceIndices.AsReadOnlySpan<uint>().Length;
+            }
+            else
+            {
+                DisposeBuffer(ref _indexBuffer, ref _indexBufferSizeBytes);
+                _indexCount = 0;
+            }
+
+            _cachedFaceIndices = _mesh.FaceIndices;
         }
 
         if (_mesh.Materials is { Count: > 0 } materials)
@@ -104,7 +213,13 @@ internal sealed class MeshRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != RenderPhase.Opaque || _vertexCount <= 0 || _positionBuffer is null)
+        if (phase == RenderPhase.SkinningCompute)
+        {
+            DispatchSkinning(commandList);
+            return;
+        }
+
+        if (phase != RenderPhase.Opaque || _vertexCount <= 0 || _positionBuffer is null || _normalBuffer is null)
         {
             return;
         }
@@ -114,22 +229,28 @@ internal sealed class MeshRenderHandle : RenderHandle
             MaterialRenderHandle materialHandle = EnsureMaterialHandle(materials[0]);
             materialHandle.BindResources(commandList);
         }
+        else
+        {
+            EnsurePipeline(ref _defaultPipeline, "Default");
+            if (_defaultPipeline is not null)
+            {
+                commandList.SetPipelineState(_defaultPipeline);
+                commandList.SetUniformVector4("BaseColor", Vector4.One);
+                commandList.SetUniformFloat("MaterialSpecularStrength", 0.28f);
+                commandList.SetUniformFloat("MaterialSpecularPower", 32.0f);
+            }
+        }
 
-        commandList.SetUniformMatrix4x4("uModel", _mesh.GetActiveWorldMatrix());
-        commandList.SetUniformMatrix4x4("uView", view);
-        commandList.SetUniformMatrix4x4("uProjection", projection);
-        commandList.SetUniformMatrix4x4("uSceneAxis", sceneAxis);
-        commandList.SetUniformVector3("uCameraPosition", cameraPosition);
-        commandList.SetUniformVector2("uViewportSize", viewportSize);
+        Matrix4x4 modelMatrix = _skinningDispatchedThisFrame ? Matrix4x4.Identity : _mesh.GetBindWorldMatrix();
 
-        commandList.BindBuffer(PositionBufferSlot, _positionBuffer);
-        BindOptionalBuffer(commandList, NormalBufferSlot, _normalBuffer);
-        BindOptionalBuffer(commandList, TangentBufferSlot, _tangentBuffer);
-        BindOptionalBuffer(commandList, BitangentBufferSlot, _bitangentBuffer);
-        BindOptionalBuffer(commandList, ColorBufferSlot, _colorBuffer);
-        BindOptionalBuffer(commandList, UvBufferSlot, _uvBuffer);
-        BindOptionalBuffer(commandList, BoneIndexBufferSlot, _boneIndexBuffer);
-        BindOptionalBuffer(commandList, BoneWeightBufferSlot, _boneWeightBuffer);
+        commandList.SetUniformMatrix4x4("Model", modelMatrix);
+        commandList.SetUniformMatrix4x4("View", view);
+        commandList.SetUniformMatrix4x4("Projection", projection);
+        commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
+        commandList.SetUniformVector3("CameraPosition", cameraPosition);
+
+        commandList.BindBuffer(DrawPositionBufferSlot, _positionBuffer);
+        commandList.BindBuffer(DrawNormalBufferSlot, _normalBuffer);
 
         if (_indexBuffer is not null && _indexCount > 0)
         {
@@ -144,7 +265,41 @@ internal sealed class MeshRenderHandle : RenderHandle
     /// <inheritdoc/>
     protected override void ReleaseCore()
     {
+        _defaultPipeline?.Dispose();
+        _defaultPipeline = null;
+        _skinningPipeline?.Dispose();
+        _skinningPipeline = null;
         ReleaseBuffers();
+    }
+
+    private void DispatchSkinning(ICommandList commandList)
+    {
+        if (_skinningPipeline is null
+            || _sourcePositionBuffer is null
+            || _sourceNormalBuffer is null
+            || _boneIndexBuffer is null
+            || _boneWeightBuffer is null
+            || _skinTransformBuffer is null
+            || _positionBuffer is null
+            || _normalBuffer is null
+            || _vertexCount <= 0)
+        {
+            return;
+        }
+
+        commandList.SetPipelineState(_skinningPipeline);
+        commandList.BindBuffer(ComputeSourcePositionBufferSlot, _sourcePositionBuffer);
+        commandList.BindBuffer(ComputeSourceNormalBufferSlot, _sourceNormalBuffer);
+        commandList.BindBuffer(ComputeBoneIndexBufferSlot, _boneIndexBuffer);
+        commandList.BindBuffer(ComputeBoneWeightBufferSlot, _boneWeightBuffer);
+        commandList.BindBuffer(ComputeSkinTransformBufferSlot, _skinTransformBuffer);
+        commandList.BindBuffer(ComputeOutputPositionBufferSlot, _positionBuffer);
+        commandList.BindBuffer(ComputeOutputNormalBufferSlot, _normalBuffer);
+        commandList.SetUniformInt("VertexCount", _vertexCount);
+        commandList.SetUniformInt("SkinInfluenceCount", _skinInfluenceCount);
+        commandList.Dispatch((_vertexCount + 63) / 64, 1, 1);
+        commandList.MemoryBarrier();
+        _skinningDispatchedThisFrame = true;
     }
 
     private MaterialRenderHandle EnsureMaterialHandle(Material material)
@@ -168,70 +323,173 @@ internal sealed class MeshRenderHandle : RenderHandle
         return materialHandle;
     }
 
-    private static void BindOptionalBuffer(ICommandList commandList, int slot, IGpuBuffer? buffer)
+    private void EnsureOrUpdateBuffer(ref IGpuBuffer? buffer, ref int sizeBytes, int stride, BufferUsage usage, ReadOnlySpan<byte> data)
     {
-        if (buffer is not null)
+        if (data.IsEmpty || stride <= 0)
         {
-            commandList.BindBuffer(slot, buffer);
-        }
-    }
-
-    private void EnsureFloatBuffer(ref IGpuBuffer? buffer, Buffers.DataBuffer? source, BufferUsage usage)
-    {
-        if (source is null || source.ElementCount == 0)
-        {
-            DisposeBuffer(ref buffer);
+            DisposeBuffer(ref buffer, ref sizeBytes);
             return;
         }
 
-        EnsureBuffer(ref buffer, source.AsReadOnlySpan<float>().Length * sizeof(float), source.ComponentCount * sizeof(float), usage);
-    }
-
-    private void EnsureUIntBuffer(ref IGpuBuffer? buffer, Buffers.DataBuffer? source, BufferUsage usage)
-    {
-        if (source is null || source.ElementCount == 0)
+        if (buffer is null || sizeBytes != data.Length)
         {
-            DisposeBuffer(ref buffer);
+            buffer?.Dispose();
+            buffer = _graphicsDevice.CreateBuffer(data.Length, stride, usage, data);
+            sizeBytes = data.Length;
             return;
         }
 
-        EnsureBuffer(ref buffer, source.AsReadOnlySpan<uint>().Length * sizeof(uint), source.ComponentCount * sizeof(uint), usage);
+        _graphicsDevice.UpdateBuffer(buffer, data);
     }
 
-    private void EnsureBuffer(ref IGpuBuffer? buffer, int sizeBytes, int stride, BufferUsage usage)
+    private bool GeometryChanged(Buffers.DataBuffer positions, Buffers.DataBuffer normals, Buffers.DataBuffer? faceIndices)
     {
-        if (sizeBytes <= 0 || stride <= 0)
-        {
-            DisposeBuffer(ref buffer);
-            return;
-        }
+        return !ReferenceEquals(_cachedPositions, positions)
+            || !ReferenceEquals(_cachedNormals, normals)
+            || !ReferenceEquals(_cachedFaceIndices, faceIndices)
+            || _positionBuffer is null
+            || _normalBuffer is null;
+    }
 
-        if (buffer is not null)
+    private void EnsurePipeline(ref IGpuPipelineState? pipeline, string typeName)
+    {
+        if (pipeline is not null)
         {
             return;
         }
 
-        buffer = _graphicsDevice.CreateBuffer(sizeBytes, stride, usage);
+        MaterialTypeDefinition definition = _materialTypes.Get(typeName);
+        pipeline = definition.BuildPipeline(_graphicsDevice);
     }
 
-    private void DisposeBuffer(ref IGpuBuffer? buffer)
+    private void UpdateSkinTransformBuffer()
+    {
+        if (_boneCount <= 0)
+        {
+            DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
+            return;
+        }
+
+        EnsureSkinTransformsScratchCapacity(_boneCount);
+        int copiedTransforms = _mesh.CopySkinTransforms(_skinTransformsScratch);
+        if (copiedTransforms < _boneCount)
+        {
+            DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
+            return;
+        }
+
+        ReadOnlySpan<byte> transformBytes = MemoryMarshal.AsBytes(_skinTransformsScratch.AsSpan(0, copiedTransforms));
+        EnsureOrUpdateBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes, 16 * sizeof(float), BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, transformBytes);
+    }
+
+    private void EnsureSkinTransformsScratchCapacity(int requiredBoneCount)
+    {
+        if (requiredBoneCount <= 0)
+        {
+            return;
+        }
+
+        if (_skinTransformsScratch.Length < requiredBoneCount)
+        {
+            _skinTransformsScratch = new Matrix4x4[requiredBoneCount];
+        }
+    }
+
+    private void ReleaseComputeBuffers()
+    {
+        DisposeBuffer(ref _sourcePositionBuffer, ref _sourcePositionBufferSizeBytes);
+        DisposeBuffer(ref _sourceNormalBuffer, ref _sourceNormalBufferSizeBytes);
+        DisposeBuffer(ref _boneIndexBuffer, ref _boneIndexBufferSizeBytes);
+        DisposeBuffer(ref _boneWeightBuffer, ref _boneWeightBufferSizeBytes);
+        DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
+        _skinningPipeline?.Dispose();
+        _skinningPipeline = null;
+    }
+
+    private void DisposeBuffer(ref IGpuBuffer? buffer, ref int sizeBytes)
     {
         buffer?.Dispose();
         buffer = null;
+        sizeBytes = 0;
     }
 
     private void ReleaseBuffers()
     {
-        DisposeBuffer(ref _positionBuffer);
-        DisposeBuffer(ref _normalBuffer);
-        DisposeBuffer(ref _tangentBuffer);
-        DisposeBuffer(ref _bitangentBuffer);
-        DisposeBuffer(ref _colorBuffer);
-        DisposeBuffer(ref _uvBuffer);
-        DisposeBuffer(ref _boneIndexBuffer);
-        DisposeBuffer(ref _boneWeightBuffer);
-        DisposeBuffer(ref _indexBuffer);
+        ReleaseComputeBuffers();
+        DisposeBuffer(ref _positionBuffer, ref _positionBufferSizeBytes);
+        DisposeBuffer(ref _normalBuffer, ref _normalBufferSizeBytes);
+        DisposeBuffer(ref _indexBuffer, ref _indexBufferSizeBytes);
+        _cachedPositions = null;
+        _cachedNormals = null;
+        _cachedFaceIndices = null;
+        _cachedBoneIndices = null;
+        _cachedBoneWeights = null;
+        _cachedUsesComputeSkinning = false;
         _vertexCount = 0;
         _indexCount = 0;
+        _skinInfluenceCount = 0;
+        _boneCount = 0;
+    }
+
+    private static bool TryBuildSkinningData(
+        Mesh mesh,
+        int vertexCount,
+        out uint[] skinIndexData,
+        out float[] skinWeightData,
+        out int influenceCount,
+        out int boneCount)
+    {
+        skinIndexData = Array.Empty<uint>();
+        skinWeightData = Array.Empty<float>();
+        influenceCount = 0;
+        boneCount = 0;
+
+        if (!mesh.HasSkinning || mesh.BoneIndices is null || mesh.BoneWeights is null)
+        {
+            return false;
+        }
+
+        if (mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+        {
+            return false;
+        }
+
+        Buffers.DataBuffer boneIndices = mesh.BoneIndices;
+        Buffers.DataBuffer boneWeights = mesh.BoneWeights;
+        influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+        boneCount = skinnedBones.Count;
+        if (influenceCount <= 0 || boneCount <= 0)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<uint> boneIndexComponents = boneIndices.AsReadOnlySpan<uint>();
+        ReadOnlySpan<float> boneWeightComponents = boneWeights.AsReadOnlySpan<float>();
+        int boneIndexElementWidth = boneIndices.ValueCount * boneIndices.ComponentCount;
+        int boneWeightElementWidth = boneWeights.ValueCount * boneWeights.ComponentCount;
+
+        skinIndexData = new uint[vertexCount * influenceCount];
+        skinWeightData = new float[vertexCount * influenceCount];
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            int boneIndexBase = vertexIndex * boneIndexElementWidth;
+            int boneWeightBase = vertexIndex * boneWeightElementWidth;
+            int outputBase = vertexIndex * influenceCount;
+
+            boneIndexComponents.Slice(boneIndexBase, influenceCount).CopyTo(skinIndexData.AsSpan(outputBase, influenceCount));
+            boneWeightComponents.Slice(boneWeightBase, influenceCount).CopyTo(skinWeightData.AsSpan(outputBase, influenceCount));
+        }
+
+        for (int packedIndex = 0; packedIndex < skinIndexData.Length; packedIndex++)
+        {
+            if (skinIndexData[packedIndex] >= boneCount)
+            {
+                int vertexIndex = packedIndex / influenceCount;
+                throw new InvalidDataException($"Mesh '{mesh.Name}' contains an invalid skin index {skinIndexData[packedIndex]} at vertex {vertexIndex}.");
+            }
+        }
+
+        return true;
     }
 }

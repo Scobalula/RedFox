@@ -11,7 +11,7 @@ public sealed class BackendSceneRenderer : SceneRenderer
 {
     private static readonly RenderPhase[] RenderPhases =
     [
-        RenderPhase.SkinningCompute,
+        // RenderPhase.SkinningCompute,
         RenderPhase.Opaque,
         RenderPhase.Transparent,
         RenderPhase.Overlay,
@@ -23,7 +23,6 @@ public sealed class BackendSceneRenderer : SceneRenderer
 
     private bool _disposed;
     private bool _initialized;
-    private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
     private int _viewportHeight = 1;
     private int _viewportWidth = 1;
 
@@ -31,15 +30,6 @@ public sealed class BackendSceneRenderer : SceneRenderer
     /// Gets the graphics device used by the renderer.
     /// </summary>
     public IGraphicsDevice GraphicsDevice => _graphicsDevice;
-
-    /// <summary>
-    /// Gets or sets the scene-axis transform applied during rendering.
-    /// </summary>
-    public Matrix4x4 SceneAxis
-    {
-        get => _sceneAxis;
-        set => _sceneAxis = value;
-    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BackendSceneRenderer"/> class.
@@ -101,7 +91,15 @@ public sealed class BackendSceneRenderer : SceneRenderer
             throw new InvalidOperationException("Renderer must be initialized before rendering.");
         }
 
+        Matrix4x4 sceneAxis = GetSceneAxisMatrix(scene.UpAxis);
+
         _commandList.Reset();
+        _commandList.SetSceneAxis(sceneAxis);
+        _commandList.SetFrontFaceWinding(scene.FaceWinding);
+        _commandList.SetAmbientColor(AmbientColor);
+        _commandList.SetUseViewBasedLighting(UseViewBasedLighting);
+        _commandList.SetSkinningMode(SkinningMode);
+        _commandList.ResetLights(FallbackLightDirection, FallbackLightColor, FallbackLightIntensity);
 
         Vector2 viewportSize = new(_viewportWidth, _viewportHeight);
         RenderFrameContext context = CreateFrameContext(scene, view, viewportSize, deltaTime);
@@ -119,7 +117,7 @@ public sealed class BackendSceneRenderer : SceneRenderer
                 RenderPhases[i],
                 view.ViewMatrix,
                 view.ProjectionMatrix,
-                _sceneAxis,
+                sceneAxis,
                 view.Position,
                 viewportSize);
         }
@@ -145,5 +143,15 @@ public sealed class BackendSceneRenderer : SceneRenderer
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
+    {
+        return upAxis switch
+        {
+            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI / 2.0f),
+            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI / 2.0f),
+            _ => Matrix4x4.Identity,
+        };
     }
 }

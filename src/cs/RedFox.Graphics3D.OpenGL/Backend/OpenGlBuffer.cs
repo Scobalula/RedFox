@@ -1,5 +1,6 @@
 using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.OpenGL.Resources;
+using Silk.NET.OpenGL;
 using System;
 
 namespace RedFox.Graphics3D.OpenGL;
@@ -31,6 +32,11 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// </summary>
     internal BufferUsage Usage { get; }
 
+    /// <summary>
+    /// Gets the GL bind target used by the buffer.
+    /// </summary>
+    internal BufferTargetARB Target { get; }
+
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
 
@@ -42,13 +48,15 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// <param name="sizeBytes">The buffer size in bytes.</param>
     /// <param name="strideBytes">The element stride in bytes.</param>
     /// <param name="usage">The usage flags.</param>
-    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage)
+    /// <param name="target">The GL bind target used by the buffer.</param>
+    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage, BufferTargetARB target)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         Handle = handle;
         SizeBytes = sizeBytes;
         StrideBytes = strideBytes;
         Usage = usage;
+        Target = target;
     }
 
     /// <inheritdoc/>

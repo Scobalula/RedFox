@@ -138,6 +138,7 @@ internal sealed class OpenGlContext : IDisposable
     /// <param name="clearColor">The framebuffer clear color.</param>
     public void ClearColorAndDepth(Vector4 clearColor)
     {
+        Gl.DepthMask(true);
         Gl.ClearColor(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W);
         Gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
     }

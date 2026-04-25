@@ -12,10 +12,24 @@ namespace RedFox.Graphics3D.OpenGL;
 /// </summary>
 internal sealed class OpenGlCommandList : ICommandList, IDisposable
 {
+    private const int MaxLights = 4;
+
     private readonly Dictionary<int, OpenGlBuffer> _boundBuffers = [];
     private readonly OpenGlContext _context;
+    private readonly Vector3[] _lightColors = new Vector3[MaxLights];
+    private readonly Vector4[] _lightDirectionsAndIntensity = new Vector4[MaxLights];
     private OpenGlPipelineState? _currentPipelineState;
+    private Vector3 _ambientColor;
     private bool _disposed;
+    private int _enabledVertexAttributeCount;
+    private Vector3 _fallbackLightColor = Vector3.One;
+    private Vector3 _fallbackLightDirection = -Vector3.UnitY;
+    private float _fallbackLightIntensity = 1.0f;
+    private FaceWinding _frontFaceWinding = FaceWinding.CounterClockwise;
+    private int _lightCount;
+    private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
+    private SkinningMode _skinningMode = SkinningMode.Linear;
+    private bool _useViewBasedLighting;
     private uint _vertexArrayHandle;
 
     /// <summary>
@@ -34,6 +48,16 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         ThrowIfDisposed();
         _boundBuffers.Clear();
         _currentPipelineState = null;
+        _ambientColor = Vector3.Zero;
+        _fallbackLightDirection = -Vector3.UnitY;
+        _fallbackLightColor = Vector3.One;
+        _fallbackLightIntensity = 1.0f;
+        _frontFaceWinding = FaceWinding.CounterClockwise;
+        _lightCount = 0;
+        _sceneAxis = Matrix4x4.Identity;
+        _skinningMode = SkinningMode.Linear;
+        _useViewBasedLighting = false;
+        _context.Gl.DepthMask(true);
     }
 
     /// <inheritdoc/>
@@ -61,9 +85,14 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         ThrowIfDisposed();
 
         GL gl = _context.Gl;
+        bool restoreDepthMask = _currentPipelineState?.GraphicsProgram is not null
+            ? _currentPipelineState.DepthWrite
+            : true;
+        gl.DepthMask(true);
         gl.ClearColor(red, green, blue, alpha);
         gl.ClearDepth(depth);
         gl.Clear((uint)(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
+        gl.DepthMask(restoreDepthMask);
     }
 
     /// <inheritdoc/>
@@ -78,6 +107,77 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public void SetSceneAxis(Matrix4x4 sceneAxis)
+    {
+        ThrowIfDisposed();
+        _sceneAxis = sceneAxis;
+    }
+
+    /// <inheritdoc/>
+    public void SetFrontFaceWinding(FaceWinding faceWinding)
+    {
+        ThrowIfDisposed();
+        _frontFaceWinding = faceWinding;
+    }
+
+    /// <inheritdoc/>
+    public void SetAmbientColor(Vector3 ambientColor)
+    {
+        ThrowIfDisposed();
+        _ambientColor = ambientColor;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void SetUseViewBasedLighting(bool enabled)
+    {
+        ThrowIfDisposed();
+        _useViewBasedLighting = enabled;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void SetSkinningMode(SkinningMode skinningMode)
+    {
+        ThrowIfDisposed();
+        _skinningMode = skinningMode;
+
+        if (_currentPipelineState?.ComputeProgram is GlComputeProgram computeProgram)
+        {
+            computeProgram.SetInt("SkinningMode", (int)_skinningMode);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void ResetLights(Vector3 fallbackDirection, Vector3 fallbackColor, float fallbackIntensity)
+    {
+        ThrowIfDisposed();
+        _fallbackLightDirection = fallbackDirection;
+        _fallbackLightColor = fallbackColor;
+        _fallbackLightIntensity = fallbackIntensity;
+        _lightCount = 0;
+        Array.Clear(_lightDirectionsAndIntensity);
+        Array.Clear(_lightColors);
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void AppendLight(Vector3 direction, Vector3 color, float intensity)
+    {
+        ThrowIfDisposed();
+
+        if (_lightCount >= MaxLights)
+        {
+            return;
+        }
+
+        _lightDirectionsAndIntensity[_lightCount] = new Vector4(TransformDirection(direction), intensity);
+        _lightColors[_lightCount] = color;
+        _lightCount++;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
     public void BindBuffer(int slot, IGpuBuffer buffer)
     {
         ThrowIfDisposed();
@@ -88,6 +188,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Index))
         {
+            _context.Gl.BindVertexArray(_vertexArrayHandle);
             _context.Gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, openGlBuffer.Handle);
             return;
         }
@@ -97,13 +198,36 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             return;
         }
 
-        if (openGlBuffer.Usage.HasFlag(BufferUsage.ShaderStorage) || openGlBuffer.Usage.HasFlag(BufferUsage.Structured))
+        if (_currentPipelineState.IsCompute)
         {
-            _context.Gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, (uint)slot, openGlBuffer.Handle);
+            if (openGlBuffer.Usage.HasFlag(BufferUsage.Uniform))
+            {
+                _context.Gl.BindBufferBase(BufferTargetARB.UniformBuffer, (uint)slot, openGlBuffer.Handle);
+            }
+            else
+            {
+                _context.Gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, (uint)slot, openGlBuffer.Handle);
+            }
+
             return;
         }
 
-        ConfigureVertexAttribute(slot, openGlBuffer, _currentPipelineState);
+        if (openGlBuffer.Usage.HasFlag(BufferUsage.Vertex) && slot < _currentPipelineState.VertexAttributes.Length)
+        {
+            ConfigureVertexAttribute(slot, openGlBuffer, _currentPipelineState);
+            return;
+        }
+
+        if (openGlBuffer.Usage.HasFlag(BufferUsage.Uniform))
+        {
+            _context.Gl.BindBufferBase(BufferTargetARB.UniformBuffer, (uint)slot, openGlBuffer.Handle);
+            return;
+        }
+
+        if (openGlBuffer.Usage.HasFlag(BufferUsage.ShaderStorage) || openGlBuffer.Usage.HasFlag(BufferUsage.Structured))
+        {
+            _context.Gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, (uint)slot, openGlBuffer.Handle);
+        }
     }
 
     /// <inheritdoc/>
@@ -251,11 +375,15 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         {
             pipelineState.GraphicsProgram.Use();
             gl.BindVertexArray(_vertexArrayHandle);
+            DisableUnusedVertexAttributes(pipelineState.VertexAttributes.Length);
         }
         else
         {
             pipelineState.ComputeProgram?.Use();
+            pipelineState.ComputeProgram?.SetInt("SkinningMode", (int)_skinningMode);
         }
+
+        ApplySceneStateToCurrentProgram();
 
         if (pipelineState.CullMode == CullMode.None)
         {
@@ -267,7 +395,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             gl.CullFace(pipelineState.CullMode == CullMode.Front ? TriangleFace.Front : TriangleFace.Back);
         }
 
-        _context.SetFrontFace(pipelineState.FaceWinding == FaceWinding.CounterClockwise);
+        _context.SetFrontFace(_frontFaceWinding == FaceWinding.CounterClockwise);
         gl.PolygonMode(TriangleFace.FrontAndBack, pipelineState.Wireframe ? GLEnum.Line : GLEnum.Fill);
 
         if (pipelineState.BlendEnabled)
@@ -306,6 +434,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         gl.BindVertexArray(_vertexArrayHandle);
         gl.BindBuffer(BufferTargetARB.ArrayBuffer, buffer.Handle);
         gl.EnableVertexAttribArray((uint)slot);
+        _enabledVertexAttributeCount = Math.Max(_enabledVertexAttributeCount, slot + 1);
 
         if (attribute.Type is VertexAttributeType.Int32 or VertexAttributeType.UInt32 or VertexAttributeType.Int16 or VertexAttributeType.UInt16 or VertexAttributeType.Int8 or VertexAttributeType.UInt8)
         {
@@ -333,6 +462,32 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         throw new InvalidOperationException("A pipeline state must be bound before setting uniforms.");
     }
 
+    private void ApplySceneStateToCurrentProgram()
+    {
+        if (_currentPipelineState?.GraphicsProgram is not GlShaderProgram graphicsProgram)
+        {
+            return;
+        }
+
+        graphicsProgram.SetVector3("AmbientColor", _ambientColor);
+        graphicsProgram.SetInt("UseViewBasedLighting", _useViewBasedLighting ? 1 : 0);
+
+        int appliedLightCount = _lightCount;
+        if (appliedLightCount == 0)
+        {
+            _lightDirectionsAndIntensity[0] = new Vector4(TransformDirection(_fallbackLightDirection), _fallbackLightIntensity);
+            _lightColors[0] = _fallbackLightColor;
+            appliedLightCount = 1;
+        }
+
+        graphicsProgram.SetInt("LightCount", appliedLightCount);
+        for (int i = 0; i < MaxLights; i++)
+        {
+            graphicsProgram.SetVector4($"LightDirectionsAndIntensity[{i}]", _lightDirectionsAndIntensity[i]);
+            graphicsProgram.SetVector3($"LightColors[{i}]", _lightColors[i]);
+        }
+    }
+
     private PrimitiveType GetPrimitiveType()
     {
         if (_currentPipelineState is null)
@@ -348,6 +503,23 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             PrimitiveTopology.TriangleStrip => PrimitiveType.TriangleStrip,
             _ => PrimitiveType.Triangles,
         };
+    }
+
+    private Vector3 TransformDirection(Vector3 direction)
+    {
+        Vector3 safeDirection = direction;
+        if (safeDirection.LengthSquared() < 1e-10f)
+        {
+            safeDirection = -Vector3.UnitY;
+        }
+
+        Vector3 transformed = Vector3.TransformNormal(Vector3.Normalize(safeDirection), _sceneAxis);
+        if (transformed.LengthSquared() < 1e-10f)
+        {
+            return -Vector3.UnitY;
+        }
+
+        return Vector3.Normalize(transformed);
     }
 
     private static GLEnum GetBlendEquation(BlendOp blendOperation)
@@ -421,6 +593,17 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             VertexAttributeType.UInt8 => VertexAttribPointerType.UnsignedByte,
             _ => VertexAttribPointerType.Float,
         };
+    }
+
+    private void DisableUnusedVertexAttributes(int requiredAttributeCount)
+    {
+        GL gl = _context.Gl;
+        for (int slot = requiredAttributeCount; slot < _enabledVertexAttributeCount; slot++)
+        {
+            gl.DisableVertexAttribArray((uint)slot);
+        }
+
+        _enabledVertexAttributeCount = requiredAttributeCount;
     }
 
     private void ThrowIfDisposed()
