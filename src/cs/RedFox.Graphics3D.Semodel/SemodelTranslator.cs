@@ -188,9 +188,9 @@ public class SemodelTranslator : SceneTranslator
 
             if (reader.ReadBoolean())
             {
-                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
-                material.NormalMapName   = AssignMaterialTexture(material, "normal", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
-                material.SpecularMapName = AssignMaterialTexture(material, "specular", reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
+                material.DiffuseMapName  = AssignMaterialTexture(material, "diffuse",   reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
+                material.NormalMapName   = AssignMaterialTexture(material, "normal",    reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
+                material.SpecularMapName = AssignMaterialTexture(material, "specular",  reader.ReadUTF8NullTerminatedString(), sourceDirectoryPath);
             }
         }
 
@@ -438,9 +438,9 @@ public class SemodelTranslator : SceneTranslator
             writer.Write(Encoding.ASCII.GetBytes(material.Name));
             writer.Write((byte)0);
 
-            string? diffuseMapName = ResolveMaterialTextureName(material, material.DiffuseMapName, "diffuse", targetDirectoryPath);
-            string? normalMapName = ResolveMaterialTextureName(material, material.NormalMapName, "normal", targetDirectoryPath);
-            string? specularMapName = ResolveMaterialTextureName(material, material.SpecularMapName, "specular", targetDirectoryPath);
+            string? diffuseMapName  = ResolveMaterialTextureName(material, material.DiffuseMapName,  targetDirectoryPath);
+            string? normalMapName   = ResolveMaterialTextureName(material, material.NormalMapName,   targetDirectoryPath);
+            string? specularMapName = ResolveMaterialTextureName(material, material.SpecularMapName, targetDirectoryPath);
 
             bool hasImages = diffuseMapName is not null || normalMapName is not null || specularMapName is not null;
 
@@ -473,29 +473,21 @@ public class SemodelTranslator : SceneTranslator
         if (string.IsNullOrWhiteSpace(textureReference))
             return null;
 
-        string textureName = Path.GetFileNameWithoutExtension(textureReference);
-        if (string.IsNullOrWhiteSpace(textureName))
-            textureName = textureReference;
-
         string? resolvedPath = ResolveTexturePath(textureReference, sourceDirectoryPath);
 
-        if (material.TryFindChild<Texture>(textureName, StringComparison.OrdinalIgnoreCase, out var existingTexture))
+        if (material.TryGetTexture(slot, out Texture? existing))
         {
-            existingTexture.Slot = slot;
-            existingTexture.FilePath = textureReference;
-            existingTexture.ResolvedFilePath = resolvedPath;
-            existingTexture.Name = textureName;
-            return existingTexture.Name;
+            existing.FilePath = textureReference;
+            existing.ResolvedFilePath = resolvedPath;
+            return slot;
         }
 
-        var texture = material.AddNode(new Texture(textureReference, slot)
+        var texture = material.AddNode(new Texture(textureReference)
         {
-            Name = textureName,
-            FilePath = textureReference,
             ResolvedFilePath = resolvedPath,
         });
-
-        return texture.Name;
+        material.Connect(slot, texture);
+        return slot;
     }
 
     private static string? ResolveTexturePath(string textureReference, string? sourceDirectoryPath)
@@ -509,15 +501,15 @@ public class SemodelTranslator : SceneTranslator
         return null;
     }
 
-    private static string? ResolveMaterialTextureName(Material material, string? fallbackName, string slot, string? targetDirectoryPath)
+    private static string? ResolveMaterialTextureName(Material material, string? slotKey, string? targetDirectoryPath)
     {
-        foreach (var texture in material.EnumerateChildren<Texture>())
-        {
-            if (texture.Slot.Equals(slot, StringComparison.OrdinalIgnoreCase))
-                return GetPortableTextureReference(texture, targetDirectoryPath);
-        }
+        if (slotKey is null)
+            return null;
 
-        return string.IsNullOrWhiteSpace(fallbackName) ? null : fallbackName;
+        if (material.TryGetTexture(slotKey, out Texture? texture))
+            return GetPortableTextureReference(texture, targetDirectoryPath);
+
+        return null;
     }
 
     private static string GetPortableTextureReference(Texture texture, string? targetDirectoryPath)

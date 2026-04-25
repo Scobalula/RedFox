@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using RedFox.Graphics2D;
+﻿using RedFox.Graphics2D;
 using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.Rendering.Handles;
 using RedFox.Graphics3D.Rendering.Materials;
@@ -9,17 +6,14 @@ using RedFox.Graphics3D.Rendering.Materials;
 namespace RedFox.Graphics3D;
 
 /// <summary>
-/// Represents a texture resource loaded from a file and associated with a specific slot in a scene graph.
+/// Represents a texture resource loaded from a file. Slot assignment lives on the
+/// <see cref="MaterialTextureBinding"/> connection, not on the texture itself, so the
+/// same <see cref="Texture"/> instance may be shared across multiple materials under
+/// different slot keys.
 /// </summary>
 /// <param name="filePath">The full path to the image file to be used as the texture.</param>
-/// <param name="slot">The identifier for the slot to which this texture is assigned. Used to reference the texture within the scene.</param>
-public class Texture(string filePath, string slot) : SceneNode(Path.GetFileNameWithoutExtension(filePath))
+public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtension(filePath))
 {
-    /// <summary>
-    /// Gets or sets the slot identifier associated with this texture.
-    /// </summary>
-    public string Slot { get; set; } = slot;
-
     /// <summary>
     /// Gets or sets the full path to the file associated with this texture.
     /// </summary>
