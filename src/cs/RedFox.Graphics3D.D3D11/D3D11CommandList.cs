@@ -36,6 +36,15 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
     private float _fallbackLightIntensity = 1.0f;
     private FaceWinding _frontFaceWinding = FaceWinding.CounterClockwise;
+    private Vector4 _gridAxisXColor = new(0.85f, 0.3f, 0.3f, 0.9f);
+    private Vector4 _gridAxisZColor = new(0.3f, 0.45f, 0.85f, 0.9f);
+    private float _gridCellSize = 2.0f;
+    private float _gridLineWidth = 1.35f;
+    private float _gridMajorStep = 10.0f;
+    private Vector4 _gridMajorColor = new(0.38f, 0.42f, 0.5f, 0.7f);
+    private float _gridMinPixelsBetweenCells = 2.0f;
+    private Vector4 _gridMinorColor = new(0.26f, 0.29f, 0.34f, 0.55f);
+    private float _gridSize = 128.0f;
     private int _lightCount;
     private float _lineHalfWidthPx = 0.5f;
     private Matrix4x4 _model = Matrix4x4.Identity;
@@ -57,8 +66,12 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     internal D3D11CommandList(D3D11Context context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        _frameConstantsBuffer = CreateConstantBuffer(Math.Max(Marshal.SizeOf<D3D11FrameConstants>(), Marshal.SizeOf<D3D11LineConstants>()));
-        _lightingConstantsBuffer = CreateConstantBuffer(Math.Max(Marshal.SizeOf<D3D11LightingConstants>(), Marshal.SizeOf<D3D11FadeConstants>()));
+        _frameConstantsBuffer = CreateConstantBuffer(Math.Max(
+            Math.Max(Marshal.SizeOf<D3D11FrameConstants>(), Marshal.SizeOf<D3D11LineConstants>()),
+            Marshal.SizeOf<D3D11GridFrameConstants>()));
+        _lightingConstantsBuffer = CreateConstantBuffer(Math.Max(
+            Math.Max(Marshal.SizeOf<D3D11LightingConstants>(), Marshal.SizeOf<D3D11FadeConstants>()),
+            Marshal.SizeOf<D3D11GridStyleConstants>()));
         _skinningConstantsBuffer = CreateConstantBuffer(Marshal.SizeOf<D3D11SkinningConstants>());
         _currentRenderTargetView = context.DefaultRenderTargetView;
         _currentDepthStencilView = context.DefaultDepthStencilView;
@@ -78,6 +91,15 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         _fallbackLightColor = Vector3.One;
         _fallbackLightIntensity = 1.0f;
         _frontFaceWinding = FaceWinding.CounterClockwise;
+        _gridAxisXColor = new Vector4(0.85f, 0.3f, 0.3f, 0.9f);
+        _gridAxisZColor = new Vector4(0.3f, 0.45f, 0.85f, 0.9f);
+        _gridCellSize = 2.0f;
+        _gridLineWidth = 1.35f;
+        _gridMajorStep = 10.0f;
+        _gridMajorColor = new Vector4(0.38f, 0.42f, 0.5f, 0.7f);
+        _gridMinPixelsBetweenCells = 2.0f;
+        _gridMinorColor = new Vector4(0.26f, 0.29f, 0.34f, 0.55f);
+        _gridSize = 128.0f;
         _lightCount = 0;
         _lineHalfWidthPx = 0.5f;
         _model = Matrix4x4.Identity;
@@ -312,6 +334,21 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             case "FadeEndDistance":
                 _fadeEndDistance = value;
                 break;
+            case "GridSize":
+                _gridSize = value;
+                break;
+            case "GridCellSize":
+                _gridCellSize = value;
+                break;
+            case "GridMajorStep":
+                _gridMajorStep = value;
+                break;
+            case "GridMinPixelsBetweenCells":
+                _gridMinPixelsBetweenCells = value;
+                break;
+            case "GridLineWidth":
+                _gridLineWidth = value;
+                break;
             case "MaterialSpecularStrength":
                 _materialSpecularStrength = value;
                 break;
@@ -345,9 +382,23 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     public void SetUniformVector4(ReadOnlySpan<char> name, Vector4 value)
     {
         ThrowIfDisposed();
-        if (name.ToString().Equals("BaseColor", StringComparison.Ordinal))
+        switch (name.ToString())
         {
-            _baseColor = value;
+            case "BaseColor":
+                _baseColor = value;
+                break;
+            case "GridMinorColor":
+                _gridMinorColor = value;
+                break;
+            case "GridMajorColor":
+                _gridMajorColor = value;
+                break;
+            case "GridAxisXColor":
+                _gridAxisXColor = value;
+                break;
+            case "GridAxisZColor":
+                _gridAxisZColor = value;
+                break;
         }
     }
 
@@ -480,7 +531,27 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             throw new InvalidOperationException("A D3D11 pipeline state must be bound before drawing.");
         }
 
-        if (_currentPipelineState.UsesLineConstants)
+        if (_currentPipelineState.UsesGridConstants)
+        {
+            D3D11GridFrameConstants gridFrameConstants = new()
+            {
+                View = _view,
+                Projection = _projection,
+                CameraAndGridSize = new Vector4(_cameraPosition, _gridSize),
+            };
+            D3D11GridStyleConstants gridStyleConstants = new()
+            {
+                CellAndLine = new Vector4(_gridCellSize, _gridMajorStep, _gridMinPixelsBetweenCells, _gridLineWidth),
+                MinorColor = _gridMinorColor,
+                MajorColor = _gridMajorColor,
+                AxisXColor = _gridAxisXColor,
+                AxisZColor = _gridAxisZColor,
+                Fade = new Vector4(_fadeStartDistance, _fadeEndDistance, 0.0f, 0.0f),
+            };
+            UpdateConstantBuffer(_frameConstantsBuffer, gridFrameConstants);
+            UpdateConstantBuffer(_lightingConstantsBuffer, gridStyleConstants);
+        }
+        else if (_currentPipelineState.UsesLineConstants)
         {
             D3D11LineConstants lineConstants = new()
             {

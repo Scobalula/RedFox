@@ -213,10 +213,6 @@ public sealed record class MaterialTypeDescriptor
                 throw new ArgumentException($"Graphics material type '{Name}' must define pipeline state.");
             }
 
-            if (_vertexAttributes.Length == 0)
-            {
-                throw new ArgumentException($"Graphics material type '{Name}' must define at least one vertex attribute.");
-            }
         }
         else if (PipelineKind == MaterialPipelineKind.Compute)
         {

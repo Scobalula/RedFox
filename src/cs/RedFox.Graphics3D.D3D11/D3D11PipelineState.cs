@@ -65,7 +65,9 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
 
     internal ReadOnlySpan<VertexAttribute> VertexAttributes => _vertexAttributes;
 
-    internal bool UsesLineConstants => _vertexAttributes.Length > 2;
+    internal bool UsesGridConstants => _vertexAttributes.Length == 0 && !IsCompute;
+
+    internal bool UsesLineConstants => _vertexAttributes.Length > 0 && _vertexAttributes[0].Name.Equals("LineStart", StringComparison.Ordinal);
 
     internal bool IsCompute => _computeShader.Handle is not null;
 

@@ -344,7 +344,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
         UseViewBasedLighting = context.Options.UseViewBasedLighting;
         SkinningMode = context.Options.SkinningMode;
         IsAnimationPaused = context.Scene.IsAnimationPaused;
-        _showGrid = context.Grid is not null && !context.Grid.Flags.HasFlag(SceneNodeFlags.NoDraw);
+        _showGrid = context.Grid?.Enabled == true;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowGrid)));
         RefreshTree();
         RaiseCommandStateChanged();
@@ -379,9 +379,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
             return;
         }
 
-        _context.Grid.Flags = ShowGrid
-            ? _context.Grid.Flags & ~SceneNodeFlags.NoDraw
-            : _context.Grid.Flags | SceneNodeFlags.NoDraw;
+        _context.Grid.Enabled = ShowGrid;
         Status = $"Grid {(ShowGrid ? "visible" : "hidden")}.";
     }
 

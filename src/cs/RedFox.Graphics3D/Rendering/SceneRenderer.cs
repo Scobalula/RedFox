@@ -1,7 +1,8 @@
-using RedFox.Graphics3D;
-using RedFox.Graphics3D.Rendering.Backend;
 using System;
 using System.Numerics;
+using RedFox.Graphics3D;
+using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering.Handles;
 
 namespace RedFox.Graphics3D.Rendering;
 
@@ -164,18 +165,21 @@ public sealed class SceneRenderer : IDisposable
 
         _clearAndStateResetPass.Execute(context);
         SceneTraversal.Update(scene.RootNode, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
+        UpdateGrid(scene.Grid);
 
         for (int i = 0; i < RenderPhases.Length; i++)
         {
+            RenderPhase phase = RenderPhases[i];
             SceneTraversal.Render(
                 scene.RootNode,
                 _commandList,
-                RenderPhases[i],
+                phase,
                 view.ViewMatrix,
                 view.ProjectionMatrix,
                 sceneAxis,
                 view.Position,
                 viewportSize);
+            RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
 
         _graphicsDevice.Submit(_commandList);
@@ -188,6 +192,7 @@ public sealed class SceneRenderer : IDisposable
     public void ReleaseResources(Scene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        ReleaseGridResources(scene.Grid);
         ReleaseResources(scene.RootNode);
     }
 
@@ -254,6 +259,52 @@ public sealed class SceneRenderer : IDisposable
         };
 
         return context;
+    }
+
+    private void UpdateGrid(Grid grid)
+    {
+        if (!grid.Enabled)
+        {
+            return;
+        }
+
+        grid.GraphicsHandle ??= new GridRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, grid);
+        grid.GraphicsHandle.Update(_commandList);
+    }
+
+    private void RenderGrid(
+        Grid grid,
+        RenderPhase phase,
+        in Matrix4x4 view,
+        in Matrix4x4 projection,
+        Vector3 cameraPosition,
+        Vector2 viewportSize)
+    {
+        if (!grid.Enabled || grid.GraphicsHandle is null)
+        {
+            return;
+        }
+
+        grid.GraphicsHandle.Render(
+            _commandList,
+            phase,
+            view,
+            projection,
+            Matrix4x4.Identity,
+            cameraPosition,
+            viewportSize);
+    }
+
+    private static void ReleaseGridResources(Grid grid)
+    {
+        if (grid.GraphicsHandle is not { } graphicsHandle)
+        {
+            return;
+        }
+
+        graphicsHandle.Release();
+        graphicsHandle.Dispose();
+        grid.GraphicsHandle = null;
     }
 
     private void ThrowIfDisposed()

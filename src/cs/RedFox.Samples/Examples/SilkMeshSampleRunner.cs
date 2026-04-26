@@ -165,11 +165,8 @@ internal static class SilkMeshSampleRunner
             case Key.G:
                 if (grid is not null)
                 {
-                    bool visible = grid.Flags.HasFlag(SceneNodeFlags.NoDraw);
-                    grid.Flags = visible
-                        ? grid.Flags & ~SceneNodeFlags.NoDraw
-                        : grid.Flags | SceneNodeFlags.NoDraw;
-                    Console.WriteLine($"[Grid] {(visible ? "Visible" : "Hidden")}");
+                    grid.Enabled = !grid.Enabled;
+                    Console.WriteLine($"[Grid] {(grid.Enabled ? "Visible" : "Hidden")}");
                 }
 
                 break;

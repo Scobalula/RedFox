@@ -34,6 +34,11 @@ namespace RedFox.Graphics3D
         public SceneRoot RootNode { get; internal set; }
 
         /// <summary>
+        /// Gets the scene-owned grid rendering settings.
+        /// </summary>
+        public Grid Grid { get; }
+
+        /// <summary>
         /// Gets the animation players owned by this scene.
         /// Use <see cref="CreateAnimationPlayers"/> to rebuild this list from scene content.
         /// </summary>
@@ -62,6 +67,7 @@ namespace RedFox.Graphics3D
         public Scene(string name)
         {
             Name = name;
+            Grid = new Grid();
             RootNode = new SceneRoot(this);
             RootNode.SetScene(this);
         }

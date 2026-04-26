@@ -630,6 +630,11 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
 
     private ComPtr<ID3D11InputLayout> CreateInputLayout(ReadOnlySpan<VertexAttribute> vertexAttributes, byte* vertexBytecodePointer, int vertexBytecodeLength)
     {
+        if (vertexAttributes.Length == 0)
+        {
+            return default;
+        }
+
         InputElementDesc[] inputElements = new InputElementDesc[vertexAttributes.Length];
         IntPtr[] semanticPointers = new IntPtr[vertexAttributes.Length];
         try

@@ -1,20 +1,20 @@
 using System.Numerics;
-using RedFox.Graphics3D.Rendering.Backend;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D
 {
     /// <summary>
-    /// Represents a finite ground grid in the scene graph.
-    /// The grid is a flat plane on the XZ world axes with configurable extent, spacing, colors, and visual effects.
-    /// Each renderer backend (OpenGL, DirectX, Vulkan) maintains its own renderer-specific handle
-    /// stored in the <see cref="SceneNode.GraphicsHandle"/> property.
+    /// Represents scene-owned ground grid settings.
+    /// The grid is rendered by the active renderer backend and does not participate in the scene graph.
     /// </summary>
-    public sealed class Grid : SceneNode
+    public sealed class Grid
     {
         /// <summary>
-        /// Gets or sets the half-extent of the grid from the center to each edge.
+        /// Gets or sets a value indicating whether the scene grid is rendered.
+        /// </summary>
+        public bool Enabled { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets the half-extent of the rendered grid from the camera-projected center to each edge.
         /// </summary>
         public float Size { get; set; } = 128.0f;
 
@@ -38,6 +38,11 @@ namespace RedFox.Graphics3D
         /// A value of 1 leaves the border the same width as interior lines.
         /// </summary>
         public float EdgeLineWidthScale { get; set; } = 1.0f;
+
+        /// <summary>
+        /// Gets or sets the minimum number of pixels between cells before the shader switches to a coarser level of detail.
+        /// </summary>
+        public float MinimumPixelsBetweenCells { get; set; } = 2.0f;
 
         /// <summary>
         /// Gets or sets the color of minor grid lines.
@@ -74,18 +79,13 @@ namespace RedFox.Graphics3D
         /// </summary>
         public float FadeEndDistance { get; set; } = 0.0f;
 
+        internal IRenderHandle? GraphicsHandle { get; set; }
+
         /// <summary>
-        /// Initializes a new grid instance with default settings.
+        /// Initializes a new grid settings instance with default rendering values.
         /// </summary>
         public Grid()
         {
-            Name = "Grid";
-        }
-
-        /// <inheritdoc/>
-        public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-        {
-            return new GridRenderHandle(graphicsDevice, materialTypes, this);
         }
     }
 }

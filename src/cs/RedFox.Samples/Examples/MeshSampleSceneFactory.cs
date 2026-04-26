@@ -64,7 +64,7 @@ internal static class MeshSampleSceneFactory
             AddFallbackLight(scene);
         }
 
-        Grid? grid = options.ShowGrid ? AddGrid(scene) : null;
+        Grid grid = ConfigureGrid(scene.Grid, options.ShowGrid);
         context = new MeshSampleSceneContext(options, scene, camera, grid, viewportController, animationPlayers);
         error = null;
         return true;
@@ -269,9 +269,11 @@ internal static class MeshSampleSceneFactory
         return camera;
     }
 
-    private static Grid AddGrid(Scene scene)
+    private static Grid ConfigureGrid(Grid grid, bool enabled)
     {
-        Grid grid = scene.RootNode.AddNode<Grid>("Grid");
+        ArgumentNullException.ThrowIfNull(grid);
+
+        grid.Enabled = enabled;
         grid.Spacing = 3.5f;
         grid.MajorStep = 12;
         grid.LineWidth = 0.9f;

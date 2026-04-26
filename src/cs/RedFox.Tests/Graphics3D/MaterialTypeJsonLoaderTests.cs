@@ -66,6 +66,11 @@ public sealed class MaterialTypeJsonLoaderTests
         Assert.NotNull(defaultDefinition.Descriptor);
         Assert.Contains(defaultDefinition.Descriptor.Requirements.Uniforms, static uniform => uniform.Name == "Model" && uniform.ValueType == MaterialValueType.Matrix4x4);
         Assert.Contains(defaultDefinition.Descriptor.Requirements.Textures, static texture => texture.Name == "Diffuse" && texture.Slot == 0);
+
+        MaterialTypeDefinition gridDefinition = Assert.Single(definitions, static definition => definition.Name == "Grid");
+        Assert.NotNull(gridDefinition.Descriptor);
+        Assert.Empty(gridDefinition.Descriptor.VertexAttributes);
+        Assert.Contains(gridDefinition.Descriptor.Requirements.Uniforms, static uniform => uniform.Name == "GridCellSize" && uniform.ValueType == MaterialValueType.Float);
     }
 
     private sealed class TestMaterialShaderFactory : IMaterialShaderFactory
