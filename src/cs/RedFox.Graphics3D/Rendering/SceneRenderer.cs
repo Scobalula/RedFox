@@ -33,6 +33,15 @@ public sealed class SceneRenderer : IDisposable
     public IGraphicsDevice GraphicsDevice => _graphicsDevice;
 
     /// <summary>
+    /// Gets or sets the clear color applied at frame start.
+    /// </summary>
+    public Vector4 ClearColor
+    {
+        get => _clearAndStateResetPass.ClearColor;
+        set => _clearAndStateResetPass.ClearColor = value;
+    }
+
+    /// <summary>
     /// Gets or sets the ambient color used for renderer lighting.
     /// </summary>
     public Vector3 AmbientColor { get; set; }
@@ -170,6 +179,41 @@ public sealed class SceneRenderer : IDisposable
         }
 
         _graphicsDevice.Submit(_commandList);
+    }
+
+    /// <summary>
+    /// Releases renderer-owned resources attached to a scene without disposing the scene model.
+    /// </summary>
+    /// <param name="scene">The scene whose renderer resources should be released.</param>
+    public void ReleaseResources(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ReleaseResources(scene.RootNode);
+    }
+
+    /// <summary>
+    /// Releases renderer-owned resources attached to a scene-node subtree without disposing the nodes.
+    /// </summary>
+    /// <param name="node">The node subtree whose renderer resources should be released.</param>
+    public void ReleaseResources(SceneNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (node.GraphicsHandle is { } graphicsHandle)
+        {
+            graphicsHandle.Release();
+            graphicsHandle.Dispose();
+            node.GraphicsHandle = null;
+        }
+
+        if (node.Children is null)
+        {
+            return;
+        }
+
+        foreach (SceneNode child in node.Children)
+        {
+            ReleaseResources(child);
+        }
     }
 
     /// <summary>

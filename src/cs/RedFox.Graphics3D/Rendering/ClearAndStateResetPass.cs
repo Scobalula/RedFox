@@ -9,10 +9,13 @@ namespace RedFox.Graphics3D.Rendering;
 /// </summary>
 public sealed class ClearAndStateResetPass : RenderPass
 {
-    private readonly Vector4 _clearColor;
-
     /// <inheritdoc/>
     public override RenderPassPhase Phase => RenderPassPhase.Setup;
+
+    /// <summary>
+    /// Gets or sets the clear color applied at frame start.
+    /// </summary>
+    public Vector4 ClearColor { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ClearAndStateResetPass"/> class.
@@ -20,7 +23,7 @@ public sealed class ClearAndStateResetPass : RenderPass
     /// <param name="clearColor">The clear color applied at frame start.</param>
     public ClearAndStateResetPass(Vector4 clearColor)
     {
-        _clearColor = clearColor;
+        ClearColor = clearColor;
     }
 
     /// <inheritdoc/>
@@ -31,6 +34,6 @@ public sealed class ClearAndStateResetPass : RenderPass
         ICommandList commandList = context.GetRequired<ICommandList>();
         commandList.SetViewport((int)context.ViewportSize.X, (int)context.ViewportSize.Y);
         commandList.SetRenderTarget(null);
-        commandList.ClearRenderTarget(_clearColor.X, _clearColor.Y, _clearColor.Z, _clearColor.W, depth: 1.0f);
+        commandList.ClearRenderTarget(ClearColor.X, ClearColor.Y, ClearColor.Z, ClearColor.W, depth: 1.0f);
     }
 }

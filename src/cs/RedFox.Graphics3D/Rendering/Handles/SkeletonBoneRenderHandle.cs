@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Rendering.Backend;
@@ -13,6 +14,8 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
 {
     private const int FloatCountPerVertex = 13;
     private const int LineAttributeSlotCount = 6;
+    private static readonly object SharedPipelineLock = new();
+    private static readonly Dictionary<IGraphicsDevice, (IGpuPipelineState Pipeline, int ReferenceCount)> SharedPipelines = [];
 
     private readonly SkeletonBone _bone;
     private readonly IGraphicsDevice _graphicsDevice;
@@ -33,6 +36,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     private IGpuBuffer? _lineBuffer;
     private int _lineBufferSizeBytes;
     private IGpuPipelineState? _pipeline;
+    private bool _ownsPipelineReference;
     private bool _showBones = true;
     private int _vertexCount = -1;
     private Matrix4x4 _worldMatrix;
@@ -56,8 +60,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        SkeletonOverlay? overlay = _bone.Scene?.TryGetFirstOfType<SkeletonOverlay>();
-        _showBones = overlay?.ShowSkeletonBones ?? true;
+        _showBones = _bone.ShowSkeletonBone;
         _worldMatrix = _bone.GetActiveWorldMatrix();
 
         if (!_showBones)
@@ -70,12 +73,12 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
 
         Matrix4x4 localMatrix = _bone.GetActiveLocalMatrix();
         bool hasParent = _bone.Parent is not null;
-        if (!IsGeometryStale(localMatrix, hasParent, overlay))
+        if (!IsGeometryStale(localMatrix, hasParent))
         {
             return;
         }
 
-        float[] vertices = BuildLineVertices(_bone, overlay);
+        float[] vertices = BuildLineVertices(_bone);
         _vertexCount = vertices.Length / FloatCountPerVertex;
         ReadOnlySpan<byte> vertexBytes = MemoryMarshal.AsBytes(vertices.AsSpan());
         if (_lineBuffer is null || _lineBufferSizeBytes != vertexBytes.Length)
@@ -95,16 +98,16 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
 
         _lastLocalMatrix = localMatrix;
         _lastHasParent = hasParent;
-        _lastAxisSize = overlay?.BoneAxisSize ?? 0.2f;
-        _lastAxisScaleFromParent = overlay?.BoneAxisScaleFromParent ?? 0.2f;
-        _lastAxisMaxSize = overlay?.BoneAxisMaxSize ?? 2.0f;
-        _lastBoneAxisXColor = overlay?.BoneAxisXColor ?? new Vector4(0.9f, 0.25f, 0.25f, 0.95f);
-        _lastBoneAxisYColor = overlay?.BoneAxisYColor ?? new Vector4(0.25f, 0.9f, 0.25f, 0.95f);
-        _lastBoneAxisZColor = overlay?.BoneAxisZColor ?? new Vector4(0.25f, 0.45f, 0.95f, 0.95f);
-        _lastBoneConnectionColor = overlay?.BoneConnectionColor ?? new Vector4(0.88f, 0.88f, 0.76f, 0.9f);
-        _lastUseBoneNameHashColor = overlay?.UseBoneNameHashColor ?? true;
-        _lastBoneNameColorSaturation = overlay?.BoneNameColorSaturation ?? 0.62f;
-        _lastBoneNameColorValue = overlay?.BoneNameColorValue ?? 0.95f;
+        _lastAxisSize = _bone.BoneAxisSize;
+        _lastAxisScaleFromParent = _bone.BoneAxisScaleFromParent;
+        _lastAxisMaxSize = _bone.BoneAxisMaxSize;
+        _lastBoneAxisXColor = _bone.BoneAxisXColor;
+        _lastBoneAxisYColor = _bone.BoneAxisYColor;
+        _lastBoneAxisZColor = _bone.BoneAxisZColor;
+        _lastBoneConnectionColor = _bone.BoneConnectionColor;
+        _lastUseBoneNameHashColor = _bone.UseBoneNameHashColor;
+        _lastBoneNameColorSaturation = _bone.BoneNameColorSaturation;
+        _lastBoneNameColorValue = _bone.BoneNameColorValue;
     }
 
     /// <inheritdoc/>
@@ -119,12 +122,11 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     {
         ThrowIfDisposed();
 
-        if (phase != RenderPhase.Overlay || !_showBones || _pipeline is null || _lineBuffer is null || _vertexCount <= 0)
+        RenderPhase targetPhase = _bone.RenderBoneOnTop ? RenderPhase.Overlay : RenderPhase.Transparent;
+        if (phase != targetPhase || !_showBones || _pipeline is null || _lineBuffer is null || _vertexCount <= 0)
         {
             return;
         }
-
-        SkeletonOverlay? overlay = _bone.Scene?.TryGetFirstOfType<SkeletonOverlay>();
 
         commandList.SetPipelineState(_pipeline);
         BindLineVertexBuffer(commandList, _lineBuffer);
@@ -133,7 +135,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         commandList.SetUniformMatrix4x4("View", view);
         commandList.SetUniformMatrix4x4("Projection", projection);
         commandList.SetUniformVector2("ViewportSize", viewportSize);
-        commandList.SetUniformFloat("LineHalfWidthPx", MathF.Max(overlay?.BoneLineWidth ?? 1.15f, 0.75f) * 0.5f);
+        commandList.SetUniformFloat("LineHalfWidthPx", MathF.Max(_bone.BoneLineWidth, 0.75f) * 0.5f);
         commandList.SetUniformVector3("CameraPosition", cameraPosition);
         commandList.SetUniformFloat("FadeStartDistance", 0.0f);
         commandList.SetUniformFloat("FadeEndDistance", 0.0f);
@@ -143,7 +145,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     /// <inheritdoc/>
     protected override void ReleaseCore()
     {
-        _pipeline?.Dispose();
+        ReleasePipelineReference();
         _pipeline = null;
         _lineBuffer?.Dispose();
         _lineBuffer = null;
@@ -151,22 +153,22 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         _vertexCount = -1;
     }
 
-    private bool IsGeometryStale(Matrix4x4 localMatrix, bool hasParent, SkeletonOverlay? overlay)
+    private bool IsGeometryStale(Matrix4x4 localMatrix, bool hasParent)
     {
         return _vertexCount < 0
             || _lineBuffer is null
             || _lastLocalMatrix != localMatrix
             || _lastHasParent != hasParent
-            || _lastAxisSize != (overlay?.BoneAxisSize ?? 0.2f)
-            || _lastAxisScaleFromParent != (overlay?.BoneAxisScaleFromParent ?? 0.2f)
-            || _lastAxisMaxSize != (overlay?.BoneAxisMaxSize ?? 2.0f)
-            || _lastBoneAxisXColor != (overlay?.BoneAxisXColor ?? new Vector4(0.9f, 0.25f, 0.25f, 0.95f))
-            || _lastBoneAxisYColor != (overlay?.BoneAxisYColor ?? new Vector4(0.25f, 0.9f, 0.25f, 0.95f))
-            || _lastBoneAxisZColor != (overlay?.BoneAxisZColor ?? new Vector4(0.25f, 0.45f, 0.95f, 0.95f))
-            || _lastBoneConnectionColor != (overlay?.BoneConnectionColor ?? new Vector4(0.88f, 0.88f, 0.76f, 0.9f))
-            || _lastUseBoneNameHashColor != (overlay?.UseBoneNameHashColor ?? true)
-            || _lastBoneNameColorSaturation != (overlay?.BoneNameColorSaturation ?? 0.62f)
-            || _lastBoneNameColorValue != (overlay?.BoneNameColorValue ?? 0.95f);
+            || _lastAxisSize != _bone.BoneAxisSize
+            || _lastAxisScaleFromParent != _bone.BoneAxisScaleFromParent
+            || _lastAxisMaxSize != _bone.BoneAxisMaxSize
+            || _lastBoneAxisXColor != _bone.BoneAxisXColor
+            || _lastBoneAxisYColor != _bone.BoneAxisYColor
+            || _lastBoneAxisZColor != _bone.BoneAxisZColor
+            || _lastBoneConnectionColor != _bone.BoneConnectionColor
+            || _lastUseBoneNameHashColor != _bone.UseBoneNameHashColor
+            || _lastBoneNameColorSaturation != _bone.BoneNameColorSaturation
+            || _lastBoneNameColorValue != _bone.BoneNameColorValue;
     }
 
     private static void AddExpandedVertex(Span<float> destination, ref int offset, Vector3 start, Vector3 end, Vector4 color, float along, float side, float widthScale)
@@ -204,9 +206,9 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         }
     }
 
-    private static float[] BuildLineVertices(SkeletonBone bone, SkeletonOverlay? overlay)
+    private static float[] BuildLineVertices(SkeletonBone bone)
     {
-        float axisSize = MathF.Max(overlay?.BoneAxisSize ?? 0.2f, 0.0f);
+        float axisSize = MathF.Max(bone.BoneAxisSize, 0.0f);
         Matrix4x4 inverseLocal = Matrix4x4.Identity;
         bool hasParent = bone.Parent is not null && Matrix4x4.Invert(bone.GetActiveLocalMatrix(), out inverseLocal);
         Vector3 parentLocalOrigin = Vector3.Zero;
@@ -216,15 +218,14 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
             float parentDistance = parentLocalOrigin.Length();
             if (parentDistance > 1e-6f)
             {
-                float scaledFromParent = parentDistance * MathF.Max(overlay?.BoneAxisScaleFromParent ?? 0.2f, 0.0f);
+                float scaledFromParent = parentDistance * MathF.Max(bone.BoneAxisScaleFromParent, 0.0f);
                 axisSize = MathF.Max(axisSize, scaledFromParent);
             }
         }
 
-        float axisMaxSize = overlay?.BoneAxisMaxSize ?? 2.0f;
-        if (axisMaxSize > 0.0f)
+        if (bone.BoneAxisMaxSize > 0.0f)
         {
-            axisSize = MathF.Min(axisSize, axisMaxSize);
+            axisSize = MathF.Min(axisSize, bone.BoneAxisMaxSize);
         }
 
         int segmentCount = axisSize > 0.0f ? 3 : 0;
@@ -237,25 +238,25 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         int offset = 0;
         if (axisSize > 0.0f)
         {
-            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitX * axisSize, overlay?.BoneAxisXColor ?? new Vector4(0.9f, 0.25f, 0.25f, 0.95f), 1.0f);
-            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitY * axisSize, overlay?.BoneAxisYColor ?? new Vector4(0.25f, 0.9f, 0.25f, 0.95f), 1.0f);
-            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitZ * axisSize, overlay?.BoneAxisZColor ?? new Vector4(0.25f, 0.45f, 0.95f, 0.95f), 1.0f);
+            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitX * axisSize, bone.BoneAxisXColor, 1.0f);
+            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitY * axisSize, bone.BoneAxisYColor, 1.0f);
+            AddLineSegment(vertices, ref offset, Vector3.Zero, Vector3.UnitZ * axisSize, bone.BoneAxisZColor, 1.0f);
         }
 
         if (hasParent)
         {
-            Vector4 connectionColor = overlay?.UseBoneNameHashColor ?? true
-                ? BuildBoneNameColor(bone.Name, overlay)
-                : overlay?.BoneConnectionColor ?? new Vector4(0.88f, 0.88f, 0.76f, 0.9f);
+            Vector4 connectionColor = bone.UseBoneNameHashColor
+                ? BuildBoneNameColor(bone)
+                : bone.BoneConnectionColor;
             AddLineSegment(vertices, ref offset, parentLocalOrigin, Vector3.Zero, connectionColor, 1.0f);
         }
 
         return vertices;
     }
 
-    private static Vector4 BuildBoneNameColor(string boneName, SkeletonOverlay? overlay)
+    private static Vector4 BuildBoneNameColor(SkeletonBone bone)
     {
-        string source = string.IsNullOrWhiteSpace(boneName) ? "Bone" : boneName;
+        string source = string.IsNullOrWhiteSpace(bone.Name) ? "Bone" : bone.Name;
         uint hash = 2166136261u;
         for (int i = 0; i < source.Length; i++)
         {
@@ -264,11 +265,10 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         }
 
         float hue = (hash % 360u) / 360.0f;
-        float saturation = Math.Clamp(overlay?.BoneNameColorSaturation ?? 0.62f, 0.0f, 1.0f);
-        float value = Math.Clamp(overlay?.BoneNameColorValue ?? 0.95f, 0.0f, 1.0f);
+        float saturation = Math.Clamp(bone.BoneNameColorSaturation, 0.0f, 1.0f);
+        float value = Math.Clamp(bone.BoneNameColorValue, 0.0f, 1.0f);
         Vector3 rgb = HsvToRgb(hue, saturation, value);
-        float alpha = overlay?.BoneConnectionColor.W ?? 0.9f;
-        return new Vector4(rgb.X, rgb.Y, rgb.Z, alpha);
+        return new Vector4(rgb.X, rgb.Y, rgb.Z, bone.BoneConnectionColor.W);
     }
 
     private static Vector3 HsvToRgb(float hue, float saturation, float value)
@@ -303,7 +303,48 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
             return;
         }
 
-        MaterialTypeDefinition definition = _materialTypes.Get("Skeleton");
-        _pipeline = definition.BuildPipeline(_graphicsDevice);
+        lock (SharedPipelineLock)
+        {
+            if (SharedPipelines.TryGetValue(_graphicsDevice, out (IGpuPipelineState Pipeline, int ReferenceCount) sharedPipeline))
+            {
+                SharedPipelines[_graphicsDevice] = (sharedPipeline.Pipeline, sharedPipeline.ReferenceCount + 1);
+                _pipeline = sharedPipeline.Pipeline;
+                _ownsPipelineReference = true;
+                return;
+            }
+
+            MaterialTypeDefinition definition = _materialTypes.Get("Skeleton");
+            IGpuPipelineState pipeline = definition.BuildPipeline(_graphicsDevice);
+            SharedPipelines.Add(_graphicsDevice, (pipeline, 1));
+            _pipeline = pipeline;
+            _ownsPipelineReference = true;
+        }
+    }
+
+    private void ReleasePipelineReference()
+    {
+        if (!_ownsPipelineReference || _pipeline is null)
+        {
+            return;
+        }
+
+        lock (SharedPipelineLock)
+        {
+            if (SharedPipelines.TryGetValue(_graphicsDevice, out (IGpuPipelineState Pipeline, int ReferenceCount) sharedPipeline))
+            {
+                int referenceCount = sharedPipeline.ReferenceCount - 1;
+                if (referenceCount <= 0)
+                {
+                    SharedPipelines.Remove(_graphicsDevice);
+                    sharedPipeline.Pipeline.Dispose();
+                }
+                else
+                {
+                    SharedPipelines[_graphicsDevice] = (sharedPipeline.Pipeline, referenceCount);
+                }
+            }
+
+            _ownsPipelineReference = false;
+        }
     }
 }

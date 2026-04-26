@@ -21,12 +21,21 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     /// <summary>
     /// Gets a value indicating whether compute workloads are supported.
     /// </summary>
-    public bool SupportsCompute => _context.SupportsVersion(4, 3);
+    public bool SupportsCompute => true;
 
     /// <summary>
     /// Gets the backend material-type registry.
     /// </summary>
     public IMaterialTypeRegistry MaterialTypes { get; }
+
+    /// <summary>
+    /// Gets or sets the framebuffer used as the default render target.
+    /// </summary>
+    public uint DefaultFramebufferHandle
+    {
+        get => _context.DefaultFramebufferHandle;
+        set => _context.DefaultFramebufferHandle = value;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenGlGraphicsDevice"/> class.
@@ -134,8 +143,20 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new ArgumentException("Shader source cannot be empty.", nameof(utf8Source));
         }
 
-        string source = Encoding.UTF8.GetString(utf8Source);
+        string source = TranslateShaderSource(Encoding.UTF8.GetString(utf8Source), stage);
         return new OpenGlShader(source, stage);
+    }
+
+    private string TranslateShaderSource(string source, ShaderStage stage)
+    {
+        if (!_context.IsEmbeddedProfile)
+        {
+            return source;
+        }
+
+        return stage == ShaderStage.Compute
+            ? source.Replace("#version 430 core", "#version 310 es\nprecision highp float;\nprecision highp int;", StringComparison.Ordinal)
+            : source.Replace("#version 330 core", "#version 300 es\nprecision highp float;\nprecision highp int;", StringComparison.Ordinal);
     }
 
     /// <inheritdoc/>

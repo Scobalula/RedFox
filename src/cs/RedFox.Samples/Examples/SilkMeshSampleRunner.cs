@@ -1,33 +1,16 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Numerics;
 using RedFox.Graphics3D;
-using RedFox.Graphics3D.Buffers;
-using RedFox.Graphics3D.Bvh;
-using RedFox.Graphics3D.Cast;
-using RedFox.Graphics3D.Gltf;
-using RedFox.Graphics3D.IO;
-using RedFox.Graphics3D.KaydaraFbx;
-using RedFox.Graphics3D.MayaAscii;
-using RedFox.Graphics3D.Md5;
 using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Hosting;
-using RedFox.Graphics3D.SEAnim;
-using RedFox.Graphics3D.Semodel;
 using RedFox.Graphics3D.Silk;
-using RedFox.Graphics3D.Smd;
-using RedFox.Graphics3D.WavefrontObj;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
+using System.Numerics;
 
 namespace RedFox.Samples.Examples;
 
 internal static class SilkMeshSampleRunner
 {
-    private const int PreviewRandomLightCount = 3;
-
     public static int Run(string[] arguments, string title, string fallbackSceneName, ISilkRendererBackendFactory backendFactory)
     {
         ArgumentNullException.ThrowIfNull(arguments);
@@ -35,96 +18,36 @@ internal static class SilkMeshSampleRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSceneName);
         ArgumentNullException.ThrowIfNull(backendFactory);
 
-        ParseOptions(arguments, out List<string> scenePaths, out bool showGrid, out SceneUpAxis upAxis, out FaceWinding faceWinding, out bool useViewBasedLighting, out SkinningMode skinningMode, out float exitAfterSeconds);
-
-        if (!TryCreateScene(scenePaths, fallbackSceneName, out Scene? scene, out string? error))
+        if (!MeshSampleSceneFactory.TryCreate(arguments, fallbackSceneName, out MeshSampleSceneContext? context, out string? error))
         {
             Console.Error.WriteLine(error);
             return 1;
         }
 
-        ArgumentNullException.ThrowIfNull(scene);
-        scene.UpAxis = upAxis;
-        scene.FaceWinding = faceWinding;
+        ArgumentNullException.ThrowIfNull(context);
+        Scene scene = context.Scene;
+        Grid? grid = context.Grid;
+        SceneViewportController viewportController = context.ViewportController;
+        MeshSampleOptions options = context.Options;
 
-        SkeletonOverlay skeletonOverlay = scene.TryGetFirstOfType<SkeletonOverlay>(out SkeletonOverlay? existingOverlay) && existingOverlay is not null
-            ? existingOverlay
-            : scene.RootNode.AddNode<SkeletonOverlay>("SkeletonOverlay");
-
-        IReadOnlyList<AnimationPlayer> animationPlayers = scene.CreateAnimationPlayers();
-        if (animationPlayers.Count > 0)
+        if (context.AnimationPlayers.Count > 0)
         {
-            Console.WriteLine($"[Animation] Created {animationPlayers.Count} skeletal animation player(s).");
-        }
-
-        OrbitCamera camera = scene.RootNode.AddNode<OrbitCamera>("MainCamera");
-        camera.AspectRatio = 1280.0f / 720.0f;
-        camera.NearPlane = 0.01f;
-        camera.FarPlane = 5000.0f;
-        camera.FieldOfView = 60.0f;
-        camera.LookSensitivity = 1.0f;
-        camera.ZoomSensitivity = 1.0f;
-        camera.PanSensitivity = 1.0f;
-        camera.MoveSpeed = 2.5f;
-        camera.BoostMultiplier = 3.0f;
-        camera.MinDistance = 0.05f;
-        camera.MaxDistance = 1000000.0f;
-        camera.UsePitchLimits = false;
-        camera.InvertX = true;
-        camera.InvertY = true;
-        camera.ApplyOrbit();
-
-        SceneViewportController viewportController = new(scene, camera)
-        {
-            RefreshAnimatedSceneBounds = animationPlayers.Count > 0,
-            IncludeNodeInBounds = node => ShouldIncludeInBounds(node, skeletonOverlay.ShowSkeletonBones),
-        };
-
-        if (viewportController.RecomputeBounds())
-        {
-            viewportController.FitCameraToScene();
-            EnsurePreviewLights(scene, viewportController.Bounds, PreviewRandomLightCount);
-        }
-        else
-        {
-            Light light = scene.RootNode.AddNode<Light>("KeyLight");
-            light.Position = new Vector3(2.0f, 3.0f, 1.5f);
-            light.Color = new Vector3(1.0f, 0.98f, 0.9f);
-            light.Intensity = 1.0f;
-        }
-
-        Grid? grid = null;
-        if (showGrid)
-        {
-            grid = scene.RootNode.AddNode<Grid>("Grid");
-            grid.Spacing = 3.5f;
-            grid.MajorStep = 12;
-            grid.LineWidth = 0.9f;
-            grid.EdgeLineWidthScale = 1.75f;
-            grid.FadeEnabled = false;
+            Console.WriteLine($"[Animation] Created {context.AnimationPlayers.Count} skeletal animation player(s).");
         }
 
         SilkCameraInputAdapter? cameraInputAdapter = null;
-        IKeyboard? keyboard = null;
-        bool prevLKeyDown = false;
-        bool prevBKeyDown = false;
-        bool prevFKeyDown = false;
-        bool prevKKeyDown = false;
-        bool prevSpaceKeyDown = false;
-        bool prevTKeyDown = false;
-        bool prevGKeyDown = false;
-        float elapsedSeconds = 0.0f;
-
+        bool inputInitialized = false;
         Vector4 clearColor = new(0.07f, 0.09f, 0.13f, 1.0f);
         Vector3 ambientColor = new(0.13f, 0.13f, 0.16f);
-        Vector3 fallbackLightDirection = new(-0.4f, -1.0f, -0.2f);
-        Vector3 fallbackLightColor = new(1.0f, 1.0f, 1.0f);
+        Vector3 fallbackLightDirection = Vector3.Normalize(new Vector3(-0.4f, -1.0f, -0.2f));
+        Vector3 fallbackLightColor = Vector3.One;
         float fallbackLightIntensity = 0.8f;
 
         WindowOptions windowOptions = WindowOptions.Default;
         windowOptions.Title = title;
         windowOptions.Size = new Vector2D<int>(1280, 720);
-
+        windowOptions.PreferredDepthBufferBits = 24;
+        windowOptions.PreferredStencilBufferBits = 8;
         using SilkRendererHost host = new(
             windowOptions,
             backendFactory,
@@ -135,8 +58,8 @@ internal static class SilkMeshSampleRunner
                 fallbackLightDirection,
                 fallbackLightColor,
                 fallbackLightIntensity,
-                useViewBasedLighting,
-                skinningMode));
+                options.UseViewBasedLighting,
+                options.SkinningMode));
         host.Window.FramebufferResize += size =>
         {
             if (size.X > 0 && size.Y > 0)
@@ -145,371 +68,123 @@ internal static class SilkMeshSampleRunner
             }
         };
 
-        try
+        float elapsedSeconds = 0.0f;
+        host.Run((deltaTime, input, renderer) =>
         {
-            host.Run((deltaTime, inputContext, renderer) =>
+            if (!inputInitialized)
             {
-                cameraInputAdapter ??= new SilkCameraInputAdapter(inputContext)
+                cameraInputAdapter = new SilkCameraInputAdapter(input)
                 {
                     LookSensitivity = 0.0052f,
                     ZoomSensitivity = 0.25f,
                     PanSensitivity = 0.0022f,
                     DollySensitivity = 0.014f,
-                    RequireAltForMouseGestures = true
+                    RequireAltForMouseGestures = true,
                 };
-
-                keyboard ??= inputContext.Keyboards.Count > 0 ? inputContext.Keyboards[0] : null;
-
-                bool lKeyDown = keyboard?.IsKeyPressed(Key.L) ?? false;
-                if (lKeyDown && !prevLKeyDown)
+                if (input.Keyboards.Count > 0)
                 {
-                    renderer.UseViewBasedLighting = !renderer.UseViewBasedLighting;
-                    Console.WriteLine($"[Toggle] UseViewBasedLighting: {renderer.UseViewBasedLighting}");
+                    input.Keyboards[0].KeyDown += (_, key, _) => OnKeyDown(key, renderer, scene, viewportController, grid);
                 }
 
-                bool bKeyDown = keyboard?.IsKeyPressed(Key.B) ?? false;
-                if (bKeyDown && !prevBKeyDown)
-                {
-                    skeletonOverlay.ShowSkeletonBones = !skeletonOverlay.ShowSkeletonBones;
-                    viewportController.RecomputeBounds();
-                    Console.WriteLine($"[Toggle] ShowSkeletonBones: {skeletonOverlay.ShowSkeletonBones}");
-                }
+                inputInitialized = true;
+            }
 
-                bool fKeyDown = keyboard?.IsKeyPressed(Key.F) ?? false;
-                if (fKeyDown && !prevFKeyDown)
-                {
-                    if (viewportController.RecomputeBounds() && viewportController.FitCameraToScene())
-                    {
-                        Console.WriteLine("[Toggle] Camera re-fit to scene bounds.");
-                    }
-                }
-
-                bool kKeyDown = keyboard?.IsKeyPressed(Key.K) ?? false;
-                if (kKeyDown && !prevKKeyDown)
-                {
-                    renderer.SkinningMode = renderer.SkinningMode == SkinningMode.Linear
-                        ? SkinningMode.DualQuaternion
-                        : SkinningMode.Linear;
-                    Console.WriteLine($"[Toggle] SkinningMode: {renderer.SkinningMode}");
-                }
-
-                bool spaceKeyDown = keyboard?.IsKeyPressed(Key.Space) ?? false;
-                if (spaceKeyDown && !prevSpaceKeyDown)
-                {
-                    scene.IsAnimationPaused = !scene.IsAnimationPaused;
-                    Console.WriteLine($"[Toggle] AnimationPaused: {scene.IsAnimationPaused}");
-                }
-
-                bool tKeyDown = keyboard?.IsKeyPressed(Key.T) ?? false;
-                if (tKeyDown && !prevTKeyDown)
-                {
-                    bool enable = scene.IsAnimationPaused;
-                    scene.IsAnimationPaused = !enable;
-                    if (!enable)
-                    {
-                        foreach (SceneNode node in scene.EnumerateDescendants())
-                        {
-                            node.ResetLiveTransform();
-                        }
-
-                        Console.WriteLine("[Toggle] Animations disabled - live transforms reset to bind pose.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("[Toggle] Animations enabled.");
-                    }
-                }
-
-                bool gKeyDown = keyboard?.IsKeyPressed(Key.G) ?? false;
-                if (gKeyDown && !prevGKeyDown)
-                {
-                    if (grid is not null)
-                    {
-                        bool hidden = grid.Flags.HasFlag(SceneNodeFlags.NoDraw);
-                        grid.Flags = hidden
-                            ? grid.Flags & ~SceneNodeFlags.NoDraw
-                            : grid.Flags | SceneNodeFlags.NoDraw;
-                        Console.WriteLine($"[Toggle] Grid: {(hidden ? "visible" : "hidden")}");
-                    }
-                }
-
-                prevLKeyDown = lKeyDown;
-                prevBKeyDown = bKeyDown;
-                prevFKeyDown = fKeyDown;
-                prevKKeyDown = kKeyDown;
-                prevSpaceKeyDown = spaceKeyDown;
-                prevTKeyDown = tKeyDown;
-                prevGKeyDown = gKeyDown;
-
+            if (cameraInputAdapter is not null)
+            {
                 viewportController.UpdateAndRender(renderer, cameraInputAdapter, (float)deltaTime);
 
                 elapsedSeconds += (float)deltaTime;
-                if (exitAfterSeconds > 0.0f && elapsedSeconds >= exitAfterSeconds)
+                if (options.ExitAfterSeconds > 0.0f && elapsedSeconds >= options.ExitAfterSeconds)
                 {
                     host.Window.Close();
                 }
-            });
-        }
-        finally
-        {
-            cameraInputAdapter?.Dispose();
-        }
-
+            }
+        });
         return 0;
     }
 
-    private static bool TryCreateScene(IReadOnlyList<string> scenePaths, string fallbackSceneName, out Scene? scene, out string? error)
+    private static void OnKeyDown(
+        Key key,
+        SceneRenderer renderer,
+        Scene scene,
+        SceneViewportController viewportController,
+        Grid? grid)
     {
-        if (scenePaths.Count == 0)
+        switch (key)
         {
-            scene = CreateFallbackScene(fallbackSceneName);
-            error = null;
-            return true;
-        }
+            case Key.L:
+                renderer.UseViewBasedLighting = !renderer.UseViewBasedLighting;
+                Console.WriteLine($"[Lighting] View-based lighting {(renderer.UseViewBasedLighting ? "enabled" : "disabled")}");
+                break;
 
-        SceneTranslatorManager manager = CreateTranslatorManager();
-        scene = new Scene(Path.GetFileName(scenePaths[0]));
+            case Key.B:
+                bool showSkeletonBones = ToggleSkeletonBones(scene);
+                viewportController.RecomputeBounds();
+                Console.WriteLine($"[Skeleton] Bones {(showSkeletonBones ? "visible" : "hidden")}");
+                break;
 
-        try
-        {
-            for (int i = 0; i < scenePaths.Count; i++)
-            {
-                string inputPath = Path.GetFullPath(scenePaths[i]);
-                if (!File.Exists(inputPath))
+            case Key.F:
+                if (viewportController.RecomputeBounds() && viewportController.FitCameraToScene())
                 {
-                    scene = null;
-                    error = $"Input scene file was not found: {inputPath}";
-                    return false;
+                    Console.WriteLine("[Camera] Fit to scene.");
                 }
 
-                SceneTranslatorOptions options = new();
-                manager.Read(inputPath, scene, options);
-            }
+                break;
 
-            error = null;
-            return true;
-        }
-        catch (Exception exception)
-        {
-            scene = null;
-            error = $"Failed to load scene input(s): {exception.Message}";
-            return false;
-        }
-    }
+            case Key.K:
+                renderer.SkinningMode = renderer.SkinningMode == SkinningMode.Linear
+                    ? SkinningMode.DualQuaternion
+                    : SkinningMode.Linear;
+                Console.WriteLine($"[Skinning] Mode: {renderer.SkinningMode}");
+                break;
 
-    private static SceneTranslatorManager CreateTranslatorManager()
-    {
-        SceneTranslatorManager manager = new();
-        manager.Register<ObjTranslator>();
-        manager.Register<GltfTranslator>();
-        manager.Register<SemodelTranslator>();
-        manager.Register<SmdTranslator>();
-        manager.Register<MayaAsciiTranslator>();
-        manager.Register<FbxTranslator>();
-        manager.Register<CastTranslator>();
-        manager.Register<BvhTranslator>();
-        manager.Register<Md5MeshTranslator>();
-        manager.Register<Md5AnimTranslator>();
-        manager.Register<SeanimTranslator>();
-        return manager;
-    }
+            case Key.Space:
+                scene.IsAnimationPaused = !scene.IsAnimationPaused;
+                Console.WriteLine($"[Animation] {(scene.IsAnimationPaused ? "Paused" : "Playing")}");
+                break;
 
-    private static Scene CreateFallbackScene(string fallbackSceneName)
-    {
-        Scene scene = new(fallbackSceneName);
-
-        Mesh mesh = scene.RootNode.AddNode<Mesh>("Triangle");
-        mesh.Positions = CreatePositions();
-        mesh.Normals = CreateNormals();
-        mesh.FaceIndices = CreateIndices();
-
-        Material material = new("TriangleMaterial")
-        {
-            DiffuseColor = new Vector4(0.92f, 0.3f, 0.24f, 1.0f)
-        };
-
-        mesh.Materials = new List<Material> { material };
-
-        return scene;
-    }
-
-    private static void ParseOptions(
-        string[] arguments,
-        out List<string> scenePaths,
-        out bool showGrid,
-        out SceneUpAxis upAxis,
-        out FaceWinding faceWinding,
-        out bool useViewBasedLighting,
-        out SkinningMode skinningMode,
-        out float exitAfterSeconds)
-    {
-        scenePaths = [];
-        showGrid = true;
-        upAxis = SceneUpAxis.Y;
-        faceWinding = FaceWinding.CounterClockwise;
-        useViewBasedLighting = false;
-        skinningMode = SkinningMode.Linear;
-        exitAfterSeconds = 0.0f;
-
-        for (int i = 0; i < arguments.Length; i++)
-        {
-            string arg = arguments[i];
-            if (arg.Equals("--no-grid", StringComparison.OrdinalIgnoreCase))
-            {
-                showGrid = false;
-                continue;
-            }
-
-            if (arg.Equals("--grid", StringComparison.OrdinalIgnoreCase))
-            {
-                showGrid = true;
-                continue;
-            }
-
-            if (arg.StartsWith("--up-axis=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = arg[10..].Trim();
-                if (value.Equals("x", StringComparison.OrdinalIgnoreCase))
+            case Key.T:
+                bool enable = scene.IsAnimationPaused;
+                scene.IsAnimationPaused = !enable;
+                if (!enable)
                 {
-                    upAxis = SceneUpAxis.X;
-                }
-                else if (value.Equals("z", StringComparison.OrdinalIgnoreCase))
-                {
-                    upAxis = SceneUpAxis.Z;
+                    foreach (SceneNode node in scene.EnumerateDescendants())
+                    {
+                        node.ResetLiveTransform();
+                    }
+
+                    Console.WriteLine("[Animation] Disabled; bind pose restored.");
                 }
                 else
                 {
-                    upAxis = SceneUpAxis.Y;
+                    Console.WriteLine("[Animation] Enabled.");
                 }
 
-                continue;
-            }
+                break;
 
-            if (arg.StartsWith("--winding=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = arg[10..].Trim();
-                faceWinding = value.Equals("cw", StringComparison.OrdinalIgnoreCase)
-                    ? FaceWinding.Clockwise
-                    : FaceWinding.CounterClockwise;
-                continue;
-            }
-
-            if (arg.Equals("--view-lighting", StringComparison.OrdinalIgnoreCase)
-                || arg.Equals("--view-lit", StringComparison.OrdinalIgnoreCase))
-            {
-                useViewBasedLighting = true;
-                continue;
-            }
-
-            if (arg.Equals("--scene-lighting", StringComparison.OrdinalIgnoreCase)
-                || arg.Equals("--no-view-lighting", StringComparison.OrdinalIgnoreCase))
-            {
-                useViewBasedLighting = false;
-                continue;
-            }
-
-            if (arg.StartsWith("--skinning=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = arg[11..].Trim();
-                skinningMode = value.Equals("dual", StringComparison.OrdinalIgnoreCase)
-                    || value.Equals("dualquaternion", StringComparison.OrdinalIgnoreCase)
-                    || value.Equals("dq", StringComparison.OrdinalIgnoreCase)
-                    ? SkinningMode.DualQuaternion
-                    : SkinningMode.Linear;
-                continue;
-            }
-
-            if (arg.StartsWith("--exit-after=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = arg[13..].Trim();
-                if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsedSeconds) && parsedSeconds > 0.0f)
+            case Key.G:
+                if (grid is not null)
                 {
-                    exitAfterSeconds = parsedSeconds;
+                    bool visible = grid.Flags.HasFlag(SceneNodeFlags.NoDraw);
+                    grid.Flags = visible
+                        ? grid.Flags & ~SceneNodeFlags.NoDraw
+                        : grid.Flags | SceneNodeFlags.NoDraw;
+                    Console.WriteLine($"[Grid] {(visible ? "Visible" : "Hidden")}");
                 }
 
-                continue;
-            }
-
-            if (!arg.StartsWith("--", StringComparison.Ordinal))
-            {
-                scenePaths.Add(arg);
-            }
+                break;
         }
     }
 
-    private static bool ShouldIncludeInBounds(SceneNode node, bool showSkeletonBones)
+    private static bool ToggleSkeletonBones(Scene scene)
     {
-        if (!showSkeletonBones && node is SkeletonBone)
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
+        bool showSkeletonBones = bones.Any(bone => !bone.ShowSkeletonBone);
+        for (int i = 0; i < bones.Length; i++)
         {
-            return false;
+            bones[i].ShowSkeletonBone = showSkeletonBones;
         }
 
-        return true;
-    }
-
-    private static void EnsurePreviewLights(Scene scene, SceneBounds bounds, int desiredCount)
-    {
-        Light[] existingLights = scene.GetDescendants<Light>();
-        if (existingLights.Length > 0)
-        {
-            return;
-        }
-
-        float radius = MathF.Max(bounds.Radius, 1.0f);
-        Vector3 center = bounds.Center;
-        int lightCount = Math.Max(1, Math.Min(desiredCount, 3));
-        float lightDistance = radius * 1.85f;
-
-        Vector3[] directions =
-        [
-            Vector3.Normalize(new Vector3(0.9f, 1.25f, 0.35f)),
-            Vector3.Normalize(new Vector3(-1.15f, 0.4f, -0.7f)),
-            Vector3.Normalize(new Vector3(-0.2f, 0.95f, 1.15f))
-        ];
-
-        Vector3[] colors =
-        [
-            new Vector3(1.0f, 0.92f, 0.78f),
-            new Vector3(0.55f, 0.66f, 0.95f),
-            new Vector3(0.82f, 0.88f, 1.0f)
-        ];
-
-        float[] intensities = [0.72f, 0.2f, 0.34f];
-
-        for (int i = 0; i < lightCount; i++)
-        {
-            Light light = scene.RootNode.AddNode<Light>($"PreviewLight_{i + 1}");
-            light.Position = center + (directions[i] * lightDistance);
-            light.Color = colors[i];
-            light.Intensity = intensities[i];
-            light.Enabled = true;
-        }
-    }
-
-    private static DataBuffer<float> CreatePositions()
-    {
-        DataBuffer<float> positions = new(3, 1, 3);
-        positions.Add(new Vector3(-0.9f, -0.7f, 0.0f));
-        positions.Add(new Vector3(0.9f, -0.7f, 0.0f));
-        positions.Add(new Vector3(0.0f, 0.85f, 0.0f));
-        return positions;
-    }
-
-    private static DataBuffer<float> CreateNormals()
-    {
-        DataBuffer<float> normals = new(3, 1, 3);
-        normals.Add(new Vector3(0.0f, 0.0f, 1.0f));
-        normals.Add(new Vector3(0.0f, 0.0f, 1.0f));
-        normals.Add(new Vector3(0.0f, 0.0f, 1.0f));
-        return normals;
-    }
-
-    private static DataBuffer<uint> CreateIndices()
-    {
-        DataBuffer<uint> indices = new(3, 1, 1);
-        indices.Add(0u);
-        indices.Add(1u);
-        indices.Add(2u);
-        return indices;
+        return showSkeletonBones;
     }
 }

@@ -75,7 +75,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         GL gl = _context.Gl;
         uint handle = renderTarget is OpenGlRenderTarget openGlRenderTarget
             ? openGlRenderTarget.Handle
-            : 0u;
+            : _context.DefaultFramebufferHandle;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
     }
 
@@ -396,7 +396,10 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         _context.SetFrontFace(_frontFaceWinding == FaceWinding.CounterClockwise);
-        gl.PolygonMode(TriangleFace.FrontAndBack, pipelineState.Wireframe ? GLEnum.Line : GLEnum.Fill);
+        if (!_context.IsEmbeddedProfile)
+        {
+            gl.PolygonMode(TriangleFace.FrontAndBack, pipelineState.Wireframe ? GLEnum.Line : GLEnum.Fill);
+        }
 
         if (pipelineState.BlendEnabled)
         {

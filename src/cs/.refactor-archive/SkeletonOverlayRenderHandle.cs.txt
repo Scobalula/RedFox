@@ -1,0 +1,5 @@
+Archived untracked source removed from live rendering during the SkeletonOverlay refactor.
+
+The removed file was RedFox.Graphics3D/Rendering/Handles/SkeletonOverlayRenderHandle.cs.
+It was a scene-wide overlay render handle introduced during the previous pass and is intentionally
+not part of the live project after returning skeleton debug rendering ownership to SkeletonBone.

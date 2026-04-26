@@ -130,7 +130,12 @@ namespace RedFox.Graphics3D
         public void MoveTo(SceneNode? newParent, ReparentTransformMode transformMode)
         {
             if (newParent == Parent)
+            {
                 return;
+            }
+
+            Scene? oldScene = Scene;
+            Scene? newScene = newParent?.Scene;
 
             Parent?._children?.Remove(this);
 
@@ -146,6 +151,12 @@ namespace RedFox.Graphics3D
                 Parent._children ??= [];
                 Parent._children.Add(this);
             }
+            else
+            {
+                Parent = null;
+            }
+
+            SetScene(newScene);
 
             switch (transformMode)
             {
@@ -176,6 +187,16 @@ namespace RedFox.Graphics3D
                 node.BindTransform.WorldRotation = null;
                 node.LiveTransform.WorldPosition = null;
                 node.LiveTransform.WorldRotation = null;
+            }
+
+            if (oldScene is not null && !ReferenceEquals(oldScene, newScene))
+            {
+                oldScene.NotifyChanged(SceneChangeKind.NodeRemoved, this);
+            }
+
+            if (newScene is not null)
+            {
+                newScene.NotifyChanged(SceneChangeKind.NodeAdded, this);
             }
         }
 
@@ -980,9 +1001,15 @@ namespace RedFox.Graphics3D
         public bool RemoveNode(SceneNode node)
         {
             if (_children is null || !_children.Remove(node))
+            {
                 return false;
+            }
+
+            Scene? scene = node.Scene ?? _scene;
             node.Parent = null;
+            node.SetScene(null);
             OnChildRemoved(node);
+            scene?.NotifyChanged(SceneChangeKind.NodeRemoved, node);
             return true;
         }
 
@@ -1005,13 +1032,21 @@ namespace RedFox.Graphics3D
         public void ClearNodes()
         {
             if (_children is null)
+            {
                 return;
+            }
+
+            Scene? scene = _scene;
             foreach (var child in _children)
             {
                 child.Parent = null;
+                child.SetScene(null);
                 OnChildRemoved(child);
+                scene?.NotifyChanged(SceneChangeKind.NodeRemoved, child);
             }
+
             _children.Clear();
+            scene?.NotifyChanged(SceneChangeKind.Cleared, this);
         }
 
         /// <summary>
@@ -1045,9 +1080,10 @@ namespace RedFox.Graphics3D
             _children.Add(node);
 
             node.Parent = this;
-            node._scene = _scene;
+            node.SetScene(_scene);
 
             OnChildAdded(node);
+            _scene?.NotifyChanged(SceneChangeKind.NodeAdded, node);
             return node;
         }
 
@@ -1670,6 +1706,20 @@ namespace RedFox.Graphics3D
             _scene = null;
             _disposed = true;
             GC.SuppressFinalize(this);
+        }
+
+        internal void SetScene(Scene? scene)
+        {
+            _scene = scene;
+            if (_children is null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < _children.Count; i++)
+            {
+                _children[i].SetScene(scene);
+            }
         }
 
         /// <summary>

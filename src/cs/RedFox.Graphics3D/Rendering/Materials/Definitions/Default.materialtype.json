@@ -1,0 +1,38 @@
+{
+  "name": "Default",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Default",
+  "fragmentShaderName": "Default",
+  "vertexAttributes": [
+    { "name": "Positions", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 },
+    { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
+  ],
+  "pipelineState": {
+    "cullMode": "back",
+    "faceWinding": "counterClockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": true,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "triangles"
+  },
+  "requirements": {
+    "textures": [
+      { "name": "Diffuse", "slot": 0, "required": false },
+      { "name": "Normal", "slot": 1, "required": false }
+    ],
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true },
+      { "name": "BaseColor", "valueType": "float4", "required": false },
+      { "name": "MaterialSpecularStrength", "valueType": "float", "required": false },
+      { "name": "MaterialSpecularPower", "valueType": "float", "required": false }
+    ]
+  }
+}

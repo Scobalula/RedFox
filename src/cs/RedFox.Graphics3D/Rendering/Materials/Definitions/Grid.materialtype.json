@@ -1,0 +1,40 @@
+{
+  "name": "Grid",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Grid",
+  "fragmentShaderName": "Grid",
+  "vertexAttributes": [
+    { "name": "LineStart", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 52 },
+    { "name": "LineEnd", "componentCount": 3, "type": "float32", "offsetBytes": 12, "strideBytes": 52 },
+    { "name": "Color", "componentCount": 4, "type": "float32", "offsetBytes": 24, "strideBytes": 52 },
+    { "name": "Along", "componentCount": 1, "type": "float32", "offsetBytes": 40, "strideBytes": 52 },
+    { "name": "Side", "componentCount": 1, "type": "float32", "offsetBytes": 44, "strideBytes": 52 },
+    { "name": "WidthScale", "componentCount": 1, "type": "float32", "offsetBytes": 48, "strideBytes": 52 }
+  ],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "counterClockwise",
+    "wireframe": false,
+    "blend": true,
+    "sourceBlendFactor": "sourceAlpha",
+    "destinationBlendFactor": "inverseSourceAlpha",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": false,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "triangles"
+  },
+  "requirements": {
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true },
+      { "name": "ViewportSize", "valueType": "float2", "required": true },
+      { "name": "LineHalfWidthPx", "valueType": "float", "required": true },
+      { "name": "CameraPosition", "valueType": "float3", "required": true },
+      { "name": "FadeStartDistance", "valueType": "float", "required": false },
+      { "name": "FadeEndDistance", "valueType": "float", "required": false }
+    ]
+  }
+}

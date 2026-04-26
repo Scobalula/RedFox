@@ -19,6 +19,16 @@ namespace RedFox.Graphics3D
         public string Name { get; set; }
 
         /// <summary>
+        /// Occurs when the scene graph changes.
+        /// </summary>
+        public event EventHandler<SceneChangedEventArgs>? Changed;
+
+        /// <summary>
+        /// Gets the scene graph version. This value increments when nodes are added, removed, or cleared.
+        /// </summary>
+        public long Version { get; private set; }
+
+        /// <summary>
         /// Gets the root node of the scene.
         /// </summary>
         public SceneRoot RootNode { get; internal set; }
@@ -53,6 +63,7 @@ namespace RedFox.Graphics3D
         {
             Name = name;
             RootNode = new SceneRoot(this);
+            RootNode.SetScene(this);
         }
 
         /// <summary>
@@ -194,6 +205,12 @@ namespace RedFox.Graphics3D
         /// Removes all nodes from the scene.
         /// </summary>
         public void ClearNodes() => RootNode.ClearNodes();
+
+        internal void NotifyChanged(SceneChangeKind kind, SceneNode? node)
+        {
+            Version++;
+            Changed?.Invoke(this, new SceneChangedEventArgs(kind, node, Version));
+        }
 
         /// <summary>
         /// Enumerates direct children of the root node.

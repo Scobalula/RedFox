@@ -11,4 +11,8 @@
     <ProjectReference Include="..\RedFox.Graphics2D.Primitives\RedFox.Graphics2D.Primitives.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Rendering\Materials\Definitions\*.materialtype.json" Link="MaterialTypes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

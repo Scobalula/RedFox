@@ -28,6 +28,8 @@ internal sealed class OpenGlContext : IDisposable
         Gl.GetInteger(GLEnum.MinorVersion, out int minor);
         MajorVersion = major;
         MinorVersion = minor;
+        VersionString = Gl.GetStringS(StringName.Version) ?? string.Empty;
+        IsEmbeddedProfile = VersionString.Contains("OpenGL ES", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -35,6 +37,11 @@ internal sealed class OpenGlContext : IDisposable
     /// prefer the helper methods on this class when possible.
     /// </summary>
     internal GL Gl { get; }
+
+    /// <summary>
+    /// Gets or sets the framebuffer used when no explicit render target is bound.
+    /// </summary>
+    public uint DefaultFramebufferHandle { get; set; }
 
     /// <summary>
     /// Gets the GL major version reported by the active context.
@@ -45,6 +52,21 @@ internal sealed class OpenGlContext : IDisposable
     /// Gets the GL minor version reported by the active context.
     /// </summary>
     public int MinorVersion { get; }
+
+    /// <summary>
+    /// Gets the raw GL version string reported by the active context.
+    /// </summary>
+    public string VersionString { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the active context is an OpenGL ES profile.
+    /// </summary>
+    public bool IsEmbeddedProfile { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether compute shaders are supported by the active context profile.
+    /// </summary>
+    public bool SupportsCompute => IsEmbeddedProfile ? SupportsVersion(3, 1) : SupportsVersion(4, 3);
 
     /// <summary>
     /// Returns whether the active context meets or exceeds the supplied GL version.

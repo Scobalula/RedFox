@@ -1,0 +1,12 @@
+{
+  "name": "Skinning",
+  "pipelineKind": "compute",
+  "computeShaderName": "Skinning",
+  "requirements": {
+    "uniforms": [
+      { "name": "VertexCount", "valueType": "int32", "required": true },
+      { "name": "SkinInfluenceCount", "valueType": "int32", "required": true },
+      { "name": "SkinningMode", "valueType": "int32", "required": true }
+    ]
+  }
+}

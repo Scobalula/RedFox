@@ -12,6 +12,7 @@ namespace RedFox.Samples;
 
 internal static class Program
 {
+    [STAThread]
     private static int Main(string[] arguments)
     {
         IReadOnlyDictionary<string, ISample> samples = SampleRegistry.Create();
