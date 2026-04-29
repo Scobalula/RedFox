@@ -42,6 +42,12 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
         AvaloniaProperty.Register<SkeletonAnimationCurveViewer, SkeletonAnimationCurveViewerMode>(nameof(ViewMode));
 
     /// <summary>
+    /// Defines the <see cref="ShowGraphHeader"/> property.
+    /// </summary>
+    public static readonly StyledProperty<bool> ShowGraphHeaderProperty =
+        AvaloniaProperty.Register<SkeletonAnimationCurveViewer, bool>(nameof(ShowGraphHeader), defaultValue: true);
+
+    /// <summary>
     /// Defines the <see cref="ShowGrid"/> property.
     /// </summary>
     public static readonly StyledProperty<bool> ShowGridProperty =
@@ -115,6 +121,11 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
     private readonly ObservableCollection<SkeletonAnimationCurveKey> _keyItems = [];
     private readonly ListBox _keyList;
     private bool _updatingSelection;
+    private static readonly IBrush TranslationBrush = new SolidColorBrush(Color.FromRgb(229, 83, 83));
+    private static readonly IBrush RotationBrush = new SolidColorBrush(Color.FromRgb(83, 180, 113));
+    private static readonly IBrush ScaleBrush = new SolidColorBrush(Color.FromRgb(85, 145, 235));
+    private static readonly IBrush CustomCurveBrush = new SolidColorBrush(Color.FromRgb(205, 148, 245));
+    private static readonly IBrush GroupBrush = new SolidColorBrush(Color.FromRgb(120, 120, 126));
 
     static SkeletonAnimationCurveViewer()
     {
@@ -122,6 +133,7 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
         SelectedComponentProperty.Changed.AddClassHandler<SkeletonAnimationCurveViewer>((viewer, _) => viewer.OnSelectedComponentChanged());
         SelectedKeyProperty.Changed.AddClassHandler<SkeletonAnimationCurveViewer>((viewer, _) => viewer.OnSelectedKeyChanged());
         ViewModeProperty.Changed.AddClassHandler<SkeletonAnimationCurveViewer>((viewer, _) => viewer.OnViewModeChanged());
+        ShowGraphHeaderProperty.Changed.AddClassHandler<SkeletonAnimationCurveViewer>((viewer, _) => viewer.OnViewModeChanged());
     }
 
     /// <summary>
@@ -200,6 +212,15 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
     {
         get => GetValue(ViewModeProperty);
         set => SetValue(ViewModeProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether graph header controls are shown.
+    /// </summary>
+    public bool ShowGraphHeader
+    {
+        get => GetValue(ShowGraphHeaderProperty);
+        set => SetValue(ShowGraphHeaderProperty, value);
     }
 
     /// <summary>
@@ -308,26 +329,75 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
 
     private static Control CreateCurveListItem(AnimationCurveListItem item)
     {
+        AvaloniaGrid root = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("14,*"),
+            Margin = new Thickness(8.0 + (item.Level * 16.0), 2.0, 4.0, 2.0),
+            MinHeight = 20.0,
+        };
+
+        Border swatch = new()
+        {
+            Width = 8.0,
+            Height = 8.0,
+            Background = item.Brush ?? GroupBrush,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = item.Component is null ? 0.55 : 1.0,
+        };
+        AvaloniaGrid.SetColumn(swatch, 0);
+        root.Children.Add(swatch);
+
         TextBlock textBlock = new()
         {
             FontWeight = item.Component is null ? FontWeight.SemiBold : FontWeight.Normal,
-            Margin = new Thickness(8.0 + (item.Level * 16.0), 2.0, 4.0, 2.0),
             Opacity = item.Component is null ? 0.78 : 1.0,
+            Foreground = item.Brush ?? Brushes.White,
             Text = item.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
         };
-        return textBlock;
+        AvaloniaGrid.SetColumn(textBlock, 1);
+        root.Children.Add(textBlock);
+        return root;
     }
 
     private static Control CreateKeyListItem(SkeletonAnimationCurveKey key)
     {
-        TextBlock textBlock = new()
+        AvaloniaGrid root = new()
         {
+            ColumnDefinitions = new ColumnDefinitions("82,*,122"),
             Margin = new Thickness(8.0, 2.0),
-            Text = $"Frame {key.Frame:0.###}    Value {key.Value:0.###}",
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            MinHeight = 22.0,
         };
-        return textBlock;
+
+        TextBlock frameLabel = new()
+        {
+            Text = "Frame",
+            Opacity = 0.62,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AvaloniaGrid.SetColumn(frameLabel, 0);
+        root.Children.Add(frameLabel);
+
+        TextBlock frameValue = new()
+        {
+            Text = key.Frame.ToString("0.###"),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AvaloniaGrid.SetColumn(frameValue, 1);
+        root.Children.Add(frameValue);
+
+        TextBlock valueText = new()
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Text = $"Value {key.Value,9:0.###}",
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AvaloniaGrid.SetColumn(valueText, 2);
+        root.Children.Add(valueText);
+        return root;
     }
 
     private static string GetComponentName(string curveName, int componentIndex, int componentCount)
@@ -357,6 +427,26 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
         }
 
         return componentCount == 1 ? "Value" : $"C{componentIndex}";
+    }
+
+    private static IBrush GetCurveBrush(string curveName)
+    {
+        if (curveName.Equals("Translation", StringComparison.OrdinalIgnoreCase))
+        {
+            return TranslationBrush;
+        }
+
+        if (curveName.Equals("Rotation", StringComparison.OrdinalIgnoreCase))
+        {
+            return RotationBrush;
+        }
+
+        if (curveName.Equals("Scale", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleBrush;
+        }
+
+        return CustomCurveBrush;
     }
 
     private static bool IsSameKey(SkeletonAnimationCurveKey? first, SkeletonAnimationCurveKey? second)
@@ -421,6 +511,20 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
 
     private Control CreateGraphContent()
     {
+        if (!ShowGraphHeader)
+        {
+            AvaloniaGrid compactPanel = new()
+            {
+                RowDefinitions = new RowDefinitions("*,104"),
+            };
+
+            AvaloniaGrid.SetRow(_graph, 0);
+            AddPanelChild(compactPanel, _graph);
+            AvaloniaGrid.SetRow(_keyList, 1);
+            AddPanelChild(compactPanel, _keyList);
+            return compactPanel;
+        }
+
         AvaloniaGrid rightPanel = new()
         {
             RowDefinitions = new RowDefinitions("Auto,*,112"),
@@ -477,14 +581,15 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
             return;
         }
 
-        trackItems.Add(new AnimationCurveListItem(1, $"{curveName} ({curve.KeyFrameCount})", null));
+        IBrush curveBrush = GetCurveBrush(curveName);
+        trackItems.Add(new AnimationCurveListItem(1, $"{curveName} ({curve.KeyFrameCount})", null, curveBrush));
         for (int componentIndex = 0; componentIndex < componentCount; componentIndex++)
         {
             string componentName = GetComponentName(curveName, componentIndex, componentCount);
             SkeletonAnimationCurveComponent component = new(animation, track, curveName, curve, componentIndex, componentName);
             if (component.KeyFrameCount > 0)
             {
-                trackItems.Add(new AnimationCurveListItem(2, $"{componentName} ({component.KeyFrameCount})", component));
+                trackItems.Add(new AnimationCurveListItem(2, $"{componentName} ({component.KeyFrameCount})", component, curveBrush));
             }
         }
     }
@@ -560,6 +665,13 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
         SkeletonAnimationCurveComponent? component = SelectedComponent;
         _componentHeader.Text = component?.DisplayName ?? "No curve component selected";
         _graph.Component = component;
+        if (component is not null)
+        {
+            IBrush componentBrush = GetCurveBrush(component.CurveName);
+            _graph.CurveBrush = componentBrush;
+            _graph.KeyBrush = componentBrush;
+        }
+
         RebuildKeyList(component);
         SelectCurveListItem(component);
 
@@ -635,7 +747,7 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
                 continue;
             }
 
-            _curveItems.Add(new AnimationCurveListItem(0, track.Name, null));
+            _curveItems.Add(new AnimationCurveListItem(0, track.Name, null, GroupBrush));
             for (int itemIndex = 0; itemIndex < trackItems.Count; itemIndex++)
             {
                 AnimationCurveListItem item = trackItems[itemIndex];

@@ -294,11 +294,15 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         }
 
         AnimationSampler? layer = GetSelectedAnimationLayer();
-        if (layer is null)
+        AnimationPlayer? player = GetSelectedAnimationPlayer();
+        if (layer is null || player is null)
         {
             return;
         }
 
+        ResetSceneLiveTransforms();
+        player.Update((float)e.ElapsedTime.TotalSeconds, AnimationSampleType.DeltaTime);
+        ViewportController?.RecomputeBounds();
         SetCurrentFrameFromPlayback(layer.CurrentTime);
     }
 
@@ -493,6 +497,7 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         AnimationPlayer? player = GetSelectedAnimationPlayer();
         if (player is not null)
         {
+            ResetSceneLiveTransforms();
             player.Update((float)frame, AnimationSampleType.AbsoluteFrameTime);
             ViewportController?.RecomputeBounds();
         }
@@ -628,6 +633,19 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private void ResetSceneLiveTransforms()
+    {
+        if (Scene is null)
+        {
+            return;
+        }
+
+        foreach (SceneNode node in Scene.EnumerateDescendants())
+        {
+            node.ResetLiveTransform();
+        }
     }
 
     private AnimationSampler? GetSelectedAnimationLayer()

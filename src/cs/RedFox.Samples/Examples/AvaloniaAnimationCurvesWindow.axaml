@@ -87,7 +87,7 @@
                     ResizeDirection="Columns" />
 
       <Grid Grid.Column="2"
-            RowDefinitions="*,Auto,260">
+            RowDefinitions="*,6,260">
         <Border Grid.Row="0"
                 Classes="viewport-host">
           <g3da:AvaloniaOpenGlRendererControl Scene="{Binding Scene}"
@@ -96,59 +96,75 @@
                                               ClearColor="{Binding ClearColor}"
                                               UseViewBasedLighting="{Binding UseViewBasedLighting}"
                                               SkinningMode="{Binding SkinningMode}"
-                                              IsAnimationPaused="{Binding IsAnimationPaused}"
+                                              IsAnimationPaused="True"
                                               RenderFrame="OnRendererFrame" />
         </Border>
 
-        <Border Grid.Row="1"
-                MinHeight="44"
-                Classes="timeline-bar">
-          <DockPanel LastChildFill="True">
-            <TextBlock DockPanel.Dock="Right"
-                       MinWidth="136"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       Text="{Binding FrameSummary}" />
+        <GridSplitter Grid.Row="1"
+                      ResizeDirection="Rows"
+                      Height="6" />
 
-            <StackPanel DockPanel.Dock="Left"
-                        Orientation="Horizontal"
-                        Spacing="6">
-              <Button Content="{Binding PlayPauseText}"
-                      Classes="toolbar-btn"
-                      Command="{Binding PlayPauseCommand}" />
-              <Button Content="Stop"
-                      Classes="toolbar-btn"
-                      Command="{Binding StopCommand}" />
-              <Button Content="Fit"
-                      Classes="toolbar-btn"
-                      Command="{Binding FitCameraCommand}" />
-            </StackPanel>
+        <Grid Grid.Row="2"
+              MinHeight="190"
+              RowDefinitions="56,*">
+          <Border Grid.Row="0"
+                  Classes="timeline-bar">
+            <Grid ColumnDefinitions="Auto,*,Auto"
+                  VerticalAlignment="Center">
+              <StackPanel Grid.Column="0"
+                          Orientation="Horizontal"
+                          VerticalAlignment="Center"
+                          Spacing="6">
+                <Button MinWidth="64"
+                        Content="{Binding PlayPauseText}"
+                        Classes="toolbar-btn"
+                        Command="{Binding PlayPauseCommand}" />
+                <Button MinWidth="56"
+                        Content="Stop"
+                        Classes="toolbar-btn"
+                        Command="{Binding StopCommand}" />
+                <Button MinWidth="48"
+                        Content="Fit"
+                        Classes="toolbar-btn"
+                        Command="{Binding FitCameraCommand}" />
+              </StackPanel>
 
-            <Slider Height="28"
-                    Margin="10,0"
-                    VerticalAlignment="Center"
-                    Minimum="{Binding MinimumFrame}"
-                    Maximum="{Binding MaximumFrame}"
-                    Value="{Binding CurrentFrame, Mode=TwoWay}"
-                    IsEnabled="{Binding CanScrub}" />
-          </DockPanel>
-        </Border>
+              <local:AnimationTimelineScrubber Grid.Column="1"
+                                                MinWidth="120"
+                                                Height="24"
+                                                Margin="10,0"
+                                                VerticalAlignment="Center"
+                                                Minimum="{Binding MinimumFrame}"
+                                                Maximum="{Binding MaximumFrame}"
+                                                Value="{Binding CurrentFrame, Mode=TwoWay}"
+                                                IsEnabled="{Binding CanScrub}" />
 
-        <g3da:SkeletonAnimationCurveViewer Grid.Row="2"
-                                           ViewMode="Graph"
-                                           Animation="{Binding SelectedAnimation}"
-                                           SelectedComponent="{Binding SelectedComponent, Mode=TwoWay}"
-                                           SelectedKey="{Binding SelectedKey, Mode=TwoWay}"
-                                           ShowGrid="{Binding ShowGrid}"
-                                           GraphBackground="{Binding GraphBackground}"
-                                           PlotBackground="{Binding PlotBackground}"
-                                           GridBrush="{Binding GridBrush}"
-                                           MajorGridBrush="{Binding MajorGridBrush}"
-                                           AxisBrush="{Binding AxisBrush}"
-                                           CurveBrush="{Binding CurveBrush}"
-                                           KeyBrush="{Binding KeyBrush}"
-                                           SelectedKeyBrush="{Binding SelectedKeyBrush}"
-                                           SelectedKeyOutlineBrush="{Binding SelectedKeyOutlineBrush}" />
+              <TextBlock Grid.Column="2"
+                         MinWidth="136"
+                         HorizontalAlignment="Right"
+                         VerticalAlignment="Center"
+                         Text="{Binding FrameSummary}" />
+            </Grid>
+          </Border>
+
+          <g3da:SkeletonAnimationCurveViewer Grid.Row="1"
+                                             MinHeight="138"
+                                             ViewMode="Graph"
+                                             ShowGraphHeader="False"
+                                             Animation="{Binding SelectedAnimation}"
+                                             SelectedComponent="{Binding SelectedComponent, Mode=TwoWay}"
+                                             SelectedKey="{Binding SelectedKey, Mode=TwoWay}"
+                                             ShowGrid="{Binding ShowGrid}"
+                                             GraphBackground="{Binding GraphBackground}"
+                                             PlotBackground="{Binding PlotBackground}"
+                                             GridBrush="{Binding GridBrush}"
+                                             MajorGridBrush="{Binding MajorGridBrush}"
+                                             AxisBrush="{Binding AxisBrush}"
+                                             CurveBrush="{Binding CurveBrush}"
+                                             KeyBrush="{Binding KeyBrush}"
+                                             SelectedKeyBrush="{Binding SelectedKeyBrush}"
+                                             SelectedKeyOutlineBrush="{Binding SelectedKeyOutlineBrush}" />
+        </Grid>
       </Grid>
     </Grid>
 
