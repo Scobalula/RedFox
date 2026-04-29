@@ -9,6 +9,8 @@ internal sealed class MeshSampleOptions
 
     public bool ShowGrid { get; set; } = true;
 
+    public bool ShowSkeletonBones { get; set; }
+
     public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
 
     public FaceWinding FaceWinding { get; set; } = FaceWinding.CounterClockwise;
@@ -18,4 +20,10 @@ internal sealed class MeshSampleOptions
     public SkinningMode SkinningMode { get; set; } = SkinningMode.Linear;
 
     public float ExitAfterSeconds { get; set; }
+
+    public bool FrameStats { get; set; }
+
+    public bool VSync { get; set; }
+
+    public int AntiAliasingSamples { get; set; } = 4;
 }

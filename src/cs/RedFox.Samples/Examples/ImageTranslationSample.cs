@@ -1,13 +1,6 @@
 using System.Runtime.InteropServices;
 using RedFox.Graphics2D;
-using RedFox.Graphics2D.Bmp;
-using RedFox.Graphics2D.Exr;
 using RedFox.Graphics2D.IO;
-using RedFox.Graphics2D.Jpeg;
-using RedFox.Graphics2D.Ktx;
-using RedFox.Graphics2D.Png;
-using RedFox.Graphics2D.Tga;
-using RedFox.Graphics2D.Tiff;
 
 namespace RedFox.Samples.Examples;
 
@@ -55,15 +48,7 @@ internal sealed class ImageTranslationSample : ISample
 
     private static ImageTranslatorManager CreateManager()
     {
-        ImageTranslatorManager manager = new();
-        manager.Register(new BmpImageTranslator());
-        manager.Register(new ExrImageTranslator());
-        manager.Register(new JpegImageTranslator());
-        manager.Register(new KtxImageTranslator());
-        manager.Register(new PngImageTranslator());
-        manager.Register(new TgaImageTranslator());
-        manager.Register(new TiffImageTranslator());
-        return manager;
+        return SampleImageTranslatorRegistry.CreateDefaultManager();
     }
 
     private static void WriteVariant(ImageTranslatorManager manager, Image image, string outputPath, ImageTranslatorOptions options)

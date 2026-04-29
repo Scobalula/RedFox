@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using System;
@@ -29,6 +29,7 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         ComPtr<ID3D11BlendState> blendState,
         ComPtr<ID3D11DepthStencilState> depthStencilState,
         ReadOnlySpan<VertexAttribute> vertexAttributes,
+        IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers,
         PrimitiveTopology primitiveTopology)
     {
         _vertexShader = vertexShader;
@@ -39,13 +40,15 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         _blendState = blendState;
         _depthStencilState = depthStencilState;
         _vertexAttributes = vertexAttributes.ToArray();
+        ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
         PrimitiveTopology = primitiveTopology;
     }
 
-    internal D3D11PipelineState(ComPtr<ID3D11ComputeShader> computeShader)
+    internal D3D11PipelineState(ComPtr<ID3D11ComputeShader> computeShader, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers)
     {
         _computeShader = computeShader;
         _vertexAttributes = [];
+        ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
         PrimitiveTopology = PrimitiveTopology.Triangles;
     }
 
@@ -65,9 +68,7 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
 
     internal ReadOnlySpan<VertexAttribute> VertexAttributes => _vertexAttributes;
 
-    internal bool UsesGridConstants => _vertexAttributes.Length == 0 && !IsCompute;
-
-    internal bool UsesLineConstants => _vertexAttributes.Length > 0 && _vertexAttributes[0].Name.Equals("LineStart", StringComparison.Ordinal);
+    internal IReadOnlyList<D3D11ShaderConstantBufferLayout> ConstantBuffers { get; }
 
     internal bool IsCompute => _computeShader.Handle is not null;
 

@@ -1,6 +1,6 @@
 using RedFox.Graphics2D;
 using RedFox.Graphics3D.OpenGL.Resources;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 using Silk.NET.OpenGL;
 using System;
@@ -21,7 +21,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     /// <summary>
     /// Gets a value indicating whether compute workloads are supported.
     /// </summary>
-    public bool SupportsCompute => true;
+    public bool SupportsCompute => _context.SupportsCompute;
 
     /// <summary>
     /// Gets the backend material-type registry.
@@ -35,6 +35,76 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     {
         get => _context.DefaultFramebufferHandle;
         set => _context.DefaultFramebufferHandle = value;
+    }
+
+    /// <summary>
+    /// Gets the sample count of the configured default framebuffer.
+    /// </summary>
+    /// <returns>The default framebuffer sample count, or 1 when it is single-sampled.</returns>
+    public int GetDefaultFramebufferSampleCount()
+    {
+        ThrowIfDisposed();
+
+        const uint FramebufferBinding = 0x8CA6;
+        const uint SampleBuffers = 0x80A8;
+        const uint Samples = 0x80A9;
+
+        GL gl = _context.Gl;
+        gl.GetInteger((GLEnum)FramebufferBinding, out int previousFramebuffer);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, _context.DefaultFramebufferHandle);
+        gl.GetInteger((GLEnum)SampleBuffers, out int sampleBuffers);
+        gl.GetInteger((GLEnum)Samples, out int samples);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, previousFramebuffer < 0 ? 0u : (uint)previousFramebuffer);
+
+        return sampleBuffers > 0 ? Math.Max(1, samples) : 1;
+    }
+
+    /// <summary>
+    /// Attempts to get the dimensions of the configured default framebuffer color attachment.
+    /// </summary>
+    /// <param name="width">Receives the framebuffer width in pixels.</param>
+    /// <param name="height">Receives the framebuffer height in pixels.</param>
+    /// <returns><see langword="true"/> when dimensions were found; otherwise <see langword="false"/>.</returns>
+    public bool TryGetDefaultFramebufferSize(out int width, out int height)
+    {
+        ThrowIfDisposed();
+
+        const uint FramebufferBinding = 0x8CA6;
+        const uint FramebufferAttachmentObjectType = 0x8CD0;
+        const uint FramebufferAttachmentObjectName = 0x8CD1;
+        const uint Renderbuffer = 0x8D41;
+        const uint RenderbufferBinding = 0x8CA7;
+        const uint RenderbufferWidth = 0x8D42;
+        const uint RenderbufferHeight = 0x8D43;
+
+        width = 0;
+        height = 0;
+
+        GL gl = _context.Gl;
+        gl.GetInteger((GLEnum)FramebufferBinding, out int previousFramebuffer);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, _context.DefaultFramebufferHandle);
+        gl.GetFramebufferAttachmentParameter(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            (GLEnum)FramebufferAttachmentObjectType,
+            out int objectType);
+        gl.GetFramebufferAttachmentParameter(
+            FramebufferTarget.Framebuffer,
+            FramebufferAttachment.ColorAttachment0,
+            (GLEnum)FramebufferAttachmentObjectName,
+            out int objectName);
+
+        if (objectType == Renderbuffer && objectName > 0)
+        {
+            gl.GetInteger((GLEnum)RenderbufferBinding, out int previousRenderbuffer);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (uint)objectName);
+            gl.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, (GLEnum)RenderbufferWidth, out width);
+            gl.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, (GLEnum)RenderbufferHeight, out height);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, previousRenderbuffer < 0 ? 0u : (uint)previousRenderbuffer);
+        }
+
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, previousFramebuffer < 0 ? 0u : (uint)previousFramebuffer);
+        return width > 0 && height > 0;
     }
 
     /// <summary>
@@ -215,6 +285,11 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     {
         ThrowIfDisposed();
 
+        if (!SupportsCompute)
+        {
+            throw new NotSupportedException($"OpenGL compute shaders are not supported by the active context ({_context.VersionString}).");
+        }
+
         OpenGlShader openGlComputeShader = computeShader as OpenGlShader
             ?? throw new InvalidOperationException($"Expected {nameof(OpenGlShader)} for compute shader.");
 
@@ -234,7 +309,18 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
+    public IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, int sampleCount)
+    {
+        return CreateTexture(width, height, format, usage, ReadOnlySpan<byte>.Empty, sampleCount);
+    }
+
+    /// <inheritdoc/>
     public unsafe IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, ReadOnlySpan<byte> pixels)
+    {
+        return CreateTexture(width, height, format, usage, pixels, 1);
+    }
+
+    private unsafe IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, ReadOnlySpan<byte> pixels, int sampleCount)
     {
         ThrowIfDisposed();
 
@@ -248,14 +334,39 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new ArgumentOutOfRangeException(nameof(height));
         }
 
+        if (sampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleCount));
+        }
+
+        if (sampleCount > 1 && !pixels.IsEmpty)
+        {
+            throw new NotSupportedException("Multisampled OpenGL textures cannot be created with initial pixel data.");
+        }
+
+        if (sampleCount > 1 && usage.HasFlag(TextureUsage.Sampled))
+        {
+            throw new NotSupportedException("Multisampled OpenGL textures are supported for render targets only.");
+        }
+
         if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
         {
             throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
         }
 
         GL gl = _context.Gl;
+        if (sampleCount > 1)
+        {
+            uint renderbufferHandle = gl.GenRenderbuffer();
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferHandle);
+            gl.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, (uint)sampleCount, (InternalFormat)internalFormat, (uint)width, (uint)height);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+            return new OpenGlTexture(gl, renderbufferHandle, width, height, format, usage, sampleCount, TextureTarget.Texture2D, true);
+        }
+
         uint handle = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, handle);
+
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
@@ -278,9 +389,115 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
+    public unsafe IGpuTexture CreateTexture(Image image, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(image);
+
+        if (image.Depth != 1)
+        {
+            throw new NotSupportedException("OpenGL texture upload currently supports 2D image slices only.");
+        }
+
+        if (image.IsCubemap)
+        {
+            return CreateCubemapTexture(image, usage);
+        }
+
+        if (image.ArraySize != 1)
+        {
+            throw new NotSupportedException("OpenGL texture arrays are not supported by the current renderer abstraction.");
+        }
+
+        return CreateTexture(image.Width, image.Height, image.Format, usage, image.GetSlice().PixelSpan);
+    }
+
+    private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage)
+    {
+        if (image.Width <= 0 || image.Height <= 0 || image.Width != image.Height)
+        {
+            throw new ArgumentException("Cubemap images must be square and greater than zero in size.", nameof(image));
+        }
+
+        if (image.ArraySize < 6 || image.ArraySize % 6 != 0)
+        {
+            throw new ArgumentException("Cubemap images must contain a multiple of six array slices.", nameof(image));
+        }
+
+        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.TextureCubeMap, handle);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapR, (int)GLEnum.ClampToEdge);
+
+        for (int faceIndex = 0; faceIndex < 6; faceIndex++)
+        {
+            TextureTarget faceTarget = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + faceIndex);
+            for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
+            {
+                ref readonly ImageSlice slice = ref image.GetSlice(mipLevel, faceIndex);
+                fixed (byte* pixelPointer = slice.PixelSpan)
+                {
+                    gl.TexImage2D(
+                        (GLEnum)faceTarget,
+                        mipLevel,
+                        (int)internalFormat,
+                        (uint)slice.Width,
+                        (uint)slice.Height,
+                        0,
+                        (GLEnum)pixelFormat,
+                        (GLEnum)pixelType,
+                        pixelPointer);
+                }
+            }
+        }
+
+        gl.BindTexture(TextureTarget.TextureCubeMap, 0);
+        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage, TextureTarget.TextureCubeMap);
+    }
+
+    /// <inheritdoc/>
     public bool SupportsFormat(ImageFormat format, TextureUsage usage)
     {
         return TryGetTextureFormat(format, usage, out _, out _, out _);
+    }
+
+    /// <inheritdoc/>
+    public int GetSupportedTextureSampleCount(ImageFormat format, TextureUsage usage, int requestedSampleCount)
+    {
+        ThrowIfDisposed();
+        if (requestedSampleCount <= 1 || !SupportsFormat(format, usage))
+        {
+            return 1;
+        }
+
+        if (!_context.SupportsVersion(3, 0))
+        {
+            return 1;
+        }
+
+        _context.Gl.GetInteger(GLEnum.MaxSamples, out int maximumSampleCount);
+        if (maximumSampleCount <= 1)
+        {
+            return 1;
+        }
+
+        int cappedSampleCount = Math.Min(requestedSampleCount, maximumSampleCount);
+        int supportedSampleCount = 1;
+        for (int sampleCount = 2; sampleCount <= cappedSampleCount; sampleCount <<= 1)
+        {
+            supportedSampleCount = sampleCount;
+        }
+
+        return supportedSampleCount;
     }
 
     /// <inheritdoc/>
@@ -295,24 +512,24 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         GL gl = _context.Gl;
         uint handle = gl.GenFramebuffer();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            TextureTarget.Texture2D,
-            openGlColorTexture.Handle,
-            0);
+        AttachFramebufferResource(gl, FramebufferAttachment.ColorAttachment0, openGlColorTexture);
+        if (!_context.IsEmbeddedProfile)
+        {
+            gl.DrawBuffer(GLEnum.ColorAttachment0);
+            gl.ReadBuffer(GLEnum.ColorAttachment0);
+        }
 
         if (openGlDepthTexture is not null)
         {
-            FramebufferAttachment depthAttachment = openGlDepthTexture.Usage.HasFlag(TextureUsage.DepthStencil)
-                ? FramebufferAttachment.DepthStencilAttachment
-                : FramebufferAttachment.DepthAttachment;
-            gl.FramebufferTexture2D(
-                FramebufferTarget.Framebuffer,
-                depthAttachment,
-                TextureTarget.Texture2D,
-                openGlDepthTexture.Handle,
-                0);
+            AttachFramebufferResource(gl, GetDepthFramebufferAttachment(openGlDepthTexture.Format), openGlDepthTexture);
+        }
+
+        GLEnum framebufferStatus = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+        if (framebufferStatus != GLEnum.FramebufferComplete)
+        {
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            gl.DeleteFramebuffer(handle);
+            throw new InvalidOperationException($"OpenGL framebuffer is incomplete: {framebufferStatus}.");
         }
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -432,6 +649,24 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
                 pixelType = 0;
                 return false;
         }
+    }
+
+    private static FramebufferAttachment GetDepthFramebufferAttachment(ImageFormat format)
+    {
+        return format == ImageFormat.D24UnormS8Uint
+            ? FramebufferAttachment.DepthStencilAttachment
+            : FramebufferAttachment.DepthAttachment;
+    }
+
+    private static void AttachFramebufferResource(GL gl, FramebufferAttachment attachment, OpenGlTexture texture)
+    {
+        if (texture.IsRenderbuffer)
+        {
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, attachment, RenderbufferTarget.Renderbuffer, texture.Handle);
+            return;
+        }
+
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, attachment, texture.Target, texture.Handle, 0);
     }
 
     private void ThrowIfDisposed()

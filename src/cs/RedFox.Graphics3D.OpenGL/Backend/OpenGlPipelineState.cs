@@ -1,6 +1,6 @@
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.OpenGL.Resources;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using System;
 
 namespace RedFox.Graphics3D.OpenGL;

@@ -1,0 +1,58 @@
+using System.Globalization;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using RedFox.Avalonia.Themes;
+
+namespace RedFox.Samples.Examples;
+
+internal sealed class AvaloniaAnimationCurvesApp : Application
+{
+    private System.Timers.Timer? _exitTimer;
+
+    public override void Initialize()
+    {
+        RedFoxTheme.Apply(this);
+    }
+
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            string[] arguments = desktop.Args ?? [];
+            AvaloniaAnimationCurvesWindow window = new(arguments);
+            desktop.MainWindow = window;
+            double exitAfterSeconds = ParseExitAfterSeconds(arguments);
+            if (exitAfterSeconds > 0.0)
+            {
+                _exitTimer = new System.Timers.Timer(exitAfterSeconds * 1000.0)
+                {
+                    AutoReset = false,
+                };
+                _exitTimer.Elapsed += (_, _) => global::Avalonia.Threading.Dispatcher.UIThread.Post(window.Close);
+                _exitTimer.Start();
+            }
+        }
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static double ParseExitAfterSeconds(string[] arguments)
+    {
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            string argument = arguments[i];
+            if (!argument.StartsWith("--exit-after=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string value = argument[13..];
+            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) && seconds > 0.0)
+            {
+                return seconds;
+            }
+        }
+
+        return 0.0;
+    }
+}

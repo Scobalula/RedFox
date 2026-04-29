@@ -2,39 +2,41 @@ cbuffer GridFrameConstants : register(b0)
 {
     row_major float4x4 View;
     row_major float4x4 Projection;
-    float3 CameraPosition;
-    float GridSize;
+    row_major float4x4 InverseView;
+    row_major float4x4 InverseProjection;
 };
 
 struct VSOutput
 {
     float4 Position : SV_Position;
-    float2 GridUv : TEXCOORD0;
-    float2 CameraGridPosition : TEXCOORD1;
-    float3 WorldPosition : TEXCOORD2;
+    float3 NearPoint : TEXCOORD0;
+    float3 FarPoint : TEXCOORD1;
 };
 
-static const float3 GridPositions[4] =
+static const float2 GridPositions[4] =
 {
-    float3(-1.0f, 0.0f, -1.0f),
-    float3(1.0f, 0.0f, -1.0f),
-    float3(1.0f, 0.0f, 1.0f),
-    float3(-1.0f, 0.0f, 1.0f)
+    float2(-1.0f, -1.0f),
+    float2(1.0f, -1.0f),
+    float2(1.0f, 1.0f),
+    float2(-1.0f, 1.0f)
 };
 
 static const uint GridIndices[6] = { 0, 1, 2, 2, 3, 0 };
+
+float3 UnprojectPoint(float2 position, float depth)
+{
+    float4 unprojected = mul(mul(float4(position, depth, 1.0f), InverseProjection), InverseView);
+    return unprojected.xyz / unprojected.w;
+}
 
 VSOutput Main(uint vertexId : SV_VertexID)
 {
     VSOutput output;
     uint index = GridIndices[vertexId];
-    float3 position = GridPositions[index] * GridSize;
-    position.x += CameraPosition.x;
-    position.z += CameraPosition.z;
+    float2 position = GridPositions[index];
 
-    output.WorldPosition = position;
-    output.GridUv = position.xz;
-    output.CameraGridPosition = CameraPosition.xz;
-    output.Position = mul(mul(float4(position, 1.0f), View), Projection);
+    output.NearPoint = UnprojectPoint(position, 0.0f);
+    output.FarPoint = UnprojectPoint(position, 1.0f);
+    output.Position = float4(position, 0.0f, 1.0f);
     return output;
 }

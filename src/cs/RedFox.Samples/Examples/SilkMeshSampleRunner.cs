@@ -5,18 +5,19 @@ using RedFox.Graphics3D.Silk;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
+using System.Diagnostics;
 using System.Numerics;
 
 namespace RedFox.Samples.Examples;
 
 internal static class SilkMeshSampleRunner
 {
-    public static int Run(string[] arguments, string title, string fallbackSceneName, ISilkRendererBackendFactory backendFactory)
+    public static int Run(string[] arguments, string title, string fallbackSceneName, ISilkGraphicsPresenterFactory presenterFactory)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(fallbackSceneName);
-        ArgumentNullException.ThrowIfNull(backendFactory);
+        ArgumentNullException.ThrowIfNull(presenterFactory);
 
         if (!MeshSampleSceneFactory.TryCreate(arguments, fallbackSceneName, out MeshSampleSceneContext? context, out string? error))
         {
@@ -42,24 +43,35 @@ internal static class SilkMeshSampleRunner
         Vector3 fallbackLightDirection = Vector3.Normalize(new Vector3(-0.4f, -1.0f, -0.2f));
         Vector3 fallbackLightColor = Vector3.One;
         float fallbackLightIntensity = 0.8f;
+        FrameStatsReporter? frameStatsReporter = options.FrameStats || options.ExitAfterSeconds > 0.0f
+            ? new FrameStatsReporter(options.FrameStats)
+            : null;
 
         WindowOptions windowOptions = WindowOptions.Default;
         windowOptions.Title = title;
         windowOptions.Size = new Vector2D<int>(1280, 720);
         windowOptions.PreferredDepthBufferBits = 24;
         windowOptions.PreferredStencilBufferBits = 8;
+        windowOptions.VSync = options.VSync;
         using SilkRendererHost host = new(
             windowOptions,
-            backendFactory,
-            graphicsDevice => new SceneRenderer(
-                graphicsDevice,
-                clearColor,
-                ambientColor,
-                fallbackLightDirection,
-                fallbackLightColor,
-                fallbackLightIntensity,
-                options.UseViewBasedLighting,
-                options.SkinningMode));
+            presenterFactory,
+            graphicsDevice =>
+            {
+                SceneRenderer renderer = new(
+                    graphicsDevice,
+                    clearColor,
+                    ambientColor,
+                    fallbackLightDirection,
+                    fallbackLightColor,
+                    fallbackLightIntensity,
+                    options.UseViewBasedLighting,
+                    options.SkinningMode)
+                {
+                    AntiAliasingSamples = options.AntiAliasingSamples,
+                };
+                return renderer;
+            });
         host.Window.FramebufferResize += size =>
         {
             if (size.X > 0 && size.Y > 0)
@@ -91,15 +103,19 @@ internal static class SilkMeshSampleRunner
 
             if (cameraInputAdapter is not null)
             {
+                long frameStartTimestamp = Stopwatch.GetTimestamp();
                 viewportController.UpdateAndRender(renderer, cameraInputAdapter, (float)deltaTime);
+                double frameMilliseconds = Stopwatch.GetElapsedTime(frameStartTimestamp).TotalMilliseconds;
 
                 elapsedSeconds += (float)deltaTime;
+                frameStatsReporter?.Record(frameMilliseconds, elapsedSeconds);
                 if (options.ExitAfterSeconds > 0.0f && elapsedSeconds >= options.ExitAfterSeconds)
                 {
                     host.Window.Close();
                 }
             }
         });
+        frameStatsReporter?.PrintFinal();
         return 0;
     }
 
@@ -184,4 +200,5 @@ internal static class SilkMeshSampleRunner
 
         return showSkeletonBones;
     }
+
 }

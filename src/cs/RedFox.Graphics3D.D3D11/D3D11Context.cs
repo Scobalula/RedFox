@@ -19,6 +19,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     private bool _disposed;
     private ComPtr<ID3D11DepthStencilView> _defaultDepthStencilView;
     private ComPtr<ID3D11Texture2D> _defaultDepthTexture;
+    private ComPtr<ID3D11Texture2D> _defaultBackBuffer;
     private ComPtr<ID3D11RenderTargetView> _defaultRenderTargetView;
     private ComPtr<IDXGISwapChain> _swapChain;
 
@@ -53,6 +54,8 @@ internal sealed unsafe class D3D11Context : IDisposable
     public ID3D11RenderTargetView* DefaultRenderTargetView => _defaultRenderTargetView.Handle;
 
     public ID3D11DepthStencilView* DefaultDepthStencilView => _defaultDepthStencilView.Handle;
+
+    public ID3D11Texture2D* DefaultBackBuffer => _defaultBackBuffer.Handle;
 
     public static D3D11Context Create(IWindow window)
     {
@@ -120,7 +123,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     public void Present()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        D3D11Helpers.ThrowIfFailed(_swapChain.Get().Present(1, 0), "IDXGISwapChain::Present");
+        D3D11Helpers.ThrowIfFailed(_swapChain.Get().Present(0, 0), "IDXGISwapChain::Present");
     }
 
     public void Dispose()
@@ -187,11 +190,10 @@ internal sealed unsafe class D3D11Context : IDisposable
 
     private void CreateDefaultTargets(int width, int height)
     {
-        ComPtr<ID3D11Texture2D> backBuffer = _swapChain.Get().GetBuffer<ID3D11Texture2D>(0);
+        _defaultBackBuffer = _swapChain.Get().GetBuffer<ID3D11Texture2D>(0);
         D3D11Helpers.ThrowIfFailed(
-            Device.Get().CreateRenderTargetView(backBuffer, (RenderTargetViewDesc*)null, ref _defaultRenderTargetView),
+            Device.Get().CreateRenderTargetView(_defaultBackBuffer, (RenderTargetViewDesc*)null, ref _defaultRenderTargetView),
             "ID3D11Device::CreateRenderTargetView");
-        backBuffer.Dispose();
 
         Texture2DDesc depthDesc = new()
         {
@@ -221,9 +223,11 @@ internal sealed unsafe class D3D11Context : IDisposable
         DeviceContext.Get().OMSetRenderTargets(1, &nullRenderTarget, null);
         _defaultDepthStencilView.Dispose();
         _defaultDepthTexture.Dispose();
+        _defaultBackBuffer.Dispose();
         _defaultRenderTargetView.Dispose();
         _defaultDepthStencilView = default;
         _defaultDepthTexture = default;
+        _defaultBackBuffer = default;
         _defaultRenderTargetView = default;
     }
 }

@@ -1,5 +1,4 @@
 using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.Rendering.Hosting;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -8,15 +7,15 @@ using Silk.NET.Windowing;
 namespace RedFox.Graphics3D.Silk;
 
 /// <summary>
-/// Provides a shared Silk window, input, and render-loop host for renderer backends.
+/// Provides a shared Silk window, input, and render-loop host for renderer presenters.
 /// </summary>
 public sealed class SilkRendererHost : IRendererHost
 {
-    private readonly ISilkRendererBackendFactory _backendFactory;
+    private readonly ISilkGraphicsPresenterFactory _presenterFactory;
     private readonly Func<IGraphicsDevice, SceneRenderer> _rendererFactory;
     private readonly IWindow _window;
 
-    private ISilkRendererBackend? _backend;
+    private ISilkGraphicsPresenter? _presenter;
     private bool _disposed;
     private Action<double, IInputContext, SceneRenderer>? _frameCallback;
     private IInputContext? _inputContext;
@@ -27,18 +26,18 @@ public sealed class SilkRendererHost : IRendererHost
     /// Initializes a new instance of the <see cref="SilkRendererHost"/> class.
     /// </summary>
     /// <param name="windowOptions">The Silk window options.</param>
-    /// <param name="backendFactory">The backend factory.</param>
-    /// <param name="rendererFactory">Creates the scene renderer for the backend graphics device.</param>
+    /// <param name="presenterFactory">The presenter factory.</param>
+    /// <param name="rendererFactory">Creates the scene renderer for the presenter graphics device.</param>
     public SilkRendererHost(
         WindowOptions windowOptions,
-        ISilkRendererBackendFactory backendFactory,
+        ISilkGraphicsPresenterFactory presenterFactory,
         Func<IGraphicsDevice, SceneRenderer> rendererFactory)
     {
-        _backendFactory = backendFactory ?? throw new ArgumentNullException(nameof(backendFactory));
+        _presenterFactory = presenterFactory ?? throw new ArgumentNullException(nameof(presenterFactory));
         _rendererFactory = rendererFactory ?? throw new ArgumentNullException(nameof(rendererFactory));
 
         WindowOptions options = windowOptions;
-        _backendFactory.ConfigureWindowOptions(ref options);
+        _presenterFactory.ConfigureWindowOptions(ref options);
 
         _window = global::Silk.NET.Windowing.Window.Create(options);
         _window.Load += OnLoad;
@@ -89,7 +88,7 @@ public sealed class SilkRendererHost : IRendererHost
     }
 
     /// <summary>
-    /// Releases host and backend resources.
+    /// Releases host and presentation resources.
     /// </summary>
     public void Dispose()
     {
@@ -110,8 +109,8 @@ public sealed class SilkRendererHost : IRendererHost
             _rendererDisposedOnClosing = true;
         }
 
-        _backend?.Dispose();
-        _backend = null;
+        _presenter?.Dispose();
+        _presenter = null;
         _window.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
@@ -120,8 +119,8 @@ public sealed class SilkRendererHost : IRendererHost
     private void OnLoad()
     {
         _inputContext = _window.CreateInput();
-        _backend = _backendFactory.CreateBackend(_window);
-        _renderer = _rendererFactory(_backend.GraphicsDevice)
+        _presenter = _presenterFactory.CreatePresenter(_window);
+        _renderer = _rendererFactory(_presenter.GraphicsDevice)
             ?? throw new InvalidOperationException("Renderer factory returned null.");
         _renderer.Initialize();
 
@@ -131,7 +130,7 @@ public sealed class SilkRendererHost : IRendererHost
 
     private void OnRender(double deltaTime)
     {
-        if (_frameCallback is null || _inputContext is null || _renderer is null || _backend is null)
+        if (_frameCallback is null || _inputContext is null || _renderer is null || _presenter is null)
         {
             return;
         }
@@ -142,7 +141,7 @@ public sealed class SilkRendererHost : IRendererHost
             return;
         }
 
-        _backend.Present();
+        _presenter.Present();
     }
 
     private void OnFramebufferResize(Vector2D<int> framebufferSize)
@@ -165,7 +164,7 @@ public sealed class SilkRendererHost : IRendererHost
     {
         int safeWidth = Math.Max(1, width);
         int safeHeight = Math.Max(1, height);
-        _backend?.Resize(safeWidth, safeHeight);
+        _presenter?.Resize(safeWidth, safeHeight);
         _renderer?.Resize(safeWidth, safeHeight);
     }
 

@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 using RedFox.Graphics2D;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
 
@@ -14,9 +14,16 @@ internal sealed class TextureRenderHandle : RenderHandle
     private readonly Texture _texture;
 
     private IGpuTexture? _gpuTexture;
+    private int _arraySize;
     private ImageFormat _format;
     private int _height;
+    private Image? _failedImage;
+    private bool _isCubemap;
+    private Image? _image;
+    private string? _lastLoadAttemptPath;
+    private int _mipLevels;
     private int _payloadLength;
+    private ulong _lastUpdateFrameIndex = ulong.MaxValue;
     private int _width;
 
     /// <summary>
@@ -59,18 +66,36 @@ internal sealed class TextureRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
+    public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
+
+    /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (_texture.Data is not { } image
+        ulong frameIndex = commandList.FrameIndex;
+        if (_lastUpdateFrameIndex == frameIndex)
+        {
+            return;
+        }
+
+        if (_texture.Data is null && _texture.Scene is { } scene)
+        {
+            _lastLoadAttemptPath = _texture.EffectiveFilePath;
+            _texture.TryLoad(scene.ImageTranslators);
+        }
+
+        Image? image = _texture.Data;
+        if (image is null
             || image.Width <= 0
             || image.Height <= 0
             || image.Format == ImageFormat.Unknown
             || image.PixelMemory.IsEmpty)
         {
             ReleaseTexture();
+            _failedImage = image;
+            _lastUpdateFrameIndex = frameIndex;
             return;
         }
 
@@ -78,24 +103,37 @@ internal sealed class TextureRenderHandle : RenderHandle
         if (!_graphicsDevice.SupportsFormat(image.Format, usage))
         {
             ReleaseTexture();
+            _failedImage = image;
+            _lastUpdateFrameIndex = frameIndex;
             return;
         }
 
         if (_gpuTexture is not null
             && _width == image.Width
             && _height == image.Height
+            && _arraySize == image.ArraySize
+            && _mipLevels == image.MipLevels
+            && _isCubemap == image.IsCubemap
             && _format == image.Format
+            && ReferenceEquals(_image, image)
             && _payloadLength == image.PixelMemory.Length)
         {
+            _lastUpdateFrameIndex = frameIndex;
             return;
         }
 
         ReleaseTexture();
-        _gpuTexture = _graphicsDevice.CreateTexture(image.Width, image.Height, image.Format, usage, image.PixelMemory.Span);
+        _failedImage = null;
+        _gpuTexture = _graphicsDevice.CreateTexture(image, usage);
         _width = image.Width;
         _height = image.Height;
+        _arraySize = image.ArraySize;
+        _mipLevels = image.MipLevels;
+        _isCubemap = image.IsCubemap;
         _format = image.Format;
+        _image = image;
         _payloadLength = image.PixelMemory.Length;
+        _lastUpdateFrameIndex = frameIndex;
     }
 
     /// <inheritdoc/>
@@ -115,6 +153,37 @@ internal sealed class TextureRenderHandle : RenderHandle
     protected override void ReleaseCore()
     {
         ReleaseTexture();
+        _failedImage = null;
+        _lastLoadAttemptPath = null;
+        _lastUpdateFrameIndex = ulong.MaxValue;
+    }
+
+    private bool NeedsPerFrameUpdate()
+    {
+        if (_texture.Data is not { } image)
+        {
+            if (_gpuTexture is not null)
+            {
+                return true;
+            }
+
+            return !string.Equals(_lastLoadAttemptPath, _texture.EffectiveFilePath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (ReferenceEquals(_failedImage, image))
+        {
+            return false;
+        }
+
+        return _gpuTexture is null
+            || _width != image.Width
+            || _height != image.Height
+            || _arraySize != image.ArraySize
+            || _mipLevels != image.MipLevels
+            || _isCubemap != image.IsCubemap
+            || _format != image.Format
+            || !ReferenceEquals(_image, image)
+            || _payloadLength != image.PixelMemory.Length;
     }
 
     private void ReleaseTexture()
@@ -123,7 +192,11 @@ internal sealed class TextureRenderHandle : RenderHandle
         _gpuTexture = null;
         _width = 0;
         _height = 0;
+        _arraySize = 0;
+        _mipLevels = 0;
+        _isCubemap = false;
         _format = ImageFormat.Unknown;
+        _image = null;
         _payloadLength = 0;
     }
 }

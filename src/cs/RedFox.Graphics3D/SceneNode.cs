@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Xml.Linq;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D

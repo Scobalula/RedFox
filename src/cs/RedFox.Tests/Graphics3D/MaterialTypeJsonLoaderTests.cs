@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Tests.Graphics3D;
@@ -50,6 +50,10 @@ public sealed class MaterialTypeJsonLoaderTests
         Assert.Equal("Lit", descriptor.VertexShaderName);
         Assert.Equal("LitTransitionEmissive", descriptor.FragmentShaderName);
         Assert.Equal(2, descriptor.VertexAttributes.Count);
+        Assert.Equal("Positions", descriptor.VertexAttributes[0].Name);
+        Assert.Equal(3, descriptor.VertexAttributes[0].ComponentCount);
+        Assert.Equal(VertexAttributeType.Float32, descriptor.VertexAttributes[0].Type);
+        Assert.Equal(32, descriptor.VertexAttributes[0].StrideBytes);
         Assert.Equal(BlendFactor.SourceAlpha, descriptor.PipelineState?.SourceBlendFactor);
         Assert.Equal(BlendFactor.InverseSourceAlpha, descriptor.PipelineState?.DestinationBlendFactor);
         Assert.Equal(CompareFunc.LessOrEqual, descriptor.PipelineState?.DepthCompareFunc);

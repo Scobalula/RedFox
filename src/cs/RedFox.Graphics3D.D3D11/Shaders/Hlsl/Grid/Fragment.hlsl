@@ -8,25 +8,27 @@ cbuffer GridStyleConstants : register(b1)
     float4 GridMajorColor;
     float4 GridAxisXColor;
     float4 GridAxisZColor;
-    float FadeStartDistance;
-    float FadeEndDistance;
-    float2 GridPadding;
 };
 
 cbuffer GridFrameConstants : register(b0)
 {
     row_major float4x4 View;
     row_major float4x4 Projection;
-    float3 CameraPosition;
-    float GridSize;
+    row_major float4x4 InverseView;
+    row_major float4x4 InverseProjection;
 };
 
 struct PSInput
 {
     float4 Position : SV_Position;
-    float2 GridUv : TEXCOORD0;
-    float2 CameraGridPosition : TEXCOORD1;
-    float3 WorldPosition : TEXCOORD2;
+    float3 NearPoint : TEXCOORD0;
+    float3 FarPoint : TEXCOORD1;
+};
+
+struct PSOutput
+{
+    float4 Color : SV_Target;
+    float Depth : SV_Depth;
 };
 
 float Max2(float2 value)
@@ -47,11 +49,32 @@ float AxisAlpha(float coordinate, float lineWidth)
     return 1.0f - saturate(abs(coordinate) / max(lineWidth, 1e-6f));
 }
 
-float4 Main(PSInput input) : SV_Target
+float ComputeDepth(float3 worldPosition)
 {
+    float4 clipPosition = mul(mul(float4(worldPosition, 1.0f), View), Projection);
+    return min(max(clipPosition.z / clipPosition.w, 0.0f), 0.999999f);
+}
+
+PSOutput Main(PSInput input)
+{
+    float3 ray = input.FarPoint - input.NearPoint;
+    if (abs(ray.y) <= 1e-6f)
+    {
+        discard;
+    }
+
+    float intersection = -input.NearPoint.y / ray.y;
+    if (intersection < 0.0f)
+    {
+        discard;
+    }
+
+    float3 worldPosition = input.NearPoint + ray * intersection;
+    float2 gridUv = worldPosition.xz;
+
     float2 derivatives = max(float2(
-        length(float2(ddx(input.GridUv.x), ddy(input.GridUv.x))),
-        length(float2(ddx(input.GridUv.y), ddy(input.GridUv.y)))),
+        length(float2(ddx(gridUv.x), ddy(gridUv.x))),
+        length(float2(ddx(gridUv.y), ddy(gridUv.y)))),
         float2(1e-6f, 1e-6f));
 
     float cellSize = max(GridCellSize, 1e-6f);
@@ -63,10 +86,11 @@ float4 Main(PSInput input) : SV_Target
     float lod1 = lod0 * majorStep;
     float lod2 = lod1 * majorStep;
     float2 lineWidth = derivatives * max(GridLineWidth, 0.25f);
+    float2 axisLineWidth = min(lineWidth, float2(max(cellSize * 0.08f, 1e-6f), max(cellSize * 0.08f, 1e-6f)));
 
-    float lod0Alpha = CellAlpha(input.GridUv, lod0, lineWidth);
-    float lod1Alpha = CellAlpha(input.GridUv, lod1, lineWidth);
-    float lod2Alpha = CellAlpha(input.GridUv, lod2, lineWidth);
+    float lod0Alpha = CellAlpha(gridUv, lod0, lineWidth);
+    float lod1Alpha = CellAlpha(gridUv, lod1, lineWidth);
+    float lod2Alpha = CellAlpha(gridUv, lod2, lineWidth);
     float lineAlpha = lod2Alpha > 0.0f
         ? lod2Alpha
         : (lod1Alpha > 0.0f ? lod1Alpha : lod0Alpha * (1.0f - lodFade));
@@ -75,8 +99,8 @@ float4 Main(PSInput input) : SV_Target
         ? GridMajorColor
         : (lod1Alpha > 0.0f ? lerp(GridMajorColor, GridMinorColor, lodFade) : GridMinorColor);
 
-    float axisXAlpha = AxisAlpha(input.GridUv.y, lineWidth.y);
-    float axisZAlpha = AxisAlpha(input.GridUv.x, lineWidth.x);
+    float axisXAlpha = AxisAlpha(gridUv.y, axisLineWidth.y);
+    float axisZAlpha = AxisAlpha(gridUv.x, axisLineWidth.x);
     float axisAlpha = max(axisXAlpha, axisZAlpha);
     if (axisAlpha >= lineAlpha && axisAlpha > 0.0f)
     {
@@ -84,22 +108,15 @@ float4 Main(PSInput input) : SV_Target
     }
 
     float alpha = max(lineAlpha, axisAlpha);
-    float extentOpacity = 1.0f - saturate(length(input.GridUv - input.CameraGridPosition) / max(GridSize, 1e-6f));
-    float fadeOpacity = 1.0f;
-
-    if (FadeEndDistance > FadeStartDistance)
-    {
-        float dist = distance(CameraPosition, input.WorldPosition);
-        float fade = saturate((dist - FadeStartDistance) / (FadeEndDistance - FadeStartDistance));
-        fadeOpacity = 1.0f - fade;
-    }
-
-    color.a *= alpha * extentOpacity * fadeOpacity;
+    color.a *= alpha;
 
     if (color.a <= 0.01f)
     {
         discard;
     }
 
-    return color;
+    PSOutput output;
+    output.Color = color;
+    output.Depth = ComputeDepth(worldPosition);
+    return output;
 }

@@ -45,6 +45,7 @@ internal static class MeshSampleSceneFactory
         ArgumentNullException.ThrowIfNull(scene);
         scene.UpAxis = options.UpAxis;
         scene.FaceWinding = options.FaceWinding;
+        ApplySkeletonVisibility(scene, options.ShowSkeletonBones);
 
         IReadOnlyList<AnimationPlayer> animationPlayers = scene.CreateAnimationPlayers();
         OrbitCamera camera = scene.RootNode.AddNode(CreateCamera());
@@ -54,17 +55,19 @@ internal static class MeshSampleSceneFactory
             IncludeNodeInBounds = ShouldIncludeInBounds,
         };
 
+        SceneBounds? previewBounds = null;
         if (viewportController.RecomputeBounds())
         {
             viewportController.FitCameraToScene();
             EnsurePreviewLights(scene, viewportController.Bounds, PreviewRandomLightCount);
+            previewBounds = GetAxisAdjustedBounds(viewportController.Bounds, scene.UpAxis);
         }
         else
         {
             AddFallbackLight(scene);
         }
 
-        Grid grid = ConfigureGrid(scene.Grid, options.ShowGrid);
+        Grid grid = ConfigureGrid(scene.Grid, options.ShowGrid, previewBounds);
         context = new MeshSampleSceneContext(options, scene, camera, grid, viewportController, animationPlayers);
         error = null;
         return true;
@@ -87,6 +90,20 @@ internal static class MeshSampleSceneFactory
             if (arg.Equals("--grid", StringComparison.OrdinalIgnoreCase))
             {
                 options.ShowGrid = true;
+                continue;
+            }
+
+            if (arg.Equals("--show-skeleton", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("--show-bones", StringComparison.OrdinalIgnoreCase))
+            {
+                options.ShowSkeletonBones = true;
+                continue;
+            }
+
+            if (arg.Equals("--hide-skeleton", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("--hide-bones", StringComparison.OrdinalIgnoreCase))
+            {
+                options.ShowSkeletonBones = false;
                 continue;
             }
 
@@ -132,6 +149,44 @@ internal static class MeshSampleSceneFactory
                 continue;
             }
 
+            if (arg.Equals("--frame-stats", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("--stats", StringComparison.OrdinalIgnoreCase))
+            {
+                options.FrameStats = true;
+                continue;
+            }
+
+            if (arg.Equals("--vsync", StringComparison.OrdinalIgnoreCase))
+            {
+                options.VSync = true;
+                continue;
+            }
+
+            if (arg.Equals("--no-vsync", StringComparison.OrdinalIgnoreCase))
+            {
+                options.VSync = false;
+                continue;
+            }
+
+            if (arg.Equals("--no-aa", StringComparison.OrdinalIgnoreCase)
+                || arg.Equals("--no-antialiasing", StringComparison.OrdinalIgnoreCase))
+            {
+                options.AntiAliasingSamples = 1;
+                continue;
+            }
+
+            if (arg.StartsWith("--aa=", StringComparison.OrdinalIgnoreCase)
+                || arg.StartsWith("--anti-aliasing=", StringComparison.OrdinalIgnoreCase))
+            {
+                int valueStart = arg.IndexOf('=', StringComparison.Ordinal) + 1;
+                if (int.TryParse(arg[valueStart..].Trim(), out int sampleCount))
+                {
+                    options.AntiAliasingSamples = Math.Max(1, sampleCount);
+                }
+
+                continue;
+            }
+
             if (arg.StartsWith("--skinning=", StringComparison.OrdinalIgnoreCase))
             {
                 string value = arg[11..].Trim();
@@ -173,6 +228,15 @@ internal static class MeshSampleSceneFactory
         return true;
     }
 
+    private static void ApplySkeletonVisibility(Scene scene, bool showSkeletonBones)
+    {
+        SkeletonBone[] bones = scene.GetDescendants<SkeletonBone>();
+        for (int i = 0; i < bones.Length; i++)
+        {
+            bones[i].ShowSkeletonBone = showSkeletonBones;
+        }
+    }
+
     private static bool TryCreateScene(IReadOnlyList<string> scenePaths, string fallbackSceneName, out Scene? scene, out string? error)
     {
         if (scenePaths.Count == 0)
@@ -184,6 +248,7 @@ internal static class MeshSampleSceneFactory
 
         SceneTranslatorManager manager = CreateTranslatorManager();
         scene = new Scene(Path.GetFileName(scenePaths[0]));
+        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
 
         try
         {
@@ -198,6 +263,7 @@ internal static class MeshSampleSceneFactory
                 }
 
                 SceneTranslatorOptions sceneTranslatorOptions = new();
+                sceneTranslatorOptions.Set(ObjTranslator.MergeStaticMeshesOption, true);
                 manager.Read(inputPath, scene, sceneTranslatorOptions);
             }
 
@@ -212,7 +278,7 @@ internal static class MeshSampleSceneFactory
         }
     }
 
-    private static SceneTranslatorManager CreateTranslatorManager()
+    internal static SceneTranslatorManager CreateTranslatorManager()
     {
         SceneTranslatorManager manager = new();
         manager.Register<ObjTranslator>();
@@ -232,6 +298,7 @@ internal static class MeshSampleSceneFactory
     private static Scene CreateFallbackScene(string fallbackSceneName)
     {
         Scene scene = new(fallbackSceneName);
+        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
         Mesh mesh = scene.RootNode.AddNode<Mesh>("Triangle");
         mesh.Positions = CreatePositions();
         mesh.Normals = CreateNormals();
@@ -242,7 +309,7 @@ internal static class MeshSampleSceneFactory
             DiffuseColor = new Vector4(0.92f, 0.3f, 0.24f, 1.0f)
         };
 
-        mesh.Materials = new List<Material> { material };
+        mesh.Materials = [material];
         return scene;
     }
 
@@ -269,17 +336,75 @@ internal static class MeshSampleSceneFactory
         return camera;
     }
 
-    private static Grid ConfigureGrid(Grid grid, bool enabled)
+    private static Grid ConfigureGrid(Grid grid, bool enabled, SceneBounds? bounds)
     {
         ArgumentNullException.ThrowIfNull(grid);
 
+        if (bounds is { IsValid: true } sceneBounds)
+        {
+            grid.ConfigureForBounds(sceneBounds);
+        }
+        else
+        {
+            grid.Spacing = 1.0f;
+            grid.MajorStep = 10;
+            grid.LineWidth = 1.1f;
+            grid.EdgeLineWidthScale = 1.2f;
+            grid.MinimumPixelsBetweenCells = 2.5f;
+        }
+
         grid.Enabled = enabled;
-        grid.Spacing = 3.5f;
-        grid.MajorStep = 12;
-        grid.LineWidth = 0.9f;
-        grid.EdgeLineWidthScale = 1.75f;
-        grid.FadeEnabled = false;
         return grid;
+    }
+
+    private static SceneBounds GetAxisAdjustedBounds(SceneBounds bounds, SceneUpAxis upAxis)
+    {
+        Matrix4x4 sceneAxisMatrix = GetSceneAxisMatrix(upAxis);
+        if (sceneAxisMatrix == Matrix4x4.Identity)
+        {
+            return bounds;
+        }
+
+        Vector3[] corners = GetBoundsCorners(bounds);
+        Vector3 transformedMin = new(float.MaxValue, float.MaxValue, float.MaxValue);
+        Vector3 transformedMax = new(float.MinValue, float.MinValue, float.MinValue);
+
+        for (int cornerIndex = 0; cornerIndex < corners.Length; cornerIndex++)
+        {
+            Vector3 transformed = Vector3.Transform(corners[cornerIndex], sceneAxisMatrix);
+            transformedMin = Vector3.Min(transformedMin, transformed);
+            transformedMax = Vector3.Max(transformedMax, transformed);
+        }
+
+        return new SceneBounds(transformedMin, transformedMax);
+    }
+
+    private static Vector3[] GetBoundsCorners(SceneBounds bounds)
+    {
+        Vector3 min = bounds.Min;
+        Vector3 max = bounds.Max;
+
+        return
+        [
+            new Vector3(min.X, min.Y, min.Z),
+            new Vector3(max.X, min.Y, min.Z),
+            new Vector3(min.X, max.Y, min.Z),
+            new Vector3(max.X, max.Y, min.Z),
+            new Vector3(min.X, min.Y, max.Z),
+            new Vector3(max.X, min.Y, max.Z),
+            new Vector3(min.X, max.Y, max.Z),
+            new Vector3(max.X, max.Y, max.Z)
+        ];
+    }
+
+    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
+    {
+        return upAxis switch
+        {
+            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
+            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
+            _ => Matrix4x4.Identity,
+        };
     }
 
     private static void AddFallbackLight(Scene scene)

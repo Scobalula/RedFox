@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using RedFox.Graphics2D;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D.Compilers;
@@ -18,8 +18,8 @@ using D3D11ComparisonFunc = Silk.NET.Direct3D11.ComparisonFunc;
 using D3D11CullMode = Silk.NET.Direct3D11.CullMode;
 using D3D11DepthWriteMask = Silk.NET.Direct3D11.DepthWriteMask;
 using D3D11FillMode = Silk.NET.Direct3D11.FillMode;
-using BackendBlendOp = RedFox.Graphics3D.Rendering.Backend.BlendOp;
-using BackendCullMode = RedFox.Graphics3D.Rendering.Backend.CullMode;
+using BackendBlendOp = RedFox.Graphics3D.Rendering.BlendOp;
+using BackendCullMode = RedFox.Graphics3D.Rendering.CullMode;
 
 namespace RedFox.Graphics3D.D3D11;
 
@@ -150,7 +150,8 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             throw new ArgumentException("Shader source cannot be empty.", nameof(utf8Source));
         }
 
-        return new D3D11Shader(CompileShader(utf8Source, stage), stage);
+        byte[] bytecode = CompileShader(utf8Source, stage);
+        return new D3D11Shader(bytecode, stage, D3D11ShaderReflection.Reflect(bytecode, stage));
     }
 
     internal IGpuShader CreateShaderFromFile(string shaderPath, ShaderStage stage)
@@ -158,7 +159,8 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderPath);
         byte[] source = File.ReadAllBytes(shaderPath);
-        return new D3D11Shader(CompileShaderFromFile(source, stage, shaderPath), stage);
+        byte[] bytecode = CompileShaderFromFile(source, stage, shaderPath);
+        return new D3D11Shader(bytecode, stage, D3D11ShaderReflection.Reflect(bytecode, stage));
     }
 
     /// <inheritdoc/>
@@ -238,6 +240,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             blendState,
             depthStencilState,
             vertexAttributes,
+            CombineConstantBuffers(d3dVertexShader.ConstantBuffers, d3dFragmentShader.ConstantBuffers),
             primitiveTopology);
     }
 
@@ -265,13 +268,25 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             d3dComputeShaderHandle = new ComPtr<ID3D11ComputeShader>(computeShaderPointer);
         }
 
-        return new D3D11PipelineState(d3dComputeShaderHandle);
+        return new D3D11PipelineState(d3dComputeShaderHandle, d3dComputeShader.ConstantBuffers);
     }
 
     /// <inheritdoc/>
     public IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage)
     {
         return CreateTexture(width, height, format, usage, ReadOnlySpan<byte>.Empty);
+    }
+
+    /// <inheritdoc/>
+    public IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, int sampleCount)
+    {
+        ThrowIfDisposed();
+        if (sampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleCount));
+        }
+
+        return CreateTexture2D(width, height, format, usage, ReadOnlySpan<byte>.Empty, 0, 0, sampleCount);
     }
 
     /// <inheritdoc/>
@@ -289,6 +304,76 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             throw new ArgumentOutOfRangeException(nameof(height));
         }
 
+        if (pixels.IsEmpty)
+        {
+            return CreateTexture2D(width, height, format, usage, ReadOnlySpan<byte>.Empty, 0, 0, 1);
+        }
+
+        (int rowPitch, int slicePitch) = ImageFormatInfo.CalculatePitch(format, width, height);
+        if (pixels.Length < slicePitch)
+        {
+            throw new ArgumentException("Initial texture data is smaller than the requested texture size.", nameof(pixels));
+        }
+
+        return CreateTexture2D(width, height, format, usage, pixels, rowPitch, slicePitch, 1);
+    }
+
+    /// <inheritdoc/>
+    public unsafe IGpuTexture CreateTexture(Image image, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(image);
+
+        if (image.Width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(image), "Image width must be greater than zero.");
+        }
+
+        if (image.Height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(image), "Image height must be greater than zero.");
+        }
+
+        if (image.Depth != 1)
+        {
+            throw new NotSupportedException("D3D11 texture upload currently supports 2D image slices only.");
+        }
+
+        if (image.IsCubemap && (image.ArraySize < 6 || image.ArraySize % 6 != 0 || image.Width != image.Height))
+        {
+            throw new ArgumentException("Cubemap images must be square and contain a multiple of six array slices.", nameof(image));
+        }
+
+        return CreateTexture2D(image, usage);
+    }
+
+    private unsafe IGpuTexture CreateTexture2D(int width, int height, ImageFormat format, TextureUsage usage, ReadOnlySpan<byte> pixels, int rowPitch, int slicePitch, int sampleCount)
+    {
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height));
+        }
+
+        if (sampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleCount));
+        }
+
+        if (sampleCount > 1 && !pixels.IsEmpty)
+        {
+            throw new NotSupportedException("Multisampled D3D11 textures cannot be created with initial pixel data.");
+        }
+
+        if (sampleCount > 1 && usage.HasFlag(TextureUsage.Sampled))
+        {
+            throw new NotSupportedException("Multisampled D3D11 textures are supported for render targets only.");
+        }
+
         Format dxgiFormat = D3D11Helpers.GetDxgiFormat(format);
         if (dxgiFormat == Format.FormatUnknown)
         {
@@ -302,7 +387,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             MipLevels = 1,
             ArraySize = 1,
             Format = dxgiFormat,
-            SampleDesc = new SampleDesc(1, 0),
+            SampleDesc = new SampleDesc((uint)sampleCount, 0),
             Usage = D3D11BufferUsage.Default,
             BindFlags = GetTextureBindFlags(usage),
             CPUAccessFlags = 0,
@@ -323,7 +408,8 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                 SubresourceData subresourceData = new()
                 {
                     PSysMem = pixelPointer,
-                    SysMemPitch = (uint)(width * GetBytesPerPixel(format)),
+                    SysMemPitch = (uint)rowPitch,
+                    SysMemSlicePitch = (uint)slicePitch,
                 };
                 D3D11Helpers.ThrowIfFailed(
                     _context.Device.Get().CreateTexture2D(ref desc, ref subresourceData, ref texture),
@@ -331,13 +417,101 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             }
         }
 
-        return new D3D11Texture(texture, width, height, format, usage);
+        CreateSampledTextureViews(texture, usage, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11SamplerState> samplerState);
+        return new D3D11Texture(texture, shaderResourceView, samplerState, width, height, 1, 1, format, usage, sampleCount, false);
+    }
+
+    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage)
+    {
+        Format dxgiFormat = D3D11Helpers.GetDxgiFormat(image.Format);
+        if (dxgiFormat == Format.FormatUnknown)
+        {
+            throw new NotSupportedException($"D3D11 does not support texture format '{image.Format}'.");
+        }
+
+        Texture2DDesc desc = new()
+        {
+            Width = (uint)image.Width,
+            Height = (uint)image.Height,
+            MipLevels = (uint)image.MipLevels,
+            ArraySize = (uint)image.ArraySize,
+            Format = dxgiFormat,
+            SampleDesc = new SampleDesc(1, 0),
+            Usage = D3D11BufferUsage.Default,
+            BindFlags = GetTextureBindFlags(usage),
+            CPUAccessFlags = 0,
+            MiscFlags = image.IsCubemap ? (uint)ResourceMiscFlag.Texturecube : 0,
+        };
+
+        ComPtr<ID3D11Texture2D> texture = default;
+        if (image.PixelMemory.IsEmpty)
+        {
+            D3D11Helpers.ThrowIfFailed(
+                _context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture),
+                "ID3D11Device::CreateTexture2D");
+        }
+        else
+        {
+            int subresourceCount = image.SliceCount;
+            SubresourceData* subresources = stackalloc SubresourceData[subresourceCount];
+            int offset = 0;
+            ReadOnlySpan<ImageSlice> slices = image.Slices;
+            fixed (byte* pixelPointer = image.PixelMemory.Span)
+            {
+                for (int sliceIndex = 0; sliceIndex < slices.Length; sliceIndex++)
+                {
+                    ImageSlice slice = slices[sliceIndex];
+                    subresources[sliceIndex] = new SubresourceData
+                    {
+                        PSysMem = pixelPointer + offset,
+                        SysMemPitch = (uint)slice.RowPitch,
+                        SysMemSlicePitch = (uint)slice.SlicePitch,
+                    };
+                    offset += slice.SlicePitch;
+                }
+
+                D3D11Helpers.ThrowIfFailed(
+                    _context.Device.Get().CreateTexture2D(ref desc, subresources, ref texture),
+                    "ID3D11Device::CreateTexture2D");
+            }
+        }
+
+        CreateSampledTextureViews(texture, usage, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11SamplerState> samplerState);
+        return new D3D11Texture(texture, shaderResourceView, samplerState, image.Width, image.Height, image.ArraySize, image.MipLevels, image.Format, usage, 1, image.IsCubemap);
     }
 
     /// <inheritdoc/>
     public bool SupportsFormat(ImageFormat format, TextureUsage usage)
     {
         return D3D11Helpers.GetDxgiFormat(format) != Format.FormatUnknown;
+    }
+
+    /// <inheritdoc/>
+    public int GetSupportedTextureSampleCount(ImageFormat format, TextureUsage usage, int requestedSampleCount)
+    {
+        ThrowIfDisposed();
+        if (requestedSampleCount <= 1)
+        {
+            return 1;
+        }
+
+        Format dxgiFormat = D3D11Helpers.GetDxgiFormat(format);
+        if (dxgiFormat == Format.FormatUnknown)
+        {
+            return 1;
+        }
+
+        for (int sampleCount = requestedSampleCount; sampleCount >= 2; sampleCount--)
+        {
+            uint qualityLevels = 0;
+            int result = _context.Device.Get().CheckMultisampleQualityLevels(dxgiFormat, (uint)sampleCount, &qualityLevels);
+            if (result >= 0 && qualityLevels > 0)
+            {
+                return sampleCount;
+            }
+        }
+
+        return 1;
     }
 
     /// <inheritdoc/>
@@ -367,7 +541,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             depthStencilView = new ComPtr<ID3D11DepthStencilView>(depthStencilViewPointer);
         }
 
-        return new D3D11RenderTarget(renderTargetView, depthStencilView);
+        return new D3D11RenderTarget(renderTargetView, depthStencilView, d3dColorTexture, d3dDepthTexture);
     }
 
     /// <inheritdoc/>
@@ -403,6 +577,25 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         _context.Dispose();
         _disposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    private static D3D11ShaderConstantBufferLayout[] CombineConstantBuffers(
+        IReadOnlyList<D3D11ShaderConstantBufferLayout> first,
+        IReadOnlyList<D3D11ShaderConstantBufferLayout> second)
+    {
+        D3D11ShaderConstantBufferLayout[] combined = new D3D11ShaderConstantBufferLayout[first.Count + second.Count];
+        int combinedIndex = 0;
+        for (int firstIndex = 0; firstIndex < first.Count; firstIndex++)
+        {
+            combined[combinedIndex++] = first[firstIndex];
+        }
+
+        for (int secondIndex = 0; secondIndex < second.Count; secondIndex++)
+        {
+            combined[combinedIndex++] = second[secondIndex];
+        }
+
+        return combined;
     }
 
     private static bool IsDynamicBuffer(BufferUsage usage)
@@ -526,18 +719,45 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return flags;
     }
 
-    private static int GetBytesPerPixel(ImageFormat format)
+    private void CreateSampledTextureViews(
+        ComPtr<ID3D11Texture2D> texture,
+        TextureUsage usage,
+        out ComPtr<ID3D11ShaderResourceView> shaderResourceView,
+        out ComPtr<ID3D11SamplerState> samplerState)
     {
-        return format switch
+        shaderResourceView = default;
+        samplerState = default;
+        if (!usage.HasFlag(TextureUsage.Sampled))
         {
-            ImageFormat.D24UnormS8Uint => 4,
-            ImageFormat.D32Float => 4,
-            ImageFormat.R8G8B8A8Unorm => 4,
-            ImageFormat.R8G8B8A8UnormSrgb => 4,
-            ImageFormat.B8G8R8A8Unorm => 4,
-            ImageFormat.B8G8R8A8UnormSrgb => 4,
-            _ => 4,
-        };
+            return;
+        }
+
+        unsafe
+        {
+            ID3D11ShaderResourceView* shaderResourceViewPointer = null;
+            D3D11Helpers.ThrowIfFailed(
+                _context.Device.Get().CreateShaderResourceView((ID3D11Resource*)texture.Handle, (ShaderResourceViewDesc*)null, &shaderResourceViewPointer),
+                "ID3D11Device::CreateShaderResourceView(texture)");
+            shaderResourceView = new ComPtr<ID3D11ShaderResourceView>(shaderResourceViewPointer);
+
+            SamplerDesc samplerDesc = new()
+            {
+                Filter = Filter.MinMagMipLinear,
+                AddressU = TextureAddressMode.Clamp,
+                AddressV = TextureAddressMode.Clamp,
+                AddressW = TextureAddressMode.Clamp,
+                MipLODBias = 0.0f,
+                MaxAnisotropy = 1,
+                ComparisonFunc = D3D11ComparisonFunc.Never,
+                MinLOD = 0.0f,
+                MaxLOD = float.MaxValue,
+            };
+            ID3D11SamplerState* samplerStatePointer = null;
+            D3D11Helpers.ThrowIfFailed(
+                _context.Device.Get().CreateSamplerState(ref samplerDesc, &samplerStatePointer),
+                "ID3D11Device::CreateSamplerState");
+            samplerState = new ComPtr<ID3D11SamplerState>(samplerStatePointer);
+        }
     }
 
     private static byte[] CompileShader(ReadOnlySpan<byte> source, ShaderStage stage)

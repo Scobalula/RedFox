@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
@@ -20,6 +20,7 @@ internal sealed class MaterialRenderHandle : RenderHandle
     private string? _resolvedTypeName;
     private MaterialTextureBinding[]? _textureBindingSnapshot;
     private uint _bindingVersion = uint.MaxValue;
+    private ulong _lastUpdateFrameIndex = ulong.MaxValue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MaterialRenderHandle"/> class.
@@ -65,14 +66,21 @@ internal sealed class MaterialRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
+    public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
+
+    /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        string requestedTypeName = string.IsNullOrWhiteSpace(_material.Type)
-            ? DefaultMaterialTypeName
-            : _material.Type.Trim();
+        ulong frameIndex = commandList.FrameIndex;
+        if (_lastUpdateFrameIndex == frameIndex)
+        {
+            return;
+        }
+
+        string requestedTypeName = GetRequestedTypeName();
 
         if (!_materialTypes.Contains(requestedTypeName))
         {
@@ -91,6 +99,7 @@ internal sealed class MaterialRenderHandle : RenderHandle
         }
 
         UpdateTextureHandles(commandList);
+        _lastUpdateFrameIndex = frameIndex;
     }
 
     /// <inheritdoc/>
@@ -114,6 +123,7 @@ internal sealed class MaterialRenderHandle : RenderHandle
         _resolvedTypeName = null;
         _textureBindingSnapshot = null;
         _bindingVersion = uint.MaxValue;
+        _lastUpdateFrameIndex = ulong.MaxValue;
     }
 
     private MaterialTextureBinding[] GetTextureBindingSnapshot()
@@ -176,5 +186,38 @@ internal sealed class MaterialRenderHandle : RenderHandle
             TextureRenderHandle textureHandle = EnsureTextureHandle(snapshot[i].Texture);
             textureHandle.Update(commandList);
         }
+    }
+
+    private bool NeedsPerFrameUpdate()
+    {
+        if (_pipeline is null || _resolvedTypeName != GetRequestedTypeName())
+        {
+            return true;
+        }
+
+        if (_textureBindingSnapshot is null || _bindingVersion != _material.Version)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < _textureBindingSnapshot.Length; i++)
+        {
+            Texture texture = _textureBindingSnapshot[i].Texture;
+            if (texture.GraphicsHandle is not TextureRenderHandle textureHandle
+                || !textureHandle.IsOwnedBy(_graphicsDevice)
+                || textureHandle.RequiresPerFrameUpdate)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string GetRequestedTypeName()
+    {
+        return string.IsNullOrWhiteSpace(_material.Type)
+            ? DefaultMaterialTypeName
+            : _material.Type.Trim();
     }
 }

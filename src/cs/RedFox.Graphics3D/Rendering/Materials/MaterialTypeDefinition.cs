@@ -1,5 +1,5 @@
 using System;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Rendering.Materials;
 

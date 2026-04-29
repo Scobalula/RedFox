@@ -1,5 +1,5 @@
 using RedFox.Graphics2D;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.DXGI;
@@ -25,6 +25,11 @@ internal static class D3D11Helpers
 
     public static Format GetDxgiFormat(ImageFormat format)
     {
+        if (format == ImageFormat.Unknown)
+        {
+            return Format.FormatUnknown;
+        }
+
         return format switch
         {
             ImageFormat.R8G8B8A8Unorm => Format.FormatR8G8B8A8Unorm,
@@ -33,7 +38,7 @@ internal static class D3D11Helpers
             ImageFormat.B8G8R8A8UnormSrgb => Format.FormatB8G8R8A8UnormSrgb,
             ImageFormat.D32Float => Format.FormatD32Float,
             ImageFormat.D24UnormS8Uint => Format.FormatD24UnormS8Uint,
-            _ => Format.FormatUnknown,
+            _ => (Format)format,
         };
     }
 

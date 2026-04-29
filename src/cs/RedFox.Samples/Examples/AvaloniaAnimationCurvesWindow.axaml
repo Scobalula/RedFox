@@ -1,0 +1,161 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:g3da="clr-namespace:RedFox.Graphics3D.Avalonia;assembly=RedFox.Graphics3D.Avalonia"
+        xmlns:local="clr-namespace:RedFox.Samples.Examples"
+        xmlns:skeletal="clr-namespace:RedFox.Graphics3D.Skeletal;assembly=RedFox.Graphics3D"
+        x:Class="RedFox.Samples.Examples.AvaloniaAnimationCurvesWindow"
+        x:DataType="local:AvaloniaAnimationCurvesViewModel"
+        Title="RedFox Animation Curves"
+        Width="1280"
+        Height="760"
+        MinWidth="980"
+        MinHeight="520">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Classes="sample-toolbar">
+      <StackPanel Orientation="Horizontal"
+                  Spacing="8">
+        <Button Content="Add"
+                Classes="accent"
+                Click="OnOpenClick" />
+
+        <Button Content="Clear"
+                Classes="toolbar-btn"
+                Command="{Binding ClearCommand}" />
+
+        <ComboBox Width="260"
+                  VerticalAlignment="Center"
+                  ItemsSource="{Binding Animations}"
+                  SelectedItem="{Binding SelectedAnimation, Mode=TwoWay}">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="skeletal:SkeletonAnimation">
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <TextBlock VerticalAlignment="Center"
+                   Text="Skin" />
+        <ComboBox Width="136"
+                  VerticalAlignment="Center"
+                  ItemsSource="{Binding SkinningModes}"
+                  SelectedItem="{Binding SkinningMode, Mode=TwoWay}" />
+
+        <TextBlock VerticalAlignment="Center"
+                   Text="Up" />
+        <ComboBox Width="72"
+                  VerticalAlignment="Center"
+                  ItemsSource="{Binding UpAxes}"
+                  SelectedItem="{Binding UpAxis, Mode=TwoWay}" />
+
+        <CheckBox Content="Grid"
+                  VerticalAlignment="Center"
+                  IsChecked="{Binding ShowGrid, Mode=TwoWay}" />
+
+        <CheckBox Content="Bones"
+                  VerticalAlignment="Center"
+                  IsChecked="{Binding ShowBones, Mode=TwoWay}" />
+
+        <TextBlock MinWidth="260"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Text="{Binding SelectedKeySummary}" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1"
+          ColumnDefinitions="300,4,*">
+      <Border Grid.Column="0"
+              Classes="sidebar-host">
+        <g3da:SkeletonAnimationCurveViewer ViewMode="CurveList"
+                                           Animation="{Binding SelectedAnimation}"
+                                           SelectedComponent="{Binding SelectedComponent, Mode=TwoWay}"
+                                           SelectedKey="{Binding SelectedKey, Mode=TwoWay}"
+                                           ShowGrid="{Binding ShowGrid}"
+                                           GraphBackground="{Binding GraphBackground}"
+                                           PlotBackground="{Binding PlotBackground}"
+                                           GridBrush="{Binding GridBrush}"
+                                           MajorGridBrush="{Binding MajorGridBrush}"
+                                           AxisBrush="{Binding AxisBrush}"
+                                           CurveBrush="{Binding CurveBrush}"
+                                           KeyBrush="{Binding KeyBrush}"
+                                           SelectedKeyBrush="{Binding SelectedKeyBrush}"
+                                           SelectedKeyOutlineBrush="{Binding SelectedKeyOutlineBrush}" />
+      </Border>
+
+      <GridSplitter Grid.Column="1"
+                    ResizeDirection="Columns" />
+
+      <Grid Grid.Column="2"
+            RowDefinitions="*,Auto,260">
+        <Border Grid.Row="0"
+                Classes="viewport-host">
+          <g3da:AvaloniaOpenGlRendererControl Scene="{Binding Scene}"
+                                              Camera="{Binding Camera}"
+                                              ViewportController="{Binding ViewportController}"
+                                              ClearColor="{Binding ClearColor}"
+                                              UseViewBasedLighting="{Binding UseViewBasedLighting}"
+                                              SkinningMode="{Binding SkinningMode}"
+                                              IsAnimationPaused="{Binding IsAnimationPaused}"
+                                              RenderFrame="OnRendererFrame" />
+        </Border>
+
+        <Border Grid.Row="1"
+                MinHeight="44"
+                Classes="timeline-bar">
+          <DockPanel LastChildFill="True">
+            <TextBlock DockPanel.Dock="Right"
+                       MinWidth="136"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Text="{Binding FrameSummary}" />
+
+            <StackPanel DockPanel.Dock="Left"
+                        Orientation="Horizontal"
+                        Spacing="6">
+              <Button Content="{Binding PlayPauseText}"
+                      Classes="toolbar-btn"
+                      Command="{Binding PlayPauseCommand}" />
+              <Button Content="Stop"
+                      Classes="toolbar-btn"
+                      Command="{Binding StopCommand}" />
+              <Button Content="Fit"
+                      Classes="toolbar-btn"
+                      Command="{Binding FitCameraCommand}" />
+            </StackPanel>
+
+            <Slider Height="28"
+                    Margin="10,0"
+                    VerticalAlignment="Center"
+                    Minimum="{Binding MinimumFrame}"
+                    Maximum="{Binding MaximumFrame}"
+                    Value="{Binding CurrentFrame, Mode=TwoWay}"
+                    IsEnabled="{Binding CanScrub}" />
+          </DockPanel>
+        </Border>
+
+        <g3da:SkeletonAnimationCurveViewer Grid.Row="2"
+                                           ViewMode="Graph"
+                                           Animation="{Binding SelectedAnimation}"
+                                           SelectedComponent="{Binding SelectedComponent, Mode=TwoWay}"
+                                           SelectedKey="{Binding SelectedKey, Mode=TwoWay}"
+                                           ShowGrid="{Binding ShowGrid}"
+                                           GraphBackground="{Binding GraphBackground}"
+                                           PlotBackground="{Binding PlotBackground}"
+                                           GridBrush="{Binding GridBrush}"
+                                           MajorGridBrush="{Binding MajorGridBrush}"
+                                           AxisBrush="{Binding AxisBrush}"
+                                           CurveBrush="{Binding CurveBrush}"
+                                           KeyBrush="{Binding KeyBrush}"
+                                           SelectedKeyBrush="{Binding SelectedKeyBrush}"
+                                           SelectedKeyOutlineBrush="{Binding SelectedKeyOutlineBrush}" />
+      </Grid>
+    </Grid>
+
+    <Border Grid.Row="2"
+            Classes="status-bar">
+      <TextBlock Classes="status-text"
+                 Text="{Binding Status}" />
+    </Border>
+  </Grid>
+</Window>

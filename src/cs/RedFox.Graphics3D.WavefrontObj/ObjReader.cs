@@ -165,6 +165,11 @@ public sealed class ObjReader
                 materialsByName);
         }
 
+        if (_options.Get<bool>(ObjTranslator.MergeStaticMeshesOption))
+        {
+            MergeMeshesByMaterial(model);
+        }
+
         // Load and attach referenced material libraries
         foreach (Material mat in materialsByName.Values)
         {
@@ -189,6 +194,166 @@ public sealed class ObjReader
         Mesh mesh = model.AddNode(new Mesh { Name = meshName });
         meshIndex++;
         return mesh;
+    }
+
+    private static void MergeMeshesByMaterial(Model model)
+    {
+        List<Mesh> sourceMeshes = [];
+        foreach (Mesh mesh in model.EnumerateChildren<Mesh>())
+        {
+            sourceMeshes.Add(mesh);
+        }
+
+        if (sourceMeshes.Count <= 1)
+        {
+            return;
+        }
+
+        Dictionary<string, MeshMergeBucket> buckets = new(StringComparer.Ordinal);
+        for (int meshIndex = 0; meshIndex < sourceMeshes.Count; meshIndex++)
+        {
+            Mesh mesh = sourceMeshes[meshIndex];
+            if (mesh.Positions is not { ElementCount: > 0 } positions)
+            {
+                continue;
+            }
+
+            Material? material = mesh.Materials is { Count: > 0 } materials ? materials[0] : null;
+            string materialKey = material?.Name ?? string.Empty;
+            if (!buckets.TryGetValue(materialKey, out MeshMergeBucket? bucket))
+            {
+                bucket = new MeshMergeBucket(material);
+                buckets.Add(materialKey, bucket);
+            }
+
+            AppendMesh(bucket, mesh, positions);
+        }
+
+        if (buckets.Count == 0)
+        {
+            return;
+        }
+
+        model.ClearNodes();
+        int mergedMeshIndex = 0;
+        foreach (MeshMergeBucket bucket in buckets.Values)
+        {
+            Mesh mergedMesh = model.AddNode(new Mesh { Name = CreateMergedMeshName(bucket, mergedMeshIndex++) });
+            mergedMesh.Positions = CreateVector3Buffer(bucket.Positions);
+            if (bucket.HasCompleteNormals)
+            {
+                mergedMesh.Normals = CreateVector3Buffer(bucket.Normals);
+            }
+
+            if (bucket.HasCompleteTexCoords)
+            {
+                mergedMesh.UVLayers = CreateVector2Buffer(bucket.TexCoords);
+            }
+
+            if (bucket.FaceIndices.Count > 0)
+            {
+                mergedMesh.FaceIndices = CreateIndexBuffer(bucket.FaceIndices, bucket.Positions.Count);
+            }
+
+            if (bucket.Material is not null)
+            {
+                mergedMesh.Materials = [bucket.Material];
+            }
+        }
+    }
+
+    private static void AppendMesh(MeshMergeBucket bucket, Mesh mesh, DataBuffer positions)
+    {
+        int baseVertex = bucket.Positions.Count;
+        int vertexCount = positions.ElementCount;
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            bucket.Positions.Add(positions.GetVector3(vertexIndex, 0));
+        }
+
+        AppendOptionalNormals(bucket, mesh.Normals, vertexCount);
+        AppendOptionalTexCoords(bucket, mesh.UVLayers, vertexCount);
+
+        if (mesh.FaceIndices is { ElementCount: > 0 } faceIndices)
+        {
+            for (int index = 0; index < faceIndices.ElementCount; index++)
+            {
+                bucket.FaceIndices.Add(baseVertex + faceIndices.Get<int>(index, 0, 0));
+            }
+
+            return;
+        }
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            bucket.FaceIndices.Add(baseVertex + vertexIndex);
+        }
+    }
+
+    private static void AppendOptionalNormals(MeshMergeBucket bucket, DataBuffer? normals, int vertexCount)
+    {
+        if (!bucket.HasCompleteNormals)
+        {
+            return;
+        }
+
+        if (normals is null || normals.ElementCount != vertexCount)
+        {
+            bucket.Normals.Clear();
+            bucket.HasCompleteNormals = false;
+            return;
+        }
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            bucket.Normals.Add(normals.GetVector3(vertexIndex, 0));
+        }
+    }
+
+    private static void AppendOptionalTexCoords(MeshMergeBucket bucket, DataBuffer? texCoords, int vertexCount)
+    {
+        if (!bucket.HasCompleteTexCoords)
+        {
+            return;
+        }
+
+        if (texCoords is null || texCoords.ElementCount != vertexCount)
+        {
+            bucket.TexCoords.Clear();
+            bucket.HasCompleteTexCoords = false;
+            return;
+        }
+
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            bucket.TexCoords.Add(texCoords.GetVector2(vertexIndex, 0));
+        }
+    }
+
+    private static string CreateMergedMeshName(MeshMergeBucket bucket, int meshIndex)
+    {
+        if (bucket.Material is null || string.IsNullOrWhiteSpace(bucket.Material.Name))
+        {
+            return meshIndex == 0 ? "mesh_default" : $"mesh_default_{meshIndex}";
+        }
+
+        return $"mesh_{bucket.Material.Name}";
+    }
+
+    private static DataBuffer CreateIndexBuffer(List<int> faceIndices, int vertexCount)
+    {
+        if (vertexCount <= ushort.MaxValue)
+        {
+            ushort[] indices = new ushort[faceIndices.Count];
+            for (int index = 0; index < faceIndices.Count; index++)
+            {
+                indices[index] = (ushort)faceIndices[index];
+            }
+
+            return new DataBuffer<ushort>(indices, 1, 1);
+        }
+
+        return new DataBuffer<int>([.. faceIndices], 1, 1);
     }
 
     private static void FinalizeMesh(
@@ -457,5 +622,27 @@ public sealed class ObjReader
             : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
 
         return new Vector2(u, v);
+    }
+
+    private sealed class MeshMergeBucket
+    {
+        public MeshMergeBucket(Material? material)
+        {
+            Material = material;
+        }
+
+        public Material? Material { get; }
+
+        public List<Vector3> Positions { get; } = [];
+
+        public List<Vector3> Normals { get; } = [];
+
+        public List<Vector2> TexCoords { get; } = [];
+
+        public List<int> FaceIndices { get; } = [];
+
+        public bool HasCompleteNormals { get; set; } = true;
+
+        public bool HasCompleteTexCoords { get; set; } = true;
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using RedFox.Graphics2D.IO;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D
@@ -39,6 +40,17 @@ namespace RedFox.Graphics3D
         public Grid Grid { get; }
 
         /// <summary>
+        /// Gets the scene-owned skybox rendering settings.
+        /// </summary>
+        public Skybox Skybox { get; }
+
+        /// <summary>
+        /// Gets the image translator registry shared by textures in this scene.
+        /// Register image translators here so texture nodes can load images through a common scene-owned pipeline.
+        /// </summary>
+        public ImageTranslatorManager ImageTranslators { get; } = new();
+
+        /// <summary>
         /// Gets the animation players owned by this scene.
         /// Use <see cref="CreateAnimationPlayers"/> to rebuild this list from scene content.
         /// </summary>
@@ -68,6 +80,7 @@ namespace RedFox.Graphics3D
         {
             Name = name;
             Grid = new Grid();
+            Skybox = new Skybox();
             RootNode = new SceneRoot(this);
             RootNode.SetScene(this);
         }

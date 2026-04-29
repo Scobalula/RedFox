@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 using Silk.NET.DXGI;
@@ -12,52 +12,31 @@ namespace RedFox.Graphics3D.D3D11;
 /// </summary>
 public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
 {
+    private const int ConstantBufferStageCount = 3;
     private const int ComputeFirstOutputBufferSlot = 5;
     private const int ComputeOutputBufferCount = 2;
     private const int ComputeShaderResourceCount = 5;
+    private const int MaxConstantBufferSlots = 14;
     private const int MaxLights = 4;
 
-    private ComPtr<ID3D11Buffer> _frameConstantsBuffer;
-    private ComPtr<ID3D11Buffer> _lightingConstantsBuffer;
-    private ComPtr<ID3D11Buffer> _skinningConstantsBuffer;
+    private readonly D3D11ConstantBufferSlot[] _constantBufferSlots = new D3D11ConstantBufferSlot[MaxConstantBufferSlots * ConstantBufferStageCount];
     private readonly D3D11Context _context;
     private readonly Vector3[] _lightColors = new Vector3[MaxLights];
     private readonly Vector4[] _lightDirectionsAndIntensity = new Vector4[MaxLights];
+    private readonly Dictionary<string, D3D11UniformValue> _uniformValues = new(StringComparer.Ordinal);
     private D3D11PipelineState? _currentPipelineState;
     private ID3D11DepthStencilView* _currentDepthStencilView;
     private ID3D11RenderTargetView* _currentRenderTargetView;
-    private Vector3 _ambientColor;
     private bool _disposed;
-    private float _fadeEndDistance;
-    private float _fadeStartDistance;
-    private Vector4 _baseColor = Vector4.One;
-    private Vector3 _cameraPosition;
     private Vector3 _fallbackLightColor = Vector3.One;
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
     private float _fallbackLightIntensity = 1.0f;
     private FaceWinding _frontFaceWinding = FaceWinding.CounterClockwise;
-    private Vector4 _gridAxisXColor = new(0.85f, 0.3f, 0.3f, 0.9f);
-    private Vector4 _gridAxisZColor = new(0.3f, 0.45f, 0.85f, 0.9f);
-    private float _gridCellSize = 2.0f;
-    private float _gridLineWidth = 1.35f;
-    private float _gridMajorStep = 10.0f;
-    private Vector4 _gridMajorColor = new(0.38f, 0.42f, 0.5f, 0.7f);
-    private float _gridMinPixelsBetweenCells = 2.0f;
-    private Vector4 _gridMinorColor = new(0.26f, 0.29f, 0.34f, 0.55f);
-    private float _gridSize = 128.0f;
     private int _lightCount;
-    private float _lineHalfWidthPx = 0.5f;
-    private Matrix4x4 _model = Matrix4x4.Identity;
-    private Matrix4x4 _projection = Matrix4x4.Identity;
     private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
-    private SkinningMode _skinningMode = SkinningMode.Linear;
-    private int _skinInfluenceCount;
-    private float _materialSpecularPower = 32.0f;
-    private float _materialSpecularStrength = 0.28f;
-    private bool _useViewBasedLighting;
-    private Matrix4x4 _view = Matrix4x4.Identity;
-    private int _vertexCount;
-    private Vector2 _viewportSize = Vector2.One;
+
+    /// <inheritdoc/>
+    public ulong FrameIndex { get; private set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="D3D11CommandList"/> class.
@@ -66,13 +45,6 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     internal D3D11CommandList(D3D11Context context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
-        _frameConstantsBuffer = CreateConstantBuffer(Math.Max(
-            Math.Max(Marshal.SizeOf<D3D11FrameConstants>(), Marshal.SizeOf<D3D11LineConstants>()),
-            Marshal.SizeOf<D3D11GridFrameConstants>()));
-        _lightingConstantsBuffer = CreateConstantBuffer(Math.Max(
-            Math.Max(Marshal.SizeOf<D3D11LightingConstants>(), Marshal.SizeOf<D3D11FadeConstants>()),
-            Marshal.SizeOf<D3D11GridStyleConstants>()));
-        _skinningConstantsBuffer = CreateConstantBuffer(Marshal.SizeOf<D3D11SkinningConstants>());
         _currentRenderTargetView = context.DefaultRenderTargetView;
         _currentDepthStencilView = context.DefaultDepthStencilView;
     }
@@ -81,38 +53,46 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     public void Reset()
     {
         ThrowIfDisposed();
+        IncrementFrameIndex();
         _currentPipelineState = null;
-        _ambientColor = Vector3.Zero;
-        _baseColor = Vector4.One;
-        _cameraPosition = Vector3.Zero;
-        _fadeEndDistance = 0.0f;
-        _fadeStartDistance = 0.0f;
         _fallbackLightDirection = -Vector3.UnitY;
         _fallbackLightColor = Vector3.One;
         _fallbackLightIntensity = 1.0f;
         _frontFaceWinding = FaceWinding.CounterClockwise;
-        _gridAxisXColor = new Vector4(0.85f, 0.3f, 0.3f, 0.9f);
-        _gridAxisZColor = new Vector4(0.3f, 0.45f, 0.85f, 0.9f);
-        _gridCellSize = 2.0f;
-        _gridLineWidth = 1.35f;
-        _gridMajorStep = 10.0f;
-        _gridMajorColor = new Vector4(0.38f, 0.42f, 0.5f, 0.7f);
-        _gridMinPixelsBetweenCells = 2.0f;
-        _gridMinorColor = new Vector4(0.26f, 0.29f, 0.34f, 0.55f);
-        _gridSize = 128.0f;
         _lightCount = 0;
-        _lineHalfWidthPx = 0.5f;
-        _model = Matrix4x4.Identity;
-        _projection = Matrix4x4.Identity;
         _sceneAxis = Matrix4x4.Identity;
-        _skinningMode = SkinningMode.Linear;
-        _skinInfluenceCount = 0;
-        _materialSpecularPower = 32.0f;
-        _materialSpecularStrength = 0.28f;
-        _useViewBasedLighting = false;
-        _view = Matrix4x4.Identity;
-        _vertexCount = 0;
-        _viewportSize = Vector2.One;
+        _uniformValues.Clear();
+        Array.Clear(_lightDirectionsAndIntensity);
+        Array.Clear(_lightColors);
+
+        SetUniformMatrix4x4("Model", Matrix4x4.Identity);
+        SetUniformMatrix4x4("SceneAxis", Matrix4x4.Identity);
+        SetUniformMatrix4x4("View", Matrix4x4.Identity);
+        SetUniformMatrix4x4("Projection", Matrix4x4.Identity);
+        SetUniformMatrix4x4("InverseView", Matrix4x4.Identity);
+        SetUniformMatrix4x4("InverseProjection", Matrix4x4.Identity);
+        SetUniformVector2("ViewportSize", Vector2.One);
+        SetUniformVector3("AmbientColor", Vector3.Zero);
+        SetUniformVector3("CameraPosition", Vector3.Zero);
+        SetUniformVector4("BaseColor", Vector4.One);
+        SetUniformFloat("LineHalfWidthPx", 0.5f);
+        SetUniformFloat("FadeStartDistance", 0.0f);
+        SetUniformFloat("FadeEndDistance", 0.0f);
+        SetUniformFloat("GridCellSize", 2.0f);
+        SetUniformFloat("GridMajorStep", 10.0f);
+        SetUniformFloat("GridMinPixelsBetweenCells", 2.5f);
+        SetUniformFloat("GridLineWidth", 1.1f);
+        SetUniformFloat("MaterialSpecularStrength", 0.28f);
+        SetUniformFloat("MaterialSpecularPower", 32.0f);
+        SetUniformVector4("GridMinorColor", new Vector4(0.34f, 0.38f, 0.45f, 0.48f));
+        SetUniformVector4("GridMajorColor", new Vector4(0.52f, 0.58f, 0.68f, 0.66f));
+        SetUniformVector4("GridAxisXColor", new Vector4(0.9f, 0.28f, 0.25f, 0.82f));
+        SetUniformVector4("GridAxisZColor", new Vector4(0.25f, 0.45f, 0.9f, 0.82f));
+        SetUniformInt("SkinningMode", (int)SkinningMode.Linear);
+        SetUniformInt("VertexCount", 0);
+        SetUniformInt("SkinInfluenceCount", 0);
+        SetUniformInt("UseViewBasedLighting", 0);
+        ApplyLightUniforms();
         SetRenderTarget(null);
     }
 
@@ -122,7 +102,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         ThrowIfDisposed();
         int safeWidth = Math.Max(1, width);
         int safeHeight = Math.Max(1, height);
-        _viewportSize = new Vector2(safeWidth, safeHeight);
+        SetUniformVector2("ViewportSize", new Vector2(safeWidth, safeHeight));
         Viewport viewport = new()
         {
             TopLeftX = 0.0f,
@@ -182,11 +162,52 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public void ResolveRenderTarget(IGpuRenderTarget source, IGpuRenderTarget? destination)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(source);
+
+        D3D11RenderTarget d3dSource = source as D3D11RenderTarget
+            ?? throw new InvalidOperationException($"Expected {nameof(D3D11RenderTarget)} for source render target.");
+        D3D11RenderTarget? d3dDestination = destination as D3D11RenderTarget;
+        ID3D11Texture2D* destinationTexture = d3dDestination is not null
+            ? d3dDestination.ColorTexture.Handle
+            : _context.DefaultBackBuffer;
+        if (destinationTexture is null)
+        {
+            throw new InvalidOperationException("The D3D11 resolve destination is not available.");
+        }
+
+        ID3D11RenderTargetView* nullRenderTarget = null;
+        _context.DeviceContext.Get().OMSetRenderTargets(1, &nullRenderTarget, null);
+
+        ID3D11Resource* destinationResource = (ID3D11Resource*)destinationTexture;
+        ID3D11Resource* sourceResource = (ID3D11Resource*)d3dSource.ColorTexture.Handle;
+        if (d3dSource.ColorTexture.SampleCount > 1)
+        {
+            Format resolveFormat = D3D11Helpers.GetDxgiFormat(d3dSource.ColorTexture.Format);
+            _context.DeviceContext.Get().ResolveSubresource(destinationResource, 0, sourceResource, 0, resolveFormat);
+        }
+        else
+        {
+            _context.DeviceContext.Get().CopyResource(destinationResource, sourceResource);
+        }
+
+        SetRenderTarget(destination);
+    }
+
+    /// <inheritdoc/>
     public void SetPipelineState(IGpuPipelineState pipelineState)
     {
         ThrowIfDisposed();
-        _currentPipelineState = pipelineState as D3D11PipelineState
+        D3D11PipelineState nextPipelineState = pipelineState as D3D11PipelineState
             ?? throw new InvalidOperationException($"Expected {nameof(D3D11PipelineState)}.");
+        if (ReferenceEquals(_currentPipelineState, nextPipelineState))
+        {
+            return;
+        }
+
+        _currentPipelineState = nextPipelineState;
         if (_currentPipelineState.IsCompute)
         {
             ApplyComputePipelineState(_currentPipelineState);
@@ -201,6 +222,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         _sceneAxis = sceneAxis;
+        SetUniformMatrix4x4("SceneAxis", sceneAxis);
     }
 
     /// <inheritdoc/>
@@ -218,21 +240,21 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     public void SetAmbientColor(Vector3 ambientColor)
     {
         ThrowIfDisposed();
-        _ambientColor = ambientColor;
+        SetUniformVector3("AmbientColor", ambientColor);
     }
 
     /// <inheritdoc/>
     public void SetUseViewBasedLighting(bool enabled)
     {
         ThrowIfDisposed();
-        _useViewBasedLighting = enabled;
+        SetUniformInt("UseViewBasedLighting", enabled ? 1 : 0);
     }
 
     /// <inheritdoc/>
     public void SetSkinningMode(SkinningMode skinningMode)
     {
         ThrowIfDisposed();
-        _skinningMode = skinningMode;
+        SetUniformInt("SkinningMode", (int)skinningMode);
     }
 
     /// <inheritdoc/>
@@ -245,6 +267,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         _lightCount = 0;
         Array.Clear(_lightDirectionsAndIntensity);
         Array.Clear(_lightColors);
+        ApplyLightUniforms();
     }
 
     /// <inheritdoc/>
@@ -259,6 +282,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         _lightDirectionsAndIntensity[_lightCount] = new Vector4(TransformDirection(direction), intensity);
         _lightColors[_lightCount] = color;
         _lightCount++;
+        ApplyLightUniforms();
     }
 
     /// <inheritdoc/>
@@ -294,133 +318,67 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(texture);
-    }
 
-    /// <inheritdoc/>
-    public void SetUniformInt(ReadOnlySpan<char> name, int value)
-    {
-        ThrowIfDisposed();
-        string uniformName = name.ToString();
-        if (uniformName.Equals("SkinningMode", StringComparison.Ordinal))
+        D3D11Texture d3dTexture = texture as D3D11Texture
+            ?? throw new InvalidOperationException($"Expected {nameof(D3D11Texture)}.");
+        ID3D11ShaderResourceView* shaderResourceView = d3dTexture.ShaderResourceView;
+        ID3D11SamplerState* samplerState = d3dTexture.SamplerState;
+        if (shaderResourceView is null || samplerState is null)
         {
-            _skinningMode = (SkinningMode)value;
             return;
         }
 
-        if (uniformName.Equals("VertexCount", StringComparison.Ordinal))
-        {
-            _vertexCount = value;
-            return;
-        }
-
-        if (uniformName.Equals("SkinInfluenceCount", StringComparison.Ordinal))
-        {
-            _skinInfluenceCount = value;
-        }
+        uint d3dSlot = checked((uint)slot);
+        _context.DeviceContext.Get().PSSetShaderResources(d3dSlot, 1, &shaderResourceView);
+        _context.DeviceContext.Get().PSSetSamplers(d3dSlot, 1, &samplerState);
     }
 
     /// <inheritdoc/>
-    public void SetUniformFloat(ReadOnlySpan<char> name, float value)
+    public void SetUniformInt(string name, int value)
     {
         ThrowIfDisposed();
-        switch (name.ToString())
-        {
-            case "LineHalfWidthPx":
-                _lineHalfWidthPx = value;
-                break;
-            case "FadeStartDistance":
-                _fadeStartDistance = value;
-                break;
-            case "FadeEndDistance":
-                _fadeEndDistance = value;
-                break;
-            case "GridSize":
-                _gridSize = value;
-                break;
-            case "GridCellSize":
-                _gridCellSize = value;
-                break;
-            case "GridMajorStep":
-                _gridMajorStep = value;
-                break;
-            case "GridMinPixelsBetweenCells":
-                _gridMinPixelsBetweenCells = value;
-                break;
-            case "GridLineWidth":
-                _gridLineWidth = value;
-                break;
-            case "MaterialSpecularStrength":
-                _materialSpecularStrength = value;
-                break;
-            case "MaterialSpecularPower":
-                _materialSpecularPower = value;
-                break;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromInt(value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector2(ReadOnlySpan<char> name, Vector2 value)
+    public void SetUniformFloat(string name, float value)
     {
         ThrowIfDisposed();
-        if (name.ToString().Equals("ViewportSize", StringComparison.Ordinal))
-        {
-            _viewportSize = value;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromFloat(value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector3(ReadOnlySpan<char> name, Vector3 value)
+    public void SetUniformVector2(string name, Vector2 value)
     {
         ThrowIfDisposed();
-        if (name.ToString().Equals("CameraPosition", StringComparison.Ordinal))
-        {
-            _cameraPosition = value;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromVector2(value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector4(ReadOnlySpan<char> name, Vector4 value)
+    public void SetUniformVector3(string name, Vector3 value)
     {
         ThrowIfDisposed();
-        switch (name.ToString())
-        {
-            case "BaseColor":
-                _baseColor = value;
-                break;
-            case "GridMinorColor":
-                _gridMinorColor = value;
-                break;
-            case "GridMajorColor":
-                _gridMajorColor = value;
-                break;
-            case "GridAxisXColor":
-                _gridAxisXColor = value;
-                break;
-            case "GridAxisZColor":
-                _gridAxisZColor = value;
-                break;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromVector3(value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformMatrix4x4(ReadOnlySpan<char> name, Matrix4x4 value)
+    public void SetUniformVector4(string name, Vector4 value)
     {
         ThrowIfDisposed();
-        switch (name.ToString())
-        {
-            case "Model":
-                _model = value;
-                break;
-            case "SceneAxis":
-                _sceneAxis = value;
-                break;
-            case "View":
-                _view = value;
-                break;
-            case "Projection":
-                _projection = value;
-                break;
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromVector4(value);
+    }
+
+    /// <inheritdoc/>
+    public void SetUniformMatrix4x4(string name, Matrix4x4 value)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        _uniformValues[name] = D3D11UniformValue.FromMatrix4x4(value);
     }
 
     /// <inheritdoc/>
@@ -448,7 +406,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             throw new InvalidOperationException("A D3D11 compute pipeline state must be bound before dispatch.");
         }
 
-        ApplySkinningConstants();
+        ApplyConstantBuffers();
         _context.DeviceContext.Get().Dispatch((uint)groupCountX, (uint)groupCountY, (uint)groupCountZ);
     }
 
@@ -460,7 +418,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
-    public void PushDebugGroup(ReadOnlySpan<char> name)
+    public void PushDebugGroup(string name)
     {
         ThrowIfDisposed();
     }
@@ -479,9 +437,13 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             return;
         }
 
-        _lightingConstantsBuffer.Dispose();
-        _frameConstantsBuffer.Dispose();
-        _skinningConstantsBuffer.Dispose();
+        for (int slotIndex = 0; slotIndex < _constantBufferSlots.Length; slotIndex++)
+        {
+            _constantBufferSlots[slotIndex].Buffer.Dispose();
+            _constantBufferSlots[slotIndex].StagingData = null;
+            _constantBufferSlots[slotIndex] = default;
+        }
+
         _disposed = true;
         GC.SuppressFinalize(this);
     }
@@ -531,124 +493,192 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             throw new InvalidOperationException("A D3D11 pipeline state must be bound before drawing.");
         }
 
-        if (_currentPipelineState.UsesGridConstants)
+        IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers = _currentPipelineState.ConstantBuffers;
+        for (int constantBufferIndex = 0; constantBufferIndex < constantBuffers.Count; constantBufferIndex++)
         {
-            D3D11GridFrameConstants gridFrameConstants = new()
-            {
-                View = _view,
-                Projection = _projection,
-                CameraAndGridSize = new Vector4(_cameraPosition, _gridSize),
-            };
-            D3D11GridStyleConstants gridStyleConstants = new()
-            {
-                CellAndLine = new Vector4(_gridCellSize, _gridMajorStep, _gridMinPixelsBetweenCells, _gridLineWidth),
-                MinorColor = _gridMinorColor,
-                MajorColor = _gridMajorColor,
-                AxisXColor = _gridAxisXColor,
-                AxisZColor = _gridAxisZColor,
-                Fade = new Vector4(_fadeStartDistance, _fadeEndDistance, 0.0f, 0.0f),
-            };
-            UpdateConstantBuffer(_frameConstantsBuffer, gridFrameConstants);
-            UpdateConstantBuffer(_lightingConstantsBuffer, gridStyleConstants);
-        }
-        else if (_currentPipelineState.UsesLineConstants)
-        {
-            D3D11LineConstants lineConstants = new()
-            {
-                Model = _model,
-                SceneAxis = _sceneAxis,
-                View = _view,
-                Projection = _projection,
-                ViewportAndHalfWidth = new Vector4(_viewportSize.X, _viewportSize.Y, _lineHalfWidthPx, 0.0f),
-            };
-            D3D11FadeConstants fadeConstants = new()
-            {
-                CameraAndFadeStart = new Vector4(_cameraPosition, _fadeStartDistance),
-                FadeEnd = new Vector4(_fadeEndDistance, 0.0f, 0.0f, 0.0f),
-            };
-            UpdateConstantBuffer(_frameConstantsBuffer, lineConstants);
-            UpdateConstantBuffer(_lightingConstantsBuffer, fadeConstants);
-        }
-        else
-        {
-            D3D11FrameConstants frameConstants = new()
-            {
-                Model = _model,
-                SceneAxis = _sceneAxis,
-                View = _view,
-                Projection = _projection,
-            };
-            D3D11LightingConstants lightingConstants = BuildLightingConstants();
-            UpdateConstantBuffer(_frameConstantsBuffer, frameConstants);
-            UpdateConstantBuffer(_lightingConstantsBuffer, lightingConstants);
-        }
+            D3D11ShaderConstantBufferLayout layout = constantBuffers[constantBufferIndex];
+            int slotIndex = GetConstantBufferSlotIndex(layout.Stage, layout.Slot);
+            ref D3D11ConstantBufferSlot constantBufferSlot = ref _constantBufferSlots[slotIndex];
+            EnsureConstantBuffer(ref constantBufferSlot, layout.SizeBytes);
 
-        ID3D11Buffer* frameBuffer = _frameConstantsBuffer.Handle;
-        ID3D11Buffer* lightingBuffer = _lightingConstantsBuffer.Handle;
-        ID3D11DeviceContext* context = _context.DeviceContext.Handle;
-        context->VSSetConstantBuffers(0, 1, &frameBuffer);
-        context->VSSetConstantBuffers(1, 1, &lightingBuffer);
-        context->PSSetConstantBuffers(0, 1, &frameBuffer);
-        context->PSSetConstantBuffers(1, 1, &lightingBuffer);
+            byte[] data = constantBufferSlot.StagingData
+                ?? throw new InvalidOperationException("D3D11 constant-buffer staging data was not initialized.");
+            Array.Clear(data, 0, constantBufferSlot.SizeBytes);
+            for (int variableIndex = 0; variableIndex < layout.Variables.Count; variableIndex++)
+            {
+                WriteUniform(data, layout.Variables[variableIndex]);
+            }
+
+            UpdateConstantBuffer(constantBufferSlot.Buffer, data.AsSpan(0, constantBufferSlot.SizeBytes));
+            BindConstantBuffer(layout, constantBufferSlot.Buffer.Handle);
+        }
     }
 
-    private D3D11LightingConstants BuildLightingConstants()
+    private void ApplyLightUniforms()
     {
         int appliedLightCount = _lightCount;
-        Vector4[] directions = new Vector4[MaxLights];
-        Vector4[] colors = new Vector4[MaxLights];
         if (appliedLightCount == 0)
         {
-            directions[0] = new Vector4(TransformDirection(_fallbackLightDirection), _fallbackLightIntensity);
-            colors[0] = new Vector4(_fallbackLightColor, 0.0f);
+            _lightDirectionsAndIntensity[0] = new Vector4(TransformDirection(_fallbackLightDirection), _fallbackLightIntensity);
+            _lightColors[0] = _fallbackLightColor;
             appliedLightCount = 1;
         }
-        else
+
+        SetUniformInt("LightCount", appliedLightCount);
+        SetUniformVector4Array("LightDirectionsAndIntensity", _lightDirectionsAndIntensity);
+        SetUniformVector3Array("LightColors", _lightColors);
+    }
+
+    private void BindConstantBuffer(D3D11ShaderConstantBufferLayout layout, ID3D11Buffer* buffer)
+    {
+        uint slot = checked((uint)layout.Slot);
+        ID3D11DeviceContext* context = _context.DeviceContext.Handle;
+        if (layout.Stage.HasFlag(D3D11ShaderStageFlags.Vertex))
         {
-            for (int lightIndex = 0; lightIndex < MaxLights; lightIndex++)
-            {
-                directions[lightIndex] = _lightDirectionsAndIntensity[lightIndex];
-                colors[lightIndex] = new Vector4(_lightColors[lightIndex], 0.0f);
-            }
+            context->VSSetConstantBuffers(slot, 1, &buffer);
         }
 
-        return new D3D11LightingConstants
+        if (layout.Stage.HasFlag(D3D11ShaderStageFlags.Fragment))
         {
-            AmbientColor = _ambientColor,
-            LightCount = appliedLightCount,
-            LightDirectionAndIntensity0 = directions[0],
-            LightDirectionAndIntensity1 = directions[1],
-            LightDirectionAndIntensity2 = directions[2],
-            LightDirectionAndIntensity3 = directions[3],
-            LightColor0 = colors[0],
-            LightColor1 = colors[1],
-            LightColor2 = colors[2],
-            LightColor3 = colors[3],
-            CameraPosition = _cameraPosition,
-            UseViewBasedLighting = _useViewBasedLighting ? 1 : 0,
-            BaseColor = _baseColor,
-            Specular = new Vector4(_materialSpecularStrength, _materialSpecularPower, 0.0f, 0.0f),
-        };
+            context->PSSetConstantBuffers(slot, 1, &buffer);
+        }
+
+        if (layout.Stage.HasFlag(D3D11ShaderStageFlags.Compute))
+        {
+            context->CSSetConstantBuffers(slot, 1, &buffer);
+        }
     }
 
-    private void UpdateConstantBuffer<TValue>(ComPtr<ID3D11Buffer> buffer, TValue value) where TValue : unmanaged
+    private void EnsureConstantBuffer(ref D3D11ConstantBufferSlot slot, int sizeBytes)
     {
-        _context.DeviceContext.Get().UpdateSubresource((ID3D11Resource*)buffer.Handle, 0, (Box*)null, &value, 0, 0);
+        int alignedSize = checked((int)D3D11Helpers.AlignTo16(Math.Max(sizeBytes, 16)));
+        if (slot.Buffer.Handle is not null && slot.SizeBytes >= alignedSize)
+        {
+            slot.StagingData ??= new byte[slot.SizeBytes];
+            return;
+        }
+
+        slot.Buffer.Dispose();
+        slot.Buffer = CreateConstantBuffer(alignedSize);
+        slot.SizeBytes = alignedSize;
+        slot.StagingData = new byte[alignedSize];
     }
 
-    private void ApplySkinningConstants()
+    private void IncrementFrameIndex()
     {
-        D3D11SkinningConstants constants = new()
+        unchecked
         {
-            VertexCount = _vertexCount,
-            SkinInfluenceCount = _skinInfluenceCount,
-            SkinningMode = (int)_skinningMode,
-            Padding = 0,
+            FrameIndex++;
+            if (FrameIndex == 0)
+            {
+                FrameIndex = 1;
+            }
+        }
+    }
+
+    private static int GetConstantBufferSlotIndex(D3D11ShaderStageFlags stage, int slot)
+    {
+        if (slot < 0 || slot >= MaxConstantBufferSlots)
+        {
+            throw new InvalidOperationException($"D3D11 constant buffer slot {slot} is outside the supported range.");
+        }
+
+        int stageOffset = stage switch
+        {
+            D3D11ShaderStageFlags.Vertex => 0,
+            D3D11ShaderStageFlags.Fragment => MaxConstantBufferSlots,
+            D3D11ShaderStageFlags.Compute => MaxConstantBufferSlots * 2,
+            _ => throw new InvalidOperationException($"Unsupported D3D11 shader stage flags '{stage}'."),
         };
 
-        UpdateConstantBuffer(_skinningConstantsBuffer, constants);
-        ID3D11Buffer* skinningConstantsBuffer = _skinningConstantsBuffer.Handle;
-        _context.DeviceContext.Get().CSSetConstantBuffers(0, 1, &skinningConstantsBuffer);
+        return stageOffset + slot;
+    }
+
+    private void SetUniformVector3Array(string name, Vector3[] values)
+    {
+        _uniformValues[name] = D3D11UniformValue.FromVector3Array(values);
+    }
+
+    private void SetUniformVector4Array(string name, Vector4[] values)
+    {
+        _uniformValues[name] = D3D11UniformValue.FromVector4Array(values);
+    }
+
+    private void UpdateConstantBuffer(ComPtr<ID3D11Buffer> buffer, ReadOnlySpan<byte> data)
+    {
+        fixed (byte* dataPointer = data)
+        {
+            _context.DeviceContext.Get().UpdateSubresource((ID3D11Resource*)buffer.Handle, 0, (Box*)null, dataPointer, 0, 0);
+        }
+    }
+
+    private void WriteUniform(Span<byte> data, D3D11ShaderVariableLayout variable)
+    {
+        if (!_uniformValues.TryGetValue(variable.Name, out D3D11UniformValue value))
+        {
+            return;
+        }
+
+        if (variable.IsArray)
+        {
+            WriteUniformArray(data, variable, value);
+            return;
+        }
+
+        switch (variable.Kind)
+        {
+            case D3D11ShaderVariableKind.Int when value.Kind == D3D11UniformValueKind.Int:
+                WriteValue(data, variable.OffsetBytes, value.IntValue);
+                break;
+            case D3D11ShaderVariableKind.Float when variable.ComponentCount == 1 && value.Kind == D3D11UniformValueKind.Float:
+                WriteValue(data, variable.OffsetBytes, value.FloatValue);
+                break;
+            case D3D11ShaderVariableKind.Float when variable.ComponentCount == 2 && value.Kind == D3D11UniformValueKind.Vector2:
+                WriteValue(data, variable.OffsetBytes, value.Vector2Value);
+                break;
+            case D3D11ShaderVariableKind.Float when variable.ComponentCount == 3 && value.Kind == D3D11UniformValueKind.Vector3:
+                WriteValue(data, variable.OffsetBytes, value.Vector3Value);
+                break;
+            case D3D11ShaderVariableKind.Float when variable.ComponentCount == 4 && value.Kind == D3D11UniformValueKind.Vector4:
+                WriteValue(data, variable.OffsetBytes, value.Vector4Value);
+                break;
+            case D3D11ShaderVariableKind.Matrix4x4 when value.Kind == D3D11UniformValueKind.Matrix4x4:
+                WriteValue(data, variable.OffsetBytes, value.MatrixValue);
+                break;
+        }
+    }
+
+    private static void WriteUniformArray(Span<byte> data, D3D11ShaderVariableLayout variable, D3D11UniformValue value)
+    {
+        if (variable.Kind != D3D11ShaderVariableKind.Float)
+        {
+            return;
+        }
+
+        if (variable.ComponentCount == 3 && value.Kind == D3D11UniformValueKind.Vector3Array && value.Vector3ArrayValue is not null)
+        {
+            int count = Math.Min(variable.ArrayLength, value.Vector3ArrayValue.Length);
+            for (int elementIndex = 0; elementIndex < count; elementIndex++)
+            {
+                WriteValue(data, variable.OffsetBytes + (elementIndex * variable.ArrayStrideBytes), value.Vector3ArrayValue[elementIndex]);
+            }
+
+            return;
+        }
+
+        if (variable.ComponentCount == 4 && value.Kind == D3D11UniformValueKind.Vector4Array && value.Vector4ArrayValue is not null)
+        {
+            int count = Math.Min(variable.ArrayLength, value.Vector4ArrayValue.Length);
+            for (int elementIndex = 0; elementIndex < count; elementIndex++)
+            {
+                WriteValue(data, variable.OffsetBytes + (elementIndex * variable.ArrayStrideBytes), value.Vector4ArrayValue[elementIndex]);
+            }
+        }
+    }
+
+    private static void WriteValue<TValue>(Span<byte> data, int offsetBytes, TValue value) where TValue : unmanaged
+    {
+        MemoryMarshal.Write(data[offsetBytes..], in value);
     }
 
     private void BindComputeBuffer(int slot, D3D11Buffer buffer)

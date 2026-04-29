@@ -14,12 +14,14 @@ public sealed class AvaloniaRenderFrameEventArgs : EventArgs
     /// <param name="scene">The scene rendered this frame.</param>
     /// <param name="camera">The camera rendered this frame.</param>
     /// <param name="elapsedTime">The elapsed frame time.</param>
-    public AvaloniaRenderFrameEventArgs(SceneRenderer renderer, Scene scene, Camera camera, TimeSpan elapsedTime)
+    /// <param name="renderDuration">The time spent updating and rendering the scene.</param>
+    public AvaloniaRenderFrameEventArgs(SceneRenderer renderer, Scene scene, Camera camera, TimeSpan elapsedTime, TimeSpan renderDuration)
     {
         Renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
         Scene = scene ?? throw new ArgumentNullException(nameof(scene));
         Camera = camera ?? throw new ArgumentNullException(nameof(camera));
         ElapsedTime = elapsedTime;
+        RenderDuration = renderDuration;
     }
 
     /// <summary>
@@ -41,4 +43,9 @@ public sealed class AvaloniaRenderFrameEventArgs : EventArgs
     /// Gets the elapsed frame time.
     /// </summary>
     public TimeSpan ElapsedTime { get; }
+
+    /// <summary>
+    /// Gets the time spent updating and rendering the scene.
+    /// </summary>
+    public TimeSpan RenderDuration { get; }
 }

@@ -1,12 +1,14 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.OpenGL;
 using Avalonia.OpenGL.Controls;
 using Avalonia.Rendering;
+using RedFox.Avalonia.Themes;
 using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.Rendering.Hosting;
 using Silk.NET.OpenGL;
+using System.Diagnostics;
 using System.Numerics;
 
 namespace RedFox.Graphics3D.Avalonia;
@@ -44,7 +46,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     /// Defines the <see cref="ClearColor"/> property.
     /// </summary>
     public static readonly StyledProperty<Vector4> ClearColorProperty =
-        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, Vector4>(nameof(ClearColor), new Vector4(0.07f, 0.09f, 0.13f, 1.0f));
+        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, Vector4>(nameof(ClearColor), RedFoxThemeColors.SceneBackgroundVector);
 
     /// <summary>
     /// Defines the <see cref="UseViewBasedLighting"/> property.
@@ -69,6 +71,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     private OpenGlGraphicsDevice? _graphicsDevice;
     private SceneRenderer? _renderer;
     private Scene? _subscribedScene;
+    private bool _loggedFramebufferSamples;
     private DateTimeOffset _lastFrameTime = DateTimeOffset.UtcNow;
 
     static AvaloniaOpenGlRendererControl()
@@ -211,13 +214,27 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         }
 
         graphicsDevice.DefaultFramebufferHandle = unchecked((uint)fb);
+        int framebufferSamples = graphicsDevice.GetDefaultFramebufferSampleCount();
+        renderer.ExternalAntiAliasingSamples = framebufferSamples;
+        if (!_loggedFramebufferSamples)
+        {
+            Console.WriteLine($"[AvaloniaOpenGL] defaultFramebuffer={fb} samples={framebufferSamples} requestedAA={renderer.AntiAliasingSamples} actualAA={renderer.ActualAntiAliasingSamples}");
+            _loggedFramebufferSamples = true;
+        }
         ApplyRendererProperties();
         DateTimeOffset now = DateTimeOffset.UtcNow;
         float deltaTime = Math.Clamp((float)(now - _lastFrameTime).TotalSeconds, 0.0f, 0.25f);
         _lastFrameTime = now;
 
-        int width = Math.Max(1, (int)Math.Ceiling(Bounds.Width));
-        int height = Math.Max(1, (int)Math.Ceiling(Bounds.Height));
+        int width;
+        int height;
+        if (!graphicsDevice.TryGetDefaultFramebufferSize(out width, out height))
+        {
+            double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+            width = Math.Max(1, (int)Math.Ceiling(Bounds.Width * renderScaling));
+            height = Math.Max(1, (int)Math.Ceiling(Bounds.Height * renderScaling));
+        }
+
         renderer.Resize(width, height);
 
         if (scene is not null)
@@ -226,6 +243,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
             camera.AspectRatio = (float)width / height;
             _inputAdapter ??= new AvaloniaCameraInputAdapter(this);
             scene.IsAnimationPaused = IsAnimationPaused;
+            long renderStartTimestamp = Stopwatch.GetTimestamp();
             if (viewportController is not null)
             {
                 viewportController.ResizeViewport(width, height);
@@ -238,7 +256,8 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
                 renderer.Render(scene, camera.GetView(), deltaTime);
             }
 
-            RenderFrame?.Invoke(this, new AvaloniaRenderFrameEventArgs(renderer, scene, camera, TimeSpan.FromSeconds(deltaTime)));
+            TimeSpan renderDuration = Stopwatch.GetElapsedTime(renderStartTimestamp);
+            RenderFrame?.Invoke(this, new AvaloniaRenderFrameEventArgs(renderer, scene, camera, TimeSpan.FromSeconds(deltaTime), renderDuration));
         }
         else
         {
@@ -276,6 +295,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _inputAdapter = null;
         _renderer = null;
         _graphicsDevice = null;
+        _loggedFramebufferSamples = false;
         base.OnOpenGlLost();
     }
 
@@ -283,7 +303,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         return new SceneRenderer(
             graphicsDevice,
-            new Vector4(0.07f, 0.09f, 0.13f, 1.0f),
+            RedFoxThemeColors.SceneBackgroundVector,
             new Vector3(0.13f, 0.13f, 0.16f),
             new Vector3(-0.4f, -1.0f, -0.2f),
             Vector3.One,

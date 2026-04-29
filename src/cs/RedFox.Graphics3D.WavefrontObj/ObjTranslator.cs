@@ -20,6 +20,11 @@ namespace RedFox.Graphics3D.WavefrontObj;
 /// </summary>
 public sealed class ObjTranslator : SceneTranslator
 {
+    /// <summary>
+    /// Scene translation option key that merges OBJ group/object mesh chunks into one mesh per material when set to <see langword="true"/>.
+    /// </summary>
+    public const string MergeStaticMeshesOption = "WavefrontObj.MergeStaticMeshes";
+
     /// <inheritdoc/>
     public override string Name => "WavefrontOBJ";
 

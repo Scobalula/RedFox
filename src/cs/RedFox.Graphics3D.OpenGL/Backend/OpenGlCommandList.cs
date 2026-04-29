@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.OpenGL.Resources;
 using Silk.NET.OpenGL;
 using System;
@@ -13,6 +13,8 @@ namespace RedFox.Graphics3D.OpenGL;
 internal sealed class OpenGlCommandList : ICommandList, IDisposable
 {
     private const int MaxLights = 4;
+    private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
+    private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
 
     private readonly Dictionary<int, OpenGlBuffer> _boundBuffers = [];
     private readonly OpenGlContext _context;
@@ -32,6 +34,9 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private bool _useViewBasedLighting;
     private uint _vertexArrayHandle;
 
+    /// <inheritdoc/>
+    public ulong FrameIndex { get; private set; }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenGlCommandList"/> class.
     /// </summary>
@@ -46,6 +51,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     public void Reset()
     {
         ThrowIfDisposed();
+        IncrementFrameIndex();
         _boundBuffers.Clear();
         _currentPipelineState = null;
         _ambientColor = Vector3.Zero;
@@ -77,6 +83,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             ? openGlRenderTarget.Handle
             : _context.DefaultFramebufferHandle;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
+        SetFramebufferDrawBuffer(gl, handle, _context.IsEmbeddedProfile);
+        if (renderTarget is OpenGlRenderTarget { SampleCount: > 1 })
+        {
+            gl.Enable(EnableCap.Multisample);
+        }
     }
 
     /// <inheritdoc/>
@@ -96,13 +107,54 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public void ResolveRenderTarget(IGpuRenderTarget source, IGpuRenderTarget? destination)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(source);
+
+        OpenGlRenderTarget openGlSource = source as OpenGlRenderTarget
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlRenderTarget)} for source render target.");
+        OpenGlRenderTarget? openGlDestination = destination as OpenGlRenderTarget;
+        uint destinationHandle = openGlDestination?.Handle ?? _context.DefaultFramebufferHandle;
+        int destinationWidth = openGlDestination?.Width ?? openGlSource.Width;
+        int destinationHeight = openGlDestination?.Height ?? openGlSource.Height;
+
+        GL gl = _context.Gl;
+        gl.BindFramebuffer(FramebufferTarget.ReadFramebuffer, openGlSource.Handle);
+        gl.ReadBuffer(GLEnum.ColorAttachment0);
+        EnsureFramebufferComplete(gl, FramebufferTarget.ReadFramebuffer, "read");
+
+        gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destinationHandle);
+        SetFramebufferDrawBuffer(gl, destinationHandle, _context.IsEmbeddedProfile);
+        EnsureFramebufferComplete(gl, FramebufferTarget.DrawFramebuffer, "draw");
+
+        gl.BlitFramebuffer(
+            0,
+            0,
+            openGlSource.Width,
+            openGlSource.Height,
+            0,
+            0,
+            destinationWidth,
+            destinationHeight,
+            (uint)ClearBufferMask.ColorBufferBit,
+            GLEnum.Nearest);
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, destinationHandle);
+    }
+
+    /// <inheritdoc/>
     public void SetPipelineState(IGpuPipelineState pipelineState)
     {
         ThrowIfDisposed();
 
-        _currentPipelineState = pipelineState as OpenGlPipelineState
+        OpenGlPipelineState nextPipelineState = pipelineState as OpenGlPipelineState
             ?? throw new InvalidOperationException($"Expected {nameof(OpenGlPipelineState)}.");
+        if (ReferenceEquals(_currentPipelineState, nextPipelineState))
+        {
+            return;
+        }
 
+        _currentPipelineState = nextPipelineState;
         ApplyPipelineState(_currentPipelineState);
     }
 
@@ -237,45 +289,50 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 
         OpenGlTexture openGlTexture = texture as OpenGlTexture
             ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)}.");
+        if (openGlTexture.IsRenderbuffer)
+        {
+            throw new InvalidOperationException("OpenGL renderbuffers cannot be bound as sampled textures.");
+        }
+
         GL gl = _context.Gl;
         gl.ActiveTexture(TextureUnit.Texture0 + slot);
-        gl.BindTexture(TextureTarget.Texture2D, openGlTexture.Handle);
+        gl.BindTexture(openGlTexture.Target, openGlTexture.Handle);
     }
 
     /// <inheritdoc/>
-    public void SetUniformInt(ReadOnlySpan<char> name, int value)
+    public void SetUniformInt(string name, int value)
     {
-        GetActiveProgram().SetInt(name.ToString(), value);
+        GetActiveProgram().SetInt(name, value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformFloat(ReadOnlySpan<char> name, float value)
+    public void SetUniformFloat(string name, float value)
     {
-        GetActiveProgram().SetFloat(name.ToString(), value);
+        GetActiveProgram().SetFloat(name, value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector2(ReadOnlySpan<char> name, Vector2 value)
+    public void SetUniformVector2(string name, Vector2 value)
     {
-        GetActiveProgram().SetVector2(name.ToString(), value);
+        GetActiveProgram().SetVector2(name, value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector3(ReadOnlySpan<char> name, Vector3 value)
+    public void SetUniformVector3(string name, Vector3 value)
     {
-        GetActiveProgram().SetVector3(name.ToString(), value);
+        GetActiveProgram().SetVector3(name, value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformVector4(ReadOnlySpan<char> name, Vector4 value)
+    public void SetUniformVector4(string name, Vector4 value)
     {
-        GetActiveProgram().SetVector4(name.ToString(), value);
+        GetActiveProgram().SetVector4(name, value);
     }
 
     /// <inheritdoc/>
-    public void SetUniformMatrix4x4(ReadOnlySpan<char> name, Matrix4x4 value)
+    public void SetUniformMatrix4x4(string name, Matrix4x4 value)
     {
-        GetActiveProgram().SetMatrix4(name.ToString(), value);
+        GetActiveProgram().SetMatrix4(name, value);
     }
 
     /// <inheritdoc/>
@@ -328,16 +385,15 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
-    public void PushDebugGroup(ReadOnlySpan<char> name)
+    public void PushDebugGroup(string name)
     {
         ThrowIfDisposed();
-        string groupName = name.ToString();
-        if (string.IsNullOrWhiteSpace(groupName))
+        if (string.IsNullOrWhiteSpace(name))
         {
             return;
         }
 
-        _context.Gl.PushDebugGroup(GLEnum.DebugSourceApplication, 0, (uint)groupName.Length, groupName);
+        _context.Gl.PushDebugGroup(GLEnum.DebugSourceApplication, 0, (uint)name.Length, name);
     }
 
     /// <inheritdoc/>
@@ -486,8 +542,48 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         graphicsProgram.SetInt("LightCount", appliedLightCount);
         for (int i = 0; i < MaxLights; i++)
         {
-            graphicsProgram.SetVector4($"LightDirectionsAndIntensity[{i}]", _lightDirectionsAndIntensity[i]);
-            graphicsProgram.SetVector3($"LightColors[{i}]", _lightColors[i]);
+            graphicsProgram.SetVector4(LightDirectionUniformNames[i], _lightDirectionsAndIntensity[i]);
+            graphicsProgram.SetVector3(LightColorUniformNames[i], _lightColors[i]);
+        }
+    }
+
+    private void IncrementFrameIndex()
+    {
+        unchecked
+        {
+            FrameIndex++;
+            if (FrameIndex == 0)
+            {
+                FrameIndex = 1;
+            }
+        }
+    }
+
+    private static string[] CreateIndexedUniformNames(string baseName, int count)
+    {
+        string[] names = new string[count];
+        for (int i = 0; i < names.Length; i++)
+        {
+            names[i] = $"{baseName}[{i}]";
+        }
+
+        return names;
+    }
+
+    private static void EnsureFramebufferComplete(GL gl, FramebufferTarget target, string label)
+    {
+        GLEnum status = gl.CheckFramebufferStatus(target);
+        if (status != GLEnum.FramebufferComplete)
+        {
+            throw new InvalidOperationException($"OpenGL {label} framebuffer is incomplete: {status}.");
+        }
+    }
+
+    private static void SetFramebufferDrawBuffer(GL gl, uint framebufferHandle, bool isEmbeddedProfile)
+    {
+        if (framebufferHandle != 0 && !isEmbeddedProfile)
+        {
+            gl.DrawBuffer(GLEnum.ColorAttachment0);
         }
     }
 

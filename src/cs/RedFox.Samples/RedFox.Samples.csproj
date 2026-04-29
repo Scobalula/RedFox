@@ -7,6 +7,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RedFox.Avalonia.Themes\RedFox.Avalonia.Themes.csproj" />
     <ProjectReference Include="..\RedFox.Compression\RedFox.Compression.csproj" />
     <ProjectReference Include="..\RedFox.Compression.Deflate\RedFox.Compression.Deflate.csproj" />
     <ProjectReference Include="..\RedFox.Compression.LZ4\RedFox.Compression.LZ4.csproj" />
@@ -15,6 +16,7 @@
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Bmp\RedFox.Graphics2D.Bmp.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics2D.Dds\RedFox.Graphics2D.Dds.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Jpeg\RedFox.Graphics2D.Jpeg.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Ktx\RedFox.Graphics2D.Ktx.csproj" />

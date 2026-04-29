@@ -1,16 +1,21 @@
 using System;
 using System.Numerics;
+using RedFox.Graphics2D;
 using RedFox.Graphics3D;
-using RedFox.Graphics3D.Rendering.Backend;
 using RedFox.Graphics3D.Rendering.Handles;
 
 namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
-/// Provides a backend-driven scene renderer that draws a scene with a camera.
+/// Provides a GPU-driven scene renderer that draws a scene with a camera.
 /// </summary>
 public sealed class SceneRenderer : IDisposable
 {
+    private const ImageFormat AntiAliasingColorFormat = ImageFormat.B8G8R8A8Unorm;
+    private const ImageFormat AntiAliasingDepthFormat = ImageFormat.D32Float;
+    private const int DefaultAntiAliasingSamples = 4;
+    private const int MinimumAntiAliasingSamples = 1;
+
     private static readonly RenderPhase[] RenderPhases =
     [
         RenderPhase.SkinningCompute,
@@ -22,9 +27,20 @@ public sealed class SceneRenderer : IDisposable
     private readonly ClearAndStateResetPass _clearAndStateResetPass;
     private readonly ICommandList _commandList;
     private readonly IGraphicsDevice _graphicsDevice;
+    private readonly List<SceneNode> _sceneTraversalNodes = [];
 
+    private IGpuTexture? _antiAliasingColorTexture;
+    private IGpuTexture? _antiAliasingDepthTexture;
+    private IGpuRenderTarget? _antiAliasingRenderTarget;
+    private int _actualAntiAliasingSamples = MinimumAntiAliasingSamples;
+    private int _antiAliasingSamples = DefaultAntiAliasingSamples;
+    private int _antiAliasingTargetHeight;
+    private int _antiAliasingTargetWidth;
+    private int _externalAntiAliasingSamples = MinimumAntiAliasingSamples;
     private bool _disposed;
     private bool _initialized;
+    private Scene? _sceneTraversalScene;
+    private long _sceneTraversalVersion = -1;
     private int _viewportHeight = 1;
     private int _viewportWidth = 1;
 
@@ -71,6 +87,62 @@ public sealed class SceneRenderer : IDisposable
     /// Gets or sets the skinning mode used during rendering.
     /// </summary>
     public SkinningMode SkinningMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the requested multisample anti-aliasing sample count. The default is 4.
+    /// </summary>
+    public int AntiAliasingSamples
+    {
+        get => _antiAliasingSamples;
+        set
+        {
+            if (value < MinimumAntiAliasingSamples)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Anti-aliasing samples must be at least 1.");
+            }
+
+            if (_antiAliasingSamples == value)
+            {
+                return;
+            }
+
+            _antiAliasingSamples = value;
+            ReleaseAntiAliasingResources();
+        }
+    }
+
+    /// <summary>
+    /// Gets the multisample anti-aliasing sample count used by the current render target.
+    /// </summary>
+    public int ActualAntiAliasingSamples => _actualAntiAliasingSamples;
+
+    /// <summary>
+    /// Gets or sets the sample count already provided by the bound default framebuffer.
+    /// When greater than one, the renderer uses that framebuffer directly instead of resolving into it.
+    /// </summary>
+    public int ExternalAntiAliasingSamples
+    {
+        get => _externalAntiAliasingSamples;
+        set
+        {
+            if (value < MinimumAntiAliasingSamples)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "External anti-aliasing samples must be at least 1.");
+            }
+
+            if (_externalAntiAliasingSamples == value)
+            {
+                return;
+            }
+
+            _externalAntiAliasingSamples = value;
+            ReleaseAntiAliasingResources();
+            if (_externalAntiAliasingSamples > MinimumAntiAliasingSamples)
+            {
+                _actualAntiAliasingSamples = _externalAntiAliasingSamples;
+            }
+        }
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SceneRenderer"/> class.
@@ -127,8 +199,15 @@ public sealed class SceneRenderer : IDisposable
     public void Resize(int width, int height)
     {
         ThrowIfDisposed();
-        _viewportWidth = Math.Max(1, width);
-        _viewportHeight = Math.Max(1, height);
+        int safeWidth = Math.Max(1, width);
+        int safeHeight = Math.Max(1, height);
+        if (_viewportWidth != safeWidth || _viewportHeight != safeHeight)
+        {
+            ReleaseAntiAliasingResources();
+        }
+
+        _viewportWidth = safeWidth;
+        _viewportHeight = safeHeight;
         _clearAndStateResetPass.Resize(_viewportWidth, _viewportHeight);
     }
 
@@ -159,30 +238,129 @@ public sealed class SceneRenderer : IDisposable
         _commandList.ResetLights(FallbackLightDirection, FallbackLightColor, FallbackLightIntensity);
 
         Vector2 viewportSize = new(_viewportWidth, _viewportHeight);
+        IGpuRenderTarget? antiAliasingRenderTarget = EnsureAntiAliasingRenderTarget();
         RenderFrameContext context = CreateFrameContext(scene, view, viewportSize, deltaTime);
         context.Set<ICommandList>(_commandList);
         context.Set<IGraphicsDevice>(_graphicsDevice);
+        if (antiAliasingRenderTarget is not null)
+        {
+            context.Set(antiAliasingRenderTarget);
+        }
+
+        IReadOnlyList<SceneNode> sceneTraversalNodes = GetSceneTraversalNodes(scene);
 
         _clearAndStateResetPass.Execute(context);
-        SceneTraversal.Update(scene.RootNode, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
+        SceneTraversal.Update(sceneTraversalNodes, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
+        UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
 
         for (int i = 0; i < RenderPhases.Length; i++)
         {
             RenderPhase phase = RenderPhases[i];
-            SceneTraversal.Render(
-                scene.RootNode,
-                _commandList,
-                phase,
-                view.ViewMatrix,
-                view.ProjectionMatrix,
-                sceneAxis,
-                view.Position,
-                viewportSize);
+            RenderSkybox(scene.Skybox, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
+            SceneTraversal.Render(sceneTraversalNodes, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
             RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
 
+        if (antiAliasingRenderTarget is not null)
+        {
+            _commandList.ResolveRenderTarget(antiAliasingRenderTarget, null);
+        }
+
         _graphicsDevice.Submit(_commandList);
+    }
+
+    private IReadOnlyList<SceneNode> GetSceneTraversalNodes(Scene scene)
+    {
+        if (ReferenceEquals(_sceneTraversalScene, scene) && _sceneTraversalVersion == scene.Version)
+        {
+            return _sceneTraversalNodes;
+        }
+
+        _sceneTraversalNodes.Clear();
+        SceneTraversal.CollectPostOrder(scene.RootNode, _sceneTraversalNodes);
+        _sceneTraversalScene = scene;
+        _sceneTraversalVersion = scene.Version;
+        return _sceneTraversalNodes;
+    }
+
+    private IGpuRenderTarget? EnsureAntiAliasingRenderTarget()
+    {
+        if (_externalAntiAliasingSamples > MinimumAntiAliasingSamples)
+        {
+            ReleaseAntiAliasingResources();
+            _actualAntiAliasingSamples = _externalAntiAliasingSamples;
+            return null;
+        }
+
+        if (_antiAliasingSamples <= MinimumAntiAliasingSamples)
+        {
+            ReleaseAntiAliasingResources();
+            _actualAntiAliasingSamples = MinimumAntiAliasingSamples;
+            return null;
+        }
+
+        int sampleCount = GetSupportedAntiAliasingSampleCount(_antiAliasingSamples);
+        if (sampleCount <= MinimumAntiAliasingSamples)
+        {
+            ReleaseAntiAliasingResources();
+            _actualAntiAliasingSamples = MinimumAntiAliasingSamples;
+            return null;
+        }
+
+        if (_antiAliasingRenderTarget is not null
+            && _antiAliasingTargetWidth == _viewportWidth
+            && _antiAliasingTargetHeight == _viewportHeight
+            && _actualAntiAliasingSamples == sampleCount)
+        {
+            return _antiAliasingRenderTarget;
+        }
+
+        ReleaseAntiAliasingResources();
+        try
+        {
+            _antiAliasingColorTexture = _graphicsDevice.CreateTexture(
+                _viewportWidth,
+                _viewportHeight,
+                AntiAliasingColorFormat,
+                TextureUsage.RenderTarget,
+                sampleCount);
+            _antiAliasingDepthTexture = _graphicsDevice.CreateTexture(
+                _viewportWidth,
+                _viewportHeight,
+                AntiAliasingDepthFormat,
+                TextureUsage.DepthStencil,
+                sampleCount);
+            _antiAliasingRenderTarget = _graphicsDevice.CreateRenderTarget(_antiAliasingColorTexture, _antiAliasingDepthTexture);
+        }
+        catch (NotSupportedException)
+        {
+            ReleaseAntiAliasingResources();
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            ReleaseAntiAliasingResources();
+            return null;
+        }
+
+        _antiAliasingTargetWidth = _viewportWidth;
+        _antiAliasingTargetHeight = _viewportHeight;
+        _actualAntiAliasingSamples = sampleCount;
+        return _antiAliasingRenderTarget;
+    }
+
+    private int GetSupportedAntiAliasingSampleCount(int requestedSampleCount)
+    {
+        int colorSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(
+            AntiAliasingColorFormat,
+            TextureUsage.RenderTarget,
+            requestedSampleCount);
+        int depthSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(
+            AntiAliasingDepthFormat,
+            TextureUsage.DepthStencil,
+            colorSampleCount);
+        return Math.Min(colorSampleCount, depthSampleCount);
     }
 
     /// <summary>
@@ -192,6 +370,10 @@ public sealed class SceneRenderer : IDisposable
     public void ReleaseResources(Scene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        _sceneTraversalScene = null;
+        _sceneTraversalVersion = -1;
+        _sceneTraversalNodes.Clear();
+        ReleaseSkyboxResources(scene.Skybox);
         ReleaseGridResources(scene.Grid);
         ReleaseResources(scene.RootNode);
     }
@@ -231,6 +413,7 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
+        ReleaseAntiAliasingResources();
         _clearAndStateResetPass.Dispose();
         _graphicsDevice.Dispose();
         _initialized = false;
@@ -272,6 +455,40 @@ public sealed class SceneRenderer : IDisposable
         grid.GraphicsHandle.Update(_commandList);
     }
 
+    private void UpdateSkybox(Skybox skybox, Scene scene)
+    {
+        if (!skybox.Enabled)
+        {
+            return;
+        }
+
+        skybox.GraphicsHandle ??= new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene);
+        skybox.GraphicsHandle.Update(_commandList);
+    }
+
+    private void RenderSkybox(
+        Skybox skybox,
+        RenderPhase phase,
+        in Matrix4x4 view,
+        in Matrix4x4 projection,
+        Vector3 cameraPosition,
+        Vector2 viewportSize)
+    {
+        if (!skybox.Enabled || skybox.GraphicsHandle is null)
+        {
+            return;
+        }
+
+        skybox.GraphicsHandle.Render(
+            _commandList,
+            phase,
+            view,
+            projection,
+            Matrix4x4.Identity,
+            cameraPosition,
+            viewportSize);
+    }
+
     private void RenderGrid(
         Grid grid,
         RenderPhase phase,
@@ -307,9 +524,34 @@ public sealed class SceneRenderer : IDisposable
         grid.GraphicsHandle = null;
     }
 
+    private static void ReleaseSkyboxResources(Skybox skybox)
+    {
+        if (skybox.GraphicsHandle is not { } graphicsHandle)
+        {
+            return;
+        }
+
+        graphicsHandle.Release();
+        graphicsHandle.Dispose();
+        skybox.GraphicsHandle = null;
+    }
+
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    private void ReleaseAntiAliasingResources()
+    {
+        _antiAliasingRenderTarget?.Dispose();
+        _antiAliasingRenderTarget = null;
+        _antiAliasingDepthTexture?.Dispose();
+        _antiAliasingDepthTexture = null;
+        _antiAliasingColorTexture?.Dispose();
+        _antiAliasingColorTexture = null;
+        _antiAliasingTargetWidth = 0;
+        _antiAliasingTargetHeight = 0;
+        _actualAntiAliasingSamples = MinimumAntiAliasingSamples;
     }
 
     private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)

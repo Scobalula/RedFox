@@ -1,5 +1,5 @@
-﻿using System.Numerics;
-using RedFox.Graphics3D.Rendering.Backend;
+using System.Numerics;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Handles;
 using RedFox.Graphics3D.Rendering.Materials;
 
@@ -10,10 +10,25 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public class SkeletonBone : SceneNode
 {
+    private bool _showSkeletonBone = true;
+
     /// <summary>
     /// Gets or sets a value indicating whether this skeleton bone should be rendered.
     /// </summary>
-    public bool ShowSkeletonBone { get; set; } = true;
+    public bool ShowSkeletonBone
+    {
+        get => _showSkeletonBone;
+        set
+        {
+            if (_showSkeletonBone == value)
+            {
+                return;
+            }
+
+            _showSkeletonBone = value;
+            Scene?.NotifyChanged(SceneChangeKind.NodeChanged, this);
+        }
+    }
 
     /// <summary>
     /// Gets or sets a value indicating whether this bone should render on top of scene geometry.

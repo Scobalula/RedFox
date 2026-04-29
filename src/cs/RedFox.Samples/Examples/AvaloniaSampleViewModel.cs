@@ -1,6 +1,8 @@
 using Avalonia.Platform.Storage;
+using RedFox.Avalonia.Themes;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering.Hosting;
+using RedFox.Graphics3D.Skeletal;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Numerics;
@@ -80,7 +82,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
 
     public ObservableCollection<SceneNodeItem> Nodes { get; } = [];
 
-    public Vector4 ClearColor { get; } = new(0.07f, 0.09f, 0.13f, 1.0f);
+    public Vector4 ClearColor { get; } = RedFoxThemeColors.SceneBackgroundVector;
 
     public bool UseViewBasedLighting
     {
@@ -359,6 +361,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
         {
             ShowGrid = ShowGrid,
             UseViewBasedLighting = UseViewBasedLighting,
+            ShowSkeletonBones = _context?.Options.ShowSkeletonBones ?? false,
             SkinningMode = SkinningMode,
             UpAxis = _context?.Options.UpAxis ?? SceneUpAxis.Y,
             FaceWinding = _context?.Options.FaceWinding ?? FaceWinding.CounterClockwise

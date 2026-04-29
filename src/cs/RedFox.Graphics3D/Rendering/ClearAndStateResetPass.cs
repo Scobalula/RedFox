@@ -1,11 +1,11 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using System;
 using System.Numerics;
 
 namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
-/// Shared setup pass that resets command-list state for a new frame and clears the default render target.
+/// Shared setup pass that resets command-list state for a new frame and clears the active render target.
 /// </summary>
 public sealed class ClearAndStateResetPass : RenderPass
 {
@@ -32,8 +32,9 @@ public sealed class ClearAndStateResetPass : RenderPass
         ArgumentNullException.ThrowIfNull(context);
 
         ICommandList commandList = context.GetRequired<ICommandList>();
+        context.TryGet(out IGpuRenderTarget? renderTarget);
         commandList.SetViewport((int)context.ViewportSize.X, (int)context.ViewportSize.Y);
-        commandList.SetRenderTarget(null);
+        commandList.SetRenderTarget(renderTarget);
         commandList.ClearRenderTarget(ClearColor.X, ClearColor.Y, ClearColor.Z, ClearColor.W, depth: 1.0f);
     }
 }

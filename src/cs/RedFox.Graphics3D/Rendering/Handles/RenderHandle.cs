@@ -1,15 +1,24 @@
 using System;
 using System.Numerics;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
 
 /// <summary>
-/// Provides a common base for render handles that own backend resources.
+/// Provides a common base for render handles that own GPU resources.
 /// </summary>
 internal abstract class RenderHandle : IRenderHandle
 {
     private bool _disposed;
+
+    /// <inheritdoc/>
+    public virtual RenderPhaseMask RenderPhases => RenderPhaseMask.SkinningCompute
+        | RenderPhaseMask.Opaque
+        | RenderPhaseMask.Transparent
+        | RenderPhaseMask.Overlay;
+
+    /// <inheritdoc/>
+    public virtual bool RequiresPerFrameUpdate => true;
 
     /// <inheritdoc/>
     public abstract void Update(ICommandList commandList);
@@ -52,7 +61,7 @@ internal abstract class RenderHandle : IRenderHandle
     }
 
     /// <summary>
-    /// Releases handle-specific backend resources.
+    /// Releases handle-specific GPU resources.
     /// </summary>
     protected virtual void ReleaseCore()
     {

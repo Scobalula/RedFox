@@ -14,5 +14,5 @@ internal sealed class D3D11MeshSample : ISample
     public string Description => "Opens a Direct3D 11 window and renders a lit untextured mesh scene from one or more supported translator files (or a fallback triangle).";
 
     /// <inheritdoc />
-    public int Run(string[] arguments) => SilkMeshSampleRunner.Run(arguments, "RedFox D3D11 Mesh Sample", "D3D11 Scene", new D3D11SilkBackendFactory());
+    public int Run(string[] arguments) => SilkMeshSampleRunner.Run(arguments, "RedFox D3D11 Mesh Sample", "D3D11 Scene", new D3D11SilkPresenterFactory());
 }

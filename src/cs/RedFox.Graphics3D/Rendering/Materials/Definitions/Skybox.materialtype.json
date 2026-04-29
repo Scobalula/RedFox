@@ -1,0 +1,31 @@
+{
+  "name": "Skybox",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Skybox",
+  "fragmentShaderName": "Skybox",
+  "vertexAttributes": [],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "counterClockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": false,
+    "depthWrite": false,
+    "depthCompareFunc": "always",
+    "primitiveTopology": "triangles"
+  },
+  "requirements": {
+    "textures": [
+      { "name": "SkyboxTexture", "slot": 0, "required": true }
+    ],
+    "uniforms": [
+      { "name": "InverseView", "valueType": "matrix4x4", "required": true },
+      { "name": "InverseProjection", "valueType": "matrix4x4", "required": true },
+      { "name": "SkyboxTint", "valueType": "float4", "required": false },
+      { "name": "SkyboxIntensity", "valueType": "float", "required": false }
+    ]
+  }
+}

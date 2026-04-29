@@ -26,6 +26,7 @@ internal sealed class SceneFileImporter
         }
 
         Scene scene = new(Path.GetFileName(paths[0]));
+        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
         SceneTranslatorManager manager = CreateTranslatorManager();
         for (int i = 0; i < paths.Count; i++)
         {
@@ -45,6 +46,7 @@ internal sealed class SceneFileImporter
     public Scene CreateFallbackScene(string name)
     {
         Scene scene = new(name);
+        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
         Mesh mesh = scene.RootNode.AddNode<Mesh>(CreateTriangleMesh(GetUniqueChildName(scene.RootNode, "Triangle")));
         Material material = new("TriangleMaterial")
         {

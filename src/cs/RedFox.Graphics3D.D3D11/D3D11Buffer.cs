@@ -1,5 +1,5 @@
 using System;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.Core.Native;
 using Silk.NET.Direct3D11;
 

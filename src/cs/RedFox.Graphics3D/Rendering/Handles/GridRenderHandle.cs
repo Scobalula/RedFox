@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
@@ -63,11 +63,16 @@ internal sealed class GridRenderHandle : RenderHandle
             return;
         }
 
+        if (!Matrix4x4.Invert(view, out Matrix4x4 inverseView) || !Matrix4x4.Invert(projection, out Matrix4x4 inverseProjection))
+        {
+            return;
+        }
+
         commandList.SetPipelineState(_pipeline);
         commandList.SetUniformMatrix4x4("View", view);
         commandList.SetUniformMatrix4x4("Projection", projection);
-        commandList.SetUniformVector3("CameraPosition", cameraPosition);
-        commandList.SetUniformFloat("GridSize", ResolveGridSize(_grid));
+        commandList.SetUniformMatrix4x4("InverseView", inverseView);
+        commandList.SetUniformMatrix4x4("InverseProjection", inverseProjection);
         commandList.SetUniformFloat("GridCellSize", ResolveCellSize(_grid));
         commandList.SetUniformFloat("GridMajorStep", MathF.Max(_grid.MajorStep, 2));
         commandList.SetUniformFloat("GridMinPixelsBetweenCells", MathF.Max(_grid.MinimumPixelsBetweenCells, MinimumPixelsBetweenCells));
@@ -76,8 +81,6 @@ internal sealed class GridRenderHandle : RenderHandle
         commandList.SetUniformVector4("GridMajorColor", _grid.MajorColor);
         commandList.SetUniformVector4("GridAxisXColor", _grid.AxisXColor);
         commandList.SetUniformVector4("GridAxisZColor", _grid.AxisZColor);
-        commandList.SetUniformFloat("FadeStartDistance", _grid.FadeEnabled ? ResolveFadeStartDistance(_grid) : 0.0f);
-        commandList.SetUniformFloat("FadeEndDistance", _grid.FadeEnabled ? ResolveFadeEndDistance(_grid) : 0.0f);
         commandList.Draw(GridVertexCount, 0);
     }
 
@@ -97,22 +100,6 @@ internal sealed class GridRenderHandle : RenderHandle
 
         MaterialTypeDefinition definition = _materialTypes.Get("Grid");
         _pipeline = definition.BuildPipeline(_graphicsDevice);
-    }
-
-    private static float ResolveFadeEndDistance(Grid grid)
-    {
-        float fadeStart = ResolveFadeStartDistance(grid);
-        return grid.FadeEndDistance > fadeStart ? grid.FadeEndDistance : ResolveGridSize(grid) * 1.25f;
-    }
-
-    private static float ResolveFadeStartDistance(Grid grid)
-    {
-        return grid.FadeStartDistance > 0.0f ? grid.FadeStartDistance : ResolveGridSize(grid) * 0.375f;
-    }
-
-    private static float ResolveGridSize(Grid grid)
-    {
-        return MathF.Max(grid.Size, ResolveCellSize(grid));
     }
 
     private static float ResolveCellSize(Grid grid)

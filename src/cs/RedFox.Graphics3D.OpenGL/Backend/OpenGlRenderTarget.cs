@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.OpenGL;
 using System;
 
@@ -26,6 +26,21 @@ internal sealed class OpenGlRenderTarget : IGpuRenderTarget
     /// </summary>
     internal OpenGlTexture? DepthTexture { get; }
 
+    /// <summary>
+    /// Gets the render target width in pixels.
+    /// </summary>
+    internal int Width => ColorTexture.Width;
+
+    /// <summary>
+    /// Gets the render target height in pixels.
+    /// </summary>
+    internal int Height => ColorTexture.Height;
+
+    /// <summary>
+    /// Gets the render target sample count.
+    /// </summary>
+    internal int SampleCount => ColorTexture.SampleCount;
+
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
 
@@ -42,6 +57,10 @@ internal sealed class OpenGlRenderTarget : IGpuRenderTarget
         Handle = handle;
         ColorTexture = colorTexture ?? throw new ArgumentNullException(nameof(colorTexture));
         DepthTexture = depthTexture;
+        if (DepthTexture is not null && DepthTexture.SampleCount != ColorTexture.SampleCount)
+        {
+            throw new ArgumentException("Depth attachment sample count must match color attachment sample count.", nameof(depthTexture));
+        }
     }
 
     /// <inheritdoc/>

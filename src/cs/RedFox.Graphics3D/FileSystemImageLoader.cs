@@ -10,7 +10,10 @@ namespace RedFox.Graphics3D
     /// </summary>
     public sealed class FileSystemImageLoader : IImageLoader
     {
-        public static FileSystemImageLoader Shared => new();
+        /// <summary>
+        /// Gets the shared file-system image loader instance.
+        /// </summary>
+        public static FileSystemImageLoader Shared { get; } = new();
 
         /// <inheritdoc/>
         public Image? Load(string filePath, ImageTranslatorManager translatorManager)

@@ -2,31 +2,33 @@
 
 uniform mat4 View;
 uniform mat4 Projection;
-uniform vec3 CameraPosition;
-uniform float GridSize;
+uniform mat4 InverseView;
+uniform mat4 InverseProjection;
 
-const vec3 GridPositions[4] = vec3[4](
-    vec3(-1.0, 0.0, -1.0),
-    vec3(1.0, 0.0, -1.0),
-    vec3(1.0, 0.0, 1.0),
-    vec3(-1.0, 0.0, 1.0)
+const vec2 GridPositions[4] = vec2[4](
+    vec2(-1.0, -1.0),
+    vec2(1.0, -1.0),
+    vec2(1.0, 1.0),
+    vec2(-1.0, 1.0)
 );
 
 const int GridIndices[6] = int[6](0, 1, 2, 2, 3, 0);
 
-out vec2 GridUv;
-out vec2 CameraGridPosition;
-out vec3 WorldPosition;
+out vec3 NearPoint;
+out vec3 FarPoint;
+
+vec3 UnprojectPoint(vec2 position, float depth)
+{
+    vec4 unprojected = InverseView * InverseProjection * vec4(position, depth, 1.0);
+    return unprojected.xyz / unprojected.w;
+}
 
 void main()
 {
     int index = GridIndices[gl_VertexID];
-    vec3 position = GridPositions[index] * GridSize;
-    position.x += CameraPosition.x;
-    position.z += CameraPosition.z;
+    vec2 position = GridPositions[index];
 
-    WorldPosition = position;
-    GridUv = position.xz;
-    CameraGridPosition = CameraPosition.xz;
-    gl_Position = Projection * View * vec4(position, 1.0);
+    NearPoint = UnprojectPoint(position, -1.0);
+    FarPoint = UnprojectPoint(position, 1.0);
+    gl_Position = vec4(position, 0.0, 1.0);
 }

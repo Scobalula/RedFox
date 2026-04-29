@@ -2,13 +2,13 @@ using System;
 using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
 
 /// <summary>
-/// Owns mesh backend resources and coordinates material-driven rendering.
+/// Owns mesh GPU resources and coordinates material-driven rendering.
 /// </summary>
 internal sealed class MeshRenderHandle : RenderHandle
 {
@@ -42,14 +42,22 @@ internal sealed class MeshRenderHandle : RenderHandle
     private int _indexBufferSizeBytes;
     private int _indexCount;
     private IGpuBuffer? _indexBuffer;
+    private Material? _material;
+    private MaterialRenderHandle? _materialHandle;
+    private uint _materialVersion;
     private IGpuBuffer? _normalBuffer;
     private int _normalBufferSizeBytes;
     private IGpuBuffer? _positionBuffer;
     private int _positionBufferSizeBytes;
+    private RenderPhaseMask _renderPhases;
     private IGpuPipelineState? _skinningPipeline;
     private int _skinInfluenceCount;
     private IGpuBuffer? _skinTransformBuffer;
     private int _skinTransformBufferSizeBytes;
+    private bool _skinningNeedsDispatch;
+    private bool _hasSkinnedOutputBuffer;
+    private Matrix4x4[] _lastSkinTransforms = Array.Empty<Matrix4x4>();
+    private int _lastSkinTransformCount;
     private Matrix4x4[] _skinTransformsScratch = Array.Empty<Matrix4x4>();
     private IGpuBuffer? _sourceNormalBuffer;
     private int _sourceNormalBufferSizeBytes;
@@ -72,12 +80,19 @@ internal sealed class MeshRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
+    public override RenderPhaseMask RenderPhases => _renderPhases;
+
+    /// <inheritdoc/>
+    public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
+
+    /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
         _skinningDispatchedThisFrame = false;
+        _renderPhases = RenderPhaseMask.None;
 
         if (_mesh.Positions is not { ElementCount: > 0 } positions)
         {
@@ -97,13 +112,16 @@ internal sealed class MeshRenderHandle : RenderHandle
         }
 
         _vertexCount = positions.ElementCount;
+        bool computeSkinningRequested = IsComputeSkinningRequested();
+
+        if (!computeSkinningRequested && CanSkipStaticGeometryUpdate(positions, normals, _mesh.FaceIndices))
+        {
+            _renderPhases = RenderPhaseMask.Opaque;
+            UpdateMaterialHandle(commandList);
+            return;
+        }
 
         bool geometryChanged = GeometryChanged(positions, normals, _mesh.FaceIndices);
-        bool computeSkinningRequested = _graphicsDevice.SupportsCompute
-            && _mesh.HasSkinning
-            && _mesh.BoneIndices is { ElementCount: > 0 }
-            && _mesh.BoneWeights is { ElementCount: > 0 }
-            && _mesh.SkinnedBones is { Count: > 0 };
 
         if (computeSkinningRequested)
         {
@@ -142,6 +160,7 @@ internal sealed class MeshRenderHandle : RenderHandle
                     _cachedBoneIndices = _mesh.BoneIndices;
                     _cachedBoneWeights = _mesh.BoneWeights;
                     _cachedUsesComputeSkinning = true;
+                    _hasSkinnedOutputBuffer = false;
                 }
             }
 
@@ -153,13 +172,18 @@ internal sealed class MeshRenderHandle : RenderHandle
                 _cachedUsesComputeSkinning = true;
             }
 
-            UpdateSkinTransformBuffer();
+            bool skinTransformsChanged = UpdateSkinTransformBuffer();
+            _skinningNeedsDispatch = computeSkinningRequested
+                && HasComputeSkinningResources()
+                && (skinningInputsChanged || skinTransformsChanged || !_hasSkinnedOutputBuffer);
         }
 
         if (!computeSkinningRequested)
         {
             _skinInfluenceCount = 0;
             _boneCount = 0;
+            _skinningNeedsDispatch = false;
+            _hasSkinnedOutputBuffer = false;
 
             if (geometryChanged || _cachedUsesComputeSkinning || _positionBuffer is null || _normalBuffer is null)
             {
@@ -193,11 +217,16 @@ internal sealed class MeshRenderHandle : RenderHandle
             _cachedFaceIndices = _mesh.FaceIndices;
         }
 
-        if (_mesh.Materials is { Count: > 0 } materials)
+        if (_vertexCount > 0 && _positionBuffer is not null && _normalBuffer is not null)
         {
-            MaterialRenderHandle materialHandle = EnsureMaterialHandle(materials[0]);
-            materialHandle.Update(commandList);
+            _renderPhases = RenderPhaseMask.Opaque;
+            if (_skinningNeedsDispatch && HasComputeSkinningResources())
+            {
+                _renderPhases |= RenderPhaseMask.SkinningCompute;
+            }
         }
+
+        UpdateMaterialHandle(commandList);
     }
 
     /// <inheritdoc/>
@@ -241,7 +270,7 @@ internal sealed class MeshRenderHandle : RenderHandle
             }
         }
 
-        Matrix4x4 modelMatrix = _skinningDispatchedThisFrame ? Matrix4x4.Identity : _mesh.GetBindWorldMatrix();
+        Matrix4x4 modelMatrix = _hasSkinnedOutputBuffer || _skinningDispatchedThisFrame ? Matrix4x4.Identity : _mesh.GetBindWorldMatrix();
 
         commandList.SetUniformMatrix4x4("Model", modelMatrix);
         commandList.SetUniformMatrix4x4("View", view);
@@ -300,12 +329,24 @@ internal sealed class MeshRenderHandle : RenderHandle
         commandList.Dispatch((_vertexCount + 63) / 64, 1, 1);
         commandList.MemoryBarrier();
         _skinningDispatchedThisFrame = true;
+        _skinningNeedsDispatch = false;
+        _hasSkinnedOutputBuffer = true;
     }
 
     private MaterialRenderHandle EnsureMaterialHandle(Material material)
     {
+        if (ReferenceEquals(_material, material)
+            && _materialHandle is not null
+            && ReferenceEquals(material.GraphicsHandle, _materialHandle)
+            && _materialHandle.IsOwnedBy(_graphicsDevice))
+        {
+            return _materialHandle;
+        }
+
         if (material.GraphicsHandle is MaterialRenderHandle existingHandle && existingHandle.IsOwnedBy(_graphicsDevice))
         {
+            _material = material;
+            _materialHandle = existingHandle;
             return existingHandle;
         }
 
@@ -320,6 +361,8 @@ internal sealed class MeshRenderHandle : RenderHandle
             ?? throw new InvalidOperationException($"Material '{material.Name}' did not create a {nameof(MaterialRenderHandle)}.");
 
         material.GraphicsHandle = materialHandle;
+        _material = material;
+        _materialHandle = materialHandle;
         return materialHandle;
     }
 
@@ -362,12 +405,14 @@ internal sealed class MeshRenderHandle : RenderHandle
         pipeline = definition.BuildPipeline(_graphicsDevice);
     }
 
-    private void UpdateSkinTransformBuffer()
+    private bool UpdateSkinTransformBuffer()
     {
         if (_boneCount <= 0)
         {
             DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
-            return;
+            _lastSkinTransformCount = 0;
+            _hasSkinnedOutputBuffer = false;
+            return false;
         }
 
         EnsureSkinTransformsScratchCapacity(_boneCount);
@@ -375,11 +420,52 @@ internal sealed class MeshRenderHandle : RenderHandle
         if (copiedTransforms < _boneCount)
         {
             DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
-            return;
+            _lastSkinTransformCount = 0;
+            _hasSkinnedOutputBuffer = false;
+            return false;
         }
 
-        ReadOnlySpan<byte> transformBytes = MemoryMarshal.AsBytes(_skinTransformsScratch.AsSpan(0, copiedTransforms));
+        ReadOnlySpan<Matrix4x4> transforms = _skinTransformsScratch.AsSpan(0, copiedTransforms);
+        bool transformsChanged = SkinTransformsChanged(transforms);
+        if (!transformsChanged && _skinTransformBuffer is not null)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> transformBytes = MemoryMarshal.AsBytes(transforms);
         EnsureOrUpdateBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes, 16 * sizeof(float), BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, transformBytes);
+        CacheSkinTransforms(transforms);
+        return true;
+    }
+
+    private bool SkinTransformsChanged(ReadOnlySpan<Matrix4x4> transforms)
+    {
+        if (_lastSkinTransformCount != transforms.Length || _lastSkinTransforms.Length < transforms.Length)
+        {
+            return true;
+        }
+
+        ReadOnlySpan<Matrix4x4> lastTransforms = _lastSkinTransforms.AsSpan(0, transforms.Length);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (lastTransforms[i] != transforms[i])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CacheSkinTransforms(ReadOnlySpan<Matrix4x4> transforms)
+    {
+        if (_lastSkinTransforms.Length < transforms.Length)
+        {
+            _lastSkinTransforms = new Matrix4x4[transforms.Length];
+        }
+
+        transforms.CopyTo(_lastSkinTransforms);
+        _lastSkinTransformCount = transforms.Length;
     }
 
     private void EnsureSkinTransformsScratchCapacity(int requiredBoneCount)
@@ -404,6 +490,9 @@ internal sealed class MeshRenderHandle : RenderHandle
         DisposeBuffer(ref _skinTransformBuffer, ref _skinTransformBufferSizeBytes);
         _skinningPipeline?.Dispose();
         _skinningPipeline = null;
+        _skinningNeedsDispatch = false;
+        _hasSkinnedOutputBuffer = false;
+        _lastSkinTransformCount = 0;
     }
 
     private void DisposeBuffer(ref IGpuBuffer? buffer, ref int sizeBytes)
@@ -429,6 +518,86 @@ internal sealed class MeshRenderHandle : RenderHandle
         _indexCount = 0;
         _skinInfluenceCount = 0;
         _boneCount = 0;
+        _skinningNeedsDispatch = false;
+        _hasSkinnedOutputBuffer = false;
+        _lastSkinTransformCount = 0;
+        _material = null;
+        _materialHandle = null;
+        _materialVersion = 0;
+        _renderPhases = RenderPhaseMask.None;
+    }
+
+    private bool NeedsPerFrameUpdate()
+    {
+        if (IsComputeSkinningRequested())
+        {
+            return true;
+        }
+
+        if (_mesh.Positions is not { ElementCount: > 0 } positions)
+        {
+            return true;
+        }
+
+        if (_mesh.Normals is not { ElementCount: > 0 } normals)
+        {
+            return true;
+        }
+
+        Material? material = GetPrimaryMaterial();
+        return !CanSkipStaticGeometryUpdate(positions, normals, _mesh.FaceIndices)
+            || !ReferenceEquals(_material, material)
+            || (material is not null && _materialVersion != material.Version);
+    }
+
+    private bool CanSkipStaticGeometryUpdate(Buffers.DataBuffer positions, Buffers.DataBuffer normals, Buffers.DataBuffer? faceIndices)
+    {
+        return !_cachedUsesComputeSkinning
+            && _positionBuffer is not null
+            && _normalBuffer is not null
+            && ReferenceEquals(_cachedPositions, positions)
+            && ReferenceEquals(_cachedNormals, normals)
+            && ReferenceEquals(_cachedFaceIndices, faceIndices);
+    }
+
+    private bool IsComputeSkinningRequested()
+    {
+        return _graphicsDevice.SupportsCompute
+            && _mesh.HasSkinning
+            && _mesh.BoneIndices is { ElementCount: > 0 }
+            && _mesh.BoneWeights is { ElementCount: > 0 }
+            && _mesh.SkinnedBones is { Count: > 0 };
+    }
+
+    private bool HasComputeSkinningResources()
+    {
+        return _skinningPipeline is not null
+            && _sourcePositionBuffer is not null
+            && _sourceNormalBuffer is not null
+            && _boneIndexBuffer is not null
+            && _boneWeightBuffer is not null
+            && _skinTransformBuffer is not null;
+    }
+
+    private void UpdateMaterialHandle(ICommandList commandList)
+    {
+        Material? material = GetPrimaryMaterial();
+        if (material is not null)
+        {
+            MaterialRenderHandle materialHandle = EnsureMaterialHandle(material);
+            materialHandle.Update(commandList);
+            _materialVersion = material.Version;
+            return;
+        }
+
+        _material = null;
+        _materialHandle = null;
+        _materialVersion = 0;
+    }
+
+    private Material? GetPrimaryMaterial()
+    {
+        return _mesh.Materials is { Count: > 0 } materials ? materials[0] : null;
     }
 
     private static bool TryBuildSkinningData(

@@ -14,5 +14,5 @@ internal sealed class OpenGlMeshSample : ISample
     public string Description => "Opens a window and renders a lit untextured mesh scene from one or more supported translator files (or a fallback triangle).";
 
     /// <inheritdoc />
-    public int Run(string[] arguments) => SilkMeshSampleRunner.Run(arguments, "RedFox OpenGL Mesh Sample", "OpenGL Scene", new OpenGlSilkBackendFactory());
+    public int Run(string[] arguments) => SilkMeshSampleRunner.Run(arguments, "RedFox OpenGL Mesh Sample", "OpenGL Scene", new OpenGlSilkPresenterFactory());
 }

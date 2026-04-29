@@ -283,6 +283,45 @@ public sealed class ObjTranslatorTests
     }
 
     [Fact]
+    public void ObjTranslator_MergeStaticMeshesOption_CollapsesGroupsByMaterial()
+    {
+        string objText = """
+            v 0 0 0
+            v 1 0 0
+            v 0 1 0
+            v 2 0 0
+            v 3 0 0
+            v 2 1 0
+            v 4 0 0
+            v 5 0 0
+            v 4 1 0
+            usemtl MatA
+            g GroupA
+            f 1 2 3
+            g GroupB
+            f 4 5 6
+            usemtl MatB
+            g GroupC
+            f 7 8 9
+            """;
+
+        SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+        SceneTranslatorOptions options = new();
+        options.Set(ObjTranslator.MergeStaticMeshesOption, true);
+        Scene loaded = ReadSceneFromObj(manager, Encoding.UTF8.GetBytes(objText), options);
+
+        Mesh[] meshes = loaded.GetDescendants<Mesh>();
+        Assert.Equal(2, meshes.Length);
+
+        Mesh matAMesh = meshes.Single(mesh => mesh.Materials![0].Name == "MatA");
+        Mesh matBMesh = meshes.Single(mesh => mesh.Materials![0].Name == "MatB");
+        Assert.Equal(6, matAMesh.VertexCount);
+        Assert.Equal(2, matAMesh.FaceCount);
+        Assert.Equal(3, matBMesh.VertexCount);
+        Assert.Equal(1, matBMesh.FaceCount);
+    }
+
+    [Fact]
     public void MtlReader_ParsesMaterialTextures()
     {
         string mtlText = """
@@ -623,8 +662,13 @@ public sealed class ObjTranslatorTests
 
     private static Scene ReadSceneFromObj(SceneTranslatorManager manager, byte[] data)
     {
+        return ReadSceneFromObj(manager, data, new SceneTranslatorOptions());
+    }
+
+    private static Scene ReadSceneFromObj(SceneTranslatorManager manager, byte[] data, SceneTranslatorOptions options)
+    {
         using MemoryStream stream = new(data, writable: false);
-        return manager.Read(stream, "test.obj", new SceneTranslatorOptions(), token: null);
+        return manager.Read(stream, "test.obj", options, token: null);
     }
 
     private static void AssertVector3Equal(Vector3 expected, Vector3 actual, float tolerance)

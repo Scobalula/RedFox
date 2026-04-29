@@ -1,6 +1,7 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace RedFox.Graphics3D.Rendering;
@@ -10,6 +11,113 @@ namespace RedFox.Graphics3D.Rendering;
 /// </summary>
 public static class SceneTraversal
 {
+    internal static void CollectPostOrder(SceneNode node, List<SceneNode> nodes)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(nodes);
+
+        if (node.Children is not null)
+        {
+            foreach (SceneNode child in node.Children)
+            {
+                CollectPostOrder(child, nodes);
+            }
+        }
+
+        nodes.Add(node);
+    }
+
+    internal static void Update(
+        IReadOnlyList<SceneNode> nodes,
+        ICommandList commandList,
+        IGraphicsDevice graphicsDevice,
+        IMaterialTypeRegistry materialTypes)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        ArgumentNullException.ThrowIfNull(commandList);
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        ArgumentNullException.ThrowIfNull(materialTypes);
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            SceneNode node = nodes[i];
+            if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
+            {
+                continue;
+            }
+
+            IRenderHandle? graphicsHandle = node.GraphicsHandle;
+            if (graphicsHandle is null)
+            {
+                graphicsHandle = node.CreateRenderHandle(graphicsDevice, materialTypes);
+                node.GraphicsHandle = graphicsHandle;
+            }
+
+            if (graphicsHandle?.RequiresPerFrameUpdate == true)
+            {
+                graphicsHandle.Update(commandList);
+            }
+        }
+    }
+
+    internal static void Render(
+        IReadOnlyList<IRenderHandle> handles,
+        ICommandList commandList,
+        RenderPhase phase,
+        in Matrix4x4 view,
+        in Matrix4x4 projection,
+        in Matrix4x4 sceneAxis,
+        Vector3 cameraPosition,
+        Vector2 viewportSize)
+    {
+        ArgumentNullException.ThrowIfNull(handles);
+        ArgumentNullException.ThrowIfNull(commandList);
+
+        RenderPhaseMask phaseMask = GetPhaseMask(phase);
+        for (int i = 0; i < handles.Count; i++)
+        {
+            IRenderHandle handle = handles[i];
+            if ((handle.RenderPhases & phaseMask) == 0)
+            {
+                continue;
+            }
+
+            handle.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+        }
+    }
+
+    internal static void Render(
+        IReadOnlyList<SceneNode> nodes,
+        ICommandList commandList,
+        RenderPhase phase,
+        in Matrix4x4 view,
+        in Matrix4x4 projection,
+        in Matrix4x4 sceneAxis,
+        Vector3 cameraPosition,
+        Vector2 viewportSize)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        ArgumentNullException.ThrowIfNull(commandList);
+
+        RenderPhaseMask phaseMask = GetPhaseMask(phase);
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            SceneNode node = nodes[i];
+            if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
+            {
+                continue;
+            }
+
+            IRenderHandle? graphicsHandle = node.GraphicsHandle;
+            if (graphicsHandle is null || (graphicsHandle.RenderPhases & phaseMask) == 0)
+            {
+                continue;
+            }
+
+            graphicsHandle.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+        }
+    }
+
     /// <summary>
     /// Recursively updates render handles for a scene-node subtree in post-order.
     /// </summary>
@@ -32,13 +140,22 @@ public static class SceneTraversal
             }
         }
 
-        if (node.Flags.HasFlag(SceneNodeFlags.NoDraw))
+        if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
         {
             return;
         }
 
-        node.GraphicsHandle ??= node.CreateRenderHandle(graphicsDevice, materialTypes);
-        node.GraphicsHandle?.Update(commandList);
+        IRenderHandle? graphicsHandle = node.GraphicsHandle;
+        if (graphicsHandle is null)
+        {
+            graphicsHandle = node.CreateRenderHandle(graphicsDevice, materialTypes);
+            node.GraphicsHandle = graphicsHandle;
+        }
+
+        if (graphicsHandle?.RequiresPerFrameUpdate == true)
+        {
+            graphicsHandle.Update(commandList);
+        }
     }
 
     /// <summary>
@@ -73,11 +190,23 @@ public static class SceneTraversal
             }
         }
 
-        if (node.Flags.HasFlag(SceneNodeFlags.NoDraw))
+        if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
         {
             return;
         }
 
         node.GraphicsHandle?.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+    }
+
+    private static RenderPhaseMask GetPhaseMask(RenderPhase phase)
+    {
+        return phase switch
+        {
+            RenderPhase.SkinningCompute => RenderPhaseMask.SkinningCompute,
+            RenderPhase.Opaque => RenderPhaseMask.Opaque,
+            RenderPhase.Transparent => RenderPhaseMask.Transparent,
+            RenderPhase.Overlay => RenderPhaseMask.Overlay,
+            _ => RenderPhaseMask.None,
+        };
     }
 }

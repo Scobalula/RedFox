@@ -1,5 +1,4 @@
 using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Backend;
 using System;
 using System.Numerics;
 
@@ -11,7 +10,17 @@ namespace RedFox.Graphics3D;
 public interface IRenderHandle : IDisposable
 {
     /// <summary>
-    /// Updates lazy resources, uploads dynamic data, and refreshes backend state.
+    /// Gets the render phases in which this handle has work to submit for the current frame.
+    /// </summary>
+    RenderPhaseMask RenderPhases { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether this handle needs its update method called for the current frame.
+    /// </summary>
+    bool RequiresPerFrameUpdate { get; }
+
+    /// <summary>
+    /// Updates lazy resources, uploads dynamic data, and refreshes GPU state.
     /// </summary>
     /// <param name="commandList">The command list used for the update.</param>
     void Update(ICommandList commandList);
@@ -36,7 +45,7 @@ public interface IRenderHandle : IDisposable
         Vector2 viewportSize);
 
     /// <summary>
-    /// Releases backend resources owned by the handle.
+    /// Releases GPU resources owned by the handle.
     /// </summary>
     void Release();
 }

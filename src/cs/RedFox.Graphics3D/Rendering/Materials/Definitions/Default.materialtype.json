@@ -8,7 +8,7 @@
     { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
   ],
   "pipelineState": {
-    "cullMode": "back",
+    "cullMode": "none",
     "faceWinding": "counterClockwise",
     "wireframe": false,
     "blend": false,

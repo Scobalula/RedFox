@@ -1,8 +1,7 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Styling;
-using Avalonia.Themes.Fluent;
-using System.Globalization;
+using RedFox.Avalonia.Themes;
 
 namespace RedFox.Samples.Examples;
 
@@ -12,7 +11,7 @@ internal sealed class AvaloniaSampleApp : Application
 
     public override void Initialize()
     {
-        Styles.Add(new FluentTheme());
+        RedFoxTheme.Apply(this);
     }
 
     public override void OnFrameworkInitializationCompleted()

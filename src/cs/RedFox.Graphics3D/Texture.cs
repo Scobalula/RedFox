@@ -1,5 +1,6 @@
-﻿using RedFox.Graphics2D;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics2D;
+using RedFox.Graphics2D.IO;
+using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Handles;
 using RedFox.Graphics3D.Rendering.Materials;
 
@@ -41,6 +42,11 @@ public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtensi
     public ImageFormat Format => Data?.Format ?? ImageFormat.Unknown;
 
     /// <summary>
+    /// Gets a value indicating whether the loaded texture payload is a cube map.
+    /// </summary>
+    public bool IsCubemap => Data?.IsCubemap == true;
+
+    /// <summary>
     /// Gets the raw pixel payload for the loaded texture data.
     /// </summary>
     public ReadOnlyMemory<byte> RawBytes => Data?.PixelMemory ?? ReadOnlyMemory<byte>.Empty;
@@ -49,6 +55,53 @@ public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtensi
     /// Gets or sets the image loader used to retrieve and process images.
     /// </summary>
     public IImageLoader? ImageLoader { get; set; } = FileSystemImageLoader.Shared;
+
+    /// <summary>
+    /// Loads image data through the supplied translator manager when this texture has no image data yet.
+    /// </summary>
+    /// <param name="translatorManager">The image translator manager used by the texture's loader.</param>
+    /// <returns><see langword="true"/> when image data is available after the call; otherwise <see langword="false"/>.</returns>
+    public bool TryLoad(ImageTranslatorManager translatorManager)
+    {
+        ArgumentNullException.ThrowIfNull(translatorManager);
+
+        if (Data is not null)
+        {
+            return true;
+        }
+
+        if (ImageLoader is null || string.IsNullOrWhiteSpace(EffectiveFilePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            Data = ImageLoader.Load(EffectiveFilePath, translatorManager);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (FileNotFoundException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+
+        return Data is not null;
+    }
 
     /// <inheritdoc/>
     public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)

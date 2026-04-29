@@ -9,6 +9,21 @@ namespace RedFox.Graphics3D.Rendering.Hosting;
 /// </summary>
 public sealed class SceneViewportController
 {
+    private const float CameraFitPadding = 1.15f;
+    private const float CameraMaxDistanceScale = 24.0f;
+    private const float CameraMoveSpeedScale = 0.1f;
+    private const float DynamicFarBoundsScale = 12.0f;
+    private const float DynamicFarDistanceScale = 4.0f;
+    private const float DynamicNearBoundsScale = 0.0005f;
+    private const float DynamicNearDistanceScale = 0.25f;
+    private const float DynamicNearSafetyBoundsScale = 1.25f;
+    private const float MinimumCameraMaxDistance = 10.0f;
+    private const float MinimumCameraMoveSpeed = 0.01f;
+    private const float MinimumClipPlane = 0.00001f;
+    private const float MinimumFarPlane = 10.0f;
+    private const float MinimumSceneRadius = 0.0001f;
+    private const float TargetDepthRatio = 100000.0f;
+
     private readonly OrbitCamera _camera;
     private readonly Scene _scene;
 
@@ -140,14 +155,14 @@ public sealed class SceneViewportController
         camera.OrbitTarget = adjustedBounds.Center;
         camera.YawRadians = yaw;
         camera.PitchRadians = pitch;
-        camera.MinDistance = MathF.Max(radius * 0.0005f, 0.001f);
-        camera.MaxDistance = MathF.Max(diagonal * 24.0f, 2000.0f);
-        camera.MoveSpeed = MathF.Max(diagonal * 0.1f, 1.75f);
+        camera.MinDistance = MathF.Max(radius * DynamicNearBoundsScale, MinimumClipPlane);
+        camera.MaxDistance = MathF.Max(diagonal * CameraMaxDistanceScale, MinimumCameraMaxDistance);
+        camera.MoveSpeed = MathF.Max(diagonal * CameraMoveSpeedScale, MinimumCameraMoveSpeed);
         camera.BoostMultiplier = 2.5f;
         camera.ZoomSensitivity = 1.0f;
 
         float aspect = camera.AspectRatio > 0.0f ? camera.AspectRatio : (16.0f / 9.0f);
-        float fitDistance = ComputeBoundsFitDistance(adjustedBounds, preferredForward, camera.FieldOfView, aspect) * 1.15f;
+        float fitDistance = ComputeBoundsFitDistance(adjustedBounds, preferredForward, camera.FieldOfView, aspect) * CameraFitPadding;
         camera.Distance = Math.Clamp(fitDistance, camera.MinDistance, camera.MaxDistance);
         camera.ApplyOrbit();
         UpdateDynamicClipPlanes(adjustedBounds, camera);
@@ -264,15 +279,20 @@ public sealed class SceneViewportController
 
     private static void UpdateDynamicClipPlanes(SceneBounds bounds, OrbitCamera camera)
     {
-        float radius = MathF.Max(bounds.Radius, 1.0f);
+        float radius = MathF.Max(bounds.Radius, MinimumSceneRadius);
         float distanceToCenter = Vector3.Distance(camera.Position, bounds.Center);
-        float nearPlane = 0.01f;
-        float farPlane = MathF.Max(distanceToCenter + (radius * 8.0f), MathF.Max(radius * 24.0f, 5000.0f));
+        float farPlane = MathF.Max(
+            distanceToCenter + (radius * DynamicFarDistanceScale),
+            MathF.Max(radius * DynamicFarBoundsScale, MinimumFarPlane));
 
-        if (farPlane > 500000.0f)
-        {
-            nearPlane = MathF.Max(nearPlane, farPlane / 1000000.0f);
-        }
+        float distanceOutsideBounds = distanceToCenter - (radius * DynamicNearSafetyBoundsScale);
+        float nearFromDistance = distanceOutsideBounds > 0.0f ? distanceOutsideBounds * DynamicNearDistanceScale : 0.0f;
+        float nearFromScale = radius * DynamicNearBoundsScale;
+        float nearFromDepthRatio = farPlane / TargetDepthRatio;
+        float nearPlane = MathF.Max(
+            MinimumClipPlane,
+            MathF.Max(nearFromDistance, MathF.Max(nearFromScale, nearFromDepthRatio)));
+        nearPlane = MathF.Min(nearPlane, farPlane * 0.25f);
 
         camera.NearPlane = nearPlane;
         camera.FarPlane = farPlane;

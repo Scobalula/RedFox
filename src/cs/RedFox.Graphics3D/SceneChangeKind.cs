@@ -16,6 +16,11 @@ public enum SceneChangeKind
     NodeRemoved,
 
     /// <summary>
+    /// A node's render-affecting state changed.
+    /// </summary>
+    NodeChanged,
+
+    /// <summary>
     /// The scene graph was cleared.
     /// </summary>
     Cleared,

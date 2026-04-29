@@ -1,5 +1,5 @@
 using RedFox.Graphics2D;
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using Silk.NET.OpenGL;
 using System;
 
@@ -13,7 +13,7 @@ internal sealed class OpenGlTexture : IGpuTexture
     private readonly GL _gl;
 
     /// <summary>
-    /// Gets the GL texture handle.
+    /// Gets the GL texture or renderbuffer handle.
     /// </summary>
     internal uint Handle { get; private set; }
 
@@ -33,6 +33,21 @@ internal sealed class OpenGlTexture : IGpuTexture
     internal ImageFormat Format { get; }
 
     /// <summary>
+    /// Gets the texture sample count.
+    /// </summary>
+    internal int SampleCount { get; }
+
+    /// <summary>
+    /// Gets the texture target used when binding this resource.
+    /// </summary>
+    internal TextureTarget Target { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether this resource is backed by a renderbuffer.
+    /// </summary>
+    internal bool IsRenderbuffer { get; }
+
+    /// <summary>
     /// Gets the texture usage flags.
     /// </summary>
     internal TextureUsage Usage { get; }
@@ -50,6 +65,54 @@ internal sealed class OpenGlTexture : IGpuTexture
     /// <param name="format">The texture format.</param>
     /// <param name="usage">The texture usage flags.</param>
     public OpenGlTexture(GL gl, uint handle, int width, int height, ImageFormat format, TextureUsage usage)
+        : this(gl, handle, width, height, format, usage, 1, TextureTarget.Texture2D, false)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenGlTexture"/> class.
+    /// </summary>
+    /// <param name="gl">The owning GL instance.</param>
+    /// <param name="handle">The GL texture handle.</param>
+    /// <param name="width">The texture width.</param>
+    /// <param name="height">The texture height.</param>
+    /// <param name="format">The texture format.</param>
+    /// <param name="usage">The texture usage flags.</param>
+    /// <param name="target">The texture target used when binding the resource.</param>
+    public OpenGlTexture(GL gl, uint handle, int width, int height, ImageFormat format, TextureUsage usage, TextureTarget target)
+        : this(gl, handle, width, height, format, usage, 1, target, false)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenGlTexture"/> class.
+    /// </summary>
+    /// <param name="gl">The owning GL instance.</param>
+    /// <param name="handle">The GL texture handle.</param>
+    /// <param name="width">The texture width.</param>
+    /// <param name="height">The texture height.</param>
+    /// <param name="format">The texture format.</param>
+    /// <param name="usage">The texture usage flags.</param>
+    /// <param name="sampleCount">The texture sample count.</param>
+    /// <param name="target">The texture target used when binding the resource.</param>
+    public OpenGlTexture(GL gl, uint handle, int width, int height, ImageFormat format, TextureUsage usage, int sampleCount, TextureTarget target)
+        : this(gl, handle, width, height, format, usage, sampleCount, target, false)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenGlTexture"/> class.
+    /// </summary>
+    /// <param name="gl">The owning GL instance.</param>
+    /// <param name="handle">The GL resource handle.</param>
+    /// <param name="width">The texture width.</param>
+    /// <param name="height">The texture height.</param>
+    /// <param name="format">The texture format.</param>
+    /// <param name="usage">The texture usage flags.</param>
+    /// <param name="sampleCount">The texture sample count.</param>
+    /// <param name="target">The texture target used when binding the resource.</param>
+    /// <param name="isRenderbuffer">Whether the resource is backed by a renderbuffer.</param>
+    public OpenGlTexture(GL gl, uint handle, int width, int height, ImageFormat format, TextureUsage usage, int sampleCount, TextureTarget target, bool isRenderbuffer)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
         Handle = handle;
@@ -57,6 +120,9 @@ internal sealed class OpenGlTexture : IGpuTexture
         Height = height;
         Format = format;
         Usage = usage;
+        SampleCount = Math.Max(1, sampleCount);
+        Target = target;
+        IsRenderbuffer = isRenderbuffer;
     }
 
     /// <inheritdoc/>
@@ -69,7 +135,15 @@ internal sealed class OpenGlTexture : IGpuTexture
 
         if (Handle != 0)
         {
-            _gl.DeleteTexture(Handle);
+            if (IsRenderbuffer)
+            {
+                _gl.DeleteRenderbuffer(Handle);
+            }
+            else
+            {
+                _gl.DeleteTexture(Handle);
+            }
+
             Handle = 0;
         }
 

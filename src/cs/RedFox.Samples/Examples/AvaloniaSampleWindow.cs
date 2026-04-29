@@ -4,8 +4,10 @@ using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Avalonia;
+using RedFox.Graphics3D.Skeletal;
 using AvaloniaGrid = Avalonia.Controls.Grid;
 using AvaloniaThickness = Avalonia.Thickness;
 
@@ -16,11 +18,14 @@ namespace RedFox.Samples.Examples;
 /// </summary>
 internal sealed class AvaloniaSampleWindow : Window
 {
+    private readonly FrameStatsReporter? _frameStatsReporter;
     private readonly AvaloniaSampleViewModel _viewModel;
+    private double _frameStatsElapsedSeconds;
 
     public AvaloniaSampleWindow(string[] arguments)
     {
         _viewModel = new AvaloniaSampleViewModel(arguments);
+        _frameStatsReporter = HasFrameStats(arguments) ? new FrameStatsReporter(true) : null;
         DataContext = _viewModel;
         Title = "RedFox Avalonia OpenGL Renderer";
         Width = 1280;
@@ -29,57 +34,74 @@ internal sealed class AvaloniaSampleWindow : Window
         MinHeight = 540;
         Content = CreateContent();
         KeyDown += OnKeyDown;
+        Closed += (_, _) => _frameStatsReporter?.PrintFinal();
     }
 
     private Control CreateContent()
     {
-        AvaloniaGrid root = new()
-        {
-            RowDefinitions = new RowDefinitions("Auto,*,Auto"),
-            ColumnDefinitions = new ColumnDefinitions("280,*")
-        };
+        DockPanel root = new();
 
-        StackPanel toolbar = CreateToolbar();
-        AvaloniaGrid.SetRow(toolbar, 0);
-        AvaloniaGrid.SetColumnSpan(toolbar, 2);
+        Border toolbar = CreateToolbar();
+        DockPanel.SetDock(toolbar, Dock.Top);
         root.Children.Add(toolbar);
 
-        TreeView tree = CreateSceneTree();
-        AvaloniaGrid.SetRow(tree, 1);
-        AvaloniaGrid.SetColumn(tree, 0);
-        root.Children.Add(tree);
-
-        AvaloniaOpenGlRendererControl renderer = CreateRendererControl();
-        AvaloniaGrid.SetRow(renderer, 1);
-        AvaloniaGrid.SetColumn(renderer, 1);
-        root.Children.Add(renderer);
-
-        TextBlock status = new()
-        {
-            Margin = new AvaloniaThickness(8, 4),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        status.Bind(TextBlock.TextProperty, new Binding(nameof(AvaloniaSampleViewModel.Status)));
-        AvaloniaGrid.SetRow(status, 2);
-        AvaloniaGrid.SetColumnSpan(status, 2);
+        Border status = CreateStatusBar();
+        DockPanel.SetDock(status, Dock.Bottom);
         root.Children.Add(status);
 
+        AvaloniaGrid content = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("280,*"),
+        };
+
+        TreeView tree = CreateSceneTree();
+        Border treeHost = new()
+        {
+            Child = tree,
+        };
+        treeHost.Classes.Add("sidebar-host");
+        AvaloniaGrid.SetColumn(treeHost, 0);
+        content.Children.Add(treeHost);
+
+        AvaloniaOpenGlRendererControl renderer = CreateRendererControl();
+        AvaloniaGrid.SetColumn(renderer, 1);
+        content.Children.Add(renderer);
+
+        root.Children.Add(content);
         return root;
     }
 
-    private StackPanel CreateToolbar()
+    private Border CreateStatusBar()
+    {
+        TextBlock status = new()
+        {
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        status.Classes.Add("status-text");
+        status.Bind(TextBlock.TextProperty, new Binding(nameof(AvaloniaSampleViewModel.Status)));
+
+        Border host = new()
+        {
+            Child = status,
+        };
+        host.Classes.Add("status-bar");
+        return host;
+    }
+
+    private Border CreateToolbar()
     {
         StackPanel toolbar = new()
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new AvaloniaThickness(8)
+            VerticalAlignment = VerticalAlignment.Center,
         };
 
         Button openButton = new()
         {
-            Content = "Open"
+            Content = "Open",
         };
+        openButton.Classes.Add("accent");
         openButton.Click += async (_, _) => await _viewModel.OpenFilesAsync(StorageProvider);
         toolbar.Children.Add(openButton);
 
@@ -122,15 +144,21 @@ internal sealed class AvaloniaSampleWindow : Window
         skinningMode.Bind(SelectingItemsControl.SelectedItemProperty, new Binding(nameof(AvaloniaSampleViewModel.SkinningMode)) { Mode = BindingMode.TwoWay });
         toolbar.Children.Add(skinningMode);
 
-        return toolbar;
+        Border host = new()
+        {
+            Child = toolbar,
+        };
+        host.Classes.Add("sample-toolbar");
+        return host;
     }
 
     private Button CreateCommandButton(string text, string commandProperty)
     {
         Button button = new()
         {
-            Content = text
+            Content = text,
         };
+        button.Classes.Add("toolbar-btn");
         button.Bind(Button.CommandProperty, new Binding(commandProperty));
         return button;
     }
@@ -139,7 +167,6 @@ internal sealed class AvaloniaSampleWindow : Window
     {
         TreeView tree = new()
         {
-            Margin = new AvaloniaThickness(8, 0, 4, 0),
             ItemTemplate = new FuncTreeDataTemplate<SceneNodeItem>(
                 static (item, _) => new TextBlock { Text = item.Name },
                 static item => item.Children)
@@ -151,10 +178,7 @@ internal sealed class AvaloniaSampleWindow : Window
 
     private AvaloniaOpenGlRendererControl CreateRendererControl()
     {
-        AvaloniaOpenGlRendererControl renderer = new()
-        {
-            Margin = new AvaloniaThickness(4, 0, 8, 0)
-        };
+        AvaloniaOpenGlRendererControl renderer = new();
         renderer.Bind(AvaloniaOpenGlRendererControl.SceneProperty, new Binding(nameof(AvaloniaSampleViewModel.Scene)));
         renderer.Bind(AvaloniaOpenGlRendererControl.CameraProperty, new Binding(nameof(AvaloniaSampleViewModel.Camera)));
         renderer.Bind(AvaloniaOpenGlRendererControl.ViewportControllerProperty, new Binding(nameof(AvaloniaSampleViewModel.ViewportController)));
@@ -163,7 +187,33 @@ internal sealed class AvaloniaSampleWindow : Window
         renderer.Bind(AvaloniaOpenGlRendererControl.UseViewBasedLightingProperty, new Binding(nameof(AvaloniaSampleViewModel.UseViewBasedLighting)));
         renderer.Bind(AvaloniaOpenGlRendererControl.SkinningModeProperty, new Binding(nameof(AvaloniaSampleViewModel.SkinningMode)));
         renderer.Bind(AvaloniaOpenGlRendererControl.IsAnimationPausedProperty, new Binding(nameof(AvaloniaSampleViewModel.IsAnimationPaused)));
+        if (_frameStatsReporter is not null)
+        {
+            renderer.RenderFrame += OnRendererFrame;
+        }
+
         return renderer;
+    }
+
+    private void OnRendererFrame(object? sender, AvaloniaRenderFrameEventArgs e)
+    {
+        _frameStatsElapsedSeconds += e.ElapsedTime.TotalSeconds;
+        _frameStatsReporter?.Record(e.RenderDuration.TotalMilliseconds, _frameStatsElapsedSeconds);
+    }
+
+    private static bool HasFrameStats(string[] arguments)
+    {
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            string argument = arguments[i];
+            if (argument.Equals("--frame-stats", StringComparison.OrdinalIgnoreCase)
+                || argument.Equals("--stats", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

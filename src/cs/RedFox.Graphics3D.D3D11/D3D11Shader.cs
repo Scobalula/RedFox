@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.Rendering.Backend;
+using RedFox.Graphics3D.Rendering;
 using System;
 
 namespace RedFox.Graphics3D.D3D11;
@@ -10,9 +10,10 @@ public sealed class D3D11Shader : IGpuShader
 {
     private byte[] _bytecode;
 
-    internal D3D11Shader(byte[] bytecode, ShaderStage stage)
+    internal D3D11Shader(byte[] bytecode, ShaderStage stage, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers)
     {
         _bytecode = bytecode ?? throw new ArgumentNullException(nameof(bytecode));
+        ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
         Stage = stage;
     }
 
@@ -26,6 +27,8 @@ public sealed class D3D11Shader : IGpuShader
     }
 
     internal ShaderStage Stage { get; }
+
+    internal IReadOnlyList<D3D11ShaderConstantBufferLayout> ConstantBuffers { get; }
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
