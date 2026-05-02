@@ -54,6 +54,20 @@ namespace RedFox.Graphics3D.Buffers
         /// <inheritdoc/>
         public override bool IsReadOnly => true;
 
+        /// <inheritdoc/>
+        public override bool TryGetReadOnlySpan<TResult>(out ReadOnlySpan<TResult> span)
+        {
+            if (typeof(TResult) == typeof(T) && IsContiguous)
+            {
+                ReadOnlySpan<byte> source = _source.AsSpan(_byteOffset, TotalComponentCount * Unsafe.SizeOf<T>());
+                span = MemoryMarshal.Cast<byte, TResult>(source);
+                return true;
+            }
+
+            span = Pack<TResult>();
+            return true;
+        }
+
         /// <summary>
         /// Gets the byte offset of the first element within the source array.
         /// </summary>
@@ -69,6 +83,10 @@ namespace RedFox.Graphics3D.Buffers
         /// Gets the number of bytes from the start of one value within an element to the next.
         /// </summary>
         public int ByteValueStride => _byteValueStride;
+
+        private bool IsContiguous
+            => _byteStride == _valueCount * _componentCount * Unsafe.SizeOf<T>()
+                && _byteValueStride == _componentCount * Unsafe.SizeOf<T>();
 
         /// <summary>
         /// Creates a tightly-packed (non-strided) view over the entire source array.
@@ -119,5 +137,30 @@ namespace RedFox.Graphics3D.Buffers
         /// <inheritdoc/>
         public override void Add<TInput>(int elementIndex, int valueIndex, int componentIndex, TInput value)
             => throw new NotSupportedException("DataBufferView is read-only.");
+
+        private TResult[] Pack<TResult>() where TResult : unmanaged, INumber<TResult>
+        {
+            TResult[] packed = new TResult[TotalComponentCount];
+            int destinationIndex = 0;
+
+            for (int elementIndex = 0; elementIndex < _elementCount; elementIndex++)
+            {
+                int elementOffset = _byteOffset + elementIndex * _byteStride;
+                for (int valueIndex = 0; valueIndex < _valueCount; valueIndex++)
+                {
+                    int valueOffset = elementOffset + valueIndex * _byteValueStride;
+                    for (int componentIndex = 0; componentIndex < _componentCount; componentIndex++)
+                    {
+                        int bytePos = valueOffset + componentIndex * Unsafe.SizeOf<T>();
+                        T value = MemoryMarshal.Read<T>(_source.AsSpan(bytePos));
+                        packed[destinationIndex++] = typeof(TResult) == typeof(T)
+                            ? Unsafe.As<T, TResult>(ref value)
+                            : TResult.CreateSaturating(value);
+                    }
+                }
+            }
+
+            return packed;
+        }
     }
 }

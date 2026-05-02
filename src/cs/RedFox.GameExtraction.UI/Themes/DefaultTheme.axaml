@@ -1,0 +1,394 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         RedFox Dark Theme — Muted grey base, config-driven accent
+         ═══════════════════════════════════════════════════════════════ -->
+
+    <Style Selector="Window">
+        <Setter Property="Background" Value="#1B1B1F"/>
+        <Setter Property="Foreground" Value="#E4E4EA"/>
+        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- ── Panel / Border base ── -->
+    <Style Selector="Border.card">
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#333338"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#262629" Offset="0"/>
+                <GradientStop Color="#222225" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+        <Setter Property="BoxShadow" Value="0 3 12 0 #40000000"/>
+    </Style>
+
+    <Style Selector="Border.card-subtle">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="12"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#2C2C30"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Color="#222225" Offset="0"/>
+                <GradientStop Color="#1F1F22" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+        <Setter Property="BoxShadow" Value="0 3 12 0 #40000000"/>
+    </Style>
+
+    <Style Selector="DataGridCell:focus /template/ Grid#FocusVisual">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="DataGridCell:current /template/ Rectangle#CurrencyVisual">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <!-- ── Buttons ── -->
+    <Style Selector="Button.sidebar-btn">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#333338"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Foreground" Value="#C4C4CA"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Color="#2A2A2E" Offset="0"/>
+                <GradientStop Color="#262629" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+
+        <Style Selector="^:pointerover">
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                    <GradientStop Color="#363639" Offset="0"/>
+                    <GradientStop Color="#313134" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#404044"/>
+        </Style>
+
+        <Style Selector="^:pressed">
+            <Setter Property="Background" Value="#3C3C40"/>
+        </Style>
+
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.35"/>
+        </Style>
+    </Style>
+
+    <Style Selector="Button.accent-btn">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14,10"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Background" Value="{DynamicResource AccentGradient}"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
+            </Transitions>
+        </Setter>
+
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{DynamicResource AccentHoverGradient}"/>
+        </Style>
+
+        <Style Selector="^:pressed">
+            <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+
+        <Style Selector="^:disabled">
+            <Setter Property="Opacity" Value="0.35"/>
+        </Style>
+    </Style>
+
+    <Style Selector="Button.cancel-btn">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#3A3A3E"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="#B4B4BA"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Color="#343438" Offset="0"/>
+                <GradientStop Color="#303034" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+
+        <Style Selector="^:pointerover">
+            <Setter Property="Background">
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                    <GradientStop Color="#424246" Offset="0"/>
+                    <GradientStop Color="#3E3E42" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#4A4A4E"/>
+        </Style>
+    </Style>
+
+    <!-- ── TextBox ── -->
+    <Style Selector="TextBox.search-box">
+        <Setter Property="Foreground" Value="#E0E0E6"/>
+        <Setter Property="BorderBrush" Value="#333338"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Watermark" Value="Search assets..."/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Color="#1E1E22" Offset="0"/>
+                <GradientStop Color="#1C1C1F" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+
+        <Style Selector="^:focus">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        </Style>
+    </Style>
+
+    <Style Selector="Border.search-container">
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="BoxShadow" Value="0 3 12 0 #40000000"/>
+        <Setter Property="MinHeight" Value="38"/>
+    </Style>
+
+    <!-- ── Status bar ── -->
+    <Style Selector="Border.status-bar">
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="BorderBrush" Value="#2A2A2E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BoxShadow" Value="0 3 12 0 #40000000"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                <GradientStop Color="#161619" Offset="0"/>
+                <GradientStop Color="#18181B" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="TextBlock.status-text">
+        <Setter Property="Foreground" Value="#78787E"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ── Sidebar ── -->
+    <Style Selector="Border.sidebar">
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="BorderBrush" Value="#2A2A2E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BoxShadow" Value="0 3 12 0 #40000000"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                <GradientStop Color="#202024" Offset="0"/>
+                <GradientStop Color="#1C1C1F" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="TextBlock.sidebar-title">
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+
+    <Style Selector="TextBlock.sidebar-desc">
+        <Setter Property="Foreground" Value="#6E6E74"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,0,0,16"/>
+    </Style>
+
+    <Style Selector="TextBlock.sidebar-section">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Margin" Value="0,12,0,6"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="Separator.sidebar-sep">
+        <Setter Property="Margin" Value="0,8"/>
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                <GradientStop Color="#303034" Offset="0"/>
+                <GradientStop Color="#242428" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <!-- ── Progress overlay ── -->
+    <Style Selector="Border.progress-overlay">
+        <Setter Property="Background" Value="#DD0C0C0F"/>
+    </Style>
+
+    <Style Selector="Border.progress-card">
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="28,24"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#3A3A3E"/>
+        <Setter Property="MaxWidth" Value="420"/>
+        <Setter Property="MinWidth" Value="360"/>
+        <Setter Property="BoxShadow" Value="0 8 32 0 #60000000"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#2A2A2E" Offset="0"/>
+                <GradientStop Color="#252528" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="ProgressBar.themed">
+        <Setter Property="Background" Value="#1E1E22"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="MinHeight" Value="8"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <!-- ── Tab items ── -->
+    <Style Selector="TabItem">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="Foreground" Value="#787880"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+
+        <Style Selector="^:pointerover">
+            <Setter Property="Foreground" Value="#B0B0B6"/>
+        </Style>
+
+        <Style Selector="^:selected">
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+    </Style>
+
+    <!-- ── Settings styles ── -->
+    <Style Selector="Border.settings-action-bar">
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16,12"/>
+        <Setter Property="BorderBrush" Value="#2A2A2E"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BoxShadow" Value="0 -2 12 0 #40000000"/>
+        <Setter Property="Background">
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                <GradientStop Color="#18181B" Offset="0"/>
+                <GradientStop Color="#1A1A1E" Offset="1"/>
+            </LinearGradientBrush>
+        </Setter>
+    </Style>
+
+    <Style Selector="TextBlock.setting-category">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Margin" Value="0,16,0,8"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="TextBlock.setting-label">
+        <Setter Property="Foreground" Value="#D0D0D6"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.setting-desc">
+        <Setter Property="Foreground" Value="#606066"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Margin" Value="0,2,0,8"/>
+    </Style>
+
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="#1F1F22"/>
+        <Setter Property="Foreground" Value="#DADAE0"/>
+        <Setter Property="BorderBrush" Value="#2C2C30"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="#28282C"/>
+        <Setter Property="VerticalGridLinesBrush" Value="#28282C"/>
+        <Setter Property="RowBackground" Value="#1F1F22"/>
+    </Style>
+
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="#25252A"/>
+        <Setter Property="Foreground" Value="#A8A8B0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="BorderBrush" Value="#303036"/>
+    </Style>
+
+    <Style Selector="DataGridCell">
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="DataGridRow:pointerover">
+        <Setter Property="Background" Value="#29292F"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Background" Value="#303640"/>
+    </Style>
+
+    <!-- ── ListBoxItem animations ── -->
+    <Style Selector="ListBoxItem">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <!-- ── Scrollbar subtle ── -->
+    <Style Selector="ScrollViewer">
+        <Setter Property="AllowAutoHide" Value="True"/>
+    </Style>
+
+    <!-- ── CheckBox styling ── -->
+    <Style Selector="CheckBox">
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+</Styles>

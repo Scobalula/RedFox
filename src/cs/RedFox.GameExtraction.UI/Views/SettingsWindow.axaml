@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        x:Class="RedFox.GameExtraction.UI.Views.SettingsWindow"
+        x:DataType="vm:SettingsWindowViewModel"
+        Title="Settings"
+        Width="560" Height="360"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Bottom"
+                Classes="settings-action-bar"
+                Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="8">
+                <Button Classes="cancel-btn"
+                        Content="Cancel"
+                        Command="{Binding CancelCommand}"
+                        Width="90"/>
+                <Button Classes="accent-btn"
+                        Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Width="90"/>
+            </StackPanel>
+        </Border>
+
+        <Border Classes="sidebar" Padding="18">
+            <StackPanel Spacing="16">
+                <StackPanel Spacing="6">
+                    <TextBlock Classes="setting-category" Text="Export" Margin="0,0,0,2"/>
+                    <TextBlock Classes="setting-label" Text="Output directory"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding OutputDirectory, Mode=TwoWay}"
+                                 CornerRadius="6"
+                                 Padding="8,6"/>
+                        <Button Grid.Column="1"
+                                Classes="sidebar-btn"
+                                Content="Browse"
+                                Command="{Binding BrowseOutputDirectoryCommand}"
+                                Width="96"/>
+                    </Grid>
+                </StackPanel>
+
+                <StackPanel Spacing="8">
+                    <CheckBox IsChecked="{Binding Overwrite, Mode=TwoWay}"
+                              Content="Overwrite existing files"
+                              Foreground="#E4E4EA"/>
+                    <CheckBox IsChecked="{Binding PreserveDirectoryStructure, Mode=TwoWay}"
+                              Content="Preserve directory structure"
+                              Foreground="#E4E4EA"/>
+                    <CheckBox IsChecked="{Binding ExportReferences, Mode=TwoWay}"
+                              Content="Export referenced assets"
+                              Foreground="#E4E4EA"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </DockPanel>
+</Window>

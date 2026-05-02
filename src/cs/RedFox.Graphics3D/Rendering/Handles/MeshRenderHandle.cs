@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Rendering;
@@ -140,7 +139,7 @@ internal sealed class MeshRenderHandle : RenderHandle
             {
                 ReadOnlySpan<byte> positionBytes = MemoryMarshal.AsBytes(positions.AsReadOnlySpan<float>());
                 ReadOnlySpan<byte> normalBytes = MemoryMarshal.AsBytes(normals.AsReadOnlySpan<float>());
-                if (!TryBuildSkinningData(_mesh, _vertexCount, out uint[] skinIndexData, out float[] skinWeightData, out int influenceCount, out int boneCount))
+                if (!TryBuildSkinningData(_mesh, _vertexCount, out ReadOnlySpan<byte> skinIndexBytes, out ReadOnlySpan<byte> skinWeightBytes, out int influenceCount, out int boneCount))
                 {
                     ReleaseComputeBuffers();
                     computeSkinningRequested = false;
@@ -155,8 +154,8 @@ internal sealed class MeshRenderHandle : RenderHandle
                     EnsureOrUpdateBuffer(ref _sourceNormalBuffer, ref _sourceNormalBufferSizeBytes, normals.ComponentCount * sizeof(float), BufferUsage.ShaderStorage, normalBytes);
                     EnsureOrUpdateBuffer(ref _positionBuffer, ref _positionBufferSizeBytes, positions.ComponentCount * sizeof(float), BufferUsage.Vertex | BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, positionBytes);
                     EnsureOrUpdateBuffer(ref _normalBuffer, ref _normalBufferSizeBytes, normals.ComponentCount * sizeof(float), BufferUsage.Vertex | BufferUsage.ShaderStorage | BufferUsage.DynamicWrite, normalBytes);
-                    EnsureOrUpdateBuffer(ref _boneIndexBuffer, ref _boneIndexBufferSizeBytes, sizeof(uint), BufferUsage.Structured | BufferUsage.ShaderStorage, MemoryMarshal.AsBytes(skinIndexData.AsSpan()));
-                    EnsureOrUpdateBuffer(ref _boneWeightBuffer, ref _boneWeightBufferSizeBytes, sizeof(float), BufferUsage.Structured | BufferUsage.ShaderStorage, MemoryMarshal.AsBytes(skinWeightData.AsSpan()));
+                    EnsureOrUpdateBuffer(ref _boneIndexBuffer, ref _boneIndexBufferSizeBytes, sizeof(uint), BufferUsage.Structured | BufferUsage.ShaderStorage, skinIndexBytes);
+                    EnsureOrUpdateBuffer(ref _boneWeightBuffer, ref _boneWeightBufferSizeBytes, sizeof(float), BufferUsage.Structured | BufferUsage.ShaderStorage, skinWeightBytes);
                     _cachedBoneIndices = _mesh.BoneIndices;
                     _cachedBoneWeights = _mesh.BoneWeights;
                     _cachedUsesComputeSkinning = true;
@@ -603,13 +602,13 @@ internal sealed class MeshRenderHandle : RenderHandle
     private static bool TryBuildSkinningData(
         Mesh mesh,
         int vertexCount,
-        out uint[] skinIndexData,
-        out float[] skinWeightData,
+        out ReadOnlySpan<byte> skinIndexBytes,
+        out ReadOnlySpan<byte> skinWeightBytes,
         out int influenceCount,
         out int boneCount)
     {
-        skinIndexData = Array.Empty<uint>();
-        skinWeightData = Array.Empty<float>();
+        skinIndexBytes = default;
+        skinWeightBytes = default;
         influenceCount = 0;
         boneCount = 0;
 
@@ -625,40 +624,21 @@ internal sealed class MeshRenderHandle : RenderHandle
 
         Buffers.DataBuffer boneIndices = mesh.BoneIndices;
         Buffers.DataBuffer boneWeights = mesh.BoneWeights;
-        influenceCount = Math.Min(boneIndices.ValueCount, boneWeights.ValueCount);
+        int boneIndexElementWidth = boneIndices.ValueCount * boneIndices.ComponentCount;
+        int boneWeightElementWidth = boneWeights.ValueCount * boneWeights.ComponentCount;
+        influenceCount = boneIndexElementWidth;
         boneCount = skinnedBones.Count;
-        if (influenceCount <= 0 || boneCount <= 0)
+        if (influenceCount <= 0
+            || boneCount <= 0
+            || boneWeightElementWidth != influenceCount
+            || boneIndices.ElementCount < vertexCount
+            || boneWeights.ElementCount < vertexCount)
         {
             return false;
         }
 
-        ReadOnlySpan<uint> boneIndexComponents = boneIndices.AsReadOnlySpan<uint>();
-        ReadOnlySpan<float> boneWeightComponents = boneWeights.AsReadOnlySpan<float>();
-        int boneIndexElementWidth = boneIndices.ValueCount * boneIndices.ComponentCount;
-        int boneWeightElementWidth = boneWeights.ValueCount * boneWeights.ComponentCount;
-
-        skinIndexData = new uint[vertexCount * influenceCount];
-        skinWeightData = new float[vertexCount * influenceCount];
-
-        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
-        {
-            int boneIndexBase = vertexIndex * boneIndexElementWidth;
-            int boneWeightBase = vertexIndex * boneWeightElementWidth;
-            int outputBase = vertexIndex * influenceCount;
-
-            boneIndexComponents.Slice(boneIndexBase, influenceCount).CopyTo(skinIndexData.AsSpan(outputBase, influenceCount));
-            boneWeightComponents.Slice(boneWeightBase, influenceCount).CopyTo(skinWeightData.AsSpan(outputBase, influenceCount));
-        }
-
-        for (int packedIndex = 0; packedIndex < skinIndexData.Length; packedIndex++)
-        {
-            if (skinIndexData[packedIndex] >= boneCount)
-            {
-                int vertexIndex = packedIndex / influenceCount;
-                throw new InvalidDataException($"Mesh '{mesh.Name}' contains an invalid skin index {skinIndexData[packedIndex]} at vertex {vertexIndex}.");
-            }
-        }
-
+        skinIndexBytes = MemoryMarshal.AsBytes(boneIndices.AsReadOnlySpan<int>());
+        skinWeightBytes = MemoryMarshal.AsBytes(boneWeights.AsReadOnlySpan<float>());
         return true;
     }
 }

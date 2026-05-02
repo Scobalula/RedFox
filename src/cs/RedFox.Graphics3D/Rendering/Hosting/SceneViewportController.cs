@@ -292,7 +292,7 @@ public sealed class SceneViewportController
         float nearPlane = MathF.Max(
             MinimumClipPlane,
             MathF.Max(nearFromDistance, MathF.Max(nearFromScale, nearFromDepthRatio)));
-        nearPlane = MathF.Min(nearPlane, farPlane * 0.25f);
+        nearPlane = MathF.Min(nearPlane, farPlane * 0.0005f);
 
         camera.NearPlane = nearPlane;
         camera.FarPlane = farPlane;
