@@ -28,6 +28,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
     private float _fallbackLightIntensity = 1.0f;
     private FaceWinding _frontFaceWinding = FaceWinding.CounterClockwise;
+    private OpenGlBuffer? _indexBuffer;
     private int _lightCount;
     private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
     private SkinningMode _skinningMode = SkinningMode.Linear;
@@ -59,6 +60,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _fallbackLightColor = Vector3.One;
         _fallbackLightIntensity = 1.0f;
         _frontFaceWinding = FaceWinding.CounterClockwise;
+        _indexBuffer = null;
         _lightCount = 0;
         _sceneAxis = Matrix4x4.Identity;
         _skinningMode = SkinningMode.Linear;
@@ -83,7 +85,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             ? openGlRenderTarget.Handle
             : _context.DefaultFramebufferHandle;
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
-        SetFramebufferDrawBuffer(gl, handle, _context.IsEmbeddedProfile);
         if (renderTarget is OpenGlRenderTarget { SampleCount: > 1 })
         {
             gl.Enable(EnableCap.Multisample);
@@ -125,7 +126,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         EnsureFramebufferComplete(gl, FramebufferTarget.ReadFramebuffer, "read");
 
         gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destinationHandle);
-        SetFramebufferDrawBuffer(gl, destinationHandle, _context.IsEmbeddedProfile);
         EnsureFramebufferComplete(gl, FramebufferTarget.DrawFramebuffer, "draw");
 
         gl.BlitFramebuffer(
@@ -198,6 +198,8 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         {
             computeProgram.SetInt("SkinningMode", (int)_skinningMode);
         }
+
+        ApplySceneStateToCurrentProgram();
     }
 
     /// <inheritdoc/>
@@ -236,10 +238,24 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 
         OpenGlBuffer openGlBuffer = buffer as OpenGlBuffer
             ?? throw new InvalidOperationException($"Expected {nameof(OpenGlBuffer)}.");
+
+        if (openGlBuffer.Usage.HasFlag(BufferUsage.Sampled))
+        {
+            if (openGlBuffer.SampledTextureHandle == 0)
+            {
+                throw new InvalidOperationException("The OpenGL sampled buffer does not have a texture-buffer view.");
+            }
+
+            _context.Gl.ActiveTexture(TextureUnit.Texture0 + slot);
+            _context.Gl.BindTexture(openGlBuffer.SampledTextureTarget, openGlBuffer.SampledTextureHandle);
+            return;
+        }
+
         _boundBuffers[slot] = openGlBuffer;
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Index))
         {
+            _indexBuffer = openGlBuffer;
             _context.Gl.BindVertexArray(_vertexArrayHandle);
             _context.Gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, openGlBuffer.Handle);
             return;
@@ -350,16 +366,19 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         ThrowIfDisposed();
         PrimitiveType primitiveType = GetPrimitiveType();
         _context.Gl.BindVertexArray(_vertexArrayHandle);
+        GpuBufferElementType indexElementType = _indexBuffer?.ElementType ?? GpuBufferElementType.Unknown;
+        DrawElementsType drawElementsType = GetDrawElementsType(indexElementType);
+        int indexElementSizeBytes = GetIndexElementSizeBytes(indexElementType);
         unsafe
         {
-            void* indexOffset = (void*)(startIndex * sizeof(uint));
+            void* indexOffset = (void*)(startIndex * indexElementSizeBytes);
             if (baseVertex == 0)
             {
-                _context.Gl.DrawElements(primitiveType, (uint)indexCount, DrawElementsType.UnsignedInt, indexOffset);
+                _context.Gl.DrawElements(primitiveType, (uint)indexCount, drawElementsType, indexOffset);
             }
             else
             {
-                _context.Gl.DrawElementsBaseVertex(primitiveType, (uint)indexCount, DrawElementsType.UnsignedInt, indexOffset, baseVertex);
+                _context.Gl.DrawElementsBaseVertex(primitiveType, (uint)indexCount, drawElementsType, indexOffset, baseVertex);
             }
         }
     }
@@ -452,10 +471,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         _context.SetFrontFace(_frontFaceWinding == FaceWinding.CounterClockwise);
-        if (!_context.IsEmbeddedProfile)
-        {
-            gl.PolygonMode(TriangleFace.FrontAndBack, pipelineState.Wireframe ? GLEnum.Line : GLEnum.Fill);
-        }
 
         if (pipelineState.BlendEnabled)
         {
@@ -529,6 +544,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         graphicsProgram.SetVector3("AmbientColor", _ambientColor);
+        graphicsProgram.SetInt("SkinningMode", (int)_skinningMode);
         graphicsProgram.SetInt("UseViewBasedLighting", _useViewBasedLighting ? 1 : 0);
 
         int appliedLightCount = _lightCount;
@@ -576,14 +592,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         if (status != GLEnum.FramebufferComplete)
         {
             throw new InvalidOperationException($"OpenGL {label} framebuffer is incomplete: {status}.");
-        }
-    }
-
-    private static void SetFramebufferDrawBuffer(GL gl, uint framebufferHandle, bool isEmbeddedProfile)
-    {
-        if (framebufferHandle != 0 && !isEmbeddedProfile)
-        {
-            gl.DrawBuffer(GLEnum.ColorAttachment0);
         }
     }
 
@@ -691,6 +699,28 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             VertexAttributeType.Int8 => VertexAttribPointerType.Byte,
             VertexAttributeType.UInt8 => VertexAttribPointerType.UnsignedByte,
             _ => VertexAttribPointerType.Float,
+        };
+    }
+
+    private static DrawElementsType GetDrawElementsType(GpuBufferElementType elementType)
+    {
+        return elementType switch
+        {
+            GpuBufferElementType.UInt8 => DrawElementsType.UnsignedByte,
+            GpuBufferElementType.UInt16 => DrawElementsType.UnsignedShort,
+            GpuBufferElementType.Unknown or GpuBufferElementType.UInt32 => DrawElementsType.UnsignedInt,
+            _ => throw new NotSupportedException($"OpenGL index buffers do not support '{elementType}' elements."),
+        };
+    }
+
+    private static int GetIndexElementSizeBytes(GpuBufferElementType elementType)
+    {
+        return elementType switch
+        {
+            GpuBufferElementType.UInt8 => sizeof(byte),
+            GpuBufferElementType.UInt16 => sizeof(ushort),
+            GpuBufferElementType.Unknown or GpuBufferElementType.UInt32 => sizeof(uint),
+            _ => throw new NotSupportedException($"OpenGL index buffers do not support '{elementType}' elements."),
         };
     }
 

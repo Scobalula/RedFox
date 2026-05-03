@@ -6,7 +6,19 @@
     "uniforms": [
       { "name": "VertexCount", "valueType": "int32", "required": true },
       { "name": "SkinInfluenceCount", "valueType": "int32", "required": true },
-      { "name": "SkinningMode", "valueType": "int32", "required": true }
+      { "name": "SkinningMode", "valueType": "int32", "required": true },
+      { "name": "PositionElementType", "valueType": "int32", "required": true },
+      { "name": "PositionElementStrideBytes", "valueType": "int32", "required": true },
+      { "name": "PositionValueStrideBytes", "valueType": "int32", "required": true },
+      { "name": "NormalElementType", "valueType": "int32", "required": true },
+      { "name": "NormalElementStrideBytes", "valueType": "int32", "required": true },
+      { "name": "NormalValueStrideBytes", "valueType": "int32", "required": true },
+      { "name": "BoneIndexElementType", "valueType": "int32", "required": true },
+      { "name": "BoneIndexElementStrideBytes", "valueType": "int32", "required": true },
+      { "name": "BoneIndexValueStrideBytes", "valueType": "int32", "required": true },
+      { "name": "BoneWeightElementType", "valueType": "int32", "required": true },
+      { "name": "BoneWeightElementStrideBytes", "valueType": "int32", "required": true },
+      { "name": "BoneWeightValueStrideBytes", "valueType": "int32", "required": true }
     ]
   }
 }

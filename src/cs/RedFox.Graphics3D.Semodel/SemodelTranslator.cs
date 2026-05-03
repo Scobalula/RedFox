@@ -151,15 +151,15 @@ public class SemodelTranslator : SceneTranslator
                 int influenceStride = indexSize + sizeof(float);
                 int vertexStride    = influences * influenceStride;
 
-                var weightData = reader.ReadBytes(vertexCount * vertexStride);
+                byte[] weightData = reader.ReadBytes(vertexCount * vertexStride);
 
                 mesh.BoneIndices = indexSize switch
                 {
-                    1 => new DataBufferView<byte>(weightData,   vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
-                    2 => new DataBufferView<ushort>(weightData,  vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
-                    _ => new DataBufferView<int>(weightData,     vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    1 => DataBufferPacking.CreateStrided<byte>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    2 => DataBufferPacking.CreateStrided<ushort>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    _ => DataBufferPacking.CreateStrided<int>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
                 };
-                mesh.BoneWeights = new DataBufferView<float>(weightData, vertexCount, byteOffset: indexSize, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride);
+                mesh.BoneWeights = DataBufferPacking.CreateStrided<float>(weightData, vertexCount, byteOffset: indexSize, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride);
 
                 AssignSkinBinding(mesh, skeleton, bones);
             }

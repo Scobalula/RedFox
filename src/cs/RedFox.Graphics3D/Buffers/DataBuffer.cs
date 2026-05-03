@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Buffers;
 
@@ -79,6 +80,17 @@ public abstract class DataBuffer
     public virtual bool TryGetSpan<T>(out Span<T> span) where T : unmanaged, INumber<T>
     {
         span = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to expose the populated storage as a contiguous GPU upload payload without converting component values.
+    /// </summary>
+    /// <param name="bufferData">When this method returns <see langword="true"/>, receives the byte payload and source layout metadata.</param>
+    /// <returns><see langword="true"/> when a direct contiguous GPU-compatible payload is available; otherwise <see langword="false"/>.</returns>
+    public virtual bool TryGetGpuBufferData(out GpuBufferData bufferData)
+    {
+        bufferData = default;
         return false;
     }
 

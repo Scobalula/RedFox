@@ -43,7 +43,8 @@ public static class GlslShaderSourceLoader
         ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        string absolutePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Shaders", "Glsl", typeName, fileName));
+        string shaderDirectory = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Shaders", "Glsl", typeName));
+        string absolutePath = Path.Combine(shaderDirectory, fileName);
         if (!File.Exists(absolutePath))
         {
             throw new FileNotFoundException($"GLSL shader file was not found: {absolutePath}", absolutePath);

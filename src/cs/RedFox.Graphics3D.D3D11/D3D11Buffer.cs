@@ -20,7 +20,8 @@ public sealed unsafe class D3D11Buffer : IGpuBuffer
         ComPtr<ID3D11UnorderedAccessView> unorderedAccessView,
         int sizeBytes,
         int strideBytes,
-        BufferUsage usage)
+        BufferUsage usage,
+        GpuBufferElementType elementType)
     {
         _buffer = buffer;
         _shaderResourceView = shaderResourceView;
@@ -28,6 +29,7 @@ public sealed unsafe class D3D11Buffer : IGpuBuffer
         SizeBytes = sizeBytes;
         StrideBytes = strideBytes;
         Usage = usage;
+        ElementType = elementType;
     }
 
     internal ID3D11Buffer* Handle => _buffer.Handle;
@@ -36,11 +38,17 @@ public sealed unsafe class D3D11Buffer : IGpuBuffer
 
     internal ID3D11UnorderedAccessView* UnorderedAccessView => _unorderedAccessView.Handle;
 
-    internal int SizeBytes { get; }
+    /// <inheritdoc/>
+    public int SizeBytes { get; }
 
-    internal int StrideBytes { get; }
+    /// <inheritdoc/>
+    public int StrideBytes { get; }
 
-    internal BufferUsage Usage { get; }
+    /// <inheritdoc/>
+    public BufferUsage Usage { get; }
+
+    /// <inheritdoc/>
+    public GpuBufferElementType ElementType { get; }
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }

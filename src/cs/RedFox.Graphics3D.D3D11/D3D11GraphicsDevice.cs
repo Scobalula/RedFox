@@ -47,11 +47,23 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
     /// <inheritdoc/>
     public IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage)
     {
-        return CreateBuffer(sizeBytes, stride, usage, ReadOnlySpan<byte>.Empty);
+        return CreateBuffer(sizeBytes, stride, usage, GpuBufferElementType.Unknown, ReadOnlySpan<byte>.Empty);
+    }
+
+    /// <inheritdoc/>
+    public IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, GpuBufferElementType elementType)
+    {
+        return CreateBuffer(sizeBytes, stride, usage, elementType, ReadOnlySpan<byte>.Empty);
     }
 
     /// <inheritdoc/>
     public unsafe IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, ReadOnlySpan<byte> initialData)
+    {
+        return CreateBuffer(sizeBytes, stride, usage, GpuBufferElementType.Unknown, initialData);
+    }
+
+    /// <inheritdoc/>
+    public unsafe IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, GpuBufferElementType elementType, ReadOnlySpan<byte> initialData)
     {
         ThrowIfDisposed();
 
@@ -65,19 +77,22 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             throw new ArgumentOutOfRangeException(nameof(stride));
         }
 
+        int allocatedSizeBytes = GetAllocatedBufferSizeBytes(sizeBytes, usage);
+
         BufferDesc desc = new()
         {
-            ByteWidth = usage.HasFlag(BufferUsage.Uniform) ? D3D11Helpers.AlignTo16(sizeBytes) : checked((uint)sizeBytes),
+            ByteWidth = usage.HasFlag(BufferUsage.Uniform) ? D3D11Helpers.AlignTo16(sizeBytes) : checked((uint)allocatedSizeBytes),
             Usage = IsDynamicBuffer(usage) ? D3D11BufferUsage.Dynamic : D3D11BufferUsage.Default,
             BindFlags = GetBindFlags(usage),
             CPUAccessFlags = IsDynamicBuffer(usage) ? (uint)CpuAccessFlag.Write : 0,
-            MiscFlags = HasStructuredView(usage) ? (uint)ResourceMiscFlag.BufferAllowRawViews : 0,
+            MiscFlags = HasRawBufferView(usage) ? (uint)ResourceMiscFlag.BufferAllowRawViews : 0,
             StructureByteStride = 0,
         };
 
         ComPtr<ID3D11Buffer> buffer = default;
-        string createBufferContext = $"ID3D11Device::CreateBuffer(size={sizeBytes}, stride={stride}, usage={usage}, bind=0x{desc.BindFlags:X}, misc=0x{desc.MiscFlags:X})";
-        if (initialData.IsEmpty)
+        string createBufferContext = $"ID3D11Device::CreateBuffer(size={sizeBytes}, allocated={allocatedSizeBytes}, stride={stride}, usage={usage}, type={elementType}, bind=0x{desc.BindFlags:X}, misc=0x{desc.MiscFlags:X})";
+        bool requiresPaddedUpload = !initialData.IsEmpty && allocatedSizeBytes != sizeBytes;
+        if (initialData.IsEmpty || requiresPaddedUpload)
         {
             D3D11Helpers.ThrowIfFailed(
                 _context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer),
@@ -102,8 +117,14 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             }
         }
 
-        CreateBufferViews(buffer, sizeBytes, stride, usage, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11UnorderedAccessView> unorderedAccessView);
-        return new D3D11Buffer(buffer, shaderResourceView, unorderedAccessView, sizeBytes, stride, usage);
+        CreateBufferViews(buffer, allocatedSizeBytes, stride, usage, elementType, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11UnorderedAccessView> unorderedAccessView);
+        D3D11Buffer d3dBuffer = new(buffer, shaderResourceView, unorderedAccessView, sizeBytes, stride, usage, elementType);
+        if (requiresPaddedUpload)
+        {
+            UpdateBuffer(d3dBuffer, initialData);
+        }
+
+        return d3dBuffer;
     }
 
     /// <inheritdoc/>
@@ -600,7 +621,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
 
     private static bool IsDynamicBuffer(BufferUsage usage)
     {
-        if (HasStructuredView(usage))
+        if (HasRawBufferView(usage) || usage.HasFlag(BufferUsage.Sampled))
         {
             return false;
         }
@@ -608,9 +629,24 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return usage.HasFlag(BufferUsage.DynamicWrite) || usage.HasFlag(BufferUsage.CpuWrite);
     }
 
-    private static bool HasStructuredView(BufferUsage usage)
+    private static bool HasRawBufferView(BufferUsage usage)
     {
         return usage.HasFlag(BufferUsage.ShaderStorage) || usage.HasFlag(BufferUsage.Structured);
+    }
+
+    private static bool HasSampledView(BufferUsage usage)
+    {
+        return usage.HasFlag(BufferUsage.Sampled);
+    }
+
+    private static int GetAllocatedBufferSizeBytes(int sizeBytes, BufferUsage usage)
+    {
+        if (!HasRawBufferView(usage) || (sizeBytes % sizeof(uint)) == 0)
+        {
+            return sizeBytes;
+        }
+
+        return checked(sizeBytes + (sizeof(uint) - (sizeBytes % sizeof(uint))));
     }
 
     private static uint GetBindFlags(BufferUsage usage)
@@ -631,10 +667,15 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             flags |= (uint)BindFlag.ConstantBuffer;
         }
 
-        if (HasStructuredView(usage))
+        if (HasRawBufferView(usage))
         {
             flags |= (uint)BindFlag.ShaderResource;
             flags |= (uint)BindFlag.UnorderedAccess;
+        }
+
+        if (HasSampledView(usage))
+        {
+            flags |= (uint)BindFlag.ShaderResource;
         }
 
         return flags == 0 ? (uint)BindFlag.VertexBuffer : flags;
@@ -645,12 +686,20 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         int sizeBytes,
         int stride,
         BufferUsage usage,
+        GpuBufferElementType elementType,
         out ComPtr<ID3D11ShaderResourceView> shaderResourceView,
         out ComPtr<ID3D11UnorderedAccessView> unorderedAccessView)
     {
         shaderResourceView = default;
         unorderedAccessView = default;
-        if (!HasStructuredView(usage))
+
+        if (HasSampledView(usage))
+        {
+            CreateTypedShaderResourceView(buffer, sizeBytes, stride, elementType, out shaderResourceView);
+            return;
+        }
+
+        if (!HasRawBufferView(usage))
         {
             return;
         }
@@ -696,6 +745,83 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             _context.Device.Get().CreateUnorderedAccessView((ID3D11Resource*)buffer.Handle, ref unorderedAccessViewDesc, &unorderedAccessViewPointer),
             "ID3D11Device::CreateUnorderedAccessView(buffer)");
         unorderedAccessView = new ComPtr<ID3D11UnorderedAccessView>(unorderedAccessViewPointer);
+    }
+
+    private void CreateTypedShaderResourceView(
+        ComPtr<ID3D11Buffer> buffer,
+        int sizeBytes,
+        int stride,
+        GpuBufferElementType elementType,
+        out ComPtr<ID3D11ShaderResourceView> shaderResourceView)
+    {
+        if (!TryGetSampledBufferFormat(stride, elementType, out Format format))
+        {
+            throw new NotSupportedException($"D3D11 sampled buffers do not support '{elementType}' with a stride of {stride} bytes.");
+        }
+
+        if (sizeBytes % stride != 0)
+        {
+            throw new ArgumentException("Typed D3D11 sampled buffers require a byte size evenly divisible by the sampled stride.", nameof(sizeBytes));
+        }
+
+        uint elementCount = checked((uint)(sizeBytes / stride));
+        ShaderResourceViewDesc shaderResourceViewDesc = new()
+        {
+            Format = format,
+            ViewDimension = D3DSrvDimension.D3D11SrvDimensionBuffer,
+            Buffer = new BufferSrv
+            {
+                FirstElement = 0,
+                NumElements = elementCount,
+            },
+        };
+
+        ID3D11ShaderResourceView* shaderResourceViewPointer = null;
+        D3D11Helpers.ThrowIfFailed(
+            _context.Device.Get().CreateShaderResourceView((ID3D11Resource*)buffer.Handle, ref shaderResourceViewDesc, &shaderResourceViewPointer),
+            "ID3D11Device::CreateShaderResourceView(typed buffer)");
+        shaderResourceView = new ComPtr<ID3D11ShaderResourceView>(shaderResourceViewPointer);
+    }
+
+    private static bool TryGetSampledBufferFormat(int stride, GpuBufferElementType elementType, out Format format)
+    {
+        int componentSizeBytes = elementType switch
+        {
+            GpuBufferElementType.Float16 or GpuBufferElementType.Int16 or GpuBufferElementType.UInt16 => sizeof(ushort),
+            GpuBufferElementType.Float32 or GpuBufferElementType.Int32 or GpuBufferElementType.UInt32 => sizeof(uint),
+            GpuBufferElementType.Int8 or GpuBufferElementType.UInt8 => sizeof(byte),
+            _ => 0,
+        };
+
+        if (componentSizeBytes <= 0 || stride % componentSizeBytes != 0)
+        {
+            format = Format.FormatUnknown;
+            return false;
+        }
+
+        int componentCount = stride / componentSizeBytes;
+        format = (elementType, componentCount) switch
+        {
+            (GpuBufferElementType.Float16, 1) => Format.FormatR16Float,
+            (GpuBufferElementType.Float16, 4) => Format.FormatR16G16B16A16Float,
+            (GpuBufferElementType.Float32, 1) => Format.FormatR32Float,
+            (GpuBufferElementType.Float32, 4) => Format.FormatR32G32B32A32Float,
+            (GpuBufferElementType.Int8, 1) => Format.FormatR8Sint,
+            (GpuBufferElementType.Int8, 4) => Format.FormatR8G8B8A8Sint,
+            (GpuBufferElementType.UInt8, 1) => Format.FormatR8Uint,
+            (GpuBufferElementType.UInt8, 4) => Format.FormatR8G8B8A8Uint,
+            (GpuBufferElementType.Int16, 1) => Format.FormatR16Sint,
+            (GpuBufferElementType.Int16, 4) => Format.FormatR16G16B16A16Sint,
+            (GpuBufferElementType.UInt16, 1) => Format.FormatR16Uint,
+            (GpuBufferElementType.UInt16, 4) => Format.FormatR16G16B16A16Uint,
+            (GpuBufferElementType.Int32, 1) => Format.FormatR32Sint,
+            (GpuBufferElementType.Int32, 4) => Format.FormatR32G32B32A32Sint,
+            (GpuBufferElementType.UInt32, 1) => Format.FormatR32Uint,
+            (GpuBufferElementType.UInt32, 4) => Format.FormatR32G32B32A32Uint,
+            _ => Format.FormatUnknown,
+        };
+
+        return format != Format.FormatUnknown;
     }
 
     private static uint GetTextureBindFlags(TextureUsage usage)

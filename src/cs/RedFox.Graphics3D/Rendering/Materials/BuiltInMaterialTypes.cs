@@ -20,7 +20,7 @@ public static class BuiltInMaterialTypes
     public static IReadOnlyList<MaterialTypeDefinition> CreateDefinitions(IMaterialShaderFactory shaderFactory)
     {
         ArgumentNullException.ThrowIfNull(shaderFactory);
-        return MaterialTypeJsonLoader.CreateDefinitions(Descriptors.Value, shaderFactory);
+        return MaterialTypeJsonLoader.CreateDefinitions(Descriptors.Value);
     }
 
     /// <summary>

@@ -20,6 +20,11 @@ public interface IRenderHandle : IDisposable
     bool RequiresPerFrameUpdate { get; }
 
     /// <summary>
+    /// Gets the set of flags that describe the characteristics or behavior of the render handle.
+    /// </summary>
+    RenderHandleFlags Flags { get; }
+
+    /// <summary>
     /// Updates lazy resources, uploads dynamic data, and refreshes GPU state.
     /// </summary>
     /// <param name="commandList">The command list used for the update.</param>

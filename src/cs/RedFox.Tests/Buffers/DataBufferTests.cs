@@ -1,5 +1,7 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Tests.Buffers;
 
@@ -82,12 +84,25 @@ public class DataBufferTests
     }
 
     [Fact]
-    public void DataBufferView_Append_Throws()
+    public void DataBuffer_CreateStrided_PacksContiguousValues()
     {
-        var view = DataBufferView<float>.CreatePacked(new byte[sizeof(float) * 2]);
+        byte[] source = new byte[sizeof(float) * 8];
+        Span<float> sourceValues = MemoryMarshal.Cast<byte, float>(source.AsSpan());
+        sourceValues[0] = 1f;
+        sourceValues[1] = 2f;
+        sourceValues[2] = 3f;
+        sourceValues[3] = 99f;
+        sourceValues[4] = 4f;
+        sourceValues[5] = 5f;
+        sourceValues[6] = 6f;
+        sourceValues[7] = 100f;
 
-        Assert.Throws<NotSupportedException>(() => view.Add());
-        Assert.Throws<NotSupportedException>(() => view.Add(1f));
+        DataBuffer<float> buffer = DataBufferPacking.CreateStrided<float>(source, 2, byteOffset: 0, byteStride: sizeof(float) * 4, valueCount: 1, componentCount: 3, byteValueStride: sizeof(float) * 3);
+
+        Assert.Equal(2, buffer.ElementCount);
+        Assert.Equal(1, buffer.ValueCount);
+        Assert.Equal(3, buffer.ComponentCount);
+        Assert.Equal(new float[] { 1f, 2f, 3f, 4f, 5f, 6f }, buffer.ToArray<float>());
     }
 
     [Fact]
@@ -115,14 +130,6 @@ public class DataBufferTests
         span[1] = 99;
 
         Assert.Equal(99, buffer.Get<int>(0, 0, 1));
-    }
-
-    [Fact]
-    public void DataBufferView_AsSpan_ThrowsNotSupported()
-    {
-        DataBuffer buffer = DataBufferView<float>.CreatePacked(new byte[sizeof(float) * 2]);
-
-        Assert.Throws<NotSupportedException>(() => buffer.AsSpan<float>());
     }
 
     [Fact]
@@ -199,5 +206,54 @@ public class DataBufferTests
         Assert.Equal(8, element[1]);
         Assert.Equal(9, element[2]);
         Assert.Equal(10, element[3]);
+    }
+
+    [Fact]
+    public void DataBuffer_TryGetGpuBufferData_ReturnsTypedLiveByteView()
+    {
+        DataBuffer<ushort> buffer = new(new ushort[] { 1, 2, 3, 4, 5, 6 }, 1, 3);
+
+        bool result = buffer.TryGetGpuBufferData(out GpuBufferData bufferData);
+        ReadOnlySpan<ushort> values = MemoryMarshal.Cast<byte, ushort>(bufferData.Bytes);
+
+        Assert.True(result);
+        Assert.Equal(GpuBufferElementType.UInt16, bufferData.ElementType);
+        Assert.Equal(2, bufferData.ElementCount);
+        Assert.Equal(1, bufferData.ValueCount);
+        Assert.Equal(3, bufferData.ComponentCount);
+        Assert.Equal(sizeof(ushort) * 3, bufferData.ElementStrideBytes);
+        Assert.Equal(sizeof(ushort) * 3, bufferData.ValueStrideBytes);
+        Assert.Equal(sizeof(ushort), bufferData.ComponentSizeBytes);
+        Assert.Equal(6, bufferData.TotalComponentCount);
+        Assert.True(bufferData.IsTightlyPacked);
+        Assert.Equal(new ushort[] { 1, 2, 3, 4, 5, 6 }, values.ToArray());
+
+        buffer.AsSpan()[1] = 42;
+        Assert.Equal(42, values[1]);
+    }
+
+    [Fact]
+    public void DataBuffer_CreateStrided_TryGetGpuBufferData_ReturnsPackedByteView()
+    {
+        byte[] source = new byte[sizeof(float) * 8];
+        Span<float> sourceValues = MemoryMarshal.Cast<byte, float>(source.AsSpan());
+        sourceValues[0] = 1f;
+        sourceValues[1] = 2f;
+        sourceValues[2] = 3f;
+        sourceValues[3] = 99f;
+        sourceValues[4] = 4f;
+        sourceValues[5] = 5f;
+        sourceValues[6] = 6f;
+        sourceValues[7] = 100f;
+        DataBuffer<float> buffer = DataBufferPacking.CreateStrided<float>(source, 2, byteOffset: 0, byteStride: sizeof(float) * 4, valueCount: 1, componentCount: 3, byteValueStride: sizeof(float) * 3);
+
+        bool result = buffer.TryGetGpuBufferData(out GpuBufferData bufferData);
+
+        Assert.True(result);
+        Assert.Equal(GpuBufferElementType.Float32, bufferData.ElementType);
+        Assert.Equal(2, bufferData.ElementCount);
+        Assert.Equal(sizeof(float) * 3, bufferData.ElementStrideBytes);
+        Assert.True(bufferData.IsTightlyPacked);
+        Assert.Equal(new float[] { 1f, 2f, 3f, 4f, 5f, 6f }, MemoryMarshal.Cast<byte, float>(bufferData.Bytes).ToArray());
     }
 }

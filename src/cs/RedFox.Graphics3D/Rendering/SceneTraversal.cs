@@ -46,17 +46,7 @@ public static class SceneTraversal
                 continue;
             }
 
-            IRenderHandle? graphicsHandle = node.GraphicsHandle;
-            if (graphicsHandle is null)
-            {
-                graphicsHandle = node.CreateRenderHandle(graphicsDevice, materialTypes);
-                node.GraphicsHandle = graphicsHandle;
-            }
-
-            if (graphicsHandle?.RequiresPerFrameUpdate == true)
-            {
-                graphicsHandle.Update(commandList);
-            }
+            UpdateNode(node, commandList, graphicsDevice, materialTypes);
         }
     }
 
@@ -109,7 +99,8 @@ public static class SceneTraversal
             }
 
             IRenderHandle? graphicsHandle = node.GraphicsHandle;
-            if (graphicsHandle is null || (graphicsHandle.RenderPhases & phaseMask) == 0)
+            
+            if (graphicsHandle is null || (graphicsHandle.RenderPhases & phaseMask) == 0 || graphicsHandle.Flags.HasFlag(RenderHandleFlags.SubHandle))
             {
                 continue;
             }
@@ -145,17 +136,7 @@ public static class SceneTraversal
             return;
         }
 
-        IRenderHandle? graphicsHandle = node.GraphicsHandle;
-        if (graphicsHandle is null)
-        {
-            graphicsHandle = node.CreateRenderHandle(graphicsDevice, materialTypes);
-            node.GraphicsHandle = graphicsHandle;
-        }
-
-        if (graphicsHandle?.RequiresPerFrameUpdate == true)
-        {
-            graphicsHandle.Update(commandList);
-        }
+        UpdateNode(node, commandList, graphicsDevice, materialTypes);
     }
 
     /// <summary>
@@ -208,5 +189,24 @@ public static class SceneTraversal
             RenderPhase.Overlay => RenderPhaseMask.Overlay,
             _ => RenderPhaseMask.None,
         };
+    }
+
+    private static void UpdateNode(
+        SceneNode node,
+        ICommandList commandList,
+        IGraphicsDevice graphicsDevice,
+        IMaterialTypeRegistry materialTypes)
+    {
+        IRenderHandle? graphicsHandle = node.GraphicsHandle;
+        if (graphicsHandle is null)
+        {
+            graphicsHandle = node.CreateRenderHandle(graphicsDevice, materialTypes);
+            node.GraphicsHandle = graphicsHandle;
+        }
+
+        if (graphicsHandle?.RequiresPerFrameUpdate == true)
+        {
+            graphicsHandle.Update(commandList);
+        }
     }
 }

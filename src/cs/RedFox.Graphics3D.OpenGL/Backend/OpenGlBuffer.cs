@@ -20,22 +20,37 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// <summary>
     /// Gets the requested buffer size in bytes.
     /// </summary>
-    internal int SizeBytes { get; }
+    public int SizeBytes { get; }
 
     /// <summary>
     /// Gets the requested element stride in bytes.
     /// </summary>
-    internal int StrideBytes { get; }
+    public int StrideBytes { get; }
 
     /// <summary>
     /// Gets the declared usage flags for the buffer.
     /// </summary>
-    internal BufferUsage Usage { get; }
+    public BufferUsage Usage { get; }
+
+    /// <summary>
+    /// Gets the scalar or packed storage type carried by the buffer.
+    /// </summary>
+    public GpuBufferElementType ElementType { get; }
 
     /// <summary>
     /// Gets the GL bind target used by the buffer.
     /// </summary>
     internal BufferTargetARB Target { get; }
+
+    /// <summary>
+    /// Gets the optional texture-buffer view used for sampled access.
+    /// </summary>
+    internal uint SampledTextureHandle { get; private set; }
+
+    /// <summary>
+    /// Gets the GL texture target used for sampled access.
+    /// </summary>
+    internal TextureTarget SampledTextureTarget { get; }
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
@@ -48,15 +63,21 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// <param name="sizeBytes">The buffer size in bytes.</param>
     /// <param name="strideBytes">The element stride in bytes.</param>
     /// <param name="usage">The usage flags.</param>
+    /// <param name="elementType">The scalar or packed storage type carried by the buffer.</param>
     /// <param name="target">The GL bind target used by the buffer.</param>
-    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage, BufferTargetARB target)
+    /// <param name="sampledTextureHandle">The optional texture-buffer view used for sampled access.</param>
+    /// <param name="sampledTextureTarget">The GL texture target used for sampled access.</param>
+    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage, GpuBufferElementType elementType, BufferTargetARB target, uint sampledTextureHandle, TextureTarget sampledTextureTarget)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         Handle = handle;
         SizeBytes = sizeBytes;
         StrideBytes = strideBytes;
         Usage = usage;
+        ElementType = elementType;
         Target = target;
+        SampledTextureHandle = sampledTextureHandle;
+        SampledTextureTarget = sampledTextureTarget;
     }
 
     /// <inheritdoc/>
@@ -65,6 +86,12 @@ internal sealed class OpenGlBuffer : IGpuBuffer
         if (IsDisposed)
         {
             return;
+        }
+
+        if (SampledTextureHandle != 0)
+        {
+            _context.Gl.DeleteTexture(SampledTextureHandle);
+            SampledTextureHandle = 0;
         }
 
         _context.DeleteBuffer(Handle);

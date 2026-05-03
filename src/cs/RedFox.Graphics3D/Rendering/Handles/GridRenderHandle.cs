@@ -98,8 +98,12 @@ internal sealed class GridRenderHandle : RenderHandle
             return;
         }
 
-        MaterialTypeDefinition definition = _materialTypes.Get("Grid");
-        _pipeline = definition.BuildPipeline(_graphicsDevice);
+        if (_materialTypes is not IMaterialPipelineProvider pipelineProvider)
+        {
+            throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
+        }
+
+        _pipeline = pipelineProvider.CreatePipeline(_graphicsDevice, "Grid");
     }
 
     private static float ResolveCellSize(Grid grid)

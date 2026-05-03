@@ -52,4 +52,9 @@ public enum BufferUsage
     /// The buffer supports CPU reads.
     /// </summary>
     CpuRead = 1 << 7,
+
+    /// <summary>
+    /// The buffer is sampled through typed shader-resource fetches.
+    /// </summary>
+    Sampled = 1 << 8,
 }

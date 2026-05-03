@@ -100,10 +100,22 @@ public static class MaterialTypeJsonLoader
         ArgumentNullException.ThrowIfNull(descriptors);
         ArgumentNullException.ThrowIfNull(shaderFactory);
 
+        return CreateDefinitions(descriptors);
+    }
+
+    /// <summary>
+    /// Creates material type definitions from descriptors.
+    /// </summary>
+    /// <param name="descriptors">The material type descriptors.</param>
+    /// <returns>The material type definitions.</returns>
+    public static IReadOnlyList<MaterialTypeDefinition> CreateDefinitions(IReadOnlyList<MaterialTypeDescriptor> descriptors)
+    {
+        ArgumentNullException.ThrowIfNull(descriptors);
+
         MaterialTypeDefinition[] definitions = new MaterialTypeDefinition[descriptors.Count];
         for (int index = 0; index < descriptors.Count; index++)
         {
-            definitions[index] = new MaterialTypeDefinition(descriptors[index], shaderFactory);
+            definitions[index] = new MaterialTypeDefinition(descriptors[index]);
         }
 
         return definitions;
@@ -119,7 +131,7 @@ public static class MaterialTypeJsonLoader
     {
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(shaderFactory);
-        registry.Register(new MaterialTypeDefinition(LoadFile(path), shaderFactory));
+        registry.Register(new MaterialTypeDefinition(LoadFile(path)));
     }
 
     /// <summary>

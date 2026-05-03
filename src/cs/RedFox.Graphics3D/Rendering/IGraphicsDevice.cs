@@ -29,6 +29,16 @@ public interface IGraphicsDevice : IDisposable
     IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage);
 
     /// <summary>
+    /// Creates a GPU buffer.
+    /// </summary>
+    /// <param name="sizeBytes">The buffer size in bytes.</param>
+    /// <param name="stride">The element stride in bytes.</param>
+    /// <param name="usage">The intended buffer usage.</param>
+    /// <param name="elementType">The scalar or packed storage type carried by the buffer.</param>
+    /// <returns>The created GPU buffer.</returns>
+    IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, GpuBufferElementType elementType);
+
+    /// <summary>
     /// Creates a GPU buffer with initial data.
     /// </summary>
     /// <param name="sizeBytes">The buffer size in bytes.</param>
@@ -37,6 +47,17 @@ public interface IGraphicsDevice : IDisposable
     /// <param name="initialData">The initial buffer payload to upload.</param>
     /// <returns>The created GPU buffer.</returns>
     IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, ReadOnlySpan<byte> initialData);
+
+    /// <summary>
+    /// Creates a GPU buffer with initial data.
+    /// </summary>
+    /// <param name="sizeBytes">The buffer size in bytes.</param>
+    /// <param name="stride">The element stride in bytes.</param>
+    /// <param name="usage">The intended buffer usage.</param>
+    /// <param name="elementType">The scalar or packed storage type carried by the buffer.</param>
+    /// <param name="initialData">The initial buffer payload to upload.</param>
+    /// <returns>The created GPU buffer.</returns>
+    IGpuBuffer CreateBuffer(int sizeBytes, int stride, BufferUsage usage, GpuBufferElementType elementType, ReadOnlySpan<byte> initialData);
 
     /// <summary>
     /// Updates an existing GPU buffer with new data.

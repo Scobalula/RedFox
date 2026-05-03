@@ -174,7 +174,7 @@ namespace RedFox.Graphics3D
         /// <inheritdoc/>
         public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
         {
-            return new MeshRenderHandle(graphicsDevice, materialTypes, this);
+            return new MeshRenderHandle(graphicsDevice, this);
         }
 
         internal bool TryGetActiveSkinBounds(out SceneBounds bounds)
@@ -1271,6 +1271,24 @@ namespace RedFox.Graphics3D
             }
 
             return table;
+        }
+
+        /// <summary>
+        /// Generates vertex normals for this mesh.
+        /// </summary>
+        public void GenerateTangents()
+            => GenerateTangents(true);
+
+        /// <summary>
+        /// Generates vertex tangents for this mesh using the specified normal generation mode.
+        /// </summary>
+        /// <param name="preserveExisting">If <see langword="true"/>, existing tangents are preserved and tangents are only generated if none exist.</param>
+        public void GenerateTangents(bool preserveExisting)
+        {
+            if (Tangents is not null && preserveExisting)
+                return;
+
+            MeshTangentFrame.Generate(this);
         }
     }
 }

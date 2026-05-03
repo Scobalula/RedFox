@@ -11,7 +11,7 @@ public sealed class D3D11MaterialTypeRegistry : MaterialTypeRegistry
     /// Initializes a new instance of the <see cref="D3D11MaterialTypeRegistry"/> class.
     /// </summary>
     public D3D11MaterialTypeRegistry()
-        : base(BuiltInMaterialTypes.CreateDefinitions(D3D11MaterialShaderFactory.Instance))
+        : base(D3D11MaterialShaderFactory.Instance, BuiltInMaterialTypes.CreateDefinitions(D3D11MaterialShaderFactory.Instance))
     {
     }
 }

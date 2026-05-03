@@ -106,6 +106,26 @@ public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtensi
     /// <inheritdoc/>
     public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
-        return new TextureRenderHandle(graphicsDevice, this);
+        return EnsureGraphicsHandle(graphicsDevice);
+    }
+
+    internal TextureRenderHandle EnsureGraphicsHandle(IGraphicsDevice graphicsDevice)
+    {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+
+        if (GraphicsHandle is TextureRenderHandle existingHandle && existingHandle.IsOwnedBy(graphicsDevice))
+        {
+            return existingHandle;
+        }
+
+        if (GraphicsHandle is not null)
+        {
+            GraphicsHandle.Release();
+            GraphicsHandle.Dispose();
+        }
+
+        TextureRenderHandle textureHandle = new(graphicsDevice, this);
+        GraphicsHandle = textureHandle;
+        return textureHandle;
     }
 }

@@ -267,24 +267,24 @@ public class SeanimTranslator : SceneTranslator
         int stride         = frameIndexSize + valueSize;
 
         // Single bulk read — all keyframes for this channel
-        var data = reader.ReadBytes(keyCount * stride);
+        byte[] data = reader.ReadBytes(keyCount * stride);
 
         var curve = new AnimationCurve
         {
             // Keys view — frame indices as byte / ushort / int, read as float
             Keys = frameIndexSize switch
             {
-                1 => new DataBufferView<byte>(data, keyCount, byteOffset: 0, byteStride: stride),
-                2 => new DataBufferView<ushort>(data, keyCount, byteOffset: 0, byteStride: stride),
-                _ => new DataBufferView<int>(data, keyCount, byteOffset: 0, byteStride: stride),
+                1 => DataBufferPacking.CreateStrided<byte>(data, keyCount, byteOffset: 0, byteStride: stride, valueCount: 1, componentCount: 1, byteValueStride: sizeof(byte)),
+                2 => DataBufferPacking.CreateStrided<ushort>(data, keyCount, byteOffset: 0, byteStride: stride, valueCount: 1, componentCount: 1, byteValueStride: sizeof(ushort)),
+                _ => DataBufferPacking.CreateStrided<int>(data, keyCount, byteOffset: 0, byteStride: stride, valueCount: 1, componentCount: 1, byteValueStride: sizeof(int)),
             }
         };
 
         // Values view — component data as float or double
         if (highPrecision)
-            curve.Values = new DataBufferView<double>(data, keyCount, byteOffset: frameIndexSize, byteStride: stride, valueCount: 1, componentCount: componentCount);
+            curve.Values = DataBufferPacking.CreateStrided<double>(data, keyCount, byteOffset: frameIndexSize, byteStride: stride, valueCount: 1, componentCount: componentCount, byteValueStride: componentCount * sizeof(double));
         else
-            curve.Values = new DataBufferView<float>(data,  keyCount, byteOffset: frameIndexSize, byteStride: stride, valueCount: 1, componentCount: componentCount);
+            curve.Values = DataBufferPacking.CreateStrided<float>(data, keyCount, byteOffset: frameIndexSize, byteStride: stride, valueCount: 1, componentCount: componentCount, byteValueStride: componentCount * sizeof(float));
 
         return curve;
     }

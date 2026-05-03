@@ -13,34 +13,219 @@
      int VertexCount;
      int SkinInfluenceCount;
      int SkinningMode;
-     int Padding;
+     int PositionElementType;
+     int PositionElementStrideBytes;
+     int PositionValueStrideBytes;
+     int NormalElementType;
+     int NormalElementStrideBytes;
+     int NormalValueStrideBytes;
+     int BoneIndexElementType;
+     int BoneIndexElementStrideBytes;
+     int BoneIndexValueStrideBytes;
+     int BoneWeightElementType;
+     int BoneWeightElementStrideBytes;
+     int BoneWeightValueStrideBytes;
  };
 
+ static const uint BufferSelectorPosition = 0;
+ static const uint BufferSelectorNormal = 1;
+ static const uint BufferSelectorBoneIndex = 2;
+ static const uint BufferSelectorBoneWeight = 3;
+ static const int ElementTypeUnknown = 0;
+ static const int ElementTypeFloat16 = 1;
+ static const int ElementTypeFloat32 = 2;
+ static const int ElementTypeFloat64 = 3;
+ static const int ElementTypeInt8 = 4;
+ static const int ElementTypeUInt8 = 5;
+ static const int ElementTypeInt16 = 6;
+ static const int ElementTypeUInt16 = 7;
+ static const int ElementTypeInt32 = 8;
+ static const int ElementTypeUInt32 = 9;
+ static const int ElementTypeInt64 = 10;
+ static const int ElementTypeUInt64 = 11;
  static const int SkinningModeLinear = 0;
  static const int SkinningModeDualQuaternion = 1;
- static const uint FloatSize = 4;
  static const uint Float3Size = 12;
  static const uint MatrixRowCount = 4;
  static const uint MatrixRowSize = 16;
+ static const double UInt32Scale = 4294967296.0;
 
- float LoadFloat(ByteAddressBuffer buffer, uint elementIndex)
+ uint LoadBufferWord(uint bufferSelector, uint byteOffset)
  {
-     return asfloat(buffer.Load(elementIndex * FloatSize));
+     switch (bufferSelector)
+     {
+         case BufferSelectorPosition:
+             return Positions.Load(byteOffset);
+         case BufferSelectorNormal:
+             return Normals.Load(byteOffset);
+         case BufferSelectorBoneIndex:
+             return BoneIndices.Load(byteOffset);
+         case BufferSelectorBoneWeight:
+             return BoneWeights.Load(byteOffset);
+         default:
+             return 0;
+     }
  }
 
- uint LoadUInt(ByteAddressBuffer buffer, uint elementIndex)
+ int GetElementTypeSizeBytes(int elementType)
  {
-     return buffer.Load(elementIndex * FloatSize);
- }
-
- float3 LoadFloat3(ByteAddressBuffer buffer, uint elementIndex)
- {
-     return asfloat(buffer.Load3(elementIndex * Float3Size));
+     switch (elementType)
+     {
+         case ElementTypeFloat16:
+         case ElementTypeInt16:
+         case ElementTypeUInt16:
+             return 2;
+         case ElementTypeFloat32:
+         case ElementTypeInt32:
+         case ElementTypeUInt32:
+             return 4;
+         case ElementTypeFloat64:
+         case ElementTypeInt64:
+         case ElementTypeUInt64:
+             return 8;
+         case ElementTypeInt8:
+         case ElementTypeUInt8:
+             return 1;
+         default:
+             return 0;
+     }
  }
 
  float4 LoadFloat4(ByteAddressBuffer buffer, uint elementIndex)
  {
      return asfloat(buffer.Load4(elementIndex * MatrixRowSize));
+ }
+
+ float ConvertSignedUInt32ToFloat(uint raw)
+ {
+     return raw >= 0x80000000u
+         ? (float)((double)raw - UInt32Scale)
+         : (float)raw;
+ }
+
+ float ConvertSignedUInt64ToFloat(uint lowWord, uint highWord)
+ {
+     double highValue = highWord >= 0x80000000u
+         ? (double)highWord - UInt32Scale
+         : (double)highWord;
+     return (float)((double)lowWord + (highValue * UInt32Scale));
+ }
+
+ float ConvertUnsignedUInt64ToFloat(uint lowWord, uint highWord)
+ {
+     return (float)((double)lowWord + ((double)highWord * UInt32Scale));
+ }
+
+ float LoadComponentAsFloat(uint bufferSelector, int elementType, uint byteOffset)
+ {
+     uint alignedByteOffset = byteOffset & ~3u;
+     uint word = LoadBufferWord(bufferSelector, alignedByteOffset);
+     uint shift = (byteOffset & 3u) * 8u;
+
+     switch (elementType)
+     {
+         case ElementTypeFloat16:
+         {
+             uint raw = (byteOffset & 2u) == 0u ? (word & 0xFFFFu) : (word >> 16);
+             return f16tof32(raw);
+         }
+         case ElementTypeFloat32:
+             return asfloat(word);
+         case ElementTypeFloat64:
+         {
+             uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+             return (float)asdouble(word, highWord);
+         }
+         case ElementTypeInt8:
+         {
+             uint raw = (word >> shift) & 0xFFu;
+             return raw >= 0x80u ? (float)((int)raw - 256) : (float)raw;
+         }
+         case ElementTypeUInt8:
+             return (float)((word >> shift) & 0xFFu);
+         case ElementTypeInt16:
+         {
+             uint raw = (word >> shift) & 0xFFFFu;
+             return raw >= 0x8000u ? (float)((int)raw - 65536) : (float)raw;
+         }
+         case ElementTypeUInt16:
+             return (float)((word >> shift) & 0xFFFFu);
+         case ElementTypeInt32:
+             return ConvertSignedUInt32ToFloat(word);
+         case ElementTypeUInt32:
+             return (float)word;
+         case ElementTypeInt64:
+         {
+             uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+             return ConvertSignedUInt64ToFloat(word, highWord);
+         }
+         case ElementTypeUInt64:
+         {
+             uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+             return ConvertUnsignedUInt64ToFloat(word, highWord);
+         }
+         default:
+             return 0.0f;
+     }
+ }
+
+ uint LoadComponentAsUInt(uint bufferSelector, int elementType, uint byteOffset)
+ {
+     uint alignedByteOffset = byteOffset & ~3u;
+     uint word = LoadBufferWord(bufferSelector, alignedByteOffset);
+     uint shift = (byteOffset & 3u) * 8u;
+
+     switch (elementType)
+     {
+         case ElementTypeUInt8:
+             return (word >> shift) & 0xFFu;
+         case ElementTypeUInt16:
+             return (word >> shift) & 0xFFFFu;
+         case ElementTypeUInt32:
+             return word;
+         case ElementTypeInt8:
+         {
+             uint raw = (word >> shift) & 0xFFu;
+             return raw >= 0x80u ? 0u : raw;
+         }
+         case ElementTypeInt16:
+         {
+             uint raw = (word >> shift) & 0xFFFFu;
+             return raw >= 0x8000u ? 0u : raw;
+         }
+         case ElementTypeInt32:
+             return word >= 0x80000000u ? 0u : word;
+         case ElementTypeUInt64:
+         {
+             uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+             return highWord == 0u ? word : 0xFFFFFFFFu;
+         }
+         case ElementTypeInt64:
+         {
+             uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+             return highWord >= 0x80000000u ? 0u : (highWord == 0u ? word : 0xFFFFFFFFu);
+         }
+         default:
+             return (uint)max(LoadComponentAsFloat(bufferSelector, elementType, byteOffset), 0.0f);
+     }
+ }
+
+ float LoadValueComponentAsFloat(uint bufferSelector, int elementType, int elementStrideBytes, int valueStrideBytes, uint elementIndex, uint valueIndex, uint componentIndex)
+ {
+     int componentSizeBytes = GetElementTypeSizeBytes(elementType);
+     uint byteOffset = (elementIndex * (uint)elementStrideBytes)
+         + (valueIndex * (uint)valueStrideBytes)
+         + (componentIndex * (uint)componentSizeBytes);
+     return LoadComponentAsFloat(bufferSelector, elementType, byteOffset);
+ }
+
+ uint LoadValueComponentAsUInt(uint bufferSelector, int elementType, int elementStrideBytes, int valueStrideBytes, uint elementIndex, uint valueIndex, uint componentIndex)
+ {
+     int componentSizeBytes = GetElementTypeSizeBytes(elementType);
+     uint byteOffset = (elementIndex * (uint)elementStrideBytes)
+         + (valueIndex * (uint)valueStrideBytes)
+         + (componentIndex * (uint)componentSizeBytes);
+     return LoadComponentAsUInt(bufferSelector, elementType, byteOffset);
  }
 
  float4x4 LoadTransform(uint boneIndex)
@@ -147,8 +332,14 @@
          return;
      }
 
-    float3 sourcePosition = LoadFloat3(Positions, vertexIndex);
-    float3 sourceNormal = LoadFloat3(Normals, vertexIndex);
+    float3 sourcePosition = float3(
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 0u),
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 1u),
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 2u));
+    float3 sourceNormal = float3(
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 0u),
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 1u),
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 2u));
      float3 outputPosition = float3(0.0f, 0.0f, 0.0f);
      float3 outputNormal = float3(0.0f, 0.0f, 0.0f);
      float totalWeight = 0.0f;
@@ -158,17 +349,15 @@
      bool hasQuaternionReference = false;
      float4 quaternionReference = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
-     uint baseOffset = vertexIndex * (uint)max(SkinInfluenceCount, 0);
      for (int influenceIndex = 0; influenceIndex < SkinInfluenceCount; influenceIndex++)
      {
-         uint packedOffset = baseOffset + (uint)influenceIndex;
-         float weight = LoadFloat(BoneWeights, packedOffset);
+         float weight = LoadValueComponentAsFloat(BufferSelectorBoneWeight, BoneWeightElementType, BoneWeightElementStrideBytes, BoneWeightValueStrideBytes, vertexIndex, (uint)influenceIndex, 0u);
          if (weight <= 0.0f)
          {
              continue;
          }
 
-         uint boneIndex = LoadUInt(BoneIndices, packedOffset);
+         uint boneIndex = LoadValueComponentAsUInt(BufferSelectorBoneIndex, BoneIndexElementType, BoneIndexElementStrideBytes, BoneIndexValueStrideBytes, vertexIndex, (uint)influenceIndex, 0u);
          float4x4 transform = LoadTransform(boneIndex);
 
          if (SkinningMode == SkinningModeDualQuaternion)

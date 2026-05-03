@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Buffers
 {
@@ -59,6 +60,29 @@ namespace RedFox.Graphics3D.Buffers
 
             span = default;
             return false;
+        }
+
+        /// <inheritdoc/>
+        public override bool TryGetGpuBufferData(out GpuBufferData bufferData)
+        {
+            if (!DataBufferGpuElementTypes.TryGet<T>(out GpuBufferElementType elementType, out int componentSizeBytes))
+            {
+                bufferData = default;
+                return false;
+            }
+
+            int valueStrideBytes = _componentCount * componentSizeBytes;
+            int elementStrideBytes = _valueCount * valueStrideBytes;
+            bufferData = new GpuBufferData(
+                MemoryMarshal.AsBytes(AsReadOnlySpan()),
+                elementType,
+                _elementCount,
+                _valueCount,
+                _componentCount,
+                elementStrideBytes,
+                valueStrideBytes,
+                componentSizeBytes);
+            return true;
         }
 
         /// <summary>

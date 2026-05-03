@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
 
@@ -21,11 +20,13 @@ internal abstract class RenderHandle : IRenderHandle
     public virtual bool RequiresPerFrameUpdate => true;
 
     /// <inheritdoc/>
+    public virtual RenderHandleFlags Flags => RenderHandleFlags.None;
+
+    /// <inheritdoc/>
     public abstract void Update(ICommandList commandList);
 
     /// <inheritdoc/>
-    public abstract void Render(
-        ICommandList commandList,
+    public abstract void Render(ICommandList commandList,
         RenderPhase phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,

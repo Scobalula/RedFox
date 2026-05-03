@@ -11,7 +11,7 @@ internal sealed class OpenGlMaterialTypeRegistry : MaterialTypeRegistry
     /// Initializes a new instance of the <see cref="OpenGlMaterialTypeRegistry"/> class.
     /// </summary>
     public OpenGlMaterialTypeRegistry()
-        : base(BuiltInMaterialTypes.CreateDefinitions(OpenGlMaterialShaderFactory.Instance))
+        : base(OpenGlMaterialShaderFactory.Instance, BuiltInMaterialTypes.CreateDefinitions(OpenGlMaterialShaderFactory.Instance))
     {
     }
 }

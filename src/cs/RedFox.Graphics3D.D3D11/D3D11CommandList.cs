@@ -298,9 +298,15 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             return;
         }
 
+        if (_currentPipelineState?.IsCompute != true && d3dBuffer.Usage.HasFlag(BufferUsage.Sampled))
+        {
+            BindGraphicsSampledBuffer(slot, d3dBuffer);
+            return;
+        }
+
         if (d3dBuffer.Usage.HasFlag(BufferUsage.Index))
         {
-            _context.DeviceContext.Get().IASetIndexBuffer(d3dBuffer.Handle, Format.FormatR32Uint, 0);
+            _context.DeviceContext.Get().IASetIndexBuffer(d3dBuffer.Handle, GetIndexFormat(d3dBuffer.ElementType), 0);
             return;
         }
 
@@ -704,6 +710,27 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         }
 
         _context.DeviceContext.Get().CSSetShaderResources((uint)slot, 1, &shaderResourceView);
+    }
+
+    private void BindGraphicsSampledBuffer(int slot, D3D11Buffer buffer)
+    {
+        ID3D11ShaderResourceView* shaderResourceView = buffer.ShaderResourceView;
+        if (shaderResourceView is null)
+        {
+            throw new InvalidOperationException("The D3D11 sampled buffer does not have a shader-resource view.");
+        }
+
+        _context.DeviceContext.Get().VSSetShaderResources((uint)slot, 1, &shaderResourceView);
+    }
+
+    private static Format GetIndexFormat(GpuBufferElementType elementType)
+    {
+        return elementType switch
+        {
+            GpuBufferElementType.UInt16 => Format.FormatR16Uint,
+            GpuBufferElementType.Unknown or GpuBufferElementType.UInt32 => Format.FormatR32Uint,
+            _ => throw new NotSupportedException($"D3D11 index buffers do not support '{elementType}' elements."),
+        };
     }
 
     private void ClearComputeBindings()

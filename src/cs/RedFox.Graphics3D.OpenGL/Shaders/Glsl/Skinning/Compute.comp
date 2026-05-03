@@ -1,25 +1,25 @@
-#version 430 core
+#version 310 es
 
 layout(local_size_x = 64) in;
 
 layout(std430, binding = 0) readonly buffer Positions
 {
-    float Position[];
+    uint PositionRaw[];
 };
 
 layout(std430, binding = 1) readonly buffer Normals
 {
-    float Normal[];
+    uint NormalRaw[];
 };
 
 layout(std430, binding = 2) readonly buffer BoneIndices
 {
-    uint BoneIndex[];
+    uint BoneIndexRaw[];
 };
 
 layout(std430, binding = 3) readonly buffer BoneWeights
 {
-    float BoneWeight[];
+    uint BoneWeightRaw[];
 };
 
 layout(std430, binding = 4) readonly buffer SkinTransforms
@@ -40,9 +40,213 @@ layout(std430, binding = 6) writeonly buffer SkinnedNormals
 uniform int VertexCount;
 uniform int SkinInfluenceCount;
 uniform int SkinningMode;
+uniform int PositionElementType;
+uniform int PositionElementStrideBytes;
+uniform int PositionValueStrideBytes;
+uniform int NormalElementType;
+uniform int NormalElementStrideBytes;
+uniform int NormalValueStrideBytes;
+uniform int BoneIndexElementType;
+uniform int BoneIndexElementStrideBytes;
+uniform int BoneIndexValueStrideBytes;
+uniform int BoneWeightElementType;
+uniform int BoneWeightElementStrideBytes;
+uniform int BoneWeightValueStrideBytes;
 
+const int BufferSelectorPosition = 0;
+const int BufferSelectorNormal = 1;
+const int BufferSelectorBoneIndex = 2;
+const int BufferSelectorBoneWeight = 3;
+const int ElementTypeUnknown = 0;
+const int ElementTypeFloat16 = 1;
+const int ElementTypeFloat32 = 2;
+const int ElementTypeFloat64 = 3;
+const int ElementTypeInt8 = 4;
+const int ElementTypeUInt8 = 5;
+const int ElementTypeInt16 = 6;
+const int ElementTypeUInt16 = 7;
+const int ElementTypeInt32 = 8;
+const int ElementTypeUInt32 = 9;
+const int ElementTypeInt64 = 10;
+const int ElementTypeUInt64 = 11;
 const int SkinningModeLinear = 0;
 const int SkinningModeDualQuaternion = 1;
+const double UInt32Scale = 4294967296.0;
+
+uint LoadBufferWord(int bufferSelector, uint byteOffset)
+{
+    uint wordIndex = byteOffset >> 2u;
+
+    switch (bufferSelector)
+    {
+        case BufferSelectorPosition:
+            return PositionRaw[wordIndex];
+        case BufferSelectorNormal:
+            return NormalRaw[wordIndex];
+        case BufferSelectorBoneIndex:
+            return BoneIndexRaw[wordIndex];
+        case BufferSelectorBoneWeight:
+            return BoneWeightRaw[wordIndex];
+        default:
+            return 0u;
+    }
+}
+
+int GetElementTypeSizeBytes(int elementType)
+{
+    switch (elementType)
+    {
+        case ElementTypeFloat16:
+        case ElementTypeInt16:
+        case ElementTypeUInt16:
+            return 2;
+        case ElementTypeFloat32:
+        case ElementTypeInt32:
+        case ElementTypeUInt32:
+            return 4;
+        case ElementTypeFloat64:
+        case ElementTypeInt64:
+        case ElementTypeUInt64:
+            return 8;
+        case ElementTypeInt8:
+        case ElementTypeUInt8:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+float ConvertSignedUInt32ToFloat(uint raw)
+{
+    return raw >= 0x80000000u
+        ? float(double(raw) - UInt32Scale)
+        : float(raw);
+}
+
+float ConvertSignedUInt64ToFloat(uint lowWord, uint highWord)
+{
+    double highValue = highWord >= 0x80000000u
+        ? double(highWord) - UInt32Scale
+        : double(highWord);
+    return float(double(lowWord) + (highValue * UInt32Scale));
+}
+
+float ConvertUnsignedUInt64ToFloat(uint lowWord, uint highWord)
+{
+    return float(double(lowWord) + (double(highWord) * UInt32Scale));
+}
+
+float LoadComponentAsFloat(int bufferSelector, int elementType, uint byteOffset)
+{
+    uint alignedByteOffset = byteOffset & ~3u;
+    uint word = LoadBufferWord(bufferSelector, alignedByteOffset);
+    uint shift = (byteOffset & 3u) * 8u;
+
+    switch (elementType)
+    {
+        case ElementTypeFloat16:
+        {
+            vec2 unpacked = unpackHalf2x16(word);
+            return (byteOffset & 2u) == 0u ? unpacked.x : unpacked.y;
+        }
+        case ElementTypeFloat32:
+            return uintBitsToFloat(word);
+        case ElementTypeFloat64:
+        {
+            uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+            return float(unpackDouble2x32(uvec2(word, highWord)));
+        }
+        case ElementTypeInt8:
+        {
+            uint raw = (word >> shift) & 0xFFu;
+            return raw >= 0x80u ? float(int(raw) - 256) : float(raw);
+        }
+        case ElementTypeUInt8:
+            return float((word >> shift) & 0xFFu);
+        case ElementTypeInt16:
+        {
+            uint raw = (word >> shift) & 0xFFFFu;
+            return raw >= 0x8000u ? float(int(raw) - 65536) : float(raw);
+        }
+        case ElementTypeUInt16:
+            return float((word >> shift) & 0xFFFFu);
+        case ElementTypeInt32:
+            return ConvertSignedUInt32ToFloat(word);
+        case ElementTypeUInt32:
+            return float(word);
+        case ElementTypeInt64:
+        {
+            uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+            return ConvertSignedUInt64ToFloat(word, highWord);
+        }
+        case ElementTypeUInt64:
+        {
+            uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+            return ConvertUnsignedUInt64ToFloat(word, highWord);
+        }
+        default:
+            return 0.0;
+    }
+}
+
+uint LoadComponentAsUInt(int bufferSelector, int elementType, uint byteOffset)
+{
+    uint alignedByteOffset = byteOffset & ~3u;
+    uint word = LoadBufferWord(bufferSelector, alignedByteOffset);
+    uint shift = (byteOffset & 3u) * 8u;
+
+    switch (elementType)
+    {
+        case ElementTypeUInt8:
+            return (word >> shift) & 0xFFu;
+        case ElementTypeUInt16:
+            return (word >> shift) & 0xFFFFu;
+        case ElementTypeUInt32:
+            return word;
+        case ElementTypeInt8:
+        {
+            uint raw = (word >> shift) & 0xFFu;
+            return raw >= 0x80u ? 0u : raw;
+        }
+        case ElementTypeInt16:
+        {
+            uint raw = (word >> shift) & 0xFFFFu;
+            return raw >= 0x8000u ? 0u : raw;
+        }
+        case ElementTypeInt32:
+            return word >= 0x80000000u ? 0u : word;
+        case ElementTypeUInt64:
+        {
+            uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+            return highWord == 0u ? word : 0xFFFFFFFFu;
+        }
+        case ElementTypeInt64:
+        {
+            uint highWord = LoadBufferWord(bufferSelector, alignedByteOffset + 4u);
+            return highWord >= 0x80000000u ? 0u : (highWord == 0u ? word : 0xFFFFFFFFu);
+        }
+        default:
+            return uint(max(LoadComponentAsFloat(bufferSelector, elementType, byteOffset), 0.0));
+    }
+}
+
+float LoadValueComponentAsFloat(int bufferSelector, int elementType, int elementStrideBytes, int valueStrideBytes, uint elementIndex, uint valueIndex, uint componentIndex)
+{
+    int componentSizeBytes = GetElementTypeSizeBytes(elementType);
+    uint byteOffset = (elementIndex * uint(elementStrideBytes))
+        + (valueIndex * uint(valueStrideBytes))
+        + (componentIndex * uint(componentSizeBytes));
+    return LoadComponentAsFloat(bufferSelector, elementType, byteOffset);
+}
+
+uint LoadValueComponentAsUInt(int bufferSelector, int elementType, int elementStrideBytes, int valueStrideBytes, uint elementIndex, uint valueIndex, uint componentIndex)
+{
+    int componentSizeBytes = GetElementTypeSizeBytes(elementType);
+    uint byteOffset = (elementIndex * uint(elementStrideBytes))
+        + (valueIndex * uint(valueStrideBytes))
+        + (componentIndex * uint(componentSizeBytes));
+    return LoadComponentAsUInt(bufferSelector, elementType, byteOffset);
+}
 
 vec4 QuaternionMultiply(vec4 a, vec4 b)
 {
@@ -134,15 +338,14 @@ void main()
         return;
     }
 
-    uint positionOffset = vertexIndex * 3u;
     vec3 sourcePosition = vec3(
-        Position[positionOffset + 0u],
-        Position[positionOffset + 1u],
-        Position[positionOffset + 2u]);
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 0u),
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 1u),
+        LoadValueComponentAsFloat(BufferSelectorPosition, PositionElementType, PositionElementStrideBytes, PositionValueStrideBytes, vertexIndex, 0u, 2u));
     vec3 sourceNormal = vec3(
-        Normal[positionOffset + 0u],
-        Normal[positionOffset + 1u],
-        Normal[positionOffset + 2u]);
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 0u),
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 1u),
+        LoadValueComponentAsFloat(BufferSelectorNormal, NormalElementType, NormalElementStrideBytes, NormalValueStrideBytes, vertexIndex, 0u, 2u));
 
     vec3 outputPosition = vec3(0.0);
     vec3 outputNormal = vec3(0.0);
@@ -153,17 +356,15 @@ void main()
     bool hasQuaternionReference = false;
     vec4 quaternionReference = vec4(0.0);
 
-    uint baseOffset = vertexIndex * uint(max(SkinInfluenceCount, 0));
     for (int influenceIndex = 0; influenceIndex < SkinInfluenceCount; influenceIndex++)
     {
-        uint packedOffset = baseOffset + uint(influenceIndex);
-        float weight = BoneWeight[packedOffset];
+        float weight = LoadValueComponentAsFloat(BufferSelectorBoneWeight, BoneWeightElementType, BoneWeightElementStrideBytes, BoneWeightValueStrideBytes, vertexIndex, uint(influenceIndex), 0u);
         if (weight <= 0.0)
         {
             continue;
         }
 
-        uint boneIndex = BoneIndex[packedOffset];
+        uint boneIndex = LoadValueComponentAsUInt(BufferSelectorBoneIndex, BoneIndexElementType, BoneIndexElementStrideBytes, BoneIndexValueStrideBytes, vertexIndex, uint(influenceIndex), 0u);
         mat4 transform = SkinTransform[boneIndex];
 
         if (SkinningMode == SkinningModeDualQuaternion)
@@ -228,6 +429,7 @@ void main()
     float lengthSquared = dot(outputNormal, outputNormal);
     vec3 normalizedNormal = lengthSquared > 1e-12 ? normalize(outputNormal) : vec3(0.0, 1.0, 0.0);
 
+    uint positionOffset = vertexIndex * 3u;
     SkinnedPosition[positionOffset + 0u] = outputPosition.x;
     SkinnedPosition[positionOffset + 1u] = outputPosition.y;
     SkinnedPosition[positionOffset + 2u] = outputPosition.z;

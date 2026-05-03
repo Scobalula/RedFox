@@ -149,8 +149,12 @@ internal sealed class SkyboxRenderHandle : RenderHandle
             return;
         }
 
-        MaterialTypeDefinition definition = _materialTypes.Get("Skybox");
-        _pipeline = definition.BuildPipeline(_graphicsDevice);
+        if (_materialTypes is not IMaterialPipelineProvider pipelineProvider)
+        {
+            throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
+        }
+
+        _pipeline = pipelineProvider.CreatePipeline(_graphicsDevice, "Skybox");
     }
 
     private void ReleaseTexture()

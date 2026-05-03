@@ -341,7 +341,27 @@ public class Material(string name) : SceneNode(name)
 
     /// <inheritdoc/>
     public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-        => new MaterialRenderHandle(graphicsDevice, materialTypes, this);
+        => EnsureGraphicsHandle(graphicsDevice);
+
+    internal MaterialRenderHandle EnsureGraphicsHandle(IGraphicsDevice graphicsDevice)
+    {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+
+        if (GraphicsHandle is MaterialRenderHandle existingHandle && existingHandle.IsOwnedBy(graphicsDevice))
+        {
+            return existingHandle;
+        }
+
+        if (GraphicsHandle is not null)
+        {
+            GraphicsHandle.Release();
+            GraphicsHandle.Dispose();
+        }
+
+        MaterialRenderHandle materialHandle = new(graphicsDevice, this);
+        GraphicsHandle = materialHandle;
+        return materialHandle;
+    }
 
     /// <summary>
     /// Connects <paramref name="texture"/> to this material under <paramref name="slotKey"/>.

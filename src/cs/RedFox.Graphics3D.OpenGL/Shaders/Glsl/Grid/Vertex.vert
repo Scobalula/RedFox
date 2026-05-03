@@ -1,4 +1,6 @@
-#version 330 core
+#version 300 es
+precision highp float;
+precision highp int;
 
 uniform mat4 View;
 uniform mat4 Projection;

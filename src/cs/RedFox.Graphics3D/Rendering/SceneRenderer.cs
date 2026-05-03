@@ -18,7 +18,6 @@ public sealed class SceneRenderer : IDisposable
 
     private static readonly RenderPhase[] RenderPhases =
     [
-        RenderPhase.SkinningCompute,
         RenderPhase.Opaque,
         RenderPhase.Transparent,
         RenderPhase.Overlay,
@@ -385,6 +384,7 @@ public sealed class SceneRenderer : IDisposable
     public void ReleaseResources(SceneNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
+
         if (node.GraphicsHandle is { } graphicsHandle)
         {
             graphicsHandle.Release();
