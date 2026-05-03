@@ -1,10 +1,11 @@
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
-/// Provides editable export settings for the settings window.
+/// Provides editable settings for the settings window.
 /// </summary>
 public partial class SettingsWindowViewModel : ObservableObject
 {
@@ -15,42 +16,29 @@ public partial class SettingsWindowViewModel : ObservableObject
     /// Initializes a new instance of the <see cref="SettingsWindowViewModel"/> class.
     /// </summary>
     /// <param name="settings">The settings object to edit.</param>
+    /// <param name="settingDefinitions">The settings to display.</param>
     /// <param name="appName">The application name used for persistence.</param>
-    public SettingsWindowViewModel(GameExtractionSettings settings, string appName)
+    public SettingsWindowViewModel(
+        GameExtractionSettings settings,
+        IReadOnlyList<GameExtractionSetting> settingDefinitions,
+        string appName)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        ArgumentNullException.ThrowIfNull(settingDefinitions);
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         _appName = appName;
 
-        OutputDirectory = settings.OutputDirectory;
-        Overwrite = settings.Overwrite;
-        ExportReferences = settings.ExportReferences;
-        PreserveDirectoryStructure = settings.PreserveDirectoryStructure;
+        Groups = [.. settingDefinitions
+            .GroupBy(GetGroupName)
+            .Select(group => new SettingGroupViewModel(
+                group.Key,
+                [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, BrowseSettingAsync))]))];
     }
 
     /// <summary>
-    /// Gets or sets the export output directory.
+    /// Gets the setting groups displayed in the window.
     /// </summary>
-    [ObservableProperty]
-    public partial string OutputDirectory { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether existing files are overwritten during export.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool Overwrite { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether referenced assets are exported recursively.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ExportReferences { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether asset directory structure is preserved.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool PreserveDirectoryStructure { get; set; }
+    public IReadOnlyList<SettingGroupViewModel> Groups { get; }
 
     /// <summary>
     /// Raised when the view model should be saved and closed.
@@ -63,9 +51,9 @@ public partial class SettingsWindowViewModel : ObservableObject
     public event Action? CancelRequested;
 
     /// <summary>
-    /// Raised when the view should browse for an output directory.
+    /// Raised when the view should browse for a setting value.
     /// </summary>
-    public event Func<string?, Task<string?>>? BrowseOutputDirectoryRequested;
+    public event Func<GameExtractionSettingViewModel, Task<string?>>? BrowseSettingRequested;
 
     /// <summary>
     /// Saves the current settings.
@@ -73,12 +61,13 @@ public partial class SettingsWindowViewModel : ObservableObject
     [RelayCommand]
     public void Save()
     {
-        _settings.OutputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
-            ? GameExtractionSettings.GetDefaultOutputDirectory()
-            : OutputDirectory.Trim();
-        _settings.Overwrite = Overwrite;
-        _settings.ExportReferences = ExportReferences;
-        _settings.PreserveDirectoryStructure = PreserveDirectoryStructure;
+        foreach (SettingGroupViewModel group in Groups)
+        {
+            foreach (GameExtractionSettingViewModel setting in group.Settings)
+            {
+                setting.SaveTo(_settings);
+            }
+        }
 
         string path = GameExtractionSettings.GetDefaultSettingsPath(_appName);
         _settings.Save(path);
@@ -94,22 +83,44 @@ public partial class SettingsWindowViewModel : ObservableObject
         CancelRequested?.Invoke();
     }
 
+
     /// <summary>
-    /// Opens a directory picker for the output directory.
+    /// Opens the application's log directory in the default file explorer.
     /// </summary>
-    /// <returns>A task that completes when browsing finishes.</returns>
     [RelayCommand]
-    public async Task BrowseOutputDirectoryAsync()
+    public void OpenLog()
     {
-        if (BrowseOutputDirectoryRequested is null)
+        try
         {
-            return;
+            var logsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), _appName, "logs");
+
+            if (!Directory.Exists(logsDirectory))
+                Directory.CreateDirectory(logsDirectory);
+
+            Process.Start(new System.Diagnostics.ProcessStartInfo()
+            {
+                FileName = logsDirectory,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task<string?> BrowseSettingAsync(GameExtractionSettingViewModel setting)
+    {
+        if (BrowseSettingRequested is null)
+        {
+            return null;
         }
 
-        string? selectedPath = await BrowseOutputDirectoryRequested.Invoke(OutputDirectory).ConfigureAwait(true);
-        if (!string.IsNullOrWhiteSpace(selectedPath))
-        {
-            OutputDirectory = selectedPath;
-        }
+        return await BrowseSettingRequested.Invoke(setting).ConfigureAwait(true);
+    }
+
+    private static string GetGroupName(GameExtractionSetting setting)
+    {
+        string? groupName = string.IsNullOrWhiteSpace(setting.Group) ? setting.Category : setting.Group;
+        return string.IsNullOrWhiteSpace(groupName) ? "General" : groupName.Trim();
     }
 }

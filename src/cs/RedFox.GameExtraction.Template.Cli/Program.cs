@@ -1,3 +1,5 @@
+using RedFox.GameExtraction.Template;
+
 namespace RedFox.GameExtraction.Template.Cli;
 
 internal static class Program
@@ -75,7 +77,7 @@ internal static class Program
             return 1;
         }
 
-        AssetReadResult result = await manager.ReadAsync(asset, AssetReadMode.Preview).ConfigureAwait(false);
+        AssetReadResult result = await manager.ReadAsync(asset).ConfigureAwait(false);
         AssetReadResult<byte[]> byteResult = result as AssetReadResult<byte[]>
             ?? throw new InvalidOperationException("Template read operations must return byte[] results.");
 

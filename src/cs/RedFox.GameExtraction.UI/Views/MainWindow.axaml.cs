@@ -1,5 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
+using RedFox.GameExtraction.UI.Models;
 using RedFox.GameExtraction.UI.ViewModels;
 
 namespace RedFox.GameExtraction.UI.Views;
@@ -9,12 +13,16 @@ namespace RedFox.GameExtraction.UI.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private readonly PreviewWindowHost _previewWindowHost = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
     /// </summary>
     public MainWindow()
     {
         InitializeComponent();
+        _previewWindowHost.Closed += OnPreviewWindowClosed;
+        Closed += OnWindowClosed;
     }
 
     /// <summary>
@@ -23,14 +31,66 @@ public partial class MainWindow : Window
     /// <param name="config">The extraction UI configuration.</param>
     public void Initialize(GameExtractionConfig config)
     {
+        if (DataContext is MainWindowViewModel previousViewModel)
+        {
+            UnsubscribeFromViewModel(previousViewModel);
+        }
+
         MainWindowViewModel viewModel = new(config);
         DataContext = viewModel;
 
+        SubscribeToViewModel(viewModel);
+    }
+
+    private void SubscribeToViewModel(MainWindowViewModel viewModel)
+    {
         viewModel.SettingsRequested += OnSettingsRequested;
         viewModel.AboutRequested += OnAboutRequested;
         viewModel.SourceManagerRequested += OnSourceManagerRequested;
         viewModel.FileDialogRequested += OnFileDialogRequested;
         viewModel.FolderDialogRequested += OnFolderDialogRequested;
+        viewModel.ProcessSelectionRequested += OnProcessSelectionRequested;
+        viewModel.PreviewRequested += OnPreviewRequested;
+    }
+
+    private void UnsubscribeFromViewModel(MainWindowViewModel viewModel)
+    {
+        viewModel.SettingsRequested -= OnSettingsRequested;
+        viewModel.AboutRequested -= OnAboutRequested;
+        viewModel.SourceManagerRequested -= OnSourceManagerRequested;
+        viewModel.FileDialogRequested -= OnFileDialogRequested;
+        viewModel.FolderDialogRequested -= OnFolderDialogRequested;
+        viewModel.ProcessSelectionRequested -= OnProcessSelectionRequested;
+        viewModel.PreviewRequested -= OnPreviewRequested;
+    }
+
+    private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || sender is not DataGrid dataGrid)
+        {
+            return;
+        }
+
+        viewModel.SetSelectedAssets(dataGrid.SelectedItems.OfType<AssetRowViewModel>());
+    }
+
+    private void OnAssetDoubleTapped(object? sender, TappedEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || args.Source is not Visual source)
+        {
+            return;
+        }
+
+        AssetRowViewModel? row = source.FindAncestorOfType<DataGridRow>()?.DataContext as AssetRowViewModel;
+        if (row is null)
+        {
+            row = (source as Control)?.DataContext as AssetRowViewModel;
+        }
+
+        if (row is not null)
+        {
+            viewModel.OpenPreview(row);
+        }
     }
 
     private async Task<IReadOnlyList<string>> OnFileDialogRequested()
@@ -48,11 +108,10 @@ public partial class MainWindow : Window
             FileTypeFilter = filters,
         }).ConfigureAwait(true);
 
-        return result
+        return [.. result
             .Select(file => file.TryGetLocalPath())
             .Where(path => path is not null)
-            .Cast<string>()
-            .ToList();
+            .Cast<string>()];
     }
 
     private async Task<string?> OnFolderDialogRequested()
@@ -74,7 +133,7 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.AppName);
+        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName);
         settingsWindow.ShowDialog(this);
     }
 
@@ -102,6 +161,41 @@ public partial class MainWindow : Window
         managerWindow.ShowDialog(this);
     }
 
+    private async Task<ProcessSelectionResult?> OnProcessSelectionRequested(IReadOnlyList<ProcessCandidateViewModel> processes)
+    {
+        ProcessSelectionWindow processWindow = new();
+        processWindow.Initialize(processes);
+        return await processWindow.ShowDialog<ProcessSelectionResult?>(this).ConfigureAwait(true);
+    }
+
+    private void OnPreviewRequested()
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            _previewWindowHost.Show(this, viewModel);
+            viewModel.SetPreviewWindowOpen(true);
+        }
+    }
+
+    private void OnPreviewWindowClosed()
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.SetPreviewWindowOpen(false);
+        }
+    }
+
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            UnsubscribeFromViewModel(viewModel);
+            viewModel.Dispose();
+        }
+
+        _previewWindowHost.Dispose();
+    }
+
     private static IReadOnlyList<FilePickerFileType> ParseFileFilter(string filter)
     {
         List<FilePickerFileType> types = [];
@@ -110,9 +204,8 @@ public partial class MainWindow : Window
         for (int index = 0; index + 1 < parts.Length; index += 2)
         {
             string name = parts[index];
-            List<string> patterns = parts[index + 1]
-                .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                .ToList();
+            List<string> patterns = [.. parts[index + 1]
+                .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
 
             if (patterns.Count > 0)
             {

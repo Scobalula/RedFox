@@ -1,4 +1,6 @@
+using Avalonia.Controls;
 using RedFox.GameExtraction;
+using RedFox.GameExtraction.UI.ViewModels;
 
 namespace RedFox.GameExtraction.UI;
 
@@ -81,16 +83,6 @@ public sealed class GameExtractionConfig
     public bool SupportsProcessSources { get; init; }
 
     /// <summary>
-    /// Gets the target process identifier used by the Load Process command.
-    /// </summary>
-    public int? ProcessId { get; init; }
-
-    /// <summary>
-    /// Gets the target process name used by the Load Process command.
-    /// </summary>
-    public string? ProcessName { get; init; }
-
-    /// <summary>
     /// Gets source options passed to each mount request.
     /// </summary>
     public IReadOnlyDictionary<string, object?> SourceOptions { get; init; } = EmptyOptions;
@@ -101,44 +93,27 @@ public sealed class GameExtractionConfig
     public IReadOnlyList<string> MetadataColumns { get; init; } = [];
 
     /// <summary>
+    /// Gets the function used to build export configuration values from persisted settings.
+    /// </summary>
+    public required Func<GameExtractionSettings, ExportConfiguration> ExportConfigurationFactory { get; init; }
+
+    /// <summary>
     /// Gets the mutable export settings used by the application.
     /// </summary>
-    public GameExtractionSettings Settings { get; init; } = new();
+    public required GameExtractionSettings Settings { get; init; }
+
+    /// <summary>
+    /// Gets the settings displayed in the settings window.
+    /// </summary>
+    public required IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; init; }
+
+    /// <summary>
+    /// Gets the control selector used to build a preview surface for the current preview state.
+    /// </summary>
+    public required Func<MainWindowViewModel, Control?> PreviewControlFactory { get; init; }
 
     /// <summary>
     /// Gets the optional About window configuration with description and links.
     /// </summary>
     public AboutConfig? About { get; init; }
-}
-
-/// <summary>
-/// Configures the About window content and links.
-/// </summary>
-public sealed class AboutConfig
-{
-    /// <summary>
-    /// Gets the description text shown below the title.
-    /// </summary>
-    public string? Description { get; init; }
-
-    /// <summary>
-    /// Gets the links displayed as buttons in the About window.
-    /// </summary>
-    public IReadOnlyList<AboutLink>? Links { get; init; }
-}
-
-/// <summary>
-/// Describes a link button displayed in the About window.
-/// </summary>
-public sealed class AboutLink
-{
-    /// <summary>
-    /// Gets the button label text.
-    /// </summary>
-    public required string Label { get; init; }
-
-    /// <summary>
-    /// Gets the URL opened when the button is clicked.
-    /// </summary>
-    public required string Url { get; init; }
 }

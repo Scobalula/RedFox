@@ -5,28 +5,23 @@ namespace RedFox.GameExtraction.UI.Models;
 /// <summary>
 /// Presents a mounted asset source to Avalonia views.
 /// </summary>
-public sealed class AssetSourceViewModel
+/// <remarks>
+/// Initializes a new instance of the <see cref="AssetSourceViewModel"/> class.
+/// </remarks>
+/// <param name="source">The mounted source.</param>
+/// <param name="request">The request that produced the source, when available.</param>
+public sealed class AssetSourceViewModel(IAssetSource source, AssetSourceRequest? request)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AssetSourceViewModel"/> class.
-    /// </summary>
-    /// <param name="source">The mounted source.</param>
-    /// <param name="request">The request that produced the source, when available.</param>
-    public AssetSourceViewModel(IAssetSource source, AssetSourceRequest? request)
-    {
-        Source = source ?? throw new ArgumentNullException(nameof(source));
-        Request = request;
-    }
 
     /// <summary>
     /// Gets the mounted source.
     /// </summary>
-    public IAssetSource Source { get; }
+    public IAssetSource Source { get; } = source ?? throw new ArgumentNullException(nameof(source));
 
     /// <summary>
     /// Gets the request that produced the source, when available.
     /// </summary>
-    public AssetSourceRequest? Request { get; }
+    public AssetSourceRequest? Request { get; } = request;
 
     /// <summary>
     /// Gets the display name for the source.

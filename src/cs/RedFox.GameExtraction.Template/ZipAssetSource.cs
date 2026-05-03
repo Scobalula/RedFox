@@ -1,30 +1,21 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
+using RedFox.GameExtraction;
 
-namespace RedFox.GameExtraction.Template.Cli;
+namespace RedFox.GameExtraction.Template;
 
 /// <summary>
 /// Represents a mounted ZIP archive that exposes discovered assets.
 /// </summary>
 public sealed class ZipAssetSource : IAssetSource
 {
-    private readonly Stream _archiveStream;
     private readonly ZipArchive _archive;
+    private readonly Stream _archiveStream;
     private readonly Dictionary<string, Asset> _assetsByPath;
     private bool _disposed;
 
     /// <summary>
-    /// Gets the source display name.
-    /// </summary>
-    public string Name { get; }
-
-    /// <summary>
-    /// Gets the assets discovered in the archive.
-    /// </summary>
-    public IReadOnlyList<Asset> Assets { get; }
-
-    /// <summary>
-    /// Initializes a new ZIP-backed asset source.
+    /// Initializes a new instance of the <see cref="ZipAssetSource"/> class.
     /// </summary>
     /// <param name="name">The display name of the source.</param>
     /// <param name="archiveStream">The underlying archive stream.</param>
@@ -47,6 +38,16 @@ public sealed class ZipAssetSource : IAssetSource
         _archive = archive;
         _assetsByPath = Assets.ToDictionary(asset => ZipPathUtility.Normalize(asset.Name), StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Gets the source display name.
+    /// </summary>
+    public string Name { get; }
+
+    /// <summary>
+    /// Gets the assets discovered in the archive.
+    /// </summary>
+    public IReadOnlyList<Asset> Assets { get; }
 
     /// <summary>
     /// Attempts to resolve an asset by virtual path.

@@ -500,38 +500,26 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        ReadAsync(asset, AssetReadMode.Preview, CancellationToken.None);
+        ReadAsync(asset, CancellationToken.None);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler.
     /// </summary>
     /// <param name="asset">The asset to read.</param>
-    /// <param name="mode">The intent of the read operation.</param>
-    /// <returns>The handler-produced read result.</returns>
-    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadMode mode) =>
-        ReadAsync(asset, mode, CancellationToken.None);
-
-    /// <summary>
-    /// Reads an asset using the first compatible registered handler.
-    /// </summary>
-    /// <param name="asset">The asset to read.</param>
-    /// <param name="mode">The intent of the read operation.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public Task<AssetReadResult> ReadAsync(
-        Asset asset,
-        AssetReadMode mode,
-        CancellationToken cancellationToken)
+    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return ReadInternalAsync(asset, mode, raiseFailureEvent: true, cancellationToken);
+        return ReadInternalAsync(asset, raiseFailureEvent: true, cancellationToken);
     }
 
     /// <summary>
-    /// Exports a single asset.
+    /// Reads an asset using the first compatible registered handler.
     /// </summary>
-    /// <param name="asset">The asset to export.</param>
+    /// <param name="asset">The asset to read.</param>
     /// <param name="configuration">The export configuration to apply.</param>
+    /// <returns>A task that completes when the export finishes.</returns>
     public Task ExportAsync(Asset asset, ExportConfiguration configuration) =>
         ExportAsync(asset, configuration, null, CancellationToken.None);
 
@@ -669,7 +657,6 @@ public sealed class AssetManager
 
                     AssetReadResult readResult = await ReadInternalAsync(
                         asset,
-                        AssetReadMode.Export,
                         raiseFailureEvent: false,
                         cancellationToken).ConfigureAwait(false);
 
@@ -784,32 +771,25 @@ public sealed class AssetManager
 
     private void UnregisterSource(IAssetSource source)
     {
-        foreach (Asset asset in source.Assets)
-        {
-            _assets.Remove(asset);
-            asset.DetachSource();
-        }
-
         _sourceRequests.Remove(source);
         _sources.Remove(source);
     }
 
     private async Task<AssetReadResult> ReadInternalAsync(
         Asset asset,
-        AssetReadMode mode,
         bool raiseFailureEvent,
         CancellationToken cancellationToken)
     {
         IAssetSource source = GetRequiredSource(asset);
         IAssetHandler handler = GetRequiredHandler(asset);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-        AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source, mode));
+        AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source));
 
         try
         {
-            AssetReadContext context = new(this, source, sourceRequest, mode);
+            AssetReadContext context = new(this, source, sourceRequest);
             AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
-            AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, mode, result));
+            AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
             return result;
         }
         catch (Exception ex)

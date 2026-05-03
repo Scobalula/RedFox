@@ -1,6 +1,8 @@
 using System.IO.Compression;
+using RedFox.GameExtraction;
+using RedFox.IO.FileSystem;
 
-namespace RedFox.GameExtraction.Template.Cli;
+namespace RedFox.GameExtraction.Template;
 
 /// <summary>
 /// Reads and exports assets as raw byte-for-byte files.
@@ -19,7 +21,7 @@ public sealed class RawAssetHandler : IAssetHandler
     }
 
     /// <summary>
-    /// Reads the full asset payload into memory from the ZIP entry stored in <see cref="Asset.DataSource"/>.
+    /// Reads the full asset payload into memory from the asset data source.
     /// </summary>
     /// <param name="asset">The asset to read.</param>
     /// <param name="context">The read context for the operation.</param>
@@ -31,10 +33,7 @@ public sealed class RawAssetHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        ZipArchiveEntry entry = asset.DataSource as ZipArchiveEntry
-            ?? throw new InvalidOperationException($"RawAssetHandler expects a {nameof(ZipArchiveEntry)} data source.");
-
-        await using Stream stream = entry.Open();
+        await using Stream stream = OpenAssetStream(asset);
         using MemoryStream buffer = new();
         await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
 
@@ -92,5 +91,16 @@ public sealed class RawAssetHandler : IAssetHandler
         }
 
         await File.WriteAllBytesAsync(outputPath, dataResult.Data, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static Stream OpenAssetStream(Asset asset)
+    {
+        return asset.DataSource switch
+        {
+            VirtualFile file => file.Open(),
+            ZipArchiveEntry entry => entry.Open(),
+            _ => throw new InvalidOperationException(
+                $"RawAssetHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
+        };
     }
 }

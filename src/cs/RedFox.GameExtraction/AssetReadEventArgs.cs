@@ -8,11 +8,4 @@ namespace RedFox.GameExtraction;
 /// </remarks>
 /// <param name="asset">The asset being read.</param>
 /// <param name="source">The source that owns the asset.</param>
-/// <param name="mode">The mode used for the read.</param>
-public class AssetReadEventArgs(Asset asset, IAssetSource source, AssetReadMode mode) : AssetOperationEventArgs(asset, source)
-{
-    /// <summary>
-    /// Gets the read mode used for the operation.
-    /// </summary>
-    public AssetReadMode Mode { get; } = mode;
-}
+public class AssetReadEventArgs(Asset asset, IAssetSource source) : AssetOperationEventArgs(asset, source);

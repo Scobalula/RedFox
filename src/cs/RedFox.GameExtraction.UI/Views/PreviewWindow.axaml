@@ -1,0 +1,112 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        x:Class="RedFox.GameExtraction.UI.Views.PreviewWindow"
+    x:DataType="vm:MainWindowViewModel"
+        Title="{Binding WindowTitle}"
+        Width="900" Height="620"
+        MinWidth="640" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        Topmost="True">
+
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Top"
+                Classes="settings-action-bar"
+                Margin="0,0,0,10">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="18" RowSpacing="6">
+                <TextBlock Grid.Column="0"
+                           Grid.Row="0"
+                           Text="{Binding AssetNameDisplay}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#FFFFFF"
+                           TextTrimming="CharacterEllipsis"/>
+                <TextBlock Grid.Column="1"
+                           Grid.Row="0"
+                           Text="{Binding AssetTypeDisplay}"
+                           Classes="status-text"
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="0"
+                            Grid.Row="1"
+                            Orientation="Horizontal"
+                            Spacing="14">
+                    <TextBlock Classes="status-text" Text="{Binding SourceNameDisplay}"/>
+                    <TextBlock Classes="status-text" Text="{Binding SizeDisplay}"/>
+                    <TextBlock Classes="status-text" Text="{Binding SelectionDisplay}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           Grid.Row="1"
+                           Text="{Binding InformationDisplay}"
+                           Classes="status-text"
+                           TextTrimming="CharacterEllipsis"/>
+                <Grid Grid.Column="0"
+                      Grid.Row="2"
+                      Grid.ColumnSpan="2"
+                      ColumnDefinitions="Auto,Auto,Auto,*"
+                      ColumnSpacing="14">
+                    <TextBlock Grid.Column="0"
+                               Classes="status-text"
+                               Text="{Binding HandlerDisplay, StringFormat=Handler: {0}}"/>
+                    <TextBlock Grid.Column="1"
+                               Classes="status-text"
+                               Text="{Binding PayloadTypeDisplay, StringFormat=Payload: {0}}"/>
+                    <TextBlock Grid.Column="2"
+                               Classes="status-text"
+                               Text="{Binding ReferenceCountDisplay, StringFormat=References: {0}}"/>
+                    <TextBlock Grid.Column="3"
+                               Classes="status-text"
+                               Text="{Binding PreviewStatusText}"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Right"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <ProgressBar DockPanel.Dock="Top"
+                     IsVisible="{Binding IsPreviewLoading}"
+                     IsIndeterminate="True"
+                     Margin="0,0,0,10"/>
+
+        <Panel>
+            <Border CornerRadius="12"
+                    BoxShadow="0 3 12 0 #40000000"
+                    Background="#1C1C1F"
+                    IsHitTestVisible="False"/>
+            <Border Classes="sidebar" ClipToBounds="True">
+                <Grid>
+                    <ContentControl Content="{Binding PreviewControl}"
+                                    IsVisible="{Binding HasPreviewControl}"/>
+
+                    <StackPanel Spacing="12"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding ShowPreviewPlaceholder}">
+                        <TextBlock Text="{Binding ContentTitle}"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FFFFFF"/>
+                        <TextBlock Text="{Binding ContentText}"
+                                   Foreground="#909096"
+                                   TextWrapping="Wrap"/>
+                        <Border Background="#141417"
+                                BorderBrush="#2C2C31"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="12"
+                                IsVisible="{Binding HasPreviewData}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Preview data captured"
+                                           Foreground="#FFFFFF"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="No configured preview control accepted this payload."
+                                           Foreground="#909096"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Panel>
+    </DockPanel>
+</Window>

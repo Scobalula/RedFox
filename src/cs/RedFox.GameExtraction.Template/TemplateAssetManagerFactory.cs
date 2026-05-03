@@ -1,9 +1,9 @@
 using RedFox.GameExtraction;
 
-namespace RedFox.GameExtraction.Template.Avalonia;
+namespace RedFox.GameExtraction.Template;
 
 /// <summary>
-/// Creates preconfigured <see cref="AssetManager"/> instances for the ZIP Avalonia template.
+/// Creates preconfigured <see cref="AssetManager"/> instances for ZIP-backed template applications.
 /// </summary>
 public static class TemplateAssetManagerFactory
 {
@@ -15,7 +15,7 @@ public static class TemplateAssetManagerFactory
     public static AssetManager Create()
     {
         AssetManager manager = new();
-        manager.RegisterService(new AssetFileSystemService());
+        manager.RegisterService(new AssetFileSystemService(manager));
         manager.RegisterSourceReader(new ZipAssetSourceReader());
         manager.RegisterHandler(new RawAssetHandler());
         return manager;

@@ -1,4 +1,4 @@
-namespace RedFox.GameExtraction.Template.Avalonia;
+namespace RedFox.GameExtraction.Template;
 
 internal static class ZipPathUtility
 {

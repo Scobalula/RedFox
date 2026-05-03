@@ -9,8 +9,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.GameExtraction\RedFox.GameExtraction.csproj" />
+    <ProjectReference Include="..\RedFox.GameExtraction.Template\RedFox.GameExtraction.Template.csproj" />
     <ProjectReference Include="..\RedFox.GameExtraction.UI\RedFox.GameExtraction.UI.csproj" />
-    <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
   </ItemGroup>
 
 </Project>

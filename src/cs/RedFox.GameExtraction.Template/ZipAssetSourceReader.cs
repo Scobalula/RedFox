@@ -1,7 +1,8 @@
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using RedFox.GameExtraction;
 
-namespace RedFox.GameExtraction.Template.Cli;
+namespace RedFox.GameExtraction.Template;
 
 /// <summary>
 /// Opens standard ZIP archives as <see cref="IAssetSource"/> instances.
@@ -63,7 +64,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
         {
             ZipArchive archive = new(stream, ZipArchiveMode.Read, leaveOpen: false);
             List<Asset> assets = [];
-            AssetFileSystemService? fileSystemService = assetManager.TryGetService(out AssetFileSystemService? svc) ? svc : null;
+            AssetFileSystemService fileSystemService = assetManager.GetRequiredService<AssetFileSystemService>();
 
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
@@ -74,26 +75,21 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
                     continue;
                 }
 
+                ZipVirtualFile file = new(entry);
                 Asset asset = new(
                     entry.FullName,
                     ZipPathUtility.GetAssetType(entry.Name),
-                    entry,
+                    file,
                     $"{entry.Length:N0} bytes",
                     new Dictionary<string, object?>
                     {
+                        ["Size"] = entry.Length,
                         ["CompressedSize"] = entry.CompressedLength,
                         ["ArchivePath"] = location,
                     });
 
                 assets.Add(asset);
-
-                if (fileSystemService is not null)
-                {
-                    fileSystemService.FileSystem.AddFile(
-                        ZipPathUtility.Normalize(asset.Name),
-                        new ZipVirtualFile(entry));
-                }
-
+                fileSystemService.FileSystem.AddFile(ZipPathUtility.Normalize(entry.FullName), file);
                 progress?.Report($"Mounted {asset.Name}");
             }
 

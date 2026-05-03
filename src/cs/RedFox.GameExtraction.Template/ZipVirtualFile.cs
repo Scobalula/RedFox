@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using RedFox.IO.FileSystem;
 
-namespace RedFox.GameExtraction.Template.Avalonia;
+namespace RedFox.GameExtraction.Template;
 
 /// <summary>
 /// Exposes a ZIP archive entry through the shared virtual file system.

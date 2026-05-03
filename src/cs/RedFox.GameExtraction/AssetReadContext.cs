@@ -21,11 +21,6 @@ public sealed class AssetReadContext
     public AssetSourceRequest Request { get; }
 
     /// <summary>
-    /// Gets the mode used for the read operation.
-    /// </summary>
-    public AssetReadMode Mode { get; }
-
-    /// <summary>
     /// Gets the per-mount options associated with the owning source.
     /// </summary>
     public IReadOnlyDictionary<string, object?> SourceOptions => Request.Options;
@@ -33,13 +28,11 @@ public sealed class AssetReadContext
     internal AssetReadContext(
         AssetManager assetManager,
         IAssetSource source,
-        AssetSourceRequest request,
-        AssetReadMode mode)
+        AssetSourceRequest request)
     {
         AssetManager = assetManager;
         Source = source;
         Request = request;
-        Mode = mode;
     }
 
     /// <summary>

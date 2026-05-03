@@ -1,5 +1,4 @@
 using System.Text.Json;
-using RedFox.GameExtraction;
 
 namespace RedFox.GameExtraction.UI;
 
@@ -16,24 +15,9 @@ public sealed class GameExtractionSettings
     };
 
     /// <summary>
-    /// Gets or sets the root directory used for exported assets.
+    /// Gets or sets persisted setting values keyed by <see cref="GameExtractionSetting.Name"/>.
     /// </summary>
-    public string OutputDirectory { get; set; } = GetDefaultOutputDirectory();
-
-    /// <summary>
-    /// Gets or sets a value indicating whether existing export files should be overwritten.
-    /// </summary>
-    public bool Overwrite { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether referenced assets should be exported recursively.
-    /// </summary>
-    public bool ExportReferences { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether virtual asset directories should be preserved under the output root.
-    /// </summary>
-    public bool PreserveDirectoryStructure { get; set; } = true;
+    public Dictionary<string, string?> Values { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Loads persisted settings into this instance when the file exists.
@@ -55,12 +39,9 @@ public sealed class GameExtractionSettings
             return;
         }
 
-        OutputDirectory = string.IsNullOrWhiteSpace(savedSettings.OutputDirectory)
-            ? GetDefaultOutputDirectory()
-            : savedSettings.OutputDirectory;
-        Overwrite = savedSettings.Overwrite;
-        ExportReferences = savedSettings.ExportReferences;
-        PreserveDirectoryStructure = savedSettings.PreserveDirectoryStructure;
+        Values = savedSettings.Values is null
+            ? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string?>(savedSettings.Values, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -81,21 +62,26 @@ public sealed class GameExtractionSettings
         JsonSerializer.Serialize(stream, this, SerializerOptions);
     }
 
-    /// <summary>
-    /// Creates an export configuration for the core asset manager.
-    /// </summary>
-    /// <returns>The export configuration represented by these settings.</returns>
-    public ExportConfiguration ToExportConfiguration()
+    internal string? GetSettingValue(GameExtractionSetting setting)
     {
-        return new ExportConfiguration
+        ArgumentNullException.ThrowIfNull(setting);
+
+        return Values.TryGetValue(setting.Name, out string? value)
+            ? value
+            : setting.DefaultValue?.ToString();
+    }
+
+    internal void SetSettingValue(GameExtractionSetting setting, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(setting);
+
+        if (value is null)
         {
-            OutputDirectory = string.IsNullOrWhiteSpace(OutputDirectory)
-                ? GetDefaultOutputDirectory()
-                : OutputDirectory,
-            Overwrite = Overwrite,
-            ExportReferences = ExportReferences,
-            PreserveDirectoryStructure = PreserveDirectoryStructure,
-        };
+            Values.Remove(setting.Name);
+            return;
+        }
+
+        Values[setting.Name] = value;
     }
 
     /// <summary>

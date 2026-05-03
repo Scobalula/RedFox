@@ -109,6 +109,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.UI", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.Template.Avalonia", "RedFox.GameExtraction.Template.Avalonia\RedFox.GameExtraction.Template.Avalonia.csproj", "{4C2358BB-715C-4EF2-A517-78C85C25E4A7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.Template", "RedFox.GameExtraction.Template\RedFox.GameExtraction.Template.csproj", "{E2F38348-C7B2-4308-A7F1-865E667904A9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -695,6 +697,18 @@ Global
 		{4C2358BB-715C-4EF2-A517-78C85C25E4A7}.Release|x64.Build.0 = Release|Any CPU
 		{4C2358BB-715C-4EF2-A517-78C85C25E4A7}.Release|x86.ActiveCfg = Release|Any CPU
 		{4C2358BB-715C-4EF2-A517-78C85C25E4A7}.Release|x86.Build.0 = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|x64.Build.0 = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Debug|x86.Build.0 = Debug|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|x64.ActiveCfg = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|x64.Build.0 = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|x86.ActiveCfg = Release|Any CPU
+		{E2F38348-C7B2-4308-A7F1-865E667904A9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -739,6 +753,7 @@ Global
 		{798F7133-3414-4610-92DE-EDDDA688EB7F} = {F1CDD528-3A1F-470D-9EF9-B3FB133A6FEE}
 		{D569D4EA-3F06-5DC6-7222-C364E79B5807} = {D2170853-0866-47B3-B1AF-D07763F67315}
 		{4C2358BB-715C-4EF2-A517-78C85C25E4A7} = {D2170853-0866-47B3-B1AF-D07763F67315}
+		{E2F38348-C7B2-4308-A7F1-865E667904A9} = {D2170853-0866-47B3-B1AF-D07763F67315}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3738E201-81CE-4763-95EF-6E986D660EFF}

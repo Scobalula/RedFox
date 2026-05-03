@@ -16,8 +16,8 @@ public sealed class AssetRowViewModel
     /// <param name="source">The source row that owns the asset.</param>
     public AssetRowViewModel(Asset asset, AssetSourceViewModel source)
     {
-        Asset = asset ?? throw new ArgumentNullException(nameof(asset));
-        Source = source ?? throw new ArgumentNullException(nameof(source));
+        Asset = asset;
+        Source = source;
     }
 
     /// <summary>
@@ -46,11 +46,6 @@ public sealed class AssetRowViewModel
             return string.IsNullOrWhiteSpace(fileName) ? Asset.Name : fileName;
         }
     }
-
-    /// <summary>
-    /// Gets the full virtual path for the asset.
-    /// </summary>
-    public string FullPath => Asset.Name;
 
     /// <summary>
     /// Gets the logical asset type.
@@ -87,8 +82,6 @@ public sealed class AssetRowViewModel
     /// <returns>The metadata value text, or an empty string when no value is present.</returns>
     public string GetMetadata(string column)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(column);
-
         return Asset.Metadata.TryGetValue(column, out object? value)
             ? value?.ToString() ?? string.Empty
             : string.Empty;
