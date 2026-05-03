@@ -17,7 +17,12 @@ public static class TemplateAssetManagerFactory
         AssetManager manager = new();
         manager.RegisterService(new AssetFileSystemService(manager));
         manager.RegisterSourceReader(new ZipAssetSourceReader());
+        manager.RegisterHandler(new ModelHandler());
+        manager.RegisterHandler(new AnimationHandler());
         manager.RegisterHandler(new RawAssetHandler());
+
+        manager.RegisterService<SceneTranslatorService>();
+
         return manager;
     }
 }

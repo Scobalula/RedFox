@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.OpenGL;
+using Avalonia.Win32;
 namespace RedFox.GameExtraction.UI;
 
 /// <summary>
@@ -33,6 +35,9 @@ public static class GameExtractionApp
         return AppBuilder.Configure<App>()
             .UsePlatformDetect()
             .WithInterFont()
-            .LogToTrace();
+            .LogToTrace().With(new AngleOptions
+            {
+                GlProfiles = new[] { new GlVersion(GlProfileType.OpenGLES, 3, 1) }
+            });
     }
 }

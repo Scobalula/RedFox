@@ -225,27 +225,28 @@ public sealed class AssetManagerTests
     }
 
     [Fact]
-    public async Task ReadAsync_PassesRequestedReadModeToHandler()
+    public async Task ReadAsync_ReturnsHandlerResult()
     {
         AssetManager manager = CreateManagerWithSingleAsset(out Asset asset);
         TestAssetHandler handler = new()
         {
-            ReadAsyncDelegate = (candidate, context, _) =>
+            ReadAsyncDelegate = (candidate, _, _) =>
             {
                 return Task.FromResult<AssetReadResult>(new AssetReadResult<string>
                 {
                     Asset = candidate,
-                    Data = context.Mode.ToString(),
+                    Data = candidate.Name,
                 });
             }
         };
 
         manager.RegisterHandler(handler);
 
-        await manager.ReadAsync(asset, AssetReadMode.Preview);
-        await manager.ReadAsync(asset, AssetReadMode.Export);
+        AssetReadResult result = await manager.ReadAsync(asset);
+        AssetReadResult<string> typedResult = Assert.IsType<AssetReadResult<string>>(result);
 
-        Assert.Equal([AssetReadMode.Preview, AssetReadMode.Export], handler.SeenModes);
+        Assert.Equal("root/file.bin", typedResult.Data);
+        Assert.Equal(1, handler.ReadCalls);
     }
 
     [Fact]
@@ -279,6 +280,43 @@ public sealed class AssetManagerTests
         Assert.Equal(1, handler.ShouldExportCalls);
         Assert.Equal(0, handler.ReadCalls);
         Assert.Equal(0, handler.ExportCalls);
+    }
+
+    [Fact]
+    public async Task ExportAsync_ReturnsPromptlyWhenShouldExportBlocksSynchronously()
+    {
+        AssetManager manager = CreateManagerWithSingleAsset(out Asset asset);
+        using ManualResetEventSlim release = new(false);
+        TaskCompletionSource<bool> entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TestAssetHandler handler = new()
+        {
+            ShouldExportAsyncDelegate = (_, _, cancellationToken) =>
+            {
+                entered.TrySetResult(true);
+                release.Wait(cancellationToken);
+                return Task.FromResult(true);
+            },
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult<string> { Asset = candidate, Data = "ok" })
+        };
+
+        manager.RegisterHandler(handler);
+
+        ExportConfiguration configuration = new()
+        {
+            OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+        };
+
+        Task<Task> invocationTask = Task.Run<Task>(() => manager.ExportAsync(asset, configuration));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Task completedInvocation = await Task.WhenAny(invocationTask, Task.Delay(TimeSpan.FromSeconds(2)));
+        Assert.Same(invocationTask, completedInvocation);
+
+        Task exportTask = await invocationTask;
+        Assert.False(exportTask.IsCompleted);
+
+        release.Set();
+        await exportTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -430,8 +468,8 @@ public sealed class AssetManagerTests
         manager.SourceUnloading += (_, args) => events.Add($"source-unloading:{args.Source.Name}");
         manager.SourceUnloaded += (_, args) => events.Add($"source-unloaded:{args.Source.Name}");
         manager.AssetExportStarting += (_, args) => events.Add($"export-start:{args.Asset.Name}");
-        manager.AssetReadStarting += (_, args) => events.Add($"read-start:{args.Asset.Name}:{args.Mode}");
-        manager.AssetReadCompleted += (_, args) => events.Add($"read-complete:{args.Asset.Name}:{args.Mode}");
+        manager.AssetReadStarting += (_, args) => events.Add($"read-start:{args.Asset.Name}");
+        manager.AssetReadCompleted += (_, args) => events.Add($"read-complete:{args.Asset.Name}");
         manager.AssetExportCompleted += (_, args) => events.Add($"export-complete:{args.Asset.Name}:{args.Skipped}");
 
         events.Add($"source-mounted:{source.Name}");
@@ -443,8 +481,8 @@ public sealed class AssetManagerTests
             [
                 "source-mounted:single.ff",
                 "export-start:root/file.bin",
-                "read-start:root/file.bin:Export",
-                "read-complete:root/file.bin:Export",
+                "read-start:root/file.bin",
+                "read-complete:root/file.bin",
                 "export-complete:root/file.bin:False",
                 "source-unloading:single.ff",
                 "source-unloaded:single.ff",
@@ -466,8 +504,8 @@ public sealed class AssetManagerTests
 
         manager.RegisterHandler(handler);
         manager.AssetExportStarting += (_, args) => events.Add($"export-start:{args.Asset.Name}");
-        manager.AssetReadStarting += (_, args) => events.Add($"read-start:{args.Asset.Name}:{args.Mode}");
-        manager.AssetReadCompleted += (_, args) => events.Add($"read-complete:{args.Asset.Name}:{args.Mode}");
+        manager.AssetReadStarting += (_, args) => events.Add($"read-start:{args.Asset.Name}");
+        manager.AssetReadCompleted += (_, args) => events.Add($"read-complete:{args.Asset.Name}");
         manager.OperationFailed += (_, args) => events.Add($"failed:{args.Operation}:{args.Asset?.Name}");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -476,8 +514,8 @@ public sealed class AssetManagerTests
         Assert.Equal(
             [
                 "export-start:root/file.bin",
-                "read-start:root/file.bin:Export",
-                "read-complete:root/file.bin:Export",
+                "read-start:root/file.bin",
+                "read-complete:root/file.bin",
                 "failed:Export:root/file.bin",
             ],
             events);
@@ -606,8 +644,6 @@ public sealed class AssetManagerTests
         public Func<AssetReadResult, AssetExportContext, CancellationToken, Task> ExportAsyncDelegate { get; init; } =
             (_, _, _) => Task.CompletedTask;
 
-        public List<AssetReadMode> SeenModes { get; } = [];
-
         public int ReadCalls { get; private set; }
 
         public int ShouldExportCalls { get; private set; }
@@ -619,7 +655,6 @@ public sealed class AssetManagerTests
         public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken)
         {
             ReadCalls++;
-            SeenModes.Add(context.Mode);
             return await ReadAsyncDelegate(asset, context, cancellationToken);
         }
 

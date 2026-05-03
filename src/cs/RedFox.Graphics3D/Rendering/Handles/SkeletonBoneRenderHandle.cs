@@ -61,7 +61,6 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {
-        return;
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 

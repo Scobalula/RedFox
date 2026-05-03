@@ -7,8 +7,7 @@
         Width="900" Height="620"
         MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterOwner"
-        CanResize="True"
-        Topmost="True">
+        CanResize="True">
 
     <DockPanel Margin="12">
         <Border DockPanel.Dock="Top"
@@ -63,11 +62,6 @@
             </Grid>
         </Border>
 
-        <ProgressBar DockPanel.Dock="Top"
-                     IsVisible="{Binding IsPreviewLoading}"
-                     IsIndeterminate="True"
-                     Margin="0,0,0,10"/>
-
         <Panel>
             <Border CornerRadius="12"
                     BoxShadow="0 3 12 0 #40000000"
@@ -105,6 +99,14 @@
                             </StackPanel>
                         </Border>
                     </StackPanel>
+
+                    <ProgressBar IsVisible="{Binding IsPreviewLoading}"
+                                 IsIndeterminate="True"
+                                 Height="4"
+                                 Margin="12,12,12,0"
+                                 VerticalAlignment="Top"
+                                 HorizontalAlignment="Stretch"
+                                 IsHitTestVisible="False"/>
                 </Grid>
             </Border>
         </Panel>

@@ -27,6 +27,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private int _previewLoadVersion;
     private Control? _previewControl;
     private bool _isPreviewWindowOpen;
+    private AssetRowViewModel[]? _pendingPreviewSelection;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
@@ -533,8 +534,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="asset">The asset row to preview.</param>
     public void OpenPreview(AssetRowViewModel asset)
     {
+        AssetRowViewModel[] selection = [asset];
         SelectedAsset = asset;
-        _ = UpdatePreviewSelectionAsync([asset]);
+        if (_isPreviewWindowOpen)
+        {
+            _ = UpdatePreviewSelectionAsync(selection);
+            PreviewRequested?.Invoke();
+            return;
+        }
+
+        _pendingPreviewSelection = selection;
         PreviewRequested?.Invoke();
     }
 
@@ -548,10 +557,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _isPreviewWindowOpen = value;
         if (value)
         {
-            _ = UpdatePreviewSelectionAsync(SelectedAssets);
+            AssetRowViewModel[] selection = _pendingPreviewSelection ?? [.. SelectedAssets];
+            _pendingPreviewSelection = null;
+            _ = UpdatePreviewSelectionAsync(selection);
             return;
         }
 
+        _pendingPreviewSelection = null;
         CancelPendingPreviewLoad();
         IsPreviewLoading = false;
     }
@@ -653,7 +665,15 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PreviewSelected()
     {
-        _ = UpdatePreviewSelectionAsync(SelectedAssets);
+        AssetRowViewModel[] selection = [.. SelectedAssets];
+        if (_isPreviewWindowOpen)
+        {
+            _ = UpdatePreviewSelectionAsync(selection);
+            PreviewRequested?.Invoke();
+            return;
+        }
+
+        _pendingPreviewSelection = selection;
         PreviewRequested?.Invoke();
     }
 
@@ -1055,6 +1075,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         PreviewSelectionCount = selection.Length;
         AssetRowViewModel? asset = selection.LastOrDefault();
         PreviewAsset = asset;
+        PreviewControl?.IsVisible = false;
 
         if (asset is null)
         {
@@ -1084,14 +1105,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         PreviewReadResult = null;
         PreviewData = null;
         PreviewBytes = null;
-        PreviewControl = null;
         ContentTitle = "Loading asset data";
         ContentText = "Reading the selected asset through the registered asset handler.";
 
         try
         {
-            AssetReadResult readResult = await _assetManager
-                .ReadAsync(asset.Asset, cts.Token)
+            AssetReadResult readResult = await _assetManager.ReadAsync(asset.Asset, cts.Token)
                 .ConfigureAwait(true);
 
             if (loadVersion != _previewLoadVersion || cts.IsCancellationRequested)
@@ -1112,8 +1131,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 : PreviewData is null
                     ? "The asset handler returned a result without a typed payload. Future preview controls can still inspect the read result."
                     : "No compatible preview control accepted this payload.";
-            PreviewControl = CreatePreviewControl();
-            if (PreviewControl is null && PreviewData is not null)
+            Control? previewControl = CreatePreviewControl();
+            PreviewControl = previewControl;
+            if (previewControl is null && PreviewData is not null)
             {
                 ContentTitle = "No preview available";
                 ContentText = "No compatible preview control is configured for this payload.";
@@ -1151,6 +1171,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 IsPreviewLoading = false;
             }
+
+            PreviewControl?.IsVisible = true;
         }
     }
 

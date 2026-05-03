@@ -508,11 +508,8 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(asset);
-        return ReadInternalAsync(asset, raiseFailureEvent: true, cancellationToken);
-    }
+    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
+        ReadAsync(asset, raiseFailureEvent: true, cancellationToken);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler.
@@ -641,7 +638,7 @@ public sealed class AssetManager
 
                 try
                 {
-                    if (!await handler.ShouldExportAsync(asset, exportContext, cancellationToken).ConfigureAwait(false))
+                    if (!await ShouldExportAsync(handler, asset, exportContext, cancellationToken).ConfigureAwait(false))
                     {
                         progress?.Report(GetSkipMessage(asset, normalizedRelativeOutputDirectory));
                         AssetExportCompleted?.Invoke(
@@ -655,13 +652,13 @@ public sealed class AssetManager
                         return;
                     }
 
-                    AssetReadResult readResult = await ReadInternalAsync(
+                    AssetReadResult readResult = await ReadAsync(
                         asset,
                         raiseFailureEvent: false,
                         cancellationToken).ConfigureAwait(false);
 
                     progress?.Report(GetExportMessage(asset, normalizedRelativeOutputDirectory));
-                    await handler.ExportAsync(readResult, exportContext, cancellationToken).ConfigureAwait(false);
+                    await ExportAsync(handler, readResult, exportContext, cancellationToken).ConfigureAwait(false);
                     AssetExportCompleted?.Invoke(
                         this,
                         new AssetExportCompletedEventArgs(
@@ -773,13 +770,28 @@ public sealed class AssetManager
     {
         _sourceRequests.Remove(source);
         _sources.Remove(source);
+
+        for (int index = _assets.Count - 1; index >= 0; index--)
+        {
+            Asset asset = _assets[index];
+            if (!ReferenceEquals(asset.Source, source))
+            {
+                continue;
+            }
+
+            asset.DetachSource();
+            _assets.RemoveAt(index);
+        }
     }
 
-    private async Task<AssetReadResult> ReadInternalAsync(
+    private async Task<AssetReadResult> ReadAsync(
         Asset asset,
         bool raiseFailureEvent,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(asset);
+        cancellationToken.ThrowIfCancellationRequested();
+
         IAssetSource source = GetRequiredSource(asset);
         IAssetHandler handler = GetRequiredHandler(asset);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
@@ -788,7 +800,9 @@ public sealed class AssetManager
         try
         {
             AssetReadContext context = new(this, source, sourceRequest);
-            AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
+            AssetReadResult result = await Task.Run(
+                () => handler.ReadAsync(asset, context, cancellationToken),
+                cancellationToken).ConfigureAwait(false);
             AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
             return result;
         }
@@ -801,6 +815,32 @@ public sealed class AssetManager
 
             throw;
         }
+    }
+
+    private static Task<bool> ShouldExportAsync(
+        IAssetHandler handler,
+        Asset asset,
+        AssetExportContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.Run(() => handler.ShouldExportAsync(asset, context, cancellationToken), cancellationToken);
+    }
+
+    private static Task ExportAsync(
+        IAssetHandler handler,
+        AssetReadResult result,
+        AssetExportContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.Run(() => handler.ExportAsync(result, context, cancellationToken), cancellationToken);
     }
 
     private IAssetSource GetRequiredSource(Asset asset)

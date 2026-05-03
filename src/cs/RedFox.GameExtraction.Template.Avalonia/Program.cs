@@ -2,6 +2,7 @@ using RedFox.GameExtraction.Template;
 using RedFox.GameExtraction.UI;
 using RedFox.GameExtraction.UI.Controls;
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.GameExtraction.Template.Avalonia;
 
@@ -10,6 +11,8 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        ScenePreviewControl scenePreviewControl = new();
+
         GameExtractionApp.Run(new GameExtractionConfig
         {
             AssetManagerFactory = TemplateAssetManagerFactory.Create,
@@ -19,7 +22,7 @@ internal static class Program
             AppName = "RedFoxZipExplorer",
             Version = "1.0.0",
             AccentColor = "#007000",
-            FileFilter = "ZIP Archives|*.zip|All Files|*.*",
+            FileFilter = "All Files|*.*",
             SupportsFileSources = true,
             SupportsDirectorySources = false,
             SupportsProcessSources = true,
@@ -115,10 +118,15 @@ internal static class Program
             {
                 if (viewModel.PreviewData is Scene scene)
                 {
-                    return new ScenePreviewControl
+                    if (scene.GetDescendants<Mesh>().Length == 0
+                        && scene.GetDescendants<SkeletonAnimation>().Length > 0
+                        && scenePreviewControl.TryAppendAnimationScene(scene))
                     {
-                        Scene = scene,
-                    };
+                        return scenePreviewControl;
+                    }
+
+                    scenePreviewControl.Scene = scene;
+                    return scenePreviewControl;
                 }
 
                 if (viewModel.PreviewBytes is not null)
