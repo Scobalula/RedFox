@@ -10,10 +10,12 @@ public sealed class D3D11Shader : IGpuShader
 {
     private byte[] _bytecode;
 
-    internal D3D11Shader(byte[] bytecode, ShaderStage stage, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers)
+    internal D3D11Shader(byte[] bytecode, ShaderStage stage, D3D11ShaderReflectionResult reflection)
     {
         _bytecode = bytecode ?? throw new ArgumentNullException(nameof(bytecode));
-        ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
+        ArgumentNullException.ThrowIfNull(reflection);
+        ConstantBuffers = reflection.ConstantBuffers;
+        ResourceBindings = reflection.ResourceBindings;
         Stage = stage;
     }
 
@@ -29,6 +31,8 @@ public sealed class D3D11Shader : IGpuShader
     internal ShaderStage Stage { get; }
 
     internal IReadOnlyList<D3D11ShaderConstantBufferLayout> ConstantBuffers { get; }
+
+    internal IReadOnlyList<D3D11ShaderResourceBinding> ResourceBindings { get; }
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }

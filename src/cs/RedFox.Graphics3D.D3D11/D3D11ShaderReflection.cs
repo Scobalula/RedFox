@@ -10,11 +10,11 @@ namespace RedFox.Graphics3D.D3D11;
 
 internal static unsafe class D3D11ShaderReflection
 {
-    public static D3D11ShaderConstantBufferLayout[] Reflect(ReadOnlySpan<byte> bytecode, ShaderStage stage)
+    public static D3D11ShaderReflectionResult Reflect(ReadOnlySpan<byte> bytecode, ShaderStage stage)
     {
         if (bytecode.IsEmpty)
         {
-            return [];
+            return new D3D11ShaderReflectionResult([], []);
         }
 
         D3DCompiler compiler = D3DCompiler.GetApi();
@@ -23,7 +23,12 @@ internal static unsafe class D3D11ShaderReflection
             ComPtr<ID3D11ShaderReflection> reflection = compiler.Reflect<ID3D11ShaderReflection>(bytecodePointer, (nuint)bytecode.Length);
             try
             {
-                return ReflectConstantBuffers(reflection.Handle, GetStageFlags(stage));
+                D3D11ShaderStageFlags stageFlags = GetStageFlags(stage);
+                ShaderDesc shaderDesc = default;
+                D3D11Helpers.ThrowIfFailed(reflection.Handle->GetDesc(ref shaderDesc), "ID3D11ShaderReflection::GetDesc");
+                return new D3D11ShaderReflectionResult(
+                    ReflectConstantBuffers(reflection.Handle, in shaderDesc, stageFlags),
+                    ReflectResourceBindings(reflection.Handle, in shaderDesc, stageFlags));
             }
             finally
             {
@@ -32,11 +37,8 @@ internal static unsafe class D3D11ShaderReflection
         }
     }
 
-    private static D3D11ShaderConstantBufferLayout[] ReflectConstantBuffers(ID3D11ShaderReflection* reflection, D3D11ShaderStageFlags stage)
+    private static D3D11ShaderConstantBufferLayout[] ReflectConstantBuffers(ID3D11ShaderReflection* reflection, in ShaderDesc shaderDesc, D3D11ShaderStageFlags stage)
     {
-        ShaderDesc shaderDesc = default;
-        D3D11Helpers.ThrowIfFailed(reflection->GetDesc(ref shaderDesc), "ID3D11ShaderReflection::GetDesc");
-
         D3D11ShaderConstantBufferLayout[] layouts = new D3D11ShaderConstantBufferLayout[shaderDesc.ConstantBuffers];
         for (uint bufferIndex = 0; bufferIndex < shaderDesc.ConstantBuffers; bufferIndex++)
         {
@@ -62,6 +64,33 @@ internal static unsafe class D3D11ShaderReflection
         }
 
         return layouts;
+    }
+
+    private static D3D11ShaderResourceBinding[] ReflectResourceBindings(ID3D11ShaderReflection* reflection, in ShaderDesc shaderDesc, D3D11ShaderStageFlags stage)
+    {
+        D3D11ShaderResourceBinding[] bindings = new D3D11ShaderResourceBinding[shaderDesc.BoundResources];
+        int bindingCount = 0;
+        for (uint resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
+        {
+            ShaderInputBindDesc bindDesc = default;
+            D3D11Helpers.ThrowIfFailed(reflection->GetResourceBindingDesc(resourceIndex, ref bindDesc), "ID3D11ShaderReflection::GetResourceBindingDesc");
+
+            string name = ReadString(bindDesc.Name);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            bindings[bindingCount++] = new D3D11ShaderResourceBinding(name, checked((int)bindDesc.BindPoint), stage);
+        }
+
+        if (bindingCount == bindings.Length)
+        {
+            return bindings;
+        }
+
+        Array.Resize(ref bindings, bindingCount);
+        return bindings;
     }
 
     private static D3D11ShaderVariableLayout ReflectVariable(ID3D11ShaderReflectionVariable* shaderVariable)

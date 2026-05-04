@@ -255,9 +255,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Index))
         {
-            _indexBuffer = openGlBuffer;
-            _context.Gl.BindVertexArray(_vertexArrayHandle);
-            _context.Gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, openGlBuffer.Handle);
+            BindIndexBuffer(openGlBuffer);
             return;
         }
 
@@ -296,6 +294,23 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         {
             _context.Gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, (uint)slot, openGlBuffer.Handle);
         }
+    }
+
+    /// <inheritdoc/>
+    public void BindIndexBuffer(IGpuBuffer buffer)
+    {
+        ThrowIfDisposed();
+
+        OpenGlBuffer openGlBuffer = buffer as OpenGlBuffer
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlBuffer)}.");
+        if (!openGlBuffer.Usage.HasFlag(BufferUsage.Index))
+        {
+            throw new InvalidOperationException("Expected an OpenGL index buffer.");
+        }
+
+        _indexBuffer = openGlBuffer;
+        _context.Gl.BindVertexArray(_vertexArrayHandle);
+        _context.Gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, openGlBuffer.Handle);
     }
 
     /// <inheritdoc/>

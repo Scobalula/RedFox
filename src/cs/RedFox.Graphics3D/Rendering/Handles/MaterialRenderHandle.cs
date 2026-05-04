@@ -26,6 +26,12 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     private ulong _lastUpdateFrameIndex = ulong.MaxValue;
 
 
+    /// <summary>
+    /// Gets the currently prepared pipeline, if one has been resolved.
+    /// </summary>
+    internal IGpuPipelineState? Pipeline => _pipeline;
+
+
     /// <inheritdoc/>
     public override RenderHandleFlags Flags => RenderHandleFlags.SubHandle;
 

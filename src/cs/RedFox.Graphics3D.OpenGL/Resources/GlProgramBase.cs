@@ -13,6 +13,7 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 internal abstract class GlProgramBase : IDisposable
 {
     private readonly Dictionary<string, int> _uniformLocations;
+    private readonly Dictionary<string, int> _samplerSlots;
     private bool _disposed;
 
     /// <summary>
@@ -32,6 +33,7 @@ internal abstract class GlProgramBase : IDisposable
 
         Gl = gl;
         _uniformLocations = new Dictionary<string, int>(StringComparer.Ordinal);
+        _samplerSlots = new Dictionary<string, int>(StringComparer.Ordinal);
 
         uint[] shaderHandles = new uint[shaders.Length];
         int shaderCount = 0;
@@ -108,6 +110,52 @@ internal abstract class GlProgramBase : IDisposable
     {
         ThrowIfDisposed();
         Gl.UseProgram(Handle);
+    }
+
+    /// <summary>
+    /// Attempts to resolve the location of an active vertex attribute by name.
+    /// </summary>
+    /// <param name="attributeName">The vertex attribute name.</param>
+    /// <param name="location">Receives the attribute location when present.</param>
+    /// <returns><see langword="true"/> when the attribute is active; otherwise <see langword="false"/>.</returns>
+    public bool TryGetAttributeLocation(string attributeName, out int location)
+    {
+        ThrowIfDisposed();
+
+        if (string.IsNullOrWhiteSpace(attributeName))
+        {
+            location = -1;
+            return false;
+        }
+
+        location = Gl.GetAttribLocation(Handle, attributeName);
+        return location >= 0;
+    }
+
+    /// <summary>
+    /// Attempts to resolve a texture unit for an active sampler uniform by name.
+    /// </summary>
+    /// <param name="samplerName">The sampler uniform name.</param>
+    /// <param name="slot">Receives the assigned texture unit when present.</param>
+    /// <returns><see langword="true"/> when the sampler is active; otherwise <see langword="false"/>.</returns>
+    public bool TryGetSamplerSlot(string samplerName, out int slot)
+    {
+        ThrowIfDisposed();
+
+        if (string.IsNullOrWhiteSpace(samplerName) || GetUniformLocation(samplerName) < 0)
+        {
+            slot = -1;
+            return false;
+        }
+
+        if (_samplerSlots.TryGetValue(samplerName, out slot))
+        {
+            return true;
+        }
+
+        slot = _samplerSlots.Count;
+        _samplerSlots.Add(samplerName, slot);
+        return true;
     }
 
     /// <summary>

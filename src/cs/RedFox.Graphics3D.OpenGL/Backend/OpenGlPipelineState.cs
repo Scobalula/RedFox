@@ -90,6 +90,40 @@ internal sealed class OpenGlPipelineState : IGpuPipelineState
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
 
+    /// <inheritdoc/>
+    public bool TryGetBufferSlot(string name, out int slot)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            slot = -1;
+            return false;
+        }
+
+        if (GraphicsProgram is not null)
+        {
+            if (GraphicsProgram.TryGetAttributeLocation(name, out slot))
+            {
+                return true;
+            }
+
+            return GraphicsProgram.TryGetSamplerSlot(name, out slot);
+        }
+
+        if (ComputeProgram is not null)
+        {
+            if (ComputeProgram.TryGetShaderStorageBlockBinding(name, out uint storageBinding))
+            {
+                slot = checked((int)storageBinding);
+                return true;
+            }
+
+            return ComputeProgram.TryGetSamplerSlot(name, out slot);
+        }
+
+        slot = -1;
+        return false;
+    }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenGlPipelineState"/> class.
     /// </summary>

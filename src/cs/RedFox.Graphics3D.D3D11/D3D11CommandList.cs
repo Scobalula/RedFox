@@ -306,7 +306,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
 
         if (d3dBuffer.Usage.HasFlag(BufferUsage.Index))
         {
-            _context.DeviceContext.Get().IASetIndexBuffer(d3dBuffer.Handle, GetIndexFormat(d3dBuffer.ElementType), 0);
+            BindIndexBuffer(d3dBuffer);
             return;
         }
 
@@ -317,6 +317,21 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
             ID3D11Buffer* bufferHandle = d3dBuffer.Handle;
             _context.DeviceContext.Get().IASetVertexBuffers((uint)slot, 1, &bufferHandle, &stride, &offset);
         }
+    }
+
+    /// <inheritdoc/>
+    public void BindIndexBuffer(IGpuBuffer buffer)
+    {
+        ThrowIfDisposed();
+
+        D3D11Buffer d3dBuffer = buffer as D3D11Buffer
+            ?? throw new InvalidOperationException($"Expected {nameof(D3D11Buffer)}.");
+        if (!d3dBuffer.Usage.HasFlag(BufferUsage.Index))
+        {
+            throw new InvalidOperationException("Expected a D3D11 index buffer.");
+        }
+
+        _context.DeviceContext.Get().IASetIndexBuffer(d3dBuffer.Handle, GetIndexFormat(d3dBuffer.ElementType), 0);
     }
 
     /// <inheritdoc/>

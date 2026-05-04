@@ -11,6 +11,7 @@ namespace RedFox.Graphics3D.D3D11;
 public sealed unsafe class D3D11PipelineState : IGpuPipelineState
 {
     private readonly VertexAttribute[] _vertexAttributes;
+    private readonly D3D11ShaderResourceBinding[] _resourceBindings;
     private ComPtr<ID3D11BlendState> _blendState;
     private ComPtr<ID3D11DepthStencilState> _depthStencilState;
     private ComPtr<ID3D11InputLayout> _inputLayout;
@@ -30,6 +31,7 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         ComPtr<ID3D11DepthStencilState> depthStencilState,
         ReadOnlySpan<VertexAttribute> vertexAttributes,
         IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers,
+        IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings,
         PrimitiveTopology primitiveTopology)
     {
         _vertexShader = vertexShader;
@@ -40,14 +42,19 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         _blendState = blendState;
         _depthStencilState = depthStencilState;
         _vertexAttributes = vertexAttributes.ToArray();
+        _resourceBindings = CopyResourceBindings(resourceBindings);
         ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
         PrimitiveTopology = primitiveTopology;
     }
 
-    internal D3D11PipelineState(ComPtr<ID3D11ComputeShader> computeShader, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers)
+    internal D3D11PipelineState(
+        ComPtr<ID3D11ComputeShader> computeShader,
+        IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers,
+        IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings)
     {
         _computeShader = computeShader;
         _vertexAttributes = [];
+        _resourceBindings = CopyResourceBindings(resourceBindings);
         ConstantBuffers = constantBuffers ?? throw new ArgumentNullException(nameof(constantBuffers));
         PrimitiveTopology = PrimitiveTopology.Triangles;
     }
@@ -83,6 +90,38 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
     public bool IsDisposed { get; private set; }
 
     /// <inheritdoc/>
+    public bool TryGetBufferSlot(string name, out int slot)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            slot = -1;
+            return false;
+        }
+
+        for (int attributeIndex = 0; attributeIndex < _vertexAttributes.Length; attributeIndex++)
+        {
+            if (_vertexAttributes[attributeIndex].Name.Equals(name, StringComparison.Ordinal))
+            {
+                slot = attributeIndex;
+                return true;
+            }
+        }
+
+        for (int resourceIndex = 0; resourceIndex < _resourceBindings.Length; resourceIndex++)
+        {
+            D3D11ShaderResourceBinding binding = _resourceBindings[resourceIndex];
+            if (binding.Name.Equals(name, StringComparison.Ordinal))
+            {
+                slot = binding.Slot;
+                return true;
+            }
+        }
+
+        slot = -1;
+        return false;
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (IsDisposed)
@@ -100,5 +139,18 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         _vertexShader.Dispose();
         IsDisposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    private static D3D11ShaderResourceBinding[] CopyResourceBindings(IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings)
+    {
+        ArgumentNullException.ThrowIfNull(resourceBindings);
+
+        D3D11ShaderResourceBinding[] copy = new D3D11ShaderResourceBinding[resourceBindings.Count];
+        for (int index = 0; index < resourceBindings.Count; index++)
+        {
+            copy[index] = resourceBindings[index];
+        }
+
+        return copy;
     }
 }

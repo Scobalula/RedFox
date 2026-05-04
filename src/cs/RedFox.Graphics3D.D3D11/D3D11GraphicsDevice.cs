@@ -262,6 +262,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             depthStencilState,
             vertexAttributes,
             CombineConstantBuffers(d3dVertexShader.ConstantBuffers, d3dFragmentShader.ConstantBuffers),
+            CombineResourceBindings(d3dVertexShader.ResourceBindings, d3dFragmentShader.ResourceBindings),
             primitiveTopology);
     }
 
@@ -289,7 +290,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             d3dComputeShaderHandle = new ComPtr<ID3D11ComputeShader>(computeShaderPointer);
         }
 
-        return new D3D11PipelineState(d3dComputeShaderHandle, d3dComputeShader.ConstantBuffers);
+        return new D3D11PipelineState(d3dComputeShaderHandle, d3dComputeShader.ConstantBuffers, d3dComputeShader.ResourceBindings);
     }
 
     /// <inheritdoc/>
@@ -617,6 +618,50 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         }
 
         return combined;
+    }
+
+    private static D3D11ShaderResourceBinding[] CombineResourceBindings(
+        IReadOnlyList<D3D11ShaderResourceBinding> first,
+        IReadOnlyList<D3D11ShaderResourceBinding> second)
+    {
+        List<D3D11ShaderResourceBinding> combined = new(first.Count + second.Count);
+        AppendResourceBindings(combined, first);
+        AppendResourceBindings(combined, second);
+        return [.. combined];
+    }
+
+    private static void AppendResourceBindings(List<D3D11ShaderResourceBinding> combined, IReadOnlyList<D3D11ShaderResourceBinding> bindings)
+    {
+        for (int bindingIndex = 0; bindingIndex < bindings.Count; bindingIndex++)
+        {
+            D3D11ShaderResourceBinding binding = bindings[bindingIndex];
+            int existingIndex = FindResourceBinding(combined, binding.Name, binding.Slot);
+            if (existingIndex < 0)
+            {
+                combined.Add(binding);
+                continue;
+            }
+
+            D3D11ShaderResourceBinding existing = combined[existingIndex];
+            combined[existingIndex] = new D3D11ShaderResourceBinding(
+                existing.Name,
+                existing.Slot,
+                existing.Stage | binding.Stage);
+        }
+    }
+
+    private static int FindResourceBinding(IReadOnlyList<D3D11ShaderResourceBinding> bindings, string name, int slot)
+    {
+        for (int bindingIndex = 0; bindingIndex < bindings.Count; bindingIndex++)
+        {
+            D3D11ShaderResourceBinding binding = bindings[bindingIndex];
+            if (binding.Slot == slot && binding.Name.Equals(name, StringComparison.Ordinal))
+            {
+                return bindingIndex;
+            }
+        }
+
+        return -1;
     }
 
     private static bool IsDynamicBuffer(BufferUsage usage)

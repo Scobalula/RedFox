@@ -108,6 +108,12 @@ public interface ICommandList
     void BindBuffer(int slot, IGpuBuffer buffer);
 
     /// <summary>
+    /// Binds a GPU buffer as the active index buffer.
+    /// </summary>
+    /// <param name="buffer">The index buffer to bind.</param>
+    void BindIndexBuffer(IGpuBuffer buffer);
+
+    /// <summary>
     /// Binds a GPU texture to the supplied slot.
     /// </summary>
     /// <param name="slot">The backend-defined binding slot.</param>
