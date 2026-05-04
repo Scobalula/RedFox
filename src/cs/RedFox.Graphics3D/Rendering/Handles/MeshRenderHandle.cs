@@ -19,17 +19,21 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 {
     private readonly List<MeshGpuBufferBinding> _buffers = [];
     private readonly IGraphicsDevice _graphicsDevice = graphicsDevice;
-    private readonly Mesh _mesh = mesh;
 
-    private int _indexComponentCount;
-    private Matrix4x4[] _lastSkinTransforms = Array.Empty<Matrix4x4>();
+    /// <summary>
+    /// Gets the mesh that owns this handle.
+    /// </summary>
+    public Mesh Owner { get; } = mesh;
 
-    private RenderPhaseMask _renderPhases;
-    private Matrix4x4[] _skinTransformsScratch = Array.Empty<Matrix4x4>();
-    private int _vertexCount;
+    /// <summary>
+    /// Gets the number of vertices in the mesh.
+    /// </summary>
+    public int VertexCount { get; internal set; }
 
-    /// <inheritdoc/>
-    public override RenderPhaseMask RenderPhases => _renderPhases;
+    /// <summary>
+    /// Gets the number of indices in the mesh.
+    /// </summary>
+    public int IndexCount { get; internal set; }
 
     /// <inheritdoc/>
     public override bool RequiresPerFrameUpdate => true;
@@ -40,38 +44,63 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        _renderPhases = RenderPhaseMask.None;
 
         if (_buffers.Count == 0)
         {
-            _vertexCount = _mesh.Positions?.ElementCount ?? 0;
-            _indexComponentCount = _mesh.FaceIndices?.TotalComponentCount ?? 0;
-            if (_vertexCount <= 0)
+            VertexCount = Owner.Positions?.ElementCount ?? 0;
+            IndexCount = Owner.FaceIndices?.TotalComponentCount ?? 0;
+
+            if (VertexCount <= 0)
             {
                 ReleaseBuffers();
                 return;
             }
 
-            if (_mesh.Normals is not { ElementCount: > 0 })
+            if (Owner.Normals is not { ElementCount: > 0 })
             {
-                _mesh.GenerateNormals();
+                Owner.GenerateNormals();
             }
 
-            if (_mesh.Normals is not { ElementCount: > 0 })
+            if (Owner.Normals is not { ElementCount: > 0 })
             {
                 ReleaseBuffers();
                 return;
             }
 
-            _buffers.Add(MeshGpuBufferBinding.CreateVertex(_mesh.Positions, nameof(Mesh.Positions)));
-            _buffers.Add(MeshGpuBufferBinding.CreateVertex(_mesh.Normals, nameof(Mesh.Normals)));
-            _buffers.Add(MeshGpuBufferBinding.CreateIndex(_mesh.FaceIndices, nameof(Mesh.FaceIndices)));
-            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(_mesh.BoneIndices, "BoneIndexBuffer", BufferUsage.Sampled, normalizeIndexElementType: true));
-            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(_mesh.BoneWeights, "BoneWeightBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
-            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource("SkinTransformBuffer", BufferUsage.Sampled | BufferUsage.DynamicWrite, normalizeIndexElementType: false, UpdateSkinTransformBuffer));
+            _buffers.Add(MeshGpuBufferBinding.CreateVertex(Owner.Positions, nameof(Owner.Positions)));
+            _buffers.Add(MeshGpuBufferBinding.CreateVertex(Owner.Normals, nameof(Owner.Normals)));
+            _buffers.Add(MeshGpuBufferBinding.CreateIndex(Owner.FaceIndices, nameof(Owner.FaceIndices)));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.UVLayers, "UVLayerBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.BoneIndices, "BoneIndexBuffer", BufferUsage.Sampled, normalizeIndexElementType: true));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.BoneWeights, "BoneWeightBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource("SkinTransformBuffer", BufferUsage.Sampled | BufferUsage.DynamicWrite, normalizeIndexElementType: false, (binding, graphicsDevice) =>
+            {
+                if (Owner.BoneIndices is null || Owner.BoneWeights is null || Owner.SkinnedBones is null)
+                {
+                    binding.Release();
+                    return false;
+                }
+
+                Span<Matrix4x4> matrixBuffer = Owner.SkinnedBones.Count > 128 ? new Matrix4x4[Owner.SkinnedBones.Count] : stackalloc Matrix4x4[Owner.SkinnedBones.Count];
+                Owner.CopySkinTransforms(matrixBuffer);
+
+                GpuBufferData transformData = new(
+                    MemoryMarshal.AsBytes(matrixBuffer),
+                    GpuBufferElementType.Float32,
+                    matrixBuffer.Length,
+                    4,
+                    4,
+                    16 * sizeof(float),
+                    4 * sizeof(float),
+                    sizeof(float));
+
+                bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
+
+                return updated;
+            }));
         }
 
-        if (_vertexCount <= 0)
+        if (VertexCount <= 0)
         {
             ReleaseBuffers();
             return;
@@ -81,62 +110,62 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         {
             buffer.Update(_graphicsDevice);
         }
-
-        _renderPhases = RenderPhaseMask.Opaque;
     }
 
     /// <inheritdoc/>
-    public override void Render(ICommandList commandList, RenderPhase phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
+    public override void Render(ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != RenderPhase.Opaque || _renderPhases != RenderPhaseMask.Opaque || _vertexCount <= 0)
+        if (phase != Rendering.RenderFlags.Opaque || VertexCount <= 0)
         {
             return;
         }
 
-        if (_mesh.Materials is not { Count: > 0 })
+        if (Owner.Materials is not { Count: > 0 })
         {
             return;
         }
 
-        for (int i = 0; i < _mesh.Materials.Count; i++)
+        for (int i = 0; i < Owner.Materials.Count; i++)
         {
-            Material material = _mesh.Materials[i];
+            Material material = Owner.Materials[i];
+
             if (material.GraphicsHandle is not MaterialRenderHandle materialHandle)
             {
                 continue;
             }
 
             materialHandle.BindResources(commandList);
+
             if (materialHandle.Pipeline is not { } pipeline)
             {
                 continue;
             }
 
-            commandList.SetUniformMatrix4x4("Model", _mesh.GetBindWorldMatrix());
+            commandList.SetUniformMatrix4x4("Model", Owner.GetBindWorldMatrix());
             commandList.SetUniformMatrix4x4("View", view);
             commandList.SetUniformMatrix4x4("Projection", projection);
             commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
             commandList.SetUniformVector3("CameraPosition", cameraPosition);
-            commandList.SetUniformInt("SkinInfluenceCount", _mesh.BoneIndices is null ? 0 : _mesh.BoneIndices.ValueCount);
+            commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
+            commandList.SetUniformInt("UVLayerIndex", 0);
+            commandList.SetUniformInt("SkinInfluenceCount", Owner.BoneIndices is null ? 0 : Owner.BoneIndices.ValueCount);
 
             foreach (MeshGpuBufferBinding buffer in _buffers)
             {
                 buffer.Bind(commandList, pipeline);
             }
 
-            if (_indexComponentCount > 0)
+            if (IndexCount > 0)
             {
-                commandList.DrawIndexed(_indexComponentCount, 0, 0);
+                commandList.DrawIndexed(IndexCount, 0, 0);
             }
             else
             {
-                commandList.Draw(_vertexCount, 0);
+                commandList.Draw(VertexCount, 0);
             }
-
-            return;
         }
     }
 
@@ -146,41 +175,19 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ReleaseBuffers();
     }
 
-    private bool UpdateSkinTransformBuffer(MeshGpuBufferBinding binding, IGraphicsDevice graphicsDevice)
-    {
-        if (_mesh.BoneIndices is null || _mesh.BoneWeights is null || _mesh.SkinnedBones is null)
-        {
-            binding.Release();
-            return false;
-        }
-
-        Span<Matrix4x4> matrixBuffer = _mesh.SkinnedBones.Count > 128 ? new Matrix4x4[_mesh.SkinnedBones.Count] : stackalloc Matrix4x4[_mesh.SkinnedBones.Count];
-        _mesh.CopySkinTransforms(matrixBuffer);
-
-        GpuBufferData transformData = new(
-            MemoryMarshal.AsBytes(matrixBuffer),
-            GpuBufferElementType.Float32,
-            matrixBuffer.Length,
-            4,
-            4,
-            16 * sizeof(float),
-            4 * sizeof(float),
-            sizeof(float));
-
-        bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
-
-        return updated;
-    }
-
     private void ReleaseBuffers()
     {
-        foreach (MeshGpuBufferBinding buffer in _buffers)
+        if (_buffers.Count != 0)
         {
-            buffer.Release();
+            foreach (MeshGpuBufferBinding buffer in _buffers)
+            {
+                buffer.Release();
+            }
+
+            _buffers.Clear();
         }
 
-        _vertexCount = 0;
-        _indexComponentCount = 0;
-        _renderPhases = RenderPhaseMask.None;
+        VertexCount = 0;
+        IndexCount = 0;
     }
 }

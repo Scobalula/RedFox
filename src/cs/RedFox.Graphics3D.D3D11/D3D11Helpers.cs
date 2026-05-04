@@ -115,6 +115,12 @@ internal static class D3D11Helpers
             return "NORMAL";
         }
 
+        if (name.Equals("UVLayers", StringComparison.Ordinal))
+        {
+            semanticIndex = 0;
+            return "TEXCOORD";
+        }
+
         if (name.Equals("Color", StringComparison.Ordinal))
         {
             semanticIndex = 0;

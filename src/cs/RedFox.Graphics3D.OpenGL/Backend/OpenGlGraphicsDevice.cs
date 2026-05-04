@@ -14,6 +14,10 @@ namespace RedFox.Graphics3D.OpenGL;
 /// </summary>
 public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 {
+    private const uint GlRg = 0x8227;
+    private const uint GlRg16f = 0x822F;
+    private const uint GlRg32f = 0x8230;
+
     private readonly List<OpenGlCommandList> _commandLists = [];
     private readonly OpenGlContext _context;
     private bool _disposed;
@@ -388,8 +392,8 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
 
         if (pixels.IsEmpty)
         {
@@ -726,8 +730,10 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return (elementType, componentCount) switch
         {
             (GpuBufferElementType.Float16, 1) => SizedInternalFormat.R16f,
+            (GpuBufferElementType.Float16, 2) => (SizedInternalFormat)GlRg16f,
             (GpuBufferElementType.Float16, 4) => SizedInternalFormat.Rgba16f,
             (GpuBufferElementType.Float32, 1) => SizedInternalFormat.R32f,
+            (GpuBufferElementType.Float32, 2) => (SizedInternalFormat)GlRg32f,
             (GpuBufferElementType.Float32, 4) => SizedInternalFormat.Rgba32f,
             (GpuBufferElementType.Int8, 1) => SizedInternalFormat.R8i,
             (GpuBufferElementType.Int8, 4) => SizedInternalFormat.Rgba8i,
@@ -762,8 +768,10 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         (internalFormat, pixelFormat, pixelType) = (elementType, componentCount) switch
         {
             (GpuBufferElementType.Float16, 1) => (SizedInternalFormat.R16f, global::Silk.NET.OpenGL.PixelFormat.Red, PixelType.HalfFloat),
+            (GpuBufferElementType.Float16, 2) => ((SizedInternalFormat)GlRg16f, (global::Silk.NET.OpenGL.PixelFormat)GlRg, PixelType.HalfFloat),
             (GpuBufferElementType.Float16, 4) => (SizedInternalFormat.Rgba16f, global::Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.HalfFloat),
             (GpuBufferElementType.Float32, 1) => (SizedInternalFormat.R32f, global::Silk.NET.OpenGL.PixelFormat.Red, PixelType.Float),
+            (GpuBufferElementType.Float32, 2) => ((SizedInternalFormat)GlRg32f, (global::Silk.NET.OpenGL.PixelFormat)GlRg, PixelType.Float),
             (GpuBufferElementType.Float32, 4) => (SizedInternalFormat.Rgba32f, global::Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.Float),
             (GpuBufferElementType.Int8, 1) => (SizedInternalFormat.R8i, global::Silk.NET.OpenGL.PixelFormat.RedInteger, PixelType.Byte),
             (GpuBufferElementType.Int8, 4) => (SizedInternalFormat.Rgba8i, global::Silk.NET.OpenGL.PixelFormat.RgbaInteger, PixelType.Byte),

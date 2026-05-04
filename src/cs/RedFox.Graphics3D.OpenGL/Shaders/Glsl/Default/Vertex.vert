@@ -11,14 +11,18 @@ uniform mat4 Model;
 uniform mat4 SceneAxis;
 uniform mat4 View;
 uniform mat4 Projection;
+uniform int UVLayerCount;
+uniform int UVLayerIndex;
 uniform int SkinInfluenceCount;
 uniform int SkinningMode;
+uniform sampler2D UVLayerBuffer;
 uniform usampler2D BoneIndexBuffer;
 uniform sampler2D BoneWeightBuffer;
 uniform sampler2D SkinTransformBuffer;
 
 out vec3 WorldPosition;
 out vec3 WorldNormal;
+out vec2 TextureCoordinate;
 
 const int SkinningModeLinear = 0;
 const int SkinningModeDualQuaternion = 1;
@@ -131,6 +135,18 @@ mat4 LoadSkinTransform(uint boneIndex)
         FetchFloatBufferTexel(SkinTransformBuffer, rowIndex + 3));
 }
 
+vec2 ResolveTextureCoordinate(uint vertexIndex)
+{
+    if (UVLayerCount <= 0)
+    {
+        return vec2(0.0);
+    }
+
+    int layerIndex = clamp(UVLayerIndex, 0, UVLayerCount - 1);
+    int bufferIndex = (int(vertexIndex) * UVLayerCount) + layerIndex;
+    return FetchFloatBufferTexel(UVLayerBuffer, bufferIndex).xy;
+}
+
 void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNormal, out vec3 outputPosition, out vec3 outputNormal)
 {
     outputPosition = sourcePosition;
@@ -230,5 +246,6 @@ void main()
     WorldPosition = worldPosition.xyz;
     mat3 normalMatrix = mat3(transpose(inverse(worldMatrix)));
     WorldNormal = normalize(normalMatrix * resolvedNormal);
+    TextureCoordinate = ResolveTextureCoordinate(uint(gl_VertexID));
     gl_Position = Projection * View * worldPosition;
 }

@@ -10,11 +10,6 @@ namespace RedFox.Graphics3D;
 public interface IRenderHandle : IDisposable
 {
     /// <summary>
-    /// Gets the render phases in which this handle has work to submit for the current frame.
-    /// </summary>
-    RenderPhaseMask RenderPhases { get; }
-
-    /// <summary>
     /// Gets a value indicating whether this handle needs its update method called for the current frame.
     /// </summary>
     bool RequiresPerFrameUpdate { get; }
@@ -42,7 +37,7 @@ public interface IRenderHandle : IDisposable
     /// <param name="viewportSize">The active viewport size in pixels.</param>
     void Render(
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,

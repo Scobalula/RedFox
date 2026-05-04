@@ -80,10 +80,9 @@ internal sealed class TextureRenderHandle : RenderHandle
             return;
         }
 
-        if (_texture.Data is null && _texture.Scene is { } scene)
+        if (_texture.Data is null)
         {
             _lastLoadAttemptPath = _texture.EffectiveFilePath;
-            _texture.TryLoad(scene.ImageTranslators);
         }
 
         Image? image = _texture.Data;
@@ -139,7 +138,7 @@ internal sealed class TextureRenderHandle : RenderHandle
     /// <inheritdoc/>
     public override void Render(
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,

@@ -53,7 +53,7 @@ public static class SceneTraversal
     internal static void Render(
         IReadOnlyList<IRenderHandle> handles,
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -63,15 +63,9 @@ public static class SceneTraversal
         ArgumentNullException.ThrowIfNull(handles);
         ArgumentNullException.ThrowIfNull(commandList);
 
-        RenderPhaseMask phaseMask = GetPhaseMask(phase);
         for (int i = 0; i < handles.Count; i++)
         {
             IRenderHandle handle = handles[i];
-            if ((handle.RenderPhases & phaseMask) == 0)
-            {
-                continue;
-            }
-
             handle.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
         }
     }
@@ -79,7 +73,7 @@ public static class SceneTraversal
     internal static void Render(
         IReadOnlyList<SceneNode> nodes,
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -89,7 +83,6 @@ public static class SceneTraversal
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(commandList);
 
-        RenderPhaseMask phaseMask = GetPhaseMask(phase);
         for (int i = 0; i < nodes.Count; i++)
         {
             SceneNode node = nodes[i];
@@ -100,7 +93,7 @@ public static class SceneTraversal
 
             IRenderHandle? graphicsHandle = node.GraphicsHandle;
             
-            if (graphicsHandle is null || (graphicsHandle.RenderPhases & phaseMask) == 0 || graphicsHandle.Flags.HasFlag(RenderHandleFlags.SubHandle))
+            if (graphicsHandle is null || graphicsHandle.Flags.HasFlag(RenderHandleFlags.SubHandle))
             {
                 continue;
             }
@@ -153,7 +146,7 @@ public static class SceneTraversal
     public static void Render(
         SceneNode node,
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -177,18 +170,6 @@ public static class SceneTraversal
         }
 
         node.GraphicsHandle?.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
-    }
-
-    private static RenderPhaseMask GetPhaseMask(RenderPhase phase)
-    {
-        return phase switch
-        {
-            RenderPhase.SkinningCompute => RenderPhaseMask.SkinningCompute,
-            RenderPhase.Opaque => RenderPhaseMask.Opaque,
-            RenderPhase.Transparent => RenderPhaseMask.Transparent,
-            RenderPhase.Overlay => RenderPhaseMask.Overlay,
-            _ => RenderPhaseMask.None,
-        };
     }
 
     private static void UpdateNode(

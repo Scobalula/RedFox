@@ -10,13 +10,14 @@ cbuffer SkinningConstants : register(b1)
 {
     int SkinInfluenceCount;
     int SkinningMode;
-    int SkinningPadding0;
-    int SkinningPadding1;
+    int UVLayerCount;
+    int UVLayerIndex;
 };
 
 Buffer<uint> BoneIndexBuffer : register(t12);
 Buffer<float> BoneWeightBuffer : register(t13);
 Buffer<float4> SkinTransformBuffer : register(t14);
+Buffer<float2> UVLayerBuffer : register(t15);
 
 static const int SkinningModeLinear = 0;
 static const int SkinningModeDualQuaternion = 1;
@@ -32,6 +33,7 @@ struct VSOutput
     float4 Position : SV_Position;
     float3 WorldPosition : TEXCOORD0;
     float3 WorldNormal : TEXCOORD1;
+    float2 TextureCoordinate : TEXCOORD2;
 };
 
 float4 QuaternionMultiply(float4 a, float4 b)
@@ -122,6 +124,18 @@ row_major float4x4 LoadSkinTransform(uint boneIndex)
         SkinTransformBuffer[rowIndex + 1u],
         SkinTransformBuffer[rowIndex + 2u],
         SkinTransformBuffer[rowIndex + 3u]);
+}
+
+float2 ResolveTextureCoordinate(uint vertexIndex)
+{
+    if (UVLayerCount <= 0)
+    {
+        return float2(0.0f, 0.0f);
+    }
+
+    int layerIndex = clamp(UVLayerIndex, 0, UVLayerCount - 1);
+    uint bufferIndex = (vertexIndex * (uint)UVLayerCount) + (uint)layerIndex;
+    return UVLayerBuffer[bufferIndex];
 }
 
 void ResolveSkinnedVertex(uint vertexIndex, float3 sourcePosition, float3 sourceNormal, out float3 outputPosition, out float3 outputNormal)
@@ -222,6 +236,7 @@ VSOutput Main(VSInput input, uint vertexId : SV_VertexID)
     float4 worldPosition = mul(float4(resolvedPosition, 1.0f), worldMatrix);
     output.WorldPosition = worldPosition.xyz;
     output.WorldNormal = normalize(mul(float4(resolvedNormal, 0.0f), worldMatrix).xyz);
+    output.TextureCoordinate = ResolveTextureCoordinate(vertexId);
     output.Position = mul(worldPosition, mul(View, Projection));
     return output;
 }

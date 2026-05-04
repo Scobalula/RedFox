@@ -11,12 +11,6 @@ internal abstract class RenderHandle : IRenderHandle
     private bool _disposed;
 
     /// <inheritdoc/>
-    public virtual RenderPhaseMask RenderPhases => RenderPhaseMask.SkinningCompute
-        | RenderPhaseMask.Opaque
-        | RenderPhaseMask.Transparent
-        | RenderPhaseMask.Overlay;
-
-    /// <inheritdoc/>
     public virtual bool RequiresPerFrameUpdate => true;
 
     /// <inheritdoc/>
@@ -27,7 +21,7 @@ internal abstract class RenderHandle : IRenderHandle
 
     /// <inheritdoc/>
     public abstract void Render(ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,

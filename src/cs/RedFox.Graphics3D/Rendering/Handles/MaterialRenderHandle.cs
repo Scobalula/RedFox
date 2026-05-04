@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using RedFox.Graphics2D;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
@@ -15,12 +16,16 @@ namespace RedFox.Graphics3D.Rendering.Handles;
 internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Material material) : RenderHandle
 {
     private const string DefaultMaterialTypeName = "Default";
+    private const string DiffuseTextureUniformName = "DiffuseMap";
+    private const string HasDiffuseMapUniformName = "HasDiffuseMap";
+    private const int DiffuseTextureSlot = 15;
 
     private readonly IGraphicsDevice _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
     private readonly Material _material = material ?? throw new ArgumentNullException(nameof(material));
 
     private IGpuPipelineState? _pipeline;
     private string? _resolvedTypeName;
+    private Texture? _diffuseTextureSnapshot;
     private MaterialTextureBinding[]? _textureBindingSnapshot;
     private uint _bindingVersion = uint.MaxValue;
     private ulong _lastUpdateFrameIndex = ulong.MaxValue;
@@ -61,7 +66,6 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         }
 
         SetMaterialUniforms(commandList);
-
         BindTextureResources(commandList);
     }
 
@@ -98,7 +102,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     }
 
     /// <inheritdoc/>
-    public override void Render(ICommandList commandList, RenderPhase phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
+    public override void Render(ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
@@ -117,6 +121,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     protected override void ReleaseCore()
     {
         ReleasePipelineReference();
+        _diffuseTextureSnapshot = null;
         _textureBindingSnapshot = null;
         _bindingVersion = uint.MaxValue;
         _lastUpdateFrameIndex = ulong.MaxValue;
@@ -155,13 +160,24 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
 
     private MaterialTextureBinding[] GetTextureBindingSnapshot()
     {
+        RefreshTextureSnapshot();
+        return _textureBindingSnapshot!;
+    }
+
+    private Texture? GetDiffuseTextureSnapshot()
+    {
+        RefreshTextureSnapshot();
+        return _diffuseTextureSnapshot;
+    }
+
+    private void RefreshTextureSnapshot()
+    {
         if (_textureBindingSnapshot is null || _material.Version != _bindingVersion)
         {
             _textureBindingSnapshot = [.. _material.Textures];
+            _diffuseTextureSnapshot = _material.DiffuseMap;
             _bindingVersion = _material.Version;
         }
-
-        return _textureBindingSnapshot;
     }
 
     private void SetMaterialUniforms(ICommandList commandList)
@@ -173,17 +189,60 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
 
     private void BindTextureResources(ICommandList commandList)
     {
+        commandList.SetUniformInt(HasDiffuseMapUniformName, 0);
+
         MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
         for (int i = 0; i < snapshot.Length; i++)
         {
             MaterialTextureBinding binding = snapshot[i];
+            if (!HasTextureData(binding.Texture))
+            {
+                continue;
+            }
+
             if (binding.Texture.GraphicsHandle is not TextureRenderHandle textureHandle || !textureHandle.IsOwnedBy(_graphicsDevice))
             {
                 throw new InvalidOperationException($"Texture '{binding.Texture.Name}' was not prepared for rendering.");
             }
 
+            commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
             textureHandle.Bind(commandList, binding.Slot);
         }
+
+        Texture? diffuseTexture = GetDiffuseTextureSnapshot();
+        if (diffuseTexture is not null && TryBindTexture(commandList, diffuseTexture, DiffuseTextureSlot, DiffuseTextureUniformName))
+        {
+            commandList.SetUniformInt(HasDiffuseMapUniformName, 1);
+        }
+    }
+
+    private bool TryBindTexture(ICommandList commandList, Texture texture, int slot, string samplerUniform)
+    {
+        if (!HasTextureData(texture))
+        {
+            return false;
+        }
+
+        if (texture.GraphicsHandle is not TextureRenderHandle textureHandle || !textureHandle.IsOwnedBy(_graphicsDevice))
+        {
+            throw new InvalidOperationException($"Texture '{texture.Name}' was not prepared for rendering.");
+        }
+
+        commandList.SetUniformInt(samplerUniform, slot);
+        textureHandle.Bind(commandList, slot);
+        return true;
+    }
+
+    private static bool HasTextureData(Texture texture)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+
+        Image? image = texture.Data;
+        return image is not null
+            && image.Width > 0
+            && image.Height > 0
+            && image.Format != ImageFormat.Unknown
+            && !image.PixelMemory.IsEmpty;
     }
 
     private bool NeedsPerFrameUpdate()

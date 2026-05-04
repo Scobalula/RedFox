@@ -57,11 +57,6 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         }
 
         Texture texture = _skybox.Texture;
-        if (texture.Data is null)
-        {
-            texture.TryLoad(_scene.ImageTranslators);
-        }
-
         if (texture.Data is not { } image || !IsUsableCubemap(image))
         {
             ReleaseTexture();
@@ -104,7 +99,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     /// <inheritdoc/>
     public override void Render(
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -114,7 +109,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != RenderPhase.Opaque || !_skybox.Enabled || _pipeline is null || _gpuTexture is null)
+        if (phase != Rendering.RenderFlags.Opaque || !_skybox.Enabled || _pipeline is null || _gpuTexture is null)
         {
             return;
         }

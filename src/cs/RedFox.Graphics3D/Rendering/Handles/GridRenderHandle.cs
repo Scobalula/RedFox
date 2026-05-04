@@ -49,7 +49,7 @@ internal sealed class GridRenderHandle : RenderHandle
     /// <inheritdoc/>
     public override void Render(
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -58,7 +58,7 @@ internal sealed class GridRenderHandle : RenderHandle
     {
         ThrowIfDisposed();
 
-        if (phase != RenderPhase.Transparent || !_grid.Enabled || _pipeline is null)
+        if (phase != Rendering.RenderFlags.Transparent || !_grid.Enabled || _pipeline is null)
         {
             return;
         }

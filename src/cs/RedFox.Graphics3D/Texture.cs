@@ -15,6 +15,8 @@ namespace RedFox.Graphics3D;
 /// <param name="filePath">The full path to the image file to be used as the texture.</param>
 public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtension(filePath))
 {
+    internal bool LoadAttempted;
+
     /// <summary>
     /// Gets or sets the full path to the file associated with this texture.
     /// </summary>

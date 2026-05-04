@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
@@ -11,9 +11,10 @@ namespace RedFox.Graphics3D.Rendering.Handles;
 /// </summary>
 internal sealed class SkeletonBoneRenderHandle : RenderHandle
 {
-    private const int FloatCountPerVertex = SkeletonBoneRenderBatch.FloatCountPerVertex;
-    private static readonly object SharedBatchLock = new();
-    private static readonly Dictionary<IGraphicsDevice, (SkeletonBoneRenderBatch Batch, int ReferenceCount)> SharedBatches = [];
+    private const int FloatCountPerVertex = 13;
+    private const int VertexStrideBytes = FloatCountPerVertex * sizeof(float);
+    private const float MinimumLineWidth = 0.75f;
+    private const string SkeletonMaterialTypeName = "Skeleton";
 
     private readonly SkeletonBone _bone;
     private readonly IGraphicsDevice _graphicsDevice;
@@ -31,11 +32,11 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     private bool _lastHasParent;
     private Matrix4x4 _lastLocalMatrix;
     private bool _lastUseBoneNameHashColor = true;
-    private SkeletonBoneRenderBatch? _batch;
     private float[] _lineVertices = [];
-    private bool _ownsBatchReference;
-    private RenderPhaseMask _renderPhases;
+    private IGpuPipelineState? _pipeline;
     private bool _showBones = true;
+    private IGpuBuffer? _vertexBuffer;
+    private int _vertexBufferSizeBytes;
     private int _vertexCount = -1;
     private Matrix4x4 _worldMatrix;
 
@@ -53,9 +54,6 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
-    public override RenderPhaseMask RenderPhases => _renderPhases;
-
-    /// <inheritdoc/>
     public override bool RequiresPerFrameUpdate => true;
 
     /// <inheritdoc/>
@@ -64,7 +62,6 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        _renderPhases = RenderPhaseMask.None;
         _showBones = _bone.ShowSkeletonBone;
         if (!_showBones)
         {
@@ -73,31 +70,23 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         }
 
         _worldMatrix = _bone.GetActiveWorldMatrix();
-        EnsureBatch();
+        EnsurePipeline();
 
         Matrix4x4 localMatrix = _bone.GetActiveLocalMatrix();
         bool hasParent = _bone.Parent is not null;
-        ReadOnlySpan<float> vertices;
         if (IsGeometryStale(localMatrix, hasParent))
         {
-            vertices = BuildLineVertices(_bone, localMatrix, hasParent);
+            ReadOnlySpan<float> vertices = BuildLineVertices(_bone, localMatrix, hasParent);
             _vertexCount = vertices.Length / FloatCountPerVertex;
             UpdateCachedState(localMatrix, hasParent);
-        }
-        else
-        {
-            vertices = _lineVertices.AsSpan(0, Math.Max(0, _vertexCount) * FloatCountPerVertex);
-        }
-
-        if (vertices.IsEmpty)
-        {
-            UpdateRenderPhases();
+            UploadVertices(vertices);
             return;
         }
 
-        RenderPhaseMask renderPhase = _bone.RenderBoneOnTop ? RenderPhaseMask.Overlay : RenderPhaseMask.Transparent;
-        _batch?.Queue(commandList, vertices, _worldMatrix, renderPhase, MathF.Max(_bone.BoneLineWidth, 0.75f) * 0.5f);
-        UpdateRenderPhases();
+        if (_vertexCount > 0 && (_vertexBuffer is null || _vertexBuffer.IsDisposed))
+        {
+            UploadVertices(_lineVertices.AsSpan(0, _vertexCount * FloatCountPerVertex));
+        }
     }
 
     private void UpdateCachedState(Matrix4x4 localMatrix, bool hasParent)
@@ -119,7 +108,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     /// <inheritdoc/>
     public override void Render(
         ICommandList commandList,
-        RenderPhase phase,
+        RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
         in Matrix4x4 sceneAxis,
@@ -127,33 +116,34 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         Vector2 viewportSize)
     {
         ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(commandList);
 
-        RenderPhase targetPhase = _bone.RenderBoneOnTop ? RenderPhase.Overlay : RenderPhase.Transparent;
-        if (phase != targetPhase || !_showBones || _batch is null || _vertexCount <= 0)
+        RenderFlags targetPhase = ResolveRenderPhase();
+        if (phase != targetPhase || !_showBones || _pipeline is null || _vertexBuffer is null || _vertexCount <= 0)
         {
             return;
         }
 
-        _batch.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+        commandList.SetPipelineState(_pipeline);
+        BindVertexBuffer(commandList, _pipeline, _vertexBuffer);
+        commandList.SetUniformMatrix4x4("Model", _worldMatrix);
+        commandList.SetUniformMatrix4x4("View", view);
+        commandList.SetUniformMatrix4x4("Projection", projection);
+        commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
+        commandList.SetUniformVector3("CameraPosition", cameraPosition);
+        commandList.SetUniformVector2("ViewportSize", viewportSize);
+        commandList.SetUniformFloat("LineHalfWidthPx", MathF.Max(_bone.BoneLineWidth, MinimumLineWidth) * 0.5f);
+        commandList.Draw(_vertexCount, 0);
     }
 
     /// <inheritdoc/>
     protected override void ReleaseCore()
     {
-        ReleaseBatchReference();
+        _vertexBuffer?.Dispose();
+        _vertexBuffer = null;
+        _vertexBufferSizeBytes = 0;
+        ReleasePipeline();
         _vertexCount = -1;
-        _renderPhases = RenderPhaseMask.None;
-    }
-
-    private void UpdateRenderPhases()
-    {
-        if (!_showBones || _batch is null || _vertexCount <= 0)
-        {
-            _renderPhases = RenderPhaseMask.None;
-            return;
-        }
-
-        _renderPhases = _bone.RenderBoneOnTop ? RenderPhaseMask.Overlay : RenderPhaseMask.Transparent;
     }
 
     private bool IsGeometryStale(Matrix4x4 localMatrix, bool hasParent)
@@ -301,55 +291,85 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
         };
     }
 
-    private void EnsureBatch()
+    private static void BindVertexAttribute(ICommandList commandList, IGpuPipelineState pipeline, IGpuBuffer vertexBuffer, string attributeName)
     {
-        if (_batch is not null)
+        if (!pipeline.TryGetBufferSlot(attributeName, out int slot))
         {
             return;
         }
 
-        lock (SharedBatchLock)
-        {
-            if (SharedBatches.TryGetValue(_graphicsDevice, out (SkeletonBoneRenderBatch Batch, int ReferenceCount) sharedBatch))
-            {
-                SharedBatches[_graphicsDevice] = (sharedBatch.Batch, sharedBatch.ReferenceCount + 1);
-                _batch = sharedBatch.Batch;
-                _ownsBatchReference = true;
-                return;
-            }
-
-            SkeletonBoneRenderBatch batch = new(_graphicsDevice, _materialTypes);
-            SharedBatches.Add(_graphicsDevice, (batch, 1));
-            _batch = batch;
-            _ownsBatchReference = true;
-        }
+        commandList.BindBuffer(slot, vertexBuffer);
     }
 
-    private void ReleaseBatchReference()
+    private static void BindVertexBuffer(ICommandList commandList, IGpuPipelineState pipeline, IGpuBuffer vertexBuffer)
     {
-        if (!_ownsBatchReference || _batch is null)
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "LineStart");
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "LineEnd");
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "Color");
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "Along");
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "Side");
+        BindVertexAttribute(commandList, pipeline, vertexBuffer, "WidthScale");
+    }
+
+    private RenderFlags ResolveRenderPhase()
+    {
+        return _bone.RenderBoneOnTop ? RenderFlags.Overlay : RenderFlags.Transparent;
+    }
+
+    private void EnsurePipeline()
+    {
+        if (_pipeline is not null && !_pipeline.IsDisposed)
         {
             return;
         }
 
-        lock (SharedBatchLock)
+        if (_materialTypes is not IMaterialPipelineProvider pipelineProvider)
         {
-            if (SharedBatches.TryGetValue(_graphicsDevice, out (SkeletonBoneRenderBatch Batch, int ReferenceCount) sharedBatch))
-            {
-                int referenceCount = sharedBatch.ReferenceCount - 1;
-                if (referenceCount <= 0)
-                {
-                    SharedBatches.Remove(_graphicsDevice);
-                    sharedBatch.Batch.Dispose();
-                }
-                else
-                {
-                    SharedBatches[_graphicsDevice] = (sharedBatch.Batch, referenceCount);
-                }
-            }
-
-            _batch = null;
-            _ownsBatchReference = false;
+            throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
         }
+
+        _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, SkeletonMaterialTypeName);
+    }
+
+    private void ReleasePipeline()
+    {
+        IGpuPipelineState? pipeline = _pipeline;
+        _pipeline = null;
+
+        if (pipeline is null)
+        {
+            return;
+        }
+
+        if (_materialTypes is IMaterialPipelineProvider pipelineProvider)
+        {
+            pipelineProvider.ReleasePipeline(SkeletonMaterialTypeName, pipeline);
+            return;
+        }
+
+        pipeline.Dispose();
+    }
+
+    private void UploadVertices(ReadOnlySpan<float> vertices)
+    {
+        if (vertices.IsEmpty)
+        {
+            _vertexBuffer?.Dispose();
+            _vertexBuffer = null;
+            _vertexBufferSizeBytes = 0;
+            return;
+        }
+
+        ReadOnlySpan<byte> vertexBytes = MemoryMarshal.AsBytes(vertices);
+        int sizeBytes = vertexBytes.Length;
+        if (_vertexBuffer is null || _vertexBuffer.IsDisposed || _vertexBufferSizeBytes < sizeBytes)
+        {
+            _vertexBuffer?.Dispose();
+            _vertexBuffer = _graphicsDevice.CreateBuffer(sizeBytes, VertexStrideBytes, BufferUsage.Vertex | BufferUsage.DynamicWrite, GpuBufferElementType.Float32, vertexBytes);
+            _vertexBufferSizeBytes = sizeBytes;
+            return;
+        }
+
+        _graphicsDevice.UpdateBuffer(_vertexBuffer, vertexBytes);
     }
 }

@@ -914,9 +914,9 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             SamplerDesc samplerDesc = new()
             {
                 Filter = Filter.MinMagMipLinear,
-                AddressU = TextureAddressMode.Clamp,
-                AddressV = TextureAddressMode.Clamp,
-                AddressW = TextureAddressMode.Clamp,
+                AddressU = TextureAddressMode.Wrap,
+                AddressV = TextureAddressMode.Wrap,
+                AddressW = TextureAddressMode.Wrap,
                 MipLODBias = 0.0f,
                 MaxAnisotropy = 1,
                 ComparisonFunc = D3D11ComparisonFunc.Never,

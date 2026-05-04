@@ -1,9 +1,11 @@
 #version 300 es
 precision highp float;
 precision highp int;
+precision highp sampler2D;
 
 in vec3 WorldPosition;
 in vec3 WorldNormal;
+in vec2 TextureCoordinate;
 
 #define MAX_LIGHTS 4
 
@@ -13,9 +15,12 @@ uniform vec4 LightDirectionsAndIntensity[MAX_LIGHTS];
 uniform vec3 LightColors[MAX_LIGHTS];
 uniform vec3 CameraPosition;
 uniform int UseViewBasedLighting;
+uniform int HasDiffuseMap;
+uniform int UVLayerCount;
 uniform vec4 BaseColor;
 uniform float MaterialSpecularStrength;
 uniform float MaterialSpecularPower;
+uniform sampler2D DiffuseMap;
 
 out vec4 FragColor;
 
@@ -24,12 +29,18 @@ void main()
     vec3 normal = normalize(WorldNormal);
     vec3 viewDirection = normalize(CameraPosition - WorldPosition);
     vec3 ambient = AmbientColor;
+    vec4 surfaceColor = BaseColor;
+
+    if (HasDiffuseMap != 0 && UVLayerCount > 0)
+    {
+        surfaceColor *= texture(DiffuseMap, TextureCoordinate);
+    }
 
     if (UseViewBasedLighting != 0)
     {
         float facing = max(dot(normal, viewDirection), 0.0);
-        vec3 lit = (ambient + vec3(facing)) * BaseColor.rgb;
-        FragColor = vec4(lit, BaseColor.a);
+        vec3 lit = (ambient + vec3(facing)) * surfaceColor.rgb;
+        FragColor = vec4(lit, surfaceColor.a);
         return;
     }
 
@@ -52,6 +63,6 @@ void main()
         }
     }
 
-    vec3 lit = ((ambient + diffuse) * BaseColor.rgb) + specular;
-    FragColor = vec4(lit, BaseColor.a);
+    vec3 lit = ((ambient + diffuse) * surfaceColor.rgb) + specular;
+    FragColor = vec4(lit, surfaceColor.a);
 }
