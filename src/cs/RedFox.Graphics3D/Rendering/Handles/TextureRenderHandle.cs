@@ -8,10 +8,15 @@ namespace RedFox.Graphics3D.Rendering.Handles;
 /// <summary>
 /// Owns a backend texture resource for a texture node.
 /// </summary>
-internal sealed class TextureRenderHandle : RenderHandle
+/// <remarks>
+/// Initializes a new instance of the <see cref="TextureRenderHandle"/> class.
+/// </remarks>
+/// <param name="graphicsDevice">The graphics device that creates texture resources.</param>
+/// <param name="texture">The texture node represented by this handle.</param>
+internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Texture texture) : RenderHandle
 {
-    private readonly IGraphicsDevice _graphicsDevice;
-    private readonly Texture _texture;
+    private readonly IGraphicsDevice _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
+    private readonly Texture _texture = texture ?? throw new ArgumentNullException(nameof(texture));
 
     private IGpuTexture? _gpuTexture;
     private int _arraySize;
@@ -25,17 +30,6 @@ internal sealed class TextureRenderHandle : RenderHandle
     private int _payloadLength;
     private ulong _lastUpdateFrameIndex = ulong.MaxValue;
     private int _width;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TextureRenderHandle"/> class.
-    /// </summary>
-    /// <param name="graphicsDevice">The graphics device that creates texture resources.</param>
-    /// <param name="texture">The texture node represented by this handle.</param>
-    public TextureRenderHandle(IGraphicsDevice graphicsDevice, Texture texture)
-    {
-        _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
-        _texture = texture ?? throw new ArgumentNullException(nameof(texture));
-    }
 
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.

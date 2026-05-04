@@ -14,12 +14,23 @@ namespace RedFox.Graphics3D.OpenGL;
 /// </summary>
 public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 {
+    private const string ArbTextureCompressionBptcExtension = "GL_ARB_texture_compression_bptc";
+    private const string ArbTextureCompressionRgtcExtension = "GL_ARB_texture_compression_rgtc";
+    private const string ExtTextureCompressionBptcExtension = "GL_EXT_texture_compression_bptc";
+    private const string ExtTextureCompressionRgtcExtension = "GL_EXT_texture_compression_rgtc";
+    private const string ExtTextureCompressionS3tcExtension = "GL_EXT_texture_compression_s3tc";
+    private const string ExtTextureCompressionS3tcSrgbExtension = "GL_EXT_texture_compression_s3tc_srgb";
+    private const string ExtTextureSrgbExtension = "GL_EXT_texture_sRGB";
     private const uint GlRg = 0x8227;
     private const uint GlRg16f = 0x822F;
     private const uint GlRg32f = 0x8230;
 
     private readonly List<OpenGlCommandList> _commandLists = [];
     private readonly OpenGlContext _context;
+    private readonly bool _supportsBptcTextureCompression;
+    private readonly bool _supportsRgtcTextureCompression;
+    private readonly bool _supportsS3tcTextureCompression;
+    private readonly bool _supportsS3tcSrgbTextureCompression;
     private bool _disposed;
 
     /// <summary>
@@ -128,6 +139,10 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         ValidateContext();
+        _supportsBptcTextureCompression = SupportsBptcTextureCompression(_context.Gl);
+        _supportsRgtcTextureCompression = SupportsRgtcTextureCompression(_context.Gl);
+        _supportsS3tcTextureCompression = SupportsS3tcTextureCompression(_context.Gl);
+        _supportsS3tcSrgbTextureCompression = SupportsS3tcSrgbTextureCompression(_context.Gl);
         MaterialTypes = new OpenGlMaterialTypeRegistry();
     }
 
@@ -372,7 +387,9 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new NotSupportedException("Multisampled OpenGL textures are supported for render targets only.");
         }
 
-        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
+        ValidateTexturePixelData(format, width, height, pixels);
+
+        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
         {
             throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
         }
@@ -395,17 +412,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
 
-        if (pixels.IsEmpty)
-        {
-            gl.TexImage2D(GLEnum.Texture2D, 0, (int)internalFormat, (uint)width, (uint)height, 0, (GLEnum)pixelFormat, (GLEnum)pixelType, null);
-        }
-        else
-        {
-            fixed (byte* pixelPointer = pixels)
-            {
-                gl.TexImage2D(GLEnum.Texture2D, 0, (int)internalFormat, (uint)width, (uint)height, 0, (GLEnum)pixelFormat, (GLEnum)pixelType, pixelPointer);
-            }
-        }
+        UploadTextureLevel(gl, TextureTarget.Texture2D, 0, width, height, format, internalFormat, pixelFormat, pixelType, isCompressed, pixels);
 
         gl.BindTexture(TextureTarget.Texture2D, 0);
         return new OpenGlTexture(gl, handle, width, height, format, usage);
@@ -432,7 +439,32 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new NotSupportedException("OpenGL texture arrays are not supported by the current renderer abstraction.");
         }
 
-        return CreateTexture(image.Width, image.Height, image.Format, usage, image.GetSlice().PixelSpan);
+        return CreateTexture2D(image, usage);
+    }
+
+    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage)
+    {
+        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.Texture2D, handle);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
+
+        for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
+        {
+            ref readonly ImageSlice slice = ref image.GetSlice(mipLevel);
+            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
+        }
+
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage);
     }
 
     private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage)
@@ -447,7 +479,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             throw new ArgumentException("Cubemap images must contain a multiple of six array slices.", nameof(image));
         }
 
-        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType))
+        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
         {
             throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
         }
@@ -467,19 +499,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
             {
                 ref readonly ImageSlice slice = ref image.GetSlice(mipLevel, faceIndex);
-                fixed (byte* pixelPointer = slice.PixelSpan)
-                {
-                    gl.TexImage2D(
-                        (GLEnum)faceTarget,
-                        mipLevel,
-                        (int)internalFormat,
-                        (uint)slice.Width,
-                        (uint)slice.Height,
-                        0,
-                        (GLEnum)pixelFormat,
-                        (GLEnum)pixelType,
-                        pixelPointer);
-                }
+                UploadTextureLevel(gl, faceTarget, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
             }
         }
 
@@ -490,7 +510,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     /// <inheritdoc/>
     public bool SupportsFormat(ImageFormat format, TextureUsage usage)
     {
-        return TryGetTextureFormat(format, usage, out _, out _, out _);
+        return TryGetTextureFormat(format, usage, out _, out _, out _, out _);
     }
 
     /// <inheritdoc/>
@@ -835,12 +855,13 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return (rowPitch % 2) == 0 ? 2 : 1;
     }
 
-    private static bool TryGetTextureFormat(
+    private bool TryGetTextureFormat(
         ImageFormat format,
         TextureUsage usage,
         out SizedInternalFormat internalFormat,
         out global::Silk.NET.OpenGL.PixelFormat pixelFormat,
-        out PixelType pixelType)
+        out PixelType pixelType,
+        out bool isCompressed)
     {
         switch (format)
         {
@@ -848,43 +869,241 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
                 internalFormat = SizedInternalFormat.Rgba8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Rgba;
                 pixelType = PixelType.UnsignedByte;
+                isCompressed = false;
                 return true;
 
             case ImageFormat.R8G8B8A8UnormSrgb:
                 internalFormat = SizedInternalFormat.Srgb8Alpha8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Rgba;
                 pixelType = PixelType.UnsignedByte;
+                isCompressed = false;
                 return true;
 
             case ImageFormat.B8G8R8A8Unorm:
                 internalFormat = SizedInternalFormat.Rgba8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Bgra;
                 pixelType = PixelType.UnsignedByte;
+                isCompressed = false;
                 return true;
 
             case ImageFormat.B8G8R8A8UnormSrgb:
                 internalFormat = SizedInternalFormat.Srgb8Alpha8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Bgra;
                 pixelType = PixelType.UnsignedByte;
+                isCompressed = false;
+                return true;
+
+            case ImageFormat.BC1Typeless or ImageFormat.BC1Unorm when SupportsCompressedSampling(usage) && _supportsS3tcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbaS3TCDxt1Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC1UnormSrgb when SupportsCompressedSampling(usage) && _supportsS3tcSrgbTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSrgbAlphaS3TCDxt1Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC2Typeless or ImageFormat.BC2Unorm when SupportsCompressedSampling(usage) && _supportsS3tcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbaS3TCDxt3Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC2UnormSrgb when SupportsCompressedSampling(usage) && _supportsS3tcSrgbTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSrgbAlphaS3TCDxt3Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC3Typeless or ImageFormat.BC3Unorm when SupportsCompressedSampling(usage) && _supportsS3tcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbaS3TCDxt5Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC3UnormSrgb when SupportsCompressedSampling(usage) && _supportsS3tcSrgbTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSrgbAlphaS3TCDxt5Ext;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC4Typeless or ImageFormat.BC4Unorm when SupportsCompressedSampling(usage) && _supportsRgtcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRedRgtc1;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC4Snorm when SupportsCompressedSampling(usage) && _supportsRgtcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSignedRedRgtc1;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC5Typeless or ImageFormat.BC5Unorm when SupportsCompressedSampling(usage) && _supportsRgtcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRGRgtc2;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC5Snorm when SupportsCompressedSampling(usage) && _supportsRgtcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSignedRGRgtc2;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC6HUF16 when SupportsCompressedSampling(usage) && _supportsBptcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbBptcUnsignedFloat;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC6HSF16 when SupportsCompressedSampling(usage) && _supportsBptcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbBptcSignedFloat;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC7Unorm when SupportsCompressedSampling(usage) && _supportsBptcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedRgbaBptcUnorm;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
+                return true;
+
+            case ImageFormat.BC7UnormSrgb when SupportsCompressedSampling(usage) && _supportsBptcTextureCompression:
+                internalFormat = SizedInternalFormat.CompressedSrgbAlphaBptcUnorm;
+                pixelFormat = 0;
+                pixelType = 0;
+                isCompressed = true;
                 return true;
 
             case ImageFormat.D32Float when usage.HasFlag(TextureUsage.DepthStencil):
                 internalFormat = SizedInternalFormat.DepthComponent32f;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.DepthComponent;
                 pixelType = PixelType.Float;
+                isCompressed = false;
                 return true;
 
             case ImageFormat.D24UnormS8Uint when usage.HasFlag(TextureUsage.DepthStencil):
                 internalFormat = SizedInternalFormat.Depth24Stencil8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.DepthStencil;
                 pixelType = PixelType.UnsignedInt248;
+                isCompressed = false;
                 return true;
 
             default:
                 internalFormat = 0;
                 pixelFormat = 0;
                 pixelType = 0;
+                isCompressed = false;
                 return false;
+        }
+    }
+
+    private static bool SupportsBptcTextureCompression(GL gl)
+    {
+        return gl.IsExtensionPresent(ExtTextureCompressionBptcExtension)
+            || gl.IsExtensionPresent(ArbTextureCompressionBptcExtension);
+    }
+
+    private static bool SupportsRgtcTextureCompression(GL gl)
+    {
+        return gl.IsExtensionPresent(ExtTextureCompressionRgtcExtension)
+            || gl.IsExtensionPresent(ArbTextureCompressionRgtcExtension);
+    }
+
+    private static bool SupportsS3tcTextureCompression(GL gl)
+    {
+        return gl.IsExtensionPresent(ExtTextureCompressionS3tcExtension);
+    }
+
+    private static bool SupportsS3tcSrgbTextureCompression(GL gl)
+    {
+        return gl.IsExtensionPresent(ExtTextureCompressionS3tcSrgbExtension)
+            || gl.IsExtensionPresent(ExtTextureSrgbExtension);
+    }
+
+    private static bool SupportsCompressedSampling(TextureUsage usage)
+    {
+        return usage.HasFlag(TextureUsage.Sampled)
+            && !usage.HasFlag(TextureUsage.RenderTarget)
+            && !usage.HasFlag(TextureUsage.DepthStencil)
+            && !usage.HasFlag(TextureUsage.Storage);
+    }
+
+    private static void ValidateTexturePixelData(ImageFormat format, int width, int height, ReadOnlySpan<byte> pixels)
+    {
+        if (pixels.IsEmpty)
+        {
+            return;
+        }
+
+        (_, int slicePitch) = ImageFormatInfo.CalculatePitch(format, width, height);
+        if (pixels.Length < slicePitch)
+        {
+            throw new ArgumentException("Initial texture data is smaller than the requested texture size.", nameof(pixels));
+        }
+    }
+
+    private static int GetTextureSlicePitch(ImageFormat format, int width, int height)
+    {
+        (_, int slicePitch) = ImageFormatInfo.CalculatePitch(format, width, height);
+        return slicePitch;
+    }
+
+    private static unsafe void UploadTextureLevel(
+        GL gl,
+        TextureTarget target,
+        int mipLevel,
+        int width,
+        int height,
+        ImageFormat format,
+        SizedInternalFormat internalFormat,
+        global::Silk.NET.OpenGL.PixelFormat pixelFormat,
+        PixelType pixelType,
+        bool isCompressed,
+        ReadOnlySpan<byte> pixels)
+    {
+        if (isCompressed)
+        {
+            uint imageSize = checked((uint)GetTextureSlicePitch(format, width, height));
+            if (pixels.IsEmpty)
+            {
+                gl.CompressedTexImage2D(target, mipLevel, (InternalFormat)internalFormat, (uint)width, (uint)height, 0, imageSize, null);
+                return;
+            }
+
+            fixed (byte* pixelPointer = pixels)
+            {
+                gl.CompressedTexImage2D(target, mipLevel, (InternalFormat)internalFormat, (uint)width, (uint)height, 0, imageSize, pixelPointer);
+            }
+
+            return;
+        }
+
+        if (pixels.IsEmpty)
+        {
+            gl.TexImage2D((GLEnum)target, mipLevel, (int)internalFormat, (uint)width, (uint)height, 0, (GLEnum)pixelFormat, (GLEnum)pixelType, null);
+            return;
+        }
+
+        fixed (byte* pixelPointer = pixels)
+        {
+            gl.TexImage2D((GLEnum)target, mipLevel, (int)internalFormat, (uint)width, (uint)height, 0, (GLEnum)pixelFormat, (GLEnum)pixelType, pixelPointer);
         }
     }
 
