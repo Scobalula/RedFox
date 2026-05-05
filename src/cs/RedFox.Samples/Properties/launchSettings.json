@@ -6,7 +6,7 @@
     },
     "RedFox.Samples-OpenGL": {
       "commandName": "Project",
-      "commandLineArgs": "run graphics3d-OpenGL-mesh \"D:\\Tools\\mmwx\\exported_files\\xmodels\\attachment_vm_receiver_akilo47\\attachment_vm_receiver_akilo47_lod0.semodel\" --winding=ccw --up-axis=Y --view-lighting --skinning=dq"
+      "commandLineArgs": "run graphics3d-OpenGL-mesh \"Y:\\F Drive\\WeaponsSource\\MW2019\\Assault Rifle\\Famas\\Models\\Variant01\\viewhands_base_iw8_LOD0.semodel\" --winding=ccw --up-axis=Y --view-lighting --skinning=dq"
     }
   }
 }

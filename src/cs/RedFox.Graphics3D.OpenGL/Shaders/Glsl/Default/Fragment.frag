@@ -27,6 +27,12 @@ out vec4 FragColor;
 void main()
 {
     vec3 normal = normalize(WorldNormal);
+
+    if (!gl_FrontFacing)
+    {
+        normal = -normal;
+    }
+
     vec3 viewDirection = normalize(CameraPosition - WorldPosition);
     vec3 ambient = AmbientColor;
     vec4 surfaceColor = BaseColor;

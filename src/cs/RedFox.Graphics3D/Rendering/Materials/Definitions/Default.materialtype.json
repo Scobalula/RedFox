@@ -9,7 +9,7 @@
   ],
   "pipelineState": {
     "cullMode": "none",
-    "faceWinding": "counterClockwise",
+    "faceWinding": "clockwise",
     "wireframe": false,
     "blend": false,
     "sourceBlendFactor": "one",

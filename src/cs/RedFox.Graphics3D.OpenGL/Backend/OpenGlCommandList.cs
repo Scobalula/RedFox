@@ -27,7 +27,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private Vector3 _fallbackLightColor = Vector3.One;
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
     private float _fallbackLightIntensity = 1.0f;
-    private FaceWinding _frontFaceWinding = FaceWinding.CounterClockwise;
+    private FaceWinding _frontFaceWinding = FaceWinding.Clockwise;
     private OpenGlBuffer? _indexBuffer;
     private int _lightCount;
     private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
@@ -59,7 +59,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _fallbackLightDirection = -Vector3.UnitY;
         _fallbackLightColor = Vector3.One;
         _fallbackLightIntensity = 1.0f;
-        _frontFaceWinding = FaceWinding.CounterClockwise;
+        _frontFaceWinding = FaceWinding.Clockwise;
         _indexBuffer = null;
         _lightCount = 0;
         _sceneAxis = Matrix4x4.Identity;
