@@ -64,6 +64,18 @@ namespace RedFox.IO.ProcessMemory.Internal
             }
         }
 
+        public void ChangeProtection(nint address, int length, ProcessMemoryProtection protection)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            bool success = WindowsProcessNativeMethods.VirtualProtectEx(_processHandle, address, (nuint)length, (uint)protection, out _);
+
+            if (!success)
+            {
+                int errorCode = Marshal.GetLastPInvokeError();
+                throw ProcessMemoryErrors.CreateNativeFailure("VirtualProtectEx", ProcessId, address, length, errorCode);
+            }
+        }
+
         public ProcessModuleInfo[] GetModules()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);

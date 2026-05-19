@@ -73,6 +73,11 @@ namespace RedFox.IO.ProcessMemory.Internal
             }
         }
 
+        public void ChangeProtection(nint address, int length, ProcessMemoryProtection protection)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+        }
+
         public ProcessModuleInfo[] GetModules()
         {
             ObjectDisposedException.ThrowIf(_disposed, this);

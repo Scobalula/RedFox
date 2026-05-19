@@ -41,5 +41,9 @@ namespace RedFox.IO.ProcessMemory.Internal
         [LibraryImport("kernel32", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static partial bool WriteProcessMemory(SafeProcessHandle processHandle, nint baseAddress, ReadOnlySpan<byte> buffer, nuint size, out nint numberOfBytesWritten);
+
+        [LibraryImport("kernel32", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static partial bool VirtualProtectEx(SafeProcessHandle processHandle, nint address, nuint size, uint newProtection, out uint oldProtection);
     }
 }

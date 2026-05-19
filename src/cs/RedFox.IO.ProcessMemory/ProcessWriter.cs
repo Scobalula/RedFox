@@ -94,6 +94,30 @@ namespace RedFox.IO.ProcessMemory
         }
 
         /// <summary>
+        /// Changes the page protection for the region that contains the specified address range.
+        /// </summary>
+        /// <param name="address">The starting address of the region to update.</param>
+        /// <param name="length">The number of bytes in the region.</param>
+        /// <param name="protection">The new protection to apply.</param>
+        /// <remarks>
+        /// On Windows, the operating system rounds the requested range to page boundaries before applying the change.
+        /// On Linux, this method currently does nothing.
+        /// </remarks>
+        /// <exception cref="ObjectDisposedException">Thrown when this writer has already been disposed.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="address"/> is zero, when <paramref name="length"/> is less than or equal to zero,
+        /// or when <paramref name="protection"/> is invalid.
+        /// </exception>
+        public void ChangeProtection(nint address, int length, ProcessMemoryProtection protection)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            ProcessMemoryValidation.ThrowIfInvalidAddress(address);
+            ProcessMemoryValidation.ThrowIfInvalidLength(length, nameof(length));
+            ProcessMemoryValidation.ThrowIfInvalidProtection(protection);
+            _backend.ChangeProtection(address, length, protection);
+        }
+
+        /// <summary>
         /// Writes an unmanaged value to process memory at the specified address.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to write.</typeparam>

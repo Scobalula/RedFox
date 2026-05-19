@@ -17,6 +17,8 @@ namespace RedFox.IO.ProcessMemory.Internal
 
         void Write(nint address, ReadOnlySpan<byte> source);
 
+        void ChangeProtection(nint address, int length, ProcessMemoryProtection protection);
+
         ProcessModuleInfo[] GetModules();
 
         ProcessModuleInfo GetMainModule();
