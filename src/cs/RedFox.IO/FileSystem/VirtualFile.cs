@@ -114,4 +114,21 @@ public abstract class VirtualFile
     {
         return Name;
     }
+
+    /// <summary>
+    /// Writes the contents of the file. The file will be created if it does not exist, and overwritten if it does.
+    /// </summary>
+    public void WriteAllBytes() => WriteAllBytes(FullPath);
+
+    /// <summary>
+    /// Writes the contents of the file to the given file path. The file will be created if it does not exist, and overwritten if it does.
+    /// </summary>
+    /// <param name="filePath">The path to write the file to.</param>
+    public void WriteAllBytes(string filePath)
+    {
+        using var stream = Open();
+        using var output = File.Create(filePath);
+
+        stream.CopyTo(output);
+    }
 }

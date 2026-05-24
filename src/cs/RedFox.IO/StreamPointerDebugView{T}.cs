@@ -35,7 +35,6 @@ internal sealed class StreamPointerDebugView<T> where T : unmanaged
     /// <exception cref="ArgumentNullException"><paramref name="collection"/> is null.</exception>
     public StreamPointerDebugView(StreamPointer<T> collection)
     {
-        ArgumentNullException.ThrowIfNull(collection);
         _collection = collection;
     }
 

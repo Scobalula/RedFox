@@ -36,7 +36,7 @@ namespace RedFox.IO;
 /// </remarks>
 [DebuggerDisplay("Pointer = {Pointer}, Count = {Count}")]
 [DebuggerTypeProxy(typeof(StreamPointerDebugView<>))]
-public sealed class StreamPointer<T> where T : unmanaged
+public struct StreamPointer<T> where T : unmanaged
 {
     private readonly int _count;
 
@@ -63,7 +63,7 @@ public sealed class StreamPointer<T> where T : unmanaged
     /// Gets the number of items accessible through this stream pointer,
     /// or <c>-1</c> if unbounded.
     /// </summary>
-    public int Count => _count;
+    public readonly int Count => _count;
 
     /// <summary>
     /// Gets the stream offset immediately following the last accessible item.
@@ -72,7 +72,7 @@ public sealed class StreamPointer<T> where T : unmanaged
     /// This is the calculated end offset based on <see cref="Pointer"/>, <see cref="Count"/>,
     /// and <see cref="IsPointerArray"/>. For unbounded pointers, returns the stream length.
     /// </remarks>
-    public long EndOffset => _count < 0 ? BaseStream.Length : Pointer + (IsPointerArray ? 8 : SizeOf) * _count;
+    public readonly long EndOffset => _count < 0 ? BaseStream.Length : Pointer + (IsPointerArray ? 8 : SizeOf) * _count;
 
     /// <summary>
     /// Gets a value indicating whether this instance accesses data through pointer indirection.
@@ -273,7 +273,7 @@ public sealed class StreamPointer<T> where T : unmanaged
     /// <summary>
     /// Validates that the specified index is within bounds.
     /// </summary>
-    private void ValidateIndex(int index)
+    private readonly void ValidateIndex(int index)
     {
         if (index < 0 || (_count >= 0 && index >= _count))
             throw new IndexOutOfRangeException();
@@ -282,7 +282,7 @@ public sealed class StreamPointer<T> where T : unmanaged
     /// <summary>
     /// Calculates the stream position for the item at the specified index.
     /// </summary>
-    private long GetItemPosition(int index)
+    private readonly long GetItemPosition(int index)
     {
         if (IsPointerArray)
         {
