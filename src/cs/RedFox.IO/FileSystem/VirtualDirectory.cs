@@ -316,7 +316,7 @@ namespace RedFox.IO.FileSystem
                 current = dir;
             }
 
-            file = current._files.FirstOrDefault(x => x.Name == parts[^1]);
+            file = current._files.FirstOrDefault(x => FileSystemName.MatchesSimpleExpression(parts[^1], x.Name, true));
             return file is not null;
         }
 

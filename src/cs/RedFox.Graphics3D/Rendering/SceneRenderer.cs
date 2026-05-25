@@ -246,7 +246,7 @@ public sealed class SceneRenderer : IDisposable
         _commandList.Reset();
         _commandList.SetSceneAxis(sceneAxis);
         // TODO: This needs to be set on a mesh by mesh basis 
-        //_commandList.SetFrontFaceWinding(scene.FaceWinding);
+        _commandList.SetFrontFaceWinding(FaceWinding.CounterClockwise);
         _commandList.SetAmbientColor(AmbientColor);
         _commandList.SetUseViewBasedLighting(UseViewBasedLighting);
         _commandList.SetSkinningMode(SkinningMode);

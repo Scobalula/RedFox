@@ -33,6 +33,13 @@ public class SkeletonAnimation : Animation
     /// </summary>
     public TransformSpace TransformSpace { get; set; }
 
+    public SkeletonAnimation() : base()
+    {
+        Tracks = [];
+        TransformType = TransformType.Unknown;
+        Framerate = 30;
+    }
+
     /// <summary>
     /// Initializes a new <see cref="SkeletonAnimation"/> with the specified name,
     /// defaulting to 30 fps and unknown transform type.

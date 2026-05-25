@@ -59,6 +59,11 @@ namespace RedFox.Graphics3D
         public SceneNodeFlags Flags { get; set; }
 
         /// <summary>
+        /// Gets or Sets the custom user data assigned to the node.
+        /// </summary>
+        public object? UserData { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of <see cref="SceneNode"/> with a generated name.
         /// </summary>
         public SceneNode() : this($"SceneNode{SceneNodeId.GetNextId()}")

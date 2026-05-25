@@ -12,7 +12,7 @@ namespace RedFox.Graphics3D;
 /// hierarchy and can be discovered via standard traversal.
 /// </para>
 /// </summary>
-public abstract class Animation(string name) : SceneNode(name)
+public abstract class Animation : SceneNode
 {
     /// <summary>
     /// Gets or sets the animation actions — callbacks triggered at specific
@@ -33,6 +33,14 @@ public abstract class Animation(string name) : SceneNode(name)
     /// </summary>
     /// <returns>A tuple of (minFrame, maxFrame).</returns>
     public abstract (float, float) GetAnimationFrameRange();
+
+    public Animation() : base()
+    {
+    }
+
+    public Animation(string name) : base(name)
+    {
+    }
 
     /// <summary>
     /// Calculates the total number of action keyframes across all actions.
