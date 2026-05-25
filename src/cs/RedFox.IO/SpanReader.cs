@@ -466,10 +466,5 @@ namespace RedFox.IO
 
             return _position;
         }
-
-        public object Slice(object animationTableBuffer, int v)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

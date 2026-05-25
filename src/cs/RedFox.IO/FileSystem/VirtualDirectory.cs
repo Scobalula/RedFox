@@ -291,6 +291,17 @@ namespace RedFox.IO.FileSystem
             return file;
         }
 
+        public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile
+        {
+            file = null;
+            if (TryGetFile(path, out var foundFile) && foundFile is T typedFile)
+            {
+                file = typedFile;
+                return true;
+            }
+            return false;
+        }
+
         public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file)
         {
             file = null;
