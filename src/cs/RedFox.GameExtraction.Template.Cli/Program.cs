@@ -78,13 +78,12 @@ internal static class Program
         }
 
         AssetReadResult result = await manager.ReadAsync(asset).ConfigureAwait(false);
-        AssetReadResult<byte[]> byteResult = result as AssetReadResult<byte[]>
-            ?? throw new InvalidOperationException("Template read operations must return byte[] results.");
+        byte[] bytes = result.GetData<byte[]>();
 
-        byte[] previewBytes = byteResult.Data.Take(PreviewByteCount).ToArray();
+        byte[] previewBytes = bytes.Take(PreviewByteCount).ToArray();
         Console.WriteLine($"Asset: {asset.Name}");
         Console.WriteLine($"Type: {asset.Type}");
-        Console.WriteLine($"Size: {byteResult.Data.Length:N0} bytes");
+        Console.WriteLine($"Size: {bytes.Length:N0} bytes");
         Console.WriteLine($"Preview ({previewBytes.Length} bytes): {Convert.ToHexString(previewBytes)}");
         return 0;
     }

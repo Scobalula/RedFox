@@ -42,7 +42,7 @@ public sealed class SceneRenderer : IDisposable
     private int _antiAliasingTargetWidth;
     private (Texture Texture, Image Image)? _completedBackgroundImageLoad;
     private int _externalAntiAliasingSamples = MinimumAntiAliasingSamples;
-    private (Texture Texture, IImageLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager)? _pendingBackgroundImageLoad;
+    private (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager)? _pendingBackgroundImageLoad;
     private volatile bool _backgroundImageLoadThreadStopping;
     private bool _disposed;
     private bool _initialized;
@@ -578,7 +578,7 @@ public sealed class SceneRenderer : IDisposable
                 return;
             }
 
-            while (TryDequeueBackgroundImageLoad(out (Texture Texture, IImageLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager) pendingBackgroundImageLoad))
+            while (TryDequeueBackgroundImageLoad(out (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager) pendingBackgroundImageLoad))
             {
                 Image? image = TryLoadImage(
                     pendingBackgroundImageLoad.ImageLoader,
@@ -682,7 +682,7 @@ public sealed class SceneRenderer : IDisposable
         return true;
     }
 
-    private bool TryDequeueBackgroundImageLoad(out (Texture Texture, IImageLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager) pendingBackgroundImageLoad)
+    private bool TryDequeueBackgroundImageLoad(out (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager) pendingBackgroundImageLoad)
     {
         lock (_backgroundImageLoadSync)
         {
@@ -698,7 +698,7 @@ public sealed class SceneRenderer : IDisposable
         }
     }
 
-    private static Image? TryLoadImage(IImageLoader imageLoader, string path, ImageTranslatorManager translatorManager)
+    private static Image? TryLoadImage(ITextureLoader imageLoader, string path, ImageTranslatorManager translatorManager)
     {
         ArgumentNullException.ThrowIfNull(imageLoader);
         ArgumentNullException.ThrowIfNull(path);
@@ -706,7 +706,7 @@ public sealed class SceneRenderer : IDisposable
 
         try
         {
-            return imageLoader.Load(path, translatorManager);
+            return imageLoader.Load(null, translatorManager);
         }
         catch (DirectoryNotFoundException)
         {

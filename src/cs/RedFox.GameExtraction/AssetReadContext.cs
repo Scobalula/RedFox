@@ -49,4 +49,21 @@ public sealed class AssetReadContext
     /// <typeparam name="T">The service type to resolve.</typeparam>
     /// <returns>The resolved service instance.</returns>
     public T GetRequiredService<T>() where T : class => AssetManager.GetRequiredService<T>();
+
+    /// <summary>
+    /// Reads another asset through the owning manager.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset) =>
+        AssetManager.ReadAsync(asset);
+
+    /// <summary>
+    /// Reads another asset through the owning manager.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
+        AssetManager.ReadAsync(asset, cancellationToken);
 }

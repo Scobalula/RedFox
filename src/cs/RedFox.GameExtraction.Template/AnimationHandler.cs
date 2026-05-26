@@ -50,7 +50,7 @@ public sealed class AnimationHandler : IAssetHandler
         var scene = await translator.ReadAsync(buffer, asset.Name, new(), cancellationToken);
 
 
-        return new AssetReadResult<Scene>
+        return new AssetReadResult
         {
             Asset = asset,
             Data = scene,
@@ -87,8 +87,7 @@ public sealed class AnimationHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(context);
 
-        AssetReadResult<byte[]> dataResult = result as AssetReadResult<byte[]>
-            ?? throw new InvalidOperationException("AnimationHandler expects byte[] read results.");
+        byte[] data = result.GetData<byte[]>();
 
         string outputPath = context.ResolveAssetPath(result.Asset);
 
@@ -103,7 +102,7 @@ public sealed class AnimationHandler : IAssetHandler
             Directory.CreateDirectory(outputDirectory);
         }
 
-        await File.WriteAllBytesAsync(outputPath, dataResult.Data, cancellationToken).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
     }
 
     private static Stream OpenAssetStream(Asset asset)

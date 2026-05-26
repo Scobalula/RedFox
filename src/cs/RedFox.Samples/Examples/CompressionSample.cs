@@ -10,12 +10,13 @@ using System.Text;
 using RedFox.Compression;
 using RedFox.Compression.Deflate;
 using RedFox.Compression.LZ4;
+using RedFox.Compression.LZO;
 using RedFox.Compression.ZStandard;
 
 namespace RedFox.Samples.Examples;
 
 /// <summary>
-/// Demonstrates codec usage for pass-through and native codecs.
+/// Demonstrates codec usage for pass-through, managed, and native codecs.
 /// </summary>
 internal sealed class CompressionSample : ISample
 {
@@ -23,13 +24,14 @@ internal sealed class CompressionSample : ISample
     public string Name => "compression";
 
     /// <inheritdoc />
-    public string Description => "Runs pass-through and available native codec round-trips.";
+    public string Description => "Runs pass-through, managed, and available native codec round-trips.";
 
     /// <inheritdoc />
     public int Run(string[] arguments)
     {
         byte[] source = Encoding.UTF8.GetBytes("RedFox compression sample payload");
         RunCodec("PassThrough", new PassThroughCodec(), source);
+        RunCodec("LZO", new LzoCodec(), source);
 
         if (HasNativeLibrary("miniz.dll"))
         {

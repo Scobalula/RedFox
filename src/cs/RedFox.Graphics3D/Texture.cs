@@ -13,7 +13,7 @@ namespace RedFox.Graphics3D;
 /// different slot keys.
 /// </summary>
 /// <param name="filePath">The full path to the image file to be used as the texture.</param>
-public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtension(filePath))
+public class Texture(string filePath) : SceneNode(filePath)
 {
     internal bool LoadAttempted;
 
@@ -56,7 +56,7 @@ public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtensi
     /// <summary>
     /// Gets or sets the image loader used to retrieve and process images.
     /// </summary>
-    public IImageLoader? ImageLoader { get; set; } = FileSystemImageLoader.Shared;
+    public ITextureLoader? ImageLoader { get; set; } = FileSystemImageLoader.Shared;
 
     /// <summary>
     /// Loads image data through the supplied translator manager when this texture has no image data yet.
@@ -79,7 +79,7 @@ public class Texture(string filePath) : SceneNode(Path.GetFileNameWithoutExtensi
 
         try
         {
-            Data = ImageLoader.Load(EffectiveFilePath, translatorManager);
+            Data = ImageLoader.Load(this, translatorManager);
         }
         catch (DirectoryNotFoundException)
         {

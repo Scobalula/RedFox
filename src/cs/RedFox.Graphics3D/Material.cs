@@ -24,8 +24,6 @@ public class Material(string name) : SceneNode(name)
     /// <summary>Gets the mutation version counter. Incremented on every <see cref="Connect"/> or <see cref="Disconnect"/> call; useful for cache invalidation.</summary>
     public uint Version => _version;
 
-    // ── *MapName slot-key strings ───────────────────────────────────────────
-
     /// <summary>
     /// Gets or sets the slot key that identifies the diffuse map on this material's shader.
     /// </summary>
@@ -80,8 +78,6 @@ public class Material(string name) : SceneNode(name)
     /// Gets or sets the slot key that identifies the anisotropy map on this material's shader.
     /// </summary>
     public string? AnisotropyMapName { get; set; }
-
-    // ── Color / scalar properties ───────────────────────────────────────────
 
     /// <summary>
     /// Gets or sets the diffuse color.
@@ -178,8 +174,6 @@ public class Material(string name) : SceneNode(name)
     /// Gets or sets the material type name used to resolve renderer material behavior.
     /// </summary>
     public string? Type { get; set; }
-
-    // ── Typed *Map accessors ────────────────────────────────────────────────
 
     /// <summary>
     /// Gets or sets the diffuse <see cref="Texture"/> connected at <see cref="DiffuseMapName"/>.
@@ -336,8 +330,6 @@ public class Material(string name) : SceneNode(name)
     /// Initializes a new instance of the <see cref="Material"/> class with default values.
     /// </summary>
     public Material() : this(string.Empty) { }
-
-    // ── Public API ──────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
@@ -631,8 +623,6 @@ public class Material(string name) : SceneNode(name)
     /// <exception cref="InvalidOperationException">Thrown when <see cref="AnisotropyMapName"/> is not set.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when no texture is connected at the slot key.</exception>
     public Texture GetAnisotropyMap() => GetRequiredTexture(AnisotropyMapName, nameof(AnisotropyMapName));
-
-    // ── Private helpers ─────────────────────────────────────────────────────
 
     private void SetMapTexture(string? slotKey, string slotKeyPropertyName, Texture? value)
     {

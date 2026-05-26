@@ -152,9 +152,9 @@ public sealed class AssetManager
     /// <returns><see langword="true"/> when the service is registered; otherwise, <see langword="false"/>.</returns>
     public bool TryGetService<T>([NotNullWhen(true)] out T? service) where T : class
     {
-        if (_services.TryGetValue(typeof(T), out ServiceRegistration? registration) &&
-            registration.TryResolve(this, out object? resolved) &&
-            resolved is T typedService)
+        service = null;
+        
+        if (_services.TryGetValue(typeof(T), out ServiceRegistration? registration) && registration.TryResolve(this, out object? resolved) && resolved is T typedService)
         {
             service = typedService;
             return true;
@@ -273,11 +273,7 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted source.</returns>
-    public Task<IAssetSource> MountFileAsync(
-        string path,
-        IReadOnlyDictionary<string, object?>? options,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken) =>
+    public Task<IAssetSource> MountFileAsync(string path, IReadOnlyDictionary<string, object?>? options, IProgress<string>? progress, CancellationToken cancellationToken) =>
         MountAsync(AssetSourceRequest.ForFile(path, options), progress, cancellationToken);
 
     /// <summary>
@@ -314,11 +310,7 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted source.</returns>
-    public Task<IAssetSource> MountDirectoryAsync(
-        string path,
-        IReadOnlyDictionary<string, object?>? options,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken) =>
+    public Task<IAssetSource> MountDirectoryAsync(string path, IReadOnlyDictionary<string, object?>? options, IProgress<string>? progress, CancellationToken cancellationToken) =>
         MountAsync(AssetSourceRequest.ForDirectory(path, options), progress, cancellationToken);
 
     /// <summary>
@@ -355,11 +347,7 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted source.</returns>
-    public Task<IAssetSource> MountProcessAsync(
-        int processId,
-        IReadOnlyDictionary<string, object?>? options,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken) =>
+    public Task<IAssetSource> MountProcessAsync(int processId, IReadOnlyDictionary<string, object?>? options, IProgress<string>? progress, CancellationToken cancellationToken) =>
         MountAsync(AssetSourceRequest.ForProcess(processId, options), progress, cancellationToken);
 
     /// <summary>
@@ -396,11 +384,7 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted source.</returns>
-    public Task<IAssetSource> MountProcessAsync(
-        string processName,
-        IReadOnlyDictionary<string, object?>? options,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken) =>
+    public Task<IAssetSource> MountProcessAsync(string processName, IReadOnlyDictionary<string, object?>? options, IProgress<string>? progress, CancellationToken cancellationToken) =>
         MountAsync(AssetSourceRequest.ForProcess(processName, options), progress, cancellationToken);
 
     /// <summary>
@@ -418,16 +402,12 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted source.</returns>
-    public async Task<IAssetSource> MountAsync(
-        AssetSourceRequest request,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken)
+    public async Task<IAssetSource> MountAsync(AssetSourceRequest request, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        IAssetSourceReader reader = FindSourceReader(request)
-            ?? throw new NotSupportedException($"No registered source reader can open {request.Description}.");
+        IAssetSourceReader reader = FindSourceReader(request) ?? throw new NotSupportedException($"No registered source reader can open {request.Description}.");
 
         IAssetSource source;
         try
@@ -436,7 +416,7 @@ public sealed class AssetManager
         }
         catch (Exception ex)
         {
-            OnOperationFailed(new AssetOperationFailedEventArgs(AssetOperationKind.Mount, ex));
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, ex));
             throw;
         }
 
@@ -485,7 +465,7 @@ public sealed class AssetManager
         }
         catch (Exception ex)
         {
-            OnOperationFailed(new AssetOperationFailedEventArgs(AssetOperationKind.Unload, ex, source, null, null));
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Unload, ex, source, null, null));
             throw;
         }
 
@@ -508,13 +488,34 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
-        ReadAsync(asset, raiseFailureEvent: true, cancellationToken);
+    public async Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IAssetSource source = GetRequiredSource(asset);
+        IAssetHandler handler = GetRequiredHandler(asset);
+        AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
+        AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source));
+
+        try
+        {
+            AssetReadContext context = new(this, source, sourceRequest);
+            AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
+            AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
+            return result;
+        }
+        catch (Exception ex)
+        {
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Read, ex, source, asset, null));
+            throw;
+        }
+    }
 
     /// <summary>
-    /// Reads an asset using the first compatible registered handler.
+    /// Exports a single asset.
     /// </summary>
-    /// <param name="asset">The asset to read.</param>
+    /// <param name="asset">The asset to export.</param>
     /// <param name="configuration">The export configuration to apply.</param>
     /// <returns>A task that completes when the export finishes.</returns>
     public Task ExportAsync(Asset asset, ExportConfiguration configuration) =>
@@ -545,12 +546,109 @@ public sealed class AssetManager
     /// <param name="configuration">The export configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(
-        Asset asset,
-        ExportConfiguration configuration,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken) =>
-        ExportAsync([asset], configuration, progress, cancellationToken);
+    public Task ExportAsync(Asset asset, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+        ExportAsync(asset, string.Empty, configuration, progress, cancellationToken);
+
+    /// <summary>
+    /// Exports a single asset using a pre-computed read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration) =>
+        ExportAsync(asset, result, configuration, null, CancellationToken.None);
+
+    /// <summary>
+    /// Exports a single asset using a pre-computed read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, IProgress<string> progress) =>
+        ExportAsync(asset, result, configuration, progress, CancellationToken.None);
+
+    /// <summary>
+    /// Exports a single asset using a pre-computed read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+        ExportAsync(asset, result, configuration, null, cancellationToken);
+
+    /// <summary>
+    /// Exports a single asset using a pre-computed read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public async Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!ReferenceEquals(result.Asset, asset))
+        {
+            throw new ArgumentException($"The supplied result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.", nameof(result));
+        }
+
+        await ExportAsync(asset, result, string.Empty, configuration, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Exports an asset identified by its read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration) =>
+        ExportAsync(result, string.Empty, configuration, null, CancellationToken.None);
+
+    /// <summary>
+    /// Exports an asset identified by its read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, IProgress<string> progress) =>
+        ExportAsync(result, string.Empty, configuration, progress, CancellationToken.None);
+
+    /// <summary>
+    /// Exports an asset identified by its read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+        ExportAsync(result, string.Empty, configuration, null, cancellationToken);
+
+    /// <summary>
+    /// Exports an asset identified by its read result, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+        ExportAsync(result, string.Empty, configuration, progress, cancellationToken);
+
+    /// <summary>
+    /// Exports an asset identified by its read result into a relative output directory, bypassing the manager's read step.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return ExportAsync(result.Asset, result, relativeOutputDirectory, configuration, progress, cancellationToken);
+    }
 
     /// <summary>
     /// Exports a collection of assets.
@@ -575,10 +673,7 @@ public sealed class AssetManager
     /// <param name="assets">The assets to export.</param>
     /// <param name="configuration">The export configuration to apply.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(
-        IEnumerable<Asset> assets,
-        ExportConfiguration configuration,
-        CancellationToken cancellationToken) =>
+    public Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration, CancellationToken cancellationToken) =>
         ExportAsync(assets, configuration, null, cancellationToken);
 
     /// <summary>
@@ -588,123 +683,121 @@ public sealed class AssetManager
     /// <param name="configuration">The export configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task ExportAsync(
-        IEnumerable<Asset> assets,
-        ExportConfiguration configuration,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken)
+    public async Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        HashSet<(IAssetSource Source, string Path)> active = [];
-        HashSet<(IAssetSource Source, string Path, string RelativeOutputDirectory)> completed = [];
-
         foreach (Asset asset in assets)
         {
-            await ExportAssetAsync(asset, string.Empty).ConfigureAwait(false);
+            await ExportAsync(asset, string.Empty, configuration, progress, cancellationToken).ConfigureAwait(false);
         }
+    }
 
-        async Task ExportAssetAsync(Asset asset, string relativeOutputDirectory)
+    /// <summary>
+    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, ExportConfiguration)"/>
+    /// overload and by <see cref="AssetExportContext"/> for recursive exports. Reads the asset via the handler.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public async Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IAssetSource source = GetRequiredSource(asset);
+        string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
+        IAssetHandler handler = GetRequiredHandler(asset);
+        AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
+        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken);
+
+        AssetExportStarting?.Invoke(this, new AssetExportEventArgs(asset, source, configuration, normalizedDir));
+
+        bool shouldExport = await handler.ShouldExportAsync(asset, exportContext, cancellationToken).ConfigureAwait(false);
+
+        if (!shouldExport)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            IAssetSource source = GetRequiredSource(asset);
-            string normalizedAssetPath = NormalizeVirtualPath(asset.Name);
-            string normalizedRelativeOutputDirectory = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
-            (IAssetSource Source, string Path) activeKey = (source, normalizedAssetPath);
-            (IAssetSource Source, string Path, string RelativeOutputDirectory) completedKey =
-                (source, normalizedAssetPath, normalizedRelativeOutputDirectory);
-
-            if (!active.Add(activeKey))
-            {
-                return;
-            }
-
-            if (!completed.Add(completedKey))
-            {
-                active.Remove(activeKey);
-                return;
-            }
-
-            try
-            {
-                IAssetHandler handler = GetRequiredHandler(asset);
-                AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-                AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedRelativeOutputDirectory);
-                AssetExportStarting?.Invoke(
-                    this,
-                    new AssetExportEventArgs(asset, source, configuration, normalizedRelativeOutputDirectory));
-
-                try
-                {
-                    if (!await ShouldExportAsync(handler, asset, exportContext, cancellationToken).ConfigureAwait(false))
-                    {
-                        progress?.Report(GetSkipMessage(asset, normalizedRelativeOutputDirectory));
-                        AssetExportCompleted?.Invoke(
-                            this,
-                            new AssetExportCompletedEventArgs(
-                                asset,
-                                source,
-                                configuration,
-                                normalizedRelativeOutputDirectory,
-                                skipped: true));
-                        return;
-                    }
-
-                    AssetReadResult readResult = await ReadAsync(
-                        asset,
-                        raiseFailureEvent: false,
-                        cancellationToken).ConfigureAwait(false);
-
-                    progress?.Report(GetExportMessage(asset, normalizedRelativeOutputDirectory));
-                    await ExportAsync(handler, readResult, exportContext, cancellationToken).ConfigureAwait(false);
-                    AssetExportCompleted?.Invoke(
-                        this,
-                        new AssetExportCompletedEventArgs(
-                            asset,
-                            source,
-                            configuration,
-                            normalizedRelativeOutputDirectory,
-                            skipped: false));
-
-                    if (configuration.ExportReferences)
-                    {
-                        foreach (AssetExportReference reference in readResult.References)
-                        {
-                            string combinedRelativeOutputDirectory = CombineRelativeOutputDirectories(
-                                normalizedRelativeOutputDirectory,
-                                reference.RelativeOutputDirectory);
-
-                            await ExportAssetAsync(reference.Asset, combinedRelativeOutputDirectory).ConfigureAwait(false);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    OnOperationFailed(
-                        new AssetOperationFailedEventArgs(
-                            AssetOperationKind.Export,
-                            ex,
-                            source,
-                            asset,
-                            normalizedRelativeOutputDirectory));
-                    throw;
-                }
-            }
-            finally
-            {
-                active.Remove(activeKey);
-            }
+            progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Skipped {asset.Name}" : $"Skipped {asset.Name} -> {normalizedDir}");
+            AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: true));
+            return;
         }
+
+        AssetReadResult result = await ReadAsync(asset, cancellationToken).ConfigureAwait(false);
+
+        progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
+
+        try
+        {
+            await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Export, ex, source, asset, normalizedDir));
+            throw;
+        }
+
+        AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: false));
+    }
+
+    /// <summary>
+    /// Exports a single asset using a pre-read result, skipping the read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">The already-read result to export.</param>
+    /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    public async Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IAssetSource source = GetRequiredSource(asset);
+        string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
+        IAssetHandler handler = GetRequiredHandler(asset);
+        AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
+        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken);
+
+        AssetExportStarting?.Invoke(this, new AssetExportEventArgs(asset, source, configuration, normalizedDir));
+
+        bool shouldExport = await handler.ShouldExportAsync(asset, exportContext, cancellationToken).ConfigureAwait(false);
+
+        if (!shouldExport)
+        {
+            progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Skipped {asset.Name}" : $"Skipped {asset.Name} -> {normalizedDir}");
+            AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: true));
+            return;
+        }
+
+        progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
+
+        try
+        {
+            await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Export, ex, source, asset, normalizedDir));
+            throw;
+        }
+
+        AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: false));
     }
 
     internal static string NormalizeVirtualPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
-        string[] parts = path
-            .Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         if (parts.Length == 0)
         {
@@ -726,12 +819,64 @@ public sealed class AssetManager
             throw new ArgumentException("Output directories must be relative.", nameof(relativeOutputDirectory));
         }
 
-        string[] parts = relativeOutputDirectory.Split(
-            ['\\', '/'],
-            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        string[] parts = relativeOutputDirectory.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         return parts.Length == 0 ? string.Empty : Path.Combine(parts);
     }
+
+    internal static string CombineRelativePaths(string first, string second)
+    {
+        string normalizedFirst = NormalizeRelativeOutputDirectory(first);
+        string normalizedSecond = NormalizeRelativeOutputDirectory(second);
+
+        if (string.IsNullOrWhiteSpace(normalizedFirst))
+        {
+            return normalizedSecond;
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedSecond))
+        {
+            return normalizedFirst;
+        }
+
+        return Path.Combine(normalizedFirst, normalizedSecond);
+    }
+
+    /// <summary>
+    /// Returns the mounted source that owns the supplied asset, or throws when it is not available.
+    /// </summary>
+    /// <param name="asset">The asset whose source to retrieve.</param>
+    /// <returns>The mounted source that owns <paramref name="asset"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the asset has no attached source or the source is not mounted.</exception>
+    public IAssetSource GetRequiredSource(Asset asset)
+    {
+        IAssetSource source = asset.Source ?? throw new InvalidOperationException($"The asset '{asset.Name}' is not attached to a mounted source.");
+
+        if (_sources.Contains(source))
+        {
+            return source;
+        }
+
+        throw new InvalidOperationException($"The source for asset '{asset.Name}' is not mounted.");
+    }
+
+    /// <summary>
+    /// Returns the first registered handler that can process the supplied asset, or throws when none is available.
+    /// </summary>
+    /// <param name="asset">The asset to process.</param>
+    /// <returns>The matching handler.</returns>
+    /// <exception cref="NotSupportedException">Thrown when no registered handler can process the asset.</exception>
+    public IAssetHandler GetRequiredHandler(Asset asset) =>
+        FindHandler(asset) ?? throw new NotSupportedException($"No registered asset handler can process '{asset.Name}'.");
+
+    /// <summary>
+    /// Returns the request that was used to mount the supplied source, or throws when none is associated.
+    /// </summary>
+    /// <param name="source">The mounted source.</param>
+    /// <returns>The source request associated with <paramref name="source"/>.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the source has no associated request.</exception>
+    public AssetSourceRequest GetRequiredSourceRequest(IAssetSource source) =>
+        _sourceRequests.TryGetValue(source, out AssetSourceRequest? request) ? request : throw new InvalidOperationException($"No request is associated with the source '{source.Name}'.");
 
     private static void ValidateAssets(IReadOnlyList<Asset> assets)
     {
@@ -743,8 +888,7 @@ public sealed class AssetManager
 
             if (!seenPaths.Add(normalizedPath))
             {
-                throw new InvalidOperationException(
-                    $"An asset with the path '{asset.Name}' has already been registered for this source.");
+                throw new InvalidOperationException($"An asset with the path '{asset.Name}' has already been registered for this source.");
             }
         }
     }
@@ -784,115 +928,6 @@ public sealed class AssetManager
         }
     }
 
-    private async Task<AssetReadResult> ReadAsync(
-        Asset asset,
-        bool raiseFailureEvent,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(asset);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        IAssetSource source = GetRequiredSource(asset);
-        IAssetHandler handler = GetRequiredHandler(asset);
-        AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-        AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source));
-
-        try
-        {
-            AssetReadContext context = new(this, source, sourceRequest);
-            AssetReadResult result = await Task.Run(
-                () => handler.ReadAsync(asset, context, cancellationToken),
-                cancellationToken).ConfigureAwait(false);
-            AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
-            return result;
-        }
-        catch (Exception ex)
-        {
-            if (raiseFailureEvent)
-            {
-                OnOperationFailed(new AssetOperationFailedEventArgs(AssetOperationKind.Read, ex, source, asset, null));
-            }
-
-            throw;
-        }
-    }
-
-    private static Task<bool> ShouldExportAsync(
-        IAssetHandler handler,
-        Asset asset,
-        AssetExportContext context,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-        ArgumentNullException.ThrowIfNull(asset);
-        ArgumentNullException.ThrowIfNull(context);
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => handler.ShouldExportAsync(asset, context, cancellationToken), cancellationToken);
-    }
-
-    private static Task ExportAsync(
-        IAssetHandler handler,
-        AssetReadResult result,
-        AssetExportContext context,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-        ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(context);
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.Run(() => handler.ExportAsync(result, context, cancellationToken), cancellationToken);
-    }
-
-    private IAssetSource GetRequiredSource(Asset asset)
-    {
-        IAssetSource source = asset.Source
-            ?? throw new InvalidOperationException($"The asset '{asset.Name}' is not attached to a mounted source.");
-
-        if (_sources.Contains(source))
-        {
-            return source;
-        }
-
-        throw new InvalidOperationException($"The source for asset '{asset.Name}' is not mounted.");
-    }
-
-    private IAssetHandler GetRequiredHandler(Asset asset) =>
-        FindHandler(asset)
-        ?? throw new NotSupportedException($"No registered asset handler can process '{asset.Name}'.");
-
-    private AssetSourceRequest GetRequiredSourceRequest(IAssetSource source) =>
-        _sourceRequests.TryGetValue(source, out AssetSourceRequest? request)
-            ? request
-            : throw new InvalidOperationException($"No request is associated with the source '{source.Name}'.");
-
-    private static string CombineRelativeOutputDirectories(string first, string second)
-    {
-        string normalizedFirst = NormalizeRelativeOutputDirectory(first);
-        string normalizedSecond = NormalizeRelativeOutputDirectory(second);
-
-        if (string.IsNullOrWhiteSpace(normalizedFirst))
-        {
-            return normalizedSecond;
-        }
-
-        if (string.IsNullOrWhiteSpace(normalizedSecond))
-        {
-            return normalizedFirst;
-        }
-
-        return Path.Combine(normalizedFirst, normalizedSecond);
-    }
-
-    private static string GetExportMessage(Asset asset, string relativeOutputDirectory) =>
-        string.IsNullOrWhiteSpace(relativeOutputDirectory)
-            ? $"Exporting {asset.Name}"
-            : $"Exporting {asset.Name} -> {relativeOutputDirectory}";
-
-    private static string GetSkipMessage(Asset asset, string relativeOutputDirectory) =>
-        string.IsNullOrWhiteSpace(relativeOutputDirectory)
-            ? $"Skipped {asset.Name}"
-            : $"Skipped {asset.Name} -> {relativeOutputDirectory}";
-
     private static byte[] ReadHeader(AssetSourceRequest request)
     {
         if (request.Kind != AssetSourceKind.File || string.IsNullOrWhiteSpace(request.Location))
@@ -926,6 +961,4 @@ public sealed class AssetManager
             return [];
         }
     }
-
-    private void OnOperationFailed(AssetOperationFailedEventArgs args) => OperationFailed?.Invoke(this, args);
 }

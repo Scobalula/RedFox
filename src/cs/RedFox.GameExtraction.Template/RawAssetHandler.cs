@@ -37,7 +37,7 @@ public sealed class RawAssetHandler : IAssetHandler
         using MemoryStream buffer = new();
         await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
 
-        return new AssetReadResult<byte[]>
+        return new AssetReadResult
         {
             Asset = asset,
             Data = buffer.ToArray(),
@@ -74,8 +74,7 @@ public sealed class RawAssetHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(context);
 
-        AssetReadResult<byte[]> dataResult = result as AssetReadResult<byte[]>
-            ?? throw new InvalidOperationException("RawAssetHandler expects byte[] read results.");
+        byte[] data = result.GetData<byte[]>();
 
         string outputPath = context.ResolveAssetPath(result.Asset);
 
@@ -90,7 +89,7 @@ public sealed class RawAssetHandler : IAssetHandler
             Directory.CreateDirectory(outputDirectory);
         }
 
-        await File.WriteAllBytesAsync(outputPath, dataResult.Data, cancellationToken).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
     }
 
     private static Stream OpenAssetStream(Asset asset)

@@ -113,6 +113,7 @@ namespace RedFox.IO.FileSystem
 
         public VirtualFile GetFile(string path) => Root.GetFile(path);
 
+        public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile => Root.TryGetFile<T>(path, out file);
         public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file) => Root.TryGetFile(path, out file);
 
         public static bool IsValidFileName(string name) =>

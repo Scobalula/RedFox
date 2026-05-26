@@ -1264,15 +1264,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private static object? ExtractPayload(AssetReadResult readResult, out Type? payloadType)
     {
-        Type resultType = readResult.GetType();
-        if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(AssetReadResult<>))
-        {
-            payloadType = resultType.GetGenericArguments()[0];
-            return resultType.GetProperty("Data")?.GetValue(readResult);
-        }
-
-        payloadType = null;
-        return null;
+        payloadType = readResult.Data?.GetType();
+        return readResult.Data;
     }
 
     private Control? CreatePreviewControl()

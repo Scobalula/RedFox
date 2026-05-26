@@ -5,6 +5,9 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class AssetExportContext
 {
+    private readonly IProgress<string>? _progress;
+    private readonly CancellationToken _cancellationToken;
+
     /// <summary>
     /// Gets the manager coordinating the export.
     /// </summary>
@@ -50,13 +53,17 @@ public sealed class AssetExportContext
         IAssetSource source,
         AssetSourceRequest request,
         ExportConfiguration exportConfiguration,
-        string relativeOutputDirectory)
+        string relativeOutputDirectory,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken)
     {
         AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));
         Source = source ?? throw new ArgumentNullException(nameof(source));
         Request = request ?? throw new ArgumentNullException(nameof(request));
         ExportConfiguration = exportConfiguration ?? throw new ArgumentNullException(nameof(exportConfiguration));
         RelativeOutputDirectory = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
+        _progress = progress;
+        _cancellationToken = cancellationToken;
     }
 
     /// <summary>
@@ -102,7 +109,8 @@ public sealed class AssetExportContext
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentException.ThrowIfNullOrWhiteSpace(extension);
 
-        string fileName = Path.GetFileNameWithoutExtension(asset.Name) + NormalizeExtension(extension);
+        string fileName = Path.GetFileNameWithoutExtension(asset.Name)
+            + (extension.StartsWith('.') ? extension : $".{extension}");
         string relativeDirectory = ExportConfiguration.PreserveDirectoryStructure
             ? Path.GetDirectoryName(global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name)) ?? string.Empty
             : string.Empty;
@@ -177,6 +185,97 @@ public sealed class AssetExportContext
     /// <returns><see langword="true"/> when the option is present and of the requested type; otherwise, <see langword="false"/>.</returns>
     public bool TryGetExportOption<T>(string key, out T? value) => TryGetOption(ExportOptions, key, out value);
 
+    /// <summary>
+    /// Recursively exports another asset as part of the current export batch, placed within the current scope's output directory.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    public Task ExportAsync(Asset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return AssetManager.ExportAsync(asset, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+    }
+
+    /// <summary>
+    /// Recursively exports another asset into a sub-directory of the current export scope.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="relativeOutputDirectory">The relative directory under the current scope to place the asset in.</param>
+    public Task ExportAsync(Asset asset, string relativeOutputDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return AssetManager.ExportAsync(
+            asset,
+            CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory),
+            ExportConfiguration,
+            _progress,
+            _cancellationToken);
+    }
+
+    /// <summary>
+    /// Recursively exports another asset using a pre-computed read result, skipping the manager's read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(result);
+        if (!ReferenceEquals(result.Asset, asset))
+            throw new ArgumentException(
+                $"The result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.",
+                nameof(result));
+        return AssetManager.ExportAsync(asset, result, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+    }
+
+    /// <summary>
+    /// Recursively exports another asset into a sub-directory of the current scope using a pre-computed read result.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
+    /// <param name="relativeOutputDirectory">The relative directory under the current scope to place the asset in.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(result);
+        if (!ReferenceEquals(result.Asset, asset))
+            throw new ArgumentException(
+                $"The result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.",
+                nameof(result));
+        return AssetManager.ExportAsync(
+            asset,
+            result,
+            CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory),
+            ExportConfiguration,
+            _progress,
+            _cancellationToken);
+    }
+
+    /// <summary>
+    /// Recursively exports an asset identified by its read result as part of the current export batch, placed within the current scope's output directory.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    public Task ExportAsync(AssetReadResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return AssetManager.ExportAsync(result, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+    }
+
+    /// <summary>
+    /// Recursively exports an asset identified by its read result into a sub-directory of the current export scope.
+    /// </summary>
+    /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
+    /// <param name="relativeOutputDirectory">The relative directory under the current scope to place the asset in.</param>
+    public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return AssetManager.ExportAsync(
+            result,
+            CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory),
+            ExportConfiguration,
+            _progress,
+            _cancellationToken);
+    }
+
     private static string CombineRelativePaths(string first, string second)
     {
         string normalizedFirst = NormalizeRelativeOutputDirectory(first);
@@ -194,9 +293,6 @@ public sealed class AssetExportContext
 
         return Path.Combine(normalizedFirst, normalizedSecond);
     }
-
-    private static string NormalizeExtension(string extension) =>
-        extension.StartsWith('.') ? extension : $".{extension}";
 
     private static string NormalizeRelativeOutputDirectory(string? relativeOutputDirectory)
     {

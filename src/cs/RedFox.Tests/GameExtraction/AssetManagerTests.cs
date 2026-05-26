@@ -232,7 +232,7 @@ public sealed class AssetManagerTests
         {
             ReadAsyncDelegate = (candidate, _, _) =>
             {
-                return Task.FromResult<AssetReadResult>(new AssetReadResult<string>
+                return Task.FromResult<AssetReadResult>(new AssetReadResult
                 {
                     Asset = candidate,
                     Data = candidate.Name,
@@ -243,9 +243,8 @@ public sealed class AssetManagerTests
         manager.RegisterHandler(handler);
 
         AssetReadResult result = await manager.ReadAsync(asset);
-        AssetReadResult<string> typedResult = Assert.IsType<AssetReadResult<string>>(result);
 
-        Assert.Equal("root/file.bin", typedResult.Data);
+        Assert.Equal("root/file.bin", result.GetData<string>());
         Assert.Equal(1, handler.ReadCalls);
     }
 
@@ -297,7 +296,7 @@ public sealed class AssetManagerTests
                 return Task.FromResult(true);
             },
             ReadAsyncDelegate = (candidate, _, _) =>
-                Task.FromResult<AssetReadResult>(new AssetReadResult<string> { Asset = candidate, Data = "ok" })
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = "ok" })
         };
 
         manager.RegisterHandler(handler);
@@ -328,7 +327,7 @@ public sealed class AssetManagerTests
         TestAssetHandler handler = new()
         {
             ReadAsyncDelegate = (candidate, _, _) =>
-                Task.FromResult<AssetReadResult>(new AssetReadResult<byte[]> { Asset = candidate, Data = [1, 2, 3] }),
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = new byte[] { 1, 2, 3 } }),
             ExportAsyncDelegate = (result, context, _) =>
             {
                 string[] formats = Assert.IsType<string[]>(context.ExportOptions["formats"]);
@@ -365,7 +364,7 @@ public sealed class AssetManagerTests
     }
 
     [Fact]
-    public async Task ExportAsync_ExportsReferencesOnceAndPreventsCycles()
+    public async Task ExportAsync_HandlerDrivenRecursionExportsEachAssetOnceAndPreventsCycles()
     {
         AssetManager manager = new();
         TestAssetSourceReader reader = new(
@@ -394,21 +393,24 @@ public sealed class AssetManagerTests
         TestAssetHandler handler = new()
         {
             ReadAsyncDelegate = (candidate, _, _) =>
-            {
-                IReadOnlyList<AssetExportReference> references = candidate.Name == "root/a.asset"
-                    ? [new AssetExportReference(b, "references")]
-                    : [new AssetExportReference(a)];
-                return Task.FromResult<AssetReadResult>(new AssetReadResult<string>
+                Task.FromResult<AssetReadResult>(new AssetReadResult
                 {
                     Asset = candidate,
                     Data = candidate.Name,
-                    References = references,
-                });
-            },
-            ExportAsyncDelegate = (result, context, _) =>
+                }),
+            ExportAsyncDelegate = async (result, context, _) =>
             {
                 exported.Add($"{result.Asset.Name}:{context.RelativeOutputDirectory}");
-                return Task.CompletedTask;
+
+                if (result.Asset.Name == "root/a.asset")
+                {
+                    await context.ExportAsync(b, "references");
+                }
+                else
+                {
+                    // Should be deduped by the shared export state and never recurse.
+                    await context.ExportAsync(a);
+                }
             }
         };
 
@@ -419,12 +421,255 @@ public sealed class AssetManagerTests
             new ExportConfiguration
             {
                 OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
-                ExportReferences = true,
             });
 
         Assert.Equal(2, handler.ReadCalls);
         Assert.Equal(2, handler.ExportCalls);
         Assert.Equal(["root/a.asset:", "root/b.asset:references"], exported);
+    }
+
+    [Fact]
+    public async Task ExportAsync_ContextExportAsyncWithPrefetchedResultSkipsHandlerRead()
+    {
+        AssetManager manager = new();
+        TestAssetSourceReader reader = new(
+            request => request.Kind == AssetSourceKind.File,
+            async (request, _, _, _) =>
+            {
+                Asset parent = new("root/parent.asset", "Scene");
+                Asset child = new("root/child.asset", "Scene");
+                return await Task.FromResult(new TestAssetSource(
+                    request.DisplayName,
+                    [parent, child],
+                    new Dictionary<string, byte[]>
+                    {
+                        [NormalizePath(parent.Name)] = [1],
+                        [NormalizePath(child.Name)] = [2],
+                    }));
+            });
+
+        manager.RegisterSourceReader(reader);
+        IAssetSource source = await manager.MountFileAsync("prefetch.ff");
+        Asset parent = source.Assets.Single(asset => asset.Name == "root/parent.asset");
+        Asset child = source.Assets.Single(asset => asset.Name == "root/child.asset");
+        List<string> exported = [];
+
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult
+                {
+                    Asset = candidate,
+                    Data = candidate.Name == "root/parent.asset" ? "parent" : "fresh",
+                }),
+            ExportAsyncDelegate = async (result, context, _) =>
+            {
+                exported.Add($"{result.Asset.Name}:{result.GetData<string>()}");
+
+                if (result.Asset.Name == "root/parent.asset")
+                {
+                    AssetReadResult prefetched = new() { Asset = child, Data = "prefetched" };
+                    await context.ExportAsync(child, prefetched);
+                }
+            }
+        };
+
+        manager.RegisterHandler(handler);
+
+        await manager.ExportAsync(
+            parent,
+            new ExportConfiguration
+            {
+                OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            });
+
+        Assert.Equal(1, handler.ReadCalls);
+        Assert.Equal(2, handler.ExportCalls);
+        Assert.Equal(["root/parent.asset:parent", "root/child.asset:prefetched"], exported);
+    }
+
+    [Fact]
+    public async Task ExportAsync_PublicPrefetchedOverloadSkipsManagerRead()
+    {
+        AssetManager manager = CreateManagerWithSingleAsset(out Asset asset);
+        List<string> exported = [];
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult
+                {
+                    Asset = candidate,
+                    Data = "fresh",
+                }),
+            ExportAsyncDelegate = (result, _, _) =>
+            {
+                exported.Add($"{result.Asset.Name}:{result.GetData<string>()}");
+                return Task.CompletedTask;
+            }
+        };
+
+        manager.RegisterHandler(handler);
+
+        AssetReadResult prefetched = new() { Asset = asset, Data = "prefetched" };
+
+        await manager.ExportAsync(
+            asset,
+            prefetched,
+            new ExportConfiguration
+            {
+                OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+            });
+
+        Assert.Equal(0, handler.ReadCalls);
+        Assert.Equal(1, handler.ExportCalls);
+        Assert.Equal([$"{asset.Name}:prefetched"], exported);
+    }
+
+    [Fact]
+    public async Task ExportAsync_HandlerPlacesReferencedAssetUnderParentDirectory()
+    {
+        AssetManager manager = new();
+        TestAssetSourceReader reader = new(
+            request => request.Kind == AssetSourceKind.File,
+            async (request, _, _, _) =>
+            {
+                Asset parent = new("models/hero.model", "Model");
+                Asset child = new("textures/skin.dds", "Texture");
+                return await Task.FromResult(new TestAssetSource(
+                    request.DisplayName,
+                    [parent, child],
+                    new Dictionary<string, byte[]>
+                    {
+                        [NormalizePath(parent.Name)] = [1],
+                        [NormalizePath(child.Name)] = [2],
+                    }));
+            });
+
+        manager.RegisterSourceReader(reader);
+        IAssetSource source = await manager.MountFileAsync("placement.ff");
+        Asset parent = source.Assets.Single(asset => asset.Name == "models/hero.model");
+        Asset child = source.Assets.Single(asset => asset.Name == "textures/skin.dds");
+        List<string> resolvedDirectories = [];
+
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult
+                {
+                    Asset = candidate,
+                    Data = candidate.Name,
+                }),
+            ExportAsyncDelegate = async (result, context, _) =>
+            {
+                resolvedDirectories.Add($"{result.Asset.Name}:{context.RelativeOutputDirectory}");
+
+                if (result.Asset.Name == "models/hero.model")
+                {
+                    // Place the referenced asset in an "_images" folder next to the parent's resolved directory.
+                    string parentDirectory = Path.GetDirectoryName(result.Asset.Name) ?? string.Empty;
+                    await context.ExportAsync(child, Path.Combine(parentDirectory, "_images"));
+                }
+            }
+        };
+
+        manager.RegisterHandler(handler);
+
+        await manager.ExportAsync(
+            parent,
+            new ExportConfiguration
+            {
+                OutputDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")),
+                PreserveDirectoryStructure = true,
+            });
+
+        Assert.Equal(2, handler.ReadCalls);
+        Assert.Equal(2, handler.ExportCalls);
+        Assert.Equal("models/hero.model:", resolvedDirectories[0]);
+        Assert.Equal($"textures/skin.dds:models{Path.DirectorySeparatorChar}_images", resolvedDirectories[1]);
+    }
+
+    [Fact]
+    public async Task ReadAsync_GetData_ReturnsPayload()
+    {
+        AssetManager manager = CreateManagerWithSingleAsset(out Asset asset);
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = "hello" })
+        };
+
+        manager.RegisterHandler(handler);
+
+        AssetReadResult result = await manager.ReadAsync(asset);
+
+        Assert.Same(asset, result.Asset);
+        Assert.Equal("hello", result.GetData<string>());
+    }
+
+    [Fact]
+    public async Task ReadAsync_GetData_ThrowsOnTypeMismatch()
+    {
+        AssetManager manager = CreateManagerWithSingleAsset(out Asset asset);
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = (candidate, _, _) =>
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = new byte[] { 1, 2, 3 } })
+        };
+
+        manager.RegisterHandler(handler);
+
+        AssetReadResult result = await manager.ReadAsync(asset);
+
+        Assert.Throws<InvalidOperationException>(() => result.GetData<string>());
+    }
+
+    [Fact]
+    public async Task ReadAsync_OnReadContext_DelegatesToManager()
+    {
+        AssetManager manager = new();
+        TestAssetSourceReader reader = new(
+            request => request.Kind == AssetSourceKind.File,
+            async (request, _, _, _) =>
+            {
+                Asset parent = new("root/parent.asset", "Parent");
+                Asset child = new("root/child.asset", "Child");
+                return await Task.FromResult(new TestAssetSource(
+                    request.DisplayName,
+                    [parent, child],
+                    new Dictionary<string, byte[]>
+                    {
+                        [NormalizePath(parent.Name)] = [1],
+                        [NormalizePath(child.Name)] = [2],
+                    }));
+            });
+
+        manager.RegisterSourceReader(reader);
+        IAssetSource source = await manager.MountFileAsync("recursive.ff");
+        Asset parent = source.Assets.Single(a => a.Name == "root/parent.asset");
+        Asset child = source.Assets.Single(a => a.Name == "root/child.asset");
+        string? childPayload = null;
+
+        TestAssetHandler handler = new()
+        {
+            ReadAsyncDelegate = async (candidate, context, ct) =>
+            {
+                if (candidate.Name == "root/parent.asset")
+                {
+                    AssetReadResult childResult = await context.ReadAsync(child, ct);
+                    childPayload = childResult.GetData<string>();
+                    return new AssetReadResult { Asset = candidate, Data = "parent" };
+                }
+
+                return new AssetReadResult { Asset = candidate, Data = "child-data" };
+            }
+        };
+
+        manager.RegisterHandler(handler);
+
+        AssetReadResult result = await manager.ReadAsync(parent);
+
+        Assert.Equal("parent", result.GetData<string>());
+        Assert.Equal("child-data", childPayload);
     }
 
     [Fact]
@@ -460,7 +705,7 @@ public sealed class AssetManagerTests
         TestAssetHandler handler = new()
         {
             ReadAsyncDelegate = (candidate, _, _) =>
-                Task.FromResult<AssetReadResult>(new AssetReadResult<string> { Asset = candidate, Data = "ok" })
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = "ok" })
         };
 
         manager.RegisterHandler(handler);
@@ -498,7 +743,7 @@ public sealed class AssetManagerTests
         TestAssetHandler handler = new()
         {
             ReadAsyncDelegate = (candidate, _, _) =>
-                Task.FromResult<AssetReadResult>(new AssetReadResult<string> { Asset = candidate, Data = "ok" }),
+                Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = candidate, Data = "ok" }),
             ExportAsyncDelegate = (_, _, _) => throw new InvalidOperationException("boom")
         };
 
@@ -636,7 +881,7 @@ public sealed class AssetManagerTests
         public Func<Asset, bool> CanHandleDelegate { get; init; } = _ => true;
 
         public Func<Asset, AssetReadContext, CancellationToken, Task<AssetReadResult>> ReadAsyncDelegate { get; init; } =
-            (asset, _, _) => Task.FromResult<AssetReadResult>(new AssetReadResult<string> { Asset = asset, Data = asset.Name });
+            (asset, _, _) => Task.FromResult<AssetReadResult>(new AssetReadResult { Asset = asset, Data = asset.Name });
 
         public Func<Asset, AssetExportContext, CancellationToken, Task<bool>> ShouldExportAsyncDelegate { get; init; } =
             (_, _, _) => Task.FromResult(true);
