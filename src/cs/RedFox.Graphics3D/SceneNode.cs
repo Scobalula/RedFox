@@ -59,6 +59,11 @@ namespace RedFox.Graphics3D
         public SceneNodeFlags Flags { get; set; }
 
         /// <summary>
+        /// Gets or Sets the arbitrary attributes associated with the node.
+        /// </summary>
+        public Dictionary<string, object>? Attributes { get; set; }
+
+        /// <summary>
         /// Gets or Sets the custom user data assigned to the node.
         /// </summary>
         public object? UserData { get; set; }
@@ -1460,8 +1465,7 @@ namespace RedFox.Graphics3D
 
             if (Parent is not null)
             {
-                BindTransform.LocalRotation = Quaternion.Conjugate(Parent.GetBindWorldRotation())
-                    * GetBindWorldRotation();
+                BindTransform.LocalRotation = Quaternion.Conjugate(Parent.GetBindWorldRotation()) * GetBindWorldRotation();
             }
             else
             {
@@ -1674,6 +1678,119 @@ namespace RedFox.Graphics3D
             LiveTransform.WorldPosition = null;
             LiveTransform.WorldRotation = null;
             LiveTransform.Scale = null;
+        }
+
+        /// <summary>
+        /// Sets a custom attribute with the given key and value.
+        /// </summary>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <param name="value">The value of the attribute.</param>
+        public void SetAttribute(string key, object value)
+        {
+            Attributes ??= [];
+            Attributes[key] = value;
+        }
+
+        /// <summary>
+        /// Attempts to get a custom attribute by key.
+        /// </summary>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <param name="value">The value of the attribute.</param>
+        /// <returns><see langword="true"/> if the attribute was found; otherwise <see langword="false"/>.</returns>
+        public bool TryGetAttribute(string key, [NotNullWhen(true)] out object? value)
+        {
+            value = null;
+            return Attributes != null && Attributes.TryGetValue(key, out value);
+        }
+
+        /// <summary>
+        /// Attempts to get a custom attribute by key.
+        /// </summary>
+        /// <typeparam name="T">The type of the attribute.</typeparam>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <param name="value">The value of the attribute.</param>
+        /// <returns><see langword="true"/> if the attribute was found; otherwise <see langword="false"/>.</returns>
+        public bool TryGetAttribute<T>(string key, [NotNullWhen(true)] out T? value)
+        {
+            value = default;
+            if (Attributes != null && Attributes.TryGetValue(key, out var objValue) && objValue is T tValue)
+            {
+                value = tValue;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Gets a custom attribute by key.
+        /// </summary>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <returns>The value of the attribute.</returns>
+        /// <exception cref="KeyNotFoundException">Thrown when the attribute with the specified key is not found.</exception>
+        public object GetAttribute(string key)
+        {
+            if (Attributes != null && Attributes.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+            throw new KeyNotFoundException($"Attribute with key '{key}' not found.");
+        }
+
+        /// <summary>
+        /// Gets a custom attribute by key.
+        /// </summary>
+        /// <typeparam name="T">The type of the attribute.</typeparam>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <returns>The value of the attribute.</returns>
+        /// <exception cref="InvalidCastException">Thrown when the attribute with the specified key is not of the expected type.</exception>
+        /// <exception cref="KeyNotFoundException">Thrown when the attribute with the specified key is not found.</exception>
+        public T GetAttribute<T>(string key)
+        {
+            if (Attributes != null && Attributes.TryGetValue(key, out var value))
+            {
+                if (value is T tValue)
+                {
+                    return tValue;
+                }
+                throw new InvalidCastException($"Attribute with key '{key}' is not of type {typeof(T).FullName}.");
+            }
+            throw new KeyNotFoundException($"Attribute with key '{key}' not found.");
+        }
+
+        /// <summary>
+        /// Gets a custom attribute by key.
+        /// </summary>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <param name="defaultValue">The default value to return if the attribute is not found.</param>
+        /// <returns>The value of the attribute.</returns>
+        public object? GetAttribute(string key, object? defaultValue)
+        {
+            if (Attributes != null && Attributes.TryGetValue(key, out var value))
+            {
+                return value;
+            }
+            return defaultValue;
+        }
+
+        /// <summary>
+        /// Gets a custom attribute by key.
+        /// </summary>
+        /// <typeparam name="T">The type of the attribute.</typeparam>
+        /// <param name="key">The key/name of the attribute.</param>
+        /// <param name="defaultValue">The default value to return if the attribute is not found.</param>
+        /// <returns>The value of the attribute.</returns>
+        /// <exception cref="InvalidCastException">Thrown when the attribute with the specified key is not of the expected type.</exception>
+        public T GetAttribute<T>(string key, T defaultValue)
+        {
+            if (Attributes != null && Attributes.TryGetValue(key, out var value))
+            {
+                if (value is T tValue)
+                {
+                    return tValue;
+                }
+                throw new InvalidCastException($"Attribute with key '{key}' is not of type {typeof(T).FullName}.");
+            }
+            return defaultValue;
         }
 
         /// <summary>
