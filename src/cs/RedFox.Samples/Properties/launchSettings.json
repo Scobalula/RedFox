@@ -2,7 +2,7 @@
   "profiles": {
     "RedFox.Samples": {
       "commandName": "Project",
-      "commandLineArgs": "run graphics3d-d3d11-mesh \"G:\\Projects\\Alchemist\\old\\Alchemist.CLI\\bin\\Debug\\net8.0\\Output\\vm_sm_uzulu_reload_empty.seanim\""
+      "commandLineArgs": "run python-plugin"
     },
     "RedFox.Samples-OpenGL": {
       "commandName": "Project",

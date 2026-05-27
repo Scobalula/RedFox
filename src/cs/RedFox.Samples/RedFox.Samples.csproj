@@ -42,6 +42,12 @@
     <ProjectReference Include="..\RedFox.Graphics3D.WavefrontObj\RedFox.Graphics3D.WavefrontObj.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
+    <ProjectReference Include="..\RedFox.Plugins\RedFox.Plugins.csproj" />
+    <ProjectReference Include="..\RedFox.Plugins.Python\RedFox.Plugins.Python.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Examples\Plugins\**\*.py" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

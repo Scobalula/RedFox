@@ -1,5 +1,9 @@
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Globalization;
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace RedFox.Graphics3D.KaydaraFbx;
@@ -212,7 +216,19 @@ public static class FbxDocumentSerializer
             return null;
         }
 
-        string name = Encoding.UTF8.GetString(reader.ReadBytes(nameLength));
+        string name;
+        if (nameLength == 0)
+        {
+            name = string.Empty;
+        }
+        else
+        {
+            Span<byte> nameBuffer = stackalloc byte[256];
+            Span<byte> nameSpan = nameBuffer[..nameLength];
+            reader.BaseStream.ReadExactly(nameSpan);
+            name = Encoding.UTF8.GetString(nameSpan);
+        }
+
         FbxNode node = new(name);
 
         for (ulong i = 0; i < propertyCount; i++)
@@ -260,11 +276,11 @@ public static class FbxDocumentSerializer
             'L' => reader.ReadInt64(),
             'S' => ReadLengthPrefixedString(reader),
             'R' => ReadLengthPrefixedBytes(reader),
-            'f' => ReadArrayProperty(reader, sizeof(float), static (span, count) => ReadFloatArray(span, count)),
-            'd' => ReadArrayProperty(reader, sizeof(double), static (span, count) => ReadDoubleArray(span, count)),
-            'l' => ReadArrayProperty(reader, sizeof(long), static (span, count) => ReadInt64Array(span, count)),
-            'i' => ReadArrayProperty(reader, sizeof(int), static (span, count) => ReadInt32Array(span, count)),
-            'b' => ReadArrayProperty(reader, sizeof(byte), static (span, count) => ReadBoolArray(span, count)),
+            'f' => ReadFloatArrayProperty(reader),
+            'd' => ReadDoubleArrayProperty(reader),
+            'l' => ReadInt64ArrayProperty(reader),
+            'i' => ReadInt32ArrayProperty(reader),
+            'b' => ReadBoolArrayProperty(reader),
             _ => throw new InvalidDataException($"Unsupported FBX property type '{typeCode}'."),
         };
 
@@ -278,6 +294,29 @@ public static class FbxDocumentSerializer
     /// <returns>The decoded array object.</returns>
     public static object ReadArrayProperty(BinaryReader reader, int elementSize, FbxArrayFactory factory)
     {
+        (int arrayLength, int encoding, int compressedLength) = ReadArrayHeader(reader);
+        int expectedByteLength = checked(arrayLength * elementSize);
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(expectedByteLength);
+        try
+        {
+            Span<byte> destination = rented.AsSpan(0, expectedByteLength);
+            ReadArrayPayload(reader, destination, encoding, compressedLength);
+            return factory(destination, arrayLength);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// Reads the three-int header that precedes every FBX binary array payload.
+    /// </summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The element count, payload encoding, and compressed payload length.</returns>
+    public static (int ArrayLength, int Encoding, int CompressedLength) ReadArrayHeader(BinaryReader reader)
+    {
         int arrayLength = reader.ReadInt32();
         int encoding = reader.ReadInt32();
         int compressedLength = reader.ReadInt32();
@@ -287,29 +326,35 @@ public static class FbxDocumentSerializer
             throw new InvalidDataException("Invalid FBX array length.");
         }
 
-        int expectedByteLength = checked(arrayLength * elementSize);
-        byte[] rawBytes;
+        return (arrayLength, encoding, compressedLength);
+    }
 
+    /// <summary>
+    /// Reads an array payload directly into the destination buffer, transparently handling zlib compression.
+    /// </summary>
+    /// <param name="reader">The binary reader positioned at the array payload.</param>
+    /// <param name="destination">The pre-sized destination byte span.</param>
+    /// <param name="encoding">The FBX array encoding (0 = raw, non-zero = zlib/deflate).</param>
+    /// <param name="compressedLength">The compressed payload length in bytes when <paramref name="encoding"/> is non-zero.</param>
+    public static void ReadArrayPayload(BinaryReader reader, Span<byte> destination, int encoding, int compressedLength)
+    {
         if (encoding == 0)
         {
-            rawBytes = reader.ReadBytes(expectedByteLength);
-            if (rawBytes.Length != expectedByteLength)
-            {
-                throw new EndOfStreamException("Unexpected end of stream while reading FBX array property.");
-            }
+            reader.BaseStream.ReadExactly(destination);
+            return;
         }
-        else
+
+        byte[] rentedCompressed = ArrayPool<byte>.Shared.Rent(compressedLength);
+        try
         {
-            byte[] compressed = reader.ReadBytes(compressedLength);
-            if (compressed.Length != compressedLength)
-            {
-                throw new EndOfStreamException("Unexpected end of stream while reading compressed FBX array property.");
-            }
-
-            rawBytes = DecompressArray(compressed, expectedByteLength);
+            Span<byte> compressedSpan = rentedCompressed.AsSpan(0, compressedLength);
+            reader.BaseStream.ReadExactly(compressedSpan);
+            DecompressArrayInto(rentedCompressed, compressedLength, destination);
         }
-
-        return factory(rawBytes, arrayLength);
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rentedCompressed);
+        }
     }
 
     /// <summary>
@@ -317,34 +362,37 @@ public static class FbxDocumentSerializer
     /// </summary>
     /// <param name="compressed">The compressed input bytes.</param>
     /// <param name="expectedByteLength">The expected decompressed byte count.</param>
-    /// <returns>The decompressed byte array trimmed to <paramref name="expectedByteLength"/>.</returns>
+    /// <returns>The decompressed byte array of exactly <paramref name="expectedByteLength"/> bytes.</returns>
     public static byte[] DecompressArray(byte[] compressed, int expectedByteLength)
     {
-        using MemoryStream input = new(compressed, writable: false);
-        using MemoryStream output = new(expectedByteLength);
+        byte[] result = new byte[expectedByteLength];
+        DecompressArrayInto(compressed, compressed.Length, result);
+        return result;
+    }
 
-        bool successWithZlib = TryDecompressWithZlib(input, output);
-        if (!successWithZlib)
+    /// <summary>
+    /// Decompresses an FBX array payload into the provided destination buffer, trying zlib first and
+    /// falling back to raw deflate.
+    /// </summary>
+    /// <param name="compressed">The compressed payload buffer.</param>
+    /// <param name="compressedLength">The number of valid bytes in <paramref name="compressed"/>.</param>
+    /// <param name="destination">The pre-sized destination buffer.</param>
+    public static void DecompressArrayInto(byte[] compressed, int compressedLength, Span<byte> destination)
+    {
+        try
         {
-            input.Position = 0;
-            output.SetLength(0);
-            TryDecompressWithDeflate(input, output);
+            using MemoryStream input = new(compressed, 0, compressedLength, writable: false);
+            using ZLibStream zlib = new(input, CompressionMode.Decompress);
+            zlib.ReadExactly(destination);
+            return;
+        }
+        catch
+        {
         }
 
-        byte[] bytes = output.ToArray();
-        if (bytes.Length < expectedByteLength)
-        {
-            throw new InvalidDataException("Compressed FBX array produced fewer bytes than expected.");
-        }
-
-        if (bytes.Length == expectedByteLength)
-        {
-            return bytes;
-        }
-
-        byte[] exact = new byte[expectedByteLength];
-        Array.Copy(bytes, exact, expectedByteLength);
-        return exact;
+        using MemoryStream fallback = new(compressed, 0, compressedLength, writable: false);
+        using DeflateStream deflate = new(fallback, CompressionMode.Decompress);
+        deflate.ReadExactly(destination);
     }
 
     /// <summary>
@@ -379,6 +427,105 @@ public static class FbxDocumentSerializer
     }
 
     /// <summary>
+    /// Reads a typed FBX array property of the specified element type directly into a freshly-allocated array,
+    /// bypassing intermediate byte-array allocations.
+    /// </summary>
+    /// <typeparam name="T">The element value type.</typeparam>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded typed array.</returns>
+    private static T[] ReadTypedArrayProperty<T>(BinaryReader reader) where T : unmanaged
+    {
+        (int arrayLength, int encoding, int compressedLength) = ReadArrayHeader(reader);
+        T[] values = new T[arrayLength];
+        if (arrayLength == 0)
+        {
+            return values;
+        }
+
+        Span<byte> destination = MemoryMarshal.AsBytes(values.AsSpan());
+        ReadArrayPayload(reader, destination, encoding, compressedLength);
+
+        if (!BitConverter.IsLittleEndian)
+        {
+            SwapEndianness<T>(destination);
+        }
+
+        return values;
+    }
+
+    private static void SwapEndianness<T>(Span<byte> destination) where T : unmanaged
+    {
+        int size = Unsafe.SizeOf<T>();
+
+        switch (size)
+        {
+            case 1:
+                return;
+            case 2:
+                BinaryPrimitives.ReverseEndianness(MemoryMarshal.Cast<byte, ushort>(destination), MemoryMarshal.Cast<byte, ushort>(destination));
+                return;
+            case 4:
+                BinaryPrimitives.ReverseEndianness(MemoryMarshal.Cast<byte, uint>(destination), MemoryMarshal.Cast<byte, uint>(destination));
+                return;
+            case 8:
+                BinaryPrimitives.ReverseEndianness(MemoryMarshal.Cast<byte, ulong>(destination), MemoryMarshal.Cast<byte, ulong>(destination));
+                return;
+            default:
+                throw new NotSupportedException($"Unsupported element size {size} for endianness swap.");
+        }
+    }
+
+    /// <summary>Reads an <c>f</c> (Single) FBX array property.</summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded float array.</returns>
+    public static float[] ReadFloatArrayProperty(BinaryReader reader) => ReadTypedArrayProperty<float>(reader);
+
+    /// <summary>Reads a <c>d</c> (Double) FBX array property.</summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded double array.</returns>
+    public static double[] ReadDoubleArrayProperty(BinaryReader reader) => ReadTypedArrayProperty<double>(reader);
+
+    /// <summary>Reads an <c>l</c> (Int64) FBX array property.</summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded long array.</returns>
+    public static long[] ReadInt64ArrayProperty(BinaryReader reader) => ReadTypedArrayProperty<long>(reader);
+
+    /// <summary>Reads an <c>i</c> (Int32) FBX array property.</summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded int array.</returns>
+    public static int[] ReadInt32ArrayProperty(BinaryReader reader) => ReadTypedArrayProperty<int>(reader);
+
+    /// <summary>Reads a <c>b</c> (Boolean) FBX array property.</summary>
+    /// <param name="reader">The binary reader positioned at the array header.</param>
+    /// <returns>The decoded bool array.</returns>
+    public static bool[] ReadBoolArrayProperty(BinaryReader reader)
+    {
+        (int arrayLength, int encoding, int compressedLength) = ReadArrayHeader(reader);
+        bool[] values = new bool[arrayLength];
+        if (arrayLength == 0)
+        {
+            return values;
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(arrayLength);
+        try
+        {
+            Span<byte> destination = rented.AsSpan(0, arrayLength);
+            ReadArrayPayload(reader, destination, encoding, compressedLength);
+            for (int i = 0; i < arrayLength; i++)
+            {
+                values[i] = destination[i] != 0;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+
+        return values;
+    }
+
+    /// <summary>
     /// Decodes a raw byte span into a <see cref="float"/> array.
     /// </summary>
     /// <param name="bytes">The source bytes in little-endian layout.</param>
@@ -387,11 +534,7 @@ public static class FbxDocumentSerializer
     public static float[] ReadFloatArray(ReadOnlySpan<byte> bytes, int count)
     {
         float[] values = new float[count];
-        for (int i = 0; i < count; i++)
-        {
-            values[i] = BitConverter.ToSingle(bytes.Slice(i * sizeof(float), sizeof(float)));
-        }
-
+        MemoryMarshal.Cast<byte, float>(bytes[..(count * sizeof(float))]).CopyTo(values);
         return values;
     }
 
@@ -404,11 +547,7 @@ public static class FbxDocumentSerializer
     public static double[] ReadDoubleArray(ReadOnlySpan<byte> bytes, int count)
     {
         double[] values = new double[count];
-        for (int i = 0; i < count; i++)
-        {
-            values[i] = BitConverter.ToDouble(bytes.Slice(i * sizeof(double), sizeof(double)));
-        }
-
+        MemoryMarshal.Cast<byte, double>(bytes[..(count * sizeof(double))]).CopyTo(values);
         return values;
     }
 
@@ -421,11 +560,7 @@ public static class FbxDocumentSerializer
     public static long[] ReadInt64Array(ReadOnlySpan<byte> bytes, int count)
     {
         long[] values = new long[count];
-        for (int i = 0; i < count; i++)
-        {
-            values[i] = BitConverter.ToInt64(bytes.Slice(i * sizeof(long), sizeof(long)));
-        }
-
+        MemoryMarshal.Cast<byte, long>(bytes[..(count * sizeof(long))]).CopyTo(values);
         return values;
     }
 
@@ -438,11 +573,7 @@ public static class FbxDocumentSerializer
     public static int[] ReadInt32Array(ReadOnlySpan<byte> bytes, int count)
     {
         int[] values = new int[count];
-        for (int i = 0; i < count; i++)
-        {
-            values[i] = BitConverter.ToInt32(bytes.Slice(i * sizeof(int), sizeof(int)));
-        }
-
+        MemoryMarshal.Cast<byte, int>(bytes[..(count * sizeof(int))]).CopyTo(values);
         return values;
     }
 
@@ -471,13 +602,34 @@ public static class FbxDocumentSerializer
     public static string ReadLengthPrefixedString(BinaryReader reader)
     {
         int length = reader.ReadInt32();
-        byte[] bytes = reader.ReadBytes(length);
-        if (bytes.Length != length)
+        if (length == 0)
         {
-            throw new EndOfStreamException("Unexpected end of stream while reading FBX string property.");
+            return string.Empty;
         }
 
-        return Encoding.UTF8.GetString(bytes);
+        if (length < 0)
+        {
+            throw new InvalidDataException("Invalid FBX string length.");
+        }
+
+        if (length <= 256)
+        {
+            Span<byte> buffer = stackalloc byte[length];
+            reader.BaseStream.ReadExactly(buffer);
+            return Encoding.UTF8.GetString(buffer);
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(length);
+        try
+        {
+            Span<byte> buffer = rented.AsSpan(0, length);
+            reader.BaseStream.ReadExactly(buffer);
+            return Encoding.UTF8.GetString(buffer);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     /// <summary>
@@ -488,12 +640,18 @@ public static class FbxDocumentSerializer
     public static byte[] ReadLengthPrefixedBytes(BinaryReader reader)
     {
         int length = reader.ReadInt32();
-        byte[] bytes = reader.ReadBytes(length);
-        if (bytes.Length != length)
+        if (length < 0)
         {
-            throw new EndOfStreamException("Unexpected end of stream while reading FBX raw property.");
+            throw new InvalidDataException("Invalid FBX raw length.");
         }
 
+        if (length == 0)
+        {
+            return [];
+        }
+
+        byte[] bytes = new byte[length];
+        reader.BaseStream.ReadExactly(bytes);
         return bytes;
     }
 
@@ -544,28 +702,40 @@ public static class FbxDocumentSerializer
     {
         long recordStart = stream.Position;
 
+        int nameByteCount = Encoding.UTF8.GetByteCount(node.Name);
+        if (nameByteCount > 255)
+        {
+            throw new InvalidDataException($"FBX node name '{node.Name}' encodes to more than 255 bytes and cannot be written.");
+        }
+
+        Span<byte> nameBuffer = stackalloc byte[256];
+        Span<byte> nameSpan = nameBuffer[..nameByteCount];
+        if (nameByteCount > 0)
+        {
+            Encoding.UTF8.GetBytes(node.Name, nameSpan);
+        }
+
         if (is64BitNodeRecords)
         {
             writer.Write(0UL);
             writer.Write((ulong)node.Properties.Count);
             writer.Write(0UL);
-            writer.Write((byte)node.Name.Length);
+            writer.Write((byte)nameByteCount);
         }
         else
         {
             writer.Write(0U);
             writer.Write((uint)node.Properties.Count);
             writer.Write(0U);
-            writer.Write((byte)node.Name.Length);
+            writer.Write((byte)nameByteCount);
         }
 
-        byte[] nameBytes = Encoding.UTF8.GetBytes(node.Name);
-        writer.Write(nameBytes);
+        stream.Write(nameSpan);
 
         long propertyListStart = stream.Position;
-        foreach (FbxProperty property in node.Properties)
+        for (int propertyIndex = 0; propertyIndex < node.Properties.Count; propertyIndex++)
         {
-            WriteBinaryProperty(writer, property);
+            WriteBinaryProperty(writer, node.Properties[propertyIndex]);
         }
 
         long propertyListEnd = stream.Position;
@@ -591,17 +761,17 @@ public static class FbxDocumentSerializer
             writer.Write((ulong)endOffset);
             writer.Write((ulong)node.Properties.Count);
             writer.Write(propertyListLength);
-            writer.Write((byte)node.Name.Length);
+            writer.Write((byte)nameByteCount);
         }
         else
         {
             writer.Write((uint)endOffset);
             writer.Write((uint)node.Properties.Count);
             writer.Write((uint)propertyListLength);
-            writer.Write((byte)node.Name.Length);
+            writer.Write((byte)nameByteCount);
         }
 
-        writer.Write(nameBytes);
+        stream.Write(nameSpan);
         stream.Position = endOffset;
     }
 
@@ -746,9 +916,13 @@ public static class FbxDocumentSerializer
             padding = 16;
         }
 
-        writer.Write(new byte[padding]);
+        Span<byte> zeroPadding = stackalloc byte[16];
+        zeroPadding.Clear();
+        stream.Write(zeroPadding[..padding]);
         writer.Write(version);
-        writer.Write(new byte[120]);
+        Span<byte> tail = stackalloc byte[120];
+        tail.Clear();
+        stream.Write(tail);
         writer.Write(FooterMagic);
     }
 
@@ -783,9 +957,34 @@ public static class FbxDocumentSerializer
                 return;
             case 'S':
             {
-                byte[] utf8 = Encoding.UTF8.GetBytes(property.AsString());
-                writer.Write(utf8.Length);
-                writer.Write(utf8);
+                string text = property.AsString();
+                int byteCount = Encoding.UTF8.GetByteCount(text);
+                writer.Write(byteCount);
+                if (byteCount == 0)
+                {
+                    return;
+                }
+
+                if (byteCount <= 512)
+                {
+                    Span<byte> buffer = stackalloc byte[byteCount];
+                    Encoding.UTF8.GetBytes(text, buffer);
+                    writer.BaseStream.Write(buffer);
+                    return;
+                }
+
+                byte[] rented = ArrayPool<byte>.Shared.Rent(byteCount);
+                try
+                {
+                    Span<byte> buffer = rented.AsSpan(0, byteCount);
+                    Encoding.UTF8.GetBytes(text, buffer);
+                    writer.BaseStream.Write(buffer);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(rented);
+                }
+
                 return;
             }
             case 'R':
@@ -820,68 +1019,28 @@ public static class FbxDocumentSerializer
     /// </summary>
     /// <param name="writer">The binary writer.</param>
     /// <param name="values">The array elements.</param>
-    public static void WriteArrayProperty(BinaryWriter writer, float[] values)
-    {
-        writer.Write(values.Length);
-        writer.Write(0);
-        writer.Write(values.Length * sizeof(float));
-
-        for (int i = 0; i < values.Length; i++)
-        {
-            writer.Write(values[i]);
-        }
-    }
+    public static void WriteArrayProperty(BinaryWriter writer, float[] values) => WriteUnmanagedArrayProperty<float>(writer, values);
 
     /// <summary>
     /// Writes an uncompressed binary FBX array property containing <see cref="double"/> elements.
     /// </summary>
     /// <param name="writer">The binary writer.</param>
     /// <param name="values">The array elements.</param>
-    public static void WriteArrayProperty(BinaryWriter writer, double[] values)
-    {
-        writer.Write(values.Length);
-        writer.Write(0);
-        writer.Write(values.Length * sizeof(double));
-
-        for (int i = 0; i < values.Length; i++)
-        {
-            writer.Write(values[i]);
-        }
-    }
+    public static void WriteArrayProperty(BinaryWriter writer, double[] values) => WriteUnmanagedArrayProperty<double>(writer, values);
 
     /// <summary>
     /// Writes an uncompressed binary FBX array property containing <see cref="long"/> elements.
     /// </summary>
     /// <param name="writer">The binary writer.</param>
     /// <param name="values">The array elements.</param>
-    public static void WriteArrayProperty(BinaryWriter writer, long[] values)
-    {
-        writer.Write(values.Length);
-        writer.Write(0);
-        writer.Write(values.Length * sizeof(long));
-
-        for (int i = 0; i < values.Length; i++)
-        {
-            writer.Write(values[i]);
-        }
-    }
+    public static void WriteArrayProperty(BinaryWriter writer, long[] values) => WriteUnmanagedArrayProperty<long>(writer, values);
 
     /// <summary>
     /// Writes an uncompressed binary FBX array property containing <see cref="int"/> elements.
     /// </summary>
     /// <param name="writer">The binary writer.</param>
     /// <param name="values">The array elements.</param>
-    public static void WriteArrayProperty(BinaryWriter writer, int[] values)
-    {
-        writer.Write(values.Length);
-        writer.Write(0);
-        writer.Write(values.Length * sizeof(int));
-
-        for (int i = 0; i < values.Length; i++)
-        {
-            writer.Write(values[i]);
-        }
-    }
+    public static void WriteArrayProperty(BinaryWriter writer, int[] values) => WriteUnmanagedArrayProperty<int>(writer, values);
 
     /// <summary>
     /// Writes an uncompressed binary FBX array property containing <see cref="bool"/> elements.
@@ -893,10 +1052,58 @@ public static class FbxDocumentSerializer
         writer.Write(values.Length);
         writer.Write(0);
         writer.Write(values.Length);
-
-        for (int i = 0; i < values.Length; i++)
+        if (values.Length == 0)
         {
-            writer.Write((byte)(values[i] ? 1 : 0));
+            return;
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(values.Length);
+        try
+        {
+            Span<byte> bytes = rented.AsSpan(0, values.Length);
+            for (int i = 0; i < values.Length; i++)
+            {
+                bytes[i] = values[i] ? (byte)1 : (byte)0;
+            }
+
+            writer.BaseStream.Write(bytes);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    private static void WriteUnmanagedArrayProperty<T>(BinaryWriter writer, T[] values) where T : unmanaged
+    {
+        int byteLength = values.Length * Unsafe.SizeOf<T>();
+
+        writer.Write(values.Length);
+        writer.Write(0);
+        writer.Write(byteLength);
+        if (values.Length == 0)
+        {
+            return;
+        }
+
+        ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(values.AsSpan());
+        if (BitConverter.IsLittleEndian)
+        {
+            writer.BaseStream.Write(bytes);
+            return;
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(byteLength);
+        try
+        {
+            Span<byte> destination = rented.AsSpan(0, byteLength);
+            bytes.CopyTo(destination);
+            SwapEndianness<T>(destination);
+            writer.BaseStream.Write(destination);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
         }
     }
 
@@ -1235,18 +1442,21 @@ public static class FbxDocumentSerializer
     /// <returns>The inferred typed array property, or <see langword="null"/> when the array header is malformed.</returns>
     public static FbxProperty? ParseAsciiArrayProperty(FbxAsciiTokenizer tokenizer)
     {
-        string? countText = tokenizer.ReadNumberToken();
-        _ = int.TryParse(countText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int _);
-        tokenizer.TryConsumeCommentOrWhitespace();
+        int expectedCount = 0;
+        if (tokenizer.TryReadNumberRange(out int countStart, out int countLength))
+        {
+            _ = int.TryParse(tokenizer.Text.AsSpan(countStart, countLength), NumberStyles.Integer, CultureInfo.InvariantCulture, out expectedCount);
+        }
 
+        tokenizer.TryConsumeCommentOrWhitespace();
         if (!tokenizer.TryConsume('{'))
         {
             return null;
         }
 
         tokenizer.TryConsumeCommentOrWhitespace();
-        string? arrayPrefix = tokenizer.ReadIdentifier();
-        if (!string.Equals(arrayPrefix, "a", StringComparison.OrdinalIgnoreCase))
+        if (!tokenizer.TryReadIdentifierRange(out int prefixStart, out int prefixLength)
+            || !tokenizer.Text.AsSpan(prefixStart, prefixLength).Equals("a".AsSpan(), StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -1254,7 +1464,14 @@ public static class FbxDocumentSerializer
         tokenizer.TryConsumeCommentOrWhitespace();
         tokenizer.TryConsume(':');
 
-        List<string> values = [];
+        string text = tokenizer.Text;
+        int capacity = expectedCount > 0 ? expectedCount : 16;
+        int[]? ints = new int[capacity];
+        double[]? doubles = null;
+        int filled = 0;
+        bool promoted = false;
+        List<string>? fallback = null;
+
         while (!tokenizer.IsEnd)
         {
             tokenizer.TryConsumeCommentOrWhitespace();
@@ -1265,15 +1482,80 @@ public static class FbxDocumentSerializer
             }
 
             int valueStart = tokenizer.Position;
-            string? token = tokenizer.ReadNumberToken();
-            if (string.IsNullOrWhiteSpace(token))
+            if (!tokenizer.TryReadNumberRange(out int tokenStart, out int tokenLength))
             {
-                token = tokenizer.ReadIdentifier();
+                if (!tokenizer.TryReadIdentifierRange(out tokenStart, out tokenLength))
+                {
+                    if (tokenizer.Position == valueStart)
+                    {
+                        tokenizer.AdvanceOne();
+                    }
+
+                    continue;
+                }
+
+                fallback ??= CollectExistingValues(ints, doubles, promoted, filled);
+                fallback.Add(text.Substring(tokenStart, tokenLength));
+                filled++;
+                tokenizer.TryConsume(',');
+                continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(token))
+            ReadOnlySpan<char> token = text.AsSpan(tokenStart, tokenLength);
+
+            if (fallback is not null)
             {
-                values.Add(token);
+                fallback.Add(text.Substring(tokenStart, tokenLength));
+                filled++;
+            }
+            else if (!promoted)
+            {
+                if (token.IndexOfAny('.', 'e', 'E') < 0
+                    && int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int intValue))
+                {
+                    if (filled == ints!.Length)
+                    {
+                        Array.Resize(ref ints, ints.Length * 2);
+                    }
+
+                    ints[filled++] = intValue;
+                }
+                else if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double doubleValue))
+                {
+                    doubles = new double[Math.Max(ints!.Length, filled + 1)];
+                    for (int i = 0; i < filled; i++)
+                    {
+                        doubles[i] = ints[i];
+                    }
+
+                    doubles[filled++] = doubleValue;
+                    ints = null;
+                    promoted = true;
+                }
+                else
+                {
+                    fallback = CollectExistingValues(ints, doubles, promoted, filled);
+                    fallback.Add(text.Substring(tokenStart, tokenLength));
+                    filled++;
+                }
+            }
+            else
+            {
+                if (!double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double doubleValue))
+                {
+                    fallback = CollectExistingValues(ints, doubles, promoted, filled);
+                    fallback.Add(text.Substring(tokenStart, tokenLength));
+                    filled++;
+                }
+                else
+                {
+                    if (filled == doubles!.Length)
+                    {
+                        Array.Resize(ref doubles, doubles.Length * 2);
+                    }
+
+                    doubles[filled++] = doubleValue;
+                }
             }
 
             tokenizer.TryConsume(',');
@@ -1283,7 +1565,53 @@ public static class FbxDocumentSerializer
             }
         }
 
-        return InferArrayProperty(values);
+        if (fallback is not null)
+        {
+            return new FbxProperty('S', string.Join(',', fallback));
+        }
+
+        if (filled == 0)
+        {
+            return new FbxProperty('i', Array.Empty<int>());
+        }
+
+        if (promoted)
+        {
+            if (filled != doubles!.Length)
+            {
+                Array.Resize(ref doubles, filled);
+            }
+
+            return new FbxProperty('d', doubles);
+        }
+
+        if (filled != ints!.Length)
+        {
+            Array.Resize(ref ints, filled);
+        }
+
+        return new FbxProperty('i', ints);
+    }
+
+    private static List<string> CollectExistingValues(int[]? ints, double[]? doubles, bool promoted, int filled)
+    {
+        List<string> values = new(filled + 4);
+        if (promoted)
+        {
+            for (int i = 0; i < filled; i++)
+            {
+                values.Add(doubles![i].ToString("R", CultureInfo.InvariantCulture));
+            }
+        }
+        else
+        {
+            for (int i = 0; i < filled; i++)
+            {
+                values.Add(ints![i].ToString(CultureInfo.InvariantCulture));
+            }
+        }
+
+        return values;
     }
 
     /// <summary>
@@ -1421,7 +1749,7 @@ public static class FbxDocumentSerializer
     /// <param name="indent">The current indentation depth.</param>
     public static void WriteAsciiNode(StreamWriter writer, FbxNode node, int indent)
     {
-        string indentText = new(' ', indent * 2);
+        string indentText = GetIndentString(indent);
         writer.Write(indentText);
         writer.Write(node.Name);
         writer.Write(':');
@@ -1512,9 +1840,8 @@ public static class FbxDocumentSerializer
     /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, int[] values)
     {
-        writer.Write('*');
-        writer.Write(values.Length.ToString(CultureInfo.InvariantCulture));
-        writer.Write(" { a: ");
+        WriteAsciiArrayHeader(writer, values.Length);
+        Span<char> buffer = stackalloc char[16];
         for (int i = 0; i < values.Length; i++)
         {
             if (i != 0)
@@ -1522,7 +1849,14 @@ public static class FbxDocumentSerializer
                 writer.Write(',');
             }
 
-            writer.Write(values[i].ToString(CultureInfo.InvariantCulture));
+            if (values[i].TryFormat(buffer, out int written, default, CultureInfo.InvariantCulture))
+            {
+                writer.Write(buffer[..written]);
+            }
+            else
+            {
+                writer.Write(values[i].ToString(CultureInfo.InvariantCulture));
+            }
         }
 
         writer.Write(" }");
@@ -1535,9 +1869,8 @@ public static class FbxDocumentSerializer
     /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, long[] values)
     {
-        writer.Write('*');
-        writer.Write(values.Length.ToString(CultureInfo.InvariantCulture));
-        writer.Write(" { a: ");
+        WriteAsciiArrayHeader(writer, values.Length);
+        Span<char> buffer = stackalloc char[24];
         for (int i = 0; i < values.Length; i++)
         {
             if (i != 0)
@@ -1545,7 +1878,14 @@ public static class FbxDocumentSerializer
                 writer.Write(',');
             }
 
-            writer.Write(values[i].ToString(CultureInfo.InvariantCulture));
+            if (values[i].TryFormat(buffer, out int written, default, CultureInfo.InvariantCulture))
+            {
+                writer.Write(buffer[..written]);
+            }
+            else
+            {
+                writer.Write(values[i].ToString(CultureInfo.InvariantCulture));
+            }
         }
 
         writer.Write(" }");
@@ -1558,9 +1898,8 @@ public static class FbxDocumentSerializer
     /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, double[] values)
     {
-        writer.Write('*');
-        writer.Write(values.Length.ToString(CultureInfo.InvariantCulture));
-        writer.Write(" { a: ");
+        WriteAsciiArrayHeader(writer, values.Length);
+        Span<char> buffer = stackalloc char[32];
         for (int i = 0; i < values.Length; i++)
         {
             if (i != 0)
@@ -1568,7 +1907,14 @@ public static class FbxDocumentSerializer
                 writer.Write(',');
             }
 
-            writer.Write(values[i].ToString("R", CultureInfo.InvariantCulture));
+            if (values[i].TryFormat(buffer, out int written, "R", CultureInfo.InvariantCulture))
+            {
+                writer.Write(buffer[..written]);
+            }
+            else
+            {
+                writer.Write(values[i].ToString("R", CultureInfo.InvariantCulture));
+            }
         }
 
         writer.Write(" }");
@@ -1581,9 +1927,8 @@ public static class FbxDocumentSerializer
     /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, float[] values)
     {
-        writer.Write('*');
-        writer.Write(values.Length.ToString(CultureInfo.InvariantCulture));
-        writer.Write(" { a: ");
+        WriteAsciiArrayHeader(writer, values.Length);
+        Span<char> buffer = stackalloc char[32];
         for (int i = 0; i < values.Length; i++)
         {
             if (i != 0)
@@ -1591,7 +1936,14 @@ public static class FbxDocumentSerializer
                 writer.Write(',');
             }
 
-            writer.Write(values[i].ToString("R", CultureInfo.InvariantCulture));
+            if (values[i].TryFormat(buffer, out int written, "R", CultureInfo.InvariantCulture))
+            {
+                writer.Write(buffer[..written]);
+            }
+            else
+            {
+                writer.Write(values[i].ToString("R", CultureInfo.InvariantCulture));
+            }
         }
 
         writer.Write(" }");
@@ -1604,9 +1956,7 @@ public static class FbxDocumentSerializer
     /// <param name="values">The array elements.</param>
     public static void WriteAsciiArray(StreamWriter writer, bool[] values)
     {
-        writer.Write('*');
-        writer.Write(values.Length.ToString(CultureInfo.InvariantCulture));
-        writer.Write(" { a: ");
+        WriteAsciiArrayHeader(writer, values.Length);
         for (int i = 0; i < values.Length; i++)
         {
             if (i != 0)
@@ -1618,6 +1968,45 @@ public static class FbxDocumentSerializer
         }
 
         writer.Write(" }");
+    }
+
+    private static void WriteAsciiArrayHeader(StreamWriter writer, int count)
+    {
+        writer.Write('*');
+        Span<char> buffer = stackalloc char[16];
+        if (count.TryFormat(buffer, out int written, default, CultureInfo.InvariantCulture))
+        {
+            writer.Write(buffer[..written]);
+        }
+        else
+        {
+            writer.Write(count.ToString(CultureInfo.InvariantCulture));
+        }
+
+        writer.Write(" { a: ");
+    }
+
+    private static readonly string[] IndentCache = BuildIndentCache(32);
+
+    private static string[] BuildIndentCache(int maxDepth)
+    {
+        string[] cache = new string[maxDepth];
+        for (int i = 0; i < maxDepth; i++)
+        {
+            cache[i] = new string(' ', i * 2);
+        }
+
+        return cache;
+    }
+
+    private static string GetIndentString(int indent)
+    {
+        if ((uint)indent < (uint)IndentCache.Length)
+        {
+            return IndentCache[indent];
+        }
+
+        return new string(' ', indent * 2);
     }
 
     /// <summary>

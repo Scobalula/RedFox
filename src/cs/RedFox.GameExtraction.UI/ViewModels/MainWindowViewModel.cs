@@ -8,6 +8,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
 using RedFox.GameExtraction.UI.Models;
+using RedFox.Graphics3D.IO;
+using RedFox.Plugins;
+using RedFox.Plugins.Python;
 
 namespace RedFox.GameExtraction.UI.ViewModels;
 
@@ -45,6 +48,40 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
 
+        if (!_assetManager.TryGetService(out PluginsService? plugins))
+        {
+            string pluginsDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "RedFox",
+                config.AppName,
+                "plugins");
+            plugins = new PluginsService(pluginsDirectory, new PythonPluginHost());
+            _assetManager.RegisterService(plugins);
+        }
+
+        Plugins = plugins;
+
+        // Expose the shared SceneTranslatorManager (if any) to plugins under the well-known
+        // "scene-translators" key so scripts can register custom translators on load.
+        if (!plugins.Manager.Services.ContainsKey("scene-translators"))
+        {
+            if (!_assetManager.TryGetService(out SceneTranslatorManager? translators))
+            {
+                translators = new SceneTranslatorManager();
+                _assetManager.RegisterService(translators);
+            }
+            plugins.Manager.Services["scene-translators"] = translators;
+        }
+
+        try
+        {
+            plugins.LoadAutoLoaded();
+        }
+        catch
+        {
+            // Auto-load failures are recorded per descriptor; never crash startup.
+        }
+
         InitializeShellState(config);
 
         LoadedSources.CollectionChanged += (_, _) =>
@@ -57,6 +94,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the application configuration.
     /// </summary>
     public GameExtractionConfig Config => _config;
+
+    /// <summary>
+    /// Gets the plugin service exposed by the asset manager.
+    /// </summary>
+    public PluginsService Plugins { get; }
 
     /// <summary>
     /// Gets the filtered asset view bound to the asset grid.
@@ -1124,7 +1166,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PreviewReadResult = readResult;
             HandlerDisplay = handlerName;
             PayloadTypeDisplay = payloadType?.Name ?? "Unknown";
-            ReferenceCountDisplay = readResult.References.Count.ToString("N0");
+            ReferenceCountDisplay = "0";
             ContentTitle = PreviewBytes is not null ? "Hex preview" : PreviewData is null ? "Asset data loaded" : "Asset data captured";
             ContentText = PreviewBytes is not null
                 ? $"{PreviewBytes.Length:N0} bytes"

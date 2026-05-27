@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="../RedFox.GameExtraction/RedFox.GameExtraction.csproj" />
     <ProjectReference Include="../RedFox.Graphics3D.Avalonia/RedFox.Graphics3D.Avalonia.csproj" />
+    <ProjectReference Include="../RedFox.Plugins/RedFox.Plugins.csproj" />
+    <ProjectReference Include="../RedFox.Plugins.Python/RedFox.Plugins.Python.csproj" />
   </ItemGroup>
 
 </Project>

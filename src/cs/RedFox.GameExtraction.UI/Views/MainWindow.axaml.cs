@@ -133,8 +133,19 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName);
+        settingsWindow.Initialize(
+            viewModel.Config.Settings,
+            viewModel.Config.SettingDefinitions,
+            viewModel.Config.AppName,
+            openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         settingsWindow.ShowDialog(this);
+    }
+
+    private static void OpenPluginsWindow(Window owner, MainWindowViewModel viewModel)
+    {
+        PluginsWindow window = new();
+        window.Initialize(viewModel.Plugins);
+        window.ShowDialog(owner);
     }
 
     private void OnAboutRequested()

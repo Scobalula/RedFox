@@ -56,6 +56,20 @@ public partial class SettingsWindowViewModel : ObservableObject
     public event Func<GameExtractionSettingViewModel, Task<string?>>? BrowseSettingRequested;
 
     /// <summary>
+    /// Raised when the plugins management window should be opened.
+    /// </summary>
+    public event Action? OpenPluginsRequested;
+
+    /// <summary>
+    /// Opens the plugins management window.
+    /// </summary>
+    [RelayCommand]
+    public void OpenPlugins()
+    {
+        OpenPluginsRequested?.Invoke();
+    }
+
+    /// <summary>
     /// Saves the current settings.
     /// </summary>
     [RelayCommand]

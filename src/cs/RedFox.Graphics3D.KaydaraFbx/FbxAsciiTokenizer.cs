@@ -296,7 +296,31 @@ public sealed class FbxAsciiTokenizer
             throw new InvalidDataException("Expected opening quote for FBX string.");
         }
 
-        StringBuilder result = new();
+        int start = _position;
+        while (_position < _end)
+        {
+            char c = _text[_position];
+            if (c == '"' || c == '\\')
+            {
+                break;
+            }
+
+            _position++;
+        }
+
+        if (_position < _end && _text[_position] == '"')
+        {
+            string fastResult = _text[start.._position];
+            _position++;
+            return fastResult;
+        }
+
+        StringBuilder result = new(_position - start + 16);
+        if (_position > start)
+        {
+            result.Append(_text, start, _position - start);
+        }
+
         while (!IsEnd)
         {
             char c = PeekChar();

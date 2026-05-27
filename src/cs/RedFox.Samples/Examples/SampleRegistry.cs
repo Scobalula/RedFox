@@ -34,7 +34,8 @@ internal static class SampleRegistry
             new ImageTranslationSample(),
             new OpenGlMeshSample(),
             new ProcessFinderSample(),
-            new ProcessReadWriteSample()
+            new ProcessReadWriteSample(),
+            new PythonPluginSample()
         ];
 
         Dictionary<string, ISample> samples = new(StringComparer.OrdinalIgnoreCase);
