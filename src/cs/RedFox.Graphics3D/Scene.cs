@@ -316,6 +316,102 @@ namespace RedFox.Graphics3D
         public IEnumerable<T> EnumerateAncestors<T>(SceneNodeFlags filter) where T : SceneNode => RootNode.EnumerateAncestors<T>(filter);
 
         /// <summary>
+        /// Enumerates direct children of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <returns>An enumerable of child nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateChildren(string namePattern) => RootNode.EnumerateChildren(namePattern);
+
+        /// <summary>
+        /// Enumerates direct children of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An enumerable of child nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateChildren(string namePattern, SceneNodeFlags filter) => RootNode.EnumerateChildren(namePattern, filter);
+
+        /// <summary>
+        /// Enumerates direct children of the root node of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <returns>An enumerable of child nodes.</returns>
+        public IEnumerable<T> EnumerateChildren<T>(string namePattern) where T : SceneNode => RootNode.EnumerateChildren<T>(namePattern);
+
+        /// <summary>
+        /// Enumerates direct children of the root node of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An enumerable of child nodes.</returns>
+        public IEnumerable<T> EnumerateChildren<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => RootNode.EnumerateChildren<T>(namePattern, filter);
+
+        /// <summary>
+        /// Enumerates all descendants of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An enumerable of descendant nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateDescendants(string namePattern) => RootNode.EnumerateDescendants(namePattern);
+
+        /// <summary>
+        /// Enumerates all descendants of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An enumerable of descendant nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateDescendants(string namePattern, SceneNodeFlags filter) => RootNode.EnumerateDescendants(namePattern, filter);
+
+        /// <summary>
+        /// Enumerates all descendants of the root node of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An enumerable of descendant nodes.</returns>
+        public IEnumerable<T> EnumerateDescendants<T>(string namePattern) where T : SceneNode => RootNode.EnumerateDescendants<T>(namePattern);
+
+        /// <summary>
+        /// Enumerates all descendants of the root node of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An enumerable of descendant nodes.</returns>
+        public IEnumerable<T> EnumerateDescendants<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => RootNode.EnumerateDescendants<T>(namePattern, filter);
+
+        /// <summary>
+        /// Enumerates ancestors of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An enumerable of ancestor nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateAncestors(string namePattern) => RootNode.EnumerateAncestors(namePattern);
+
+        /// <summary>
+        /// Enumerates ancestors of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An enumerable of ancestor nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateAncestors(string namePattern, SceneNodeFlags filter) => RootNode.EnumerateAncestors(namePattern, filter);
+
+        /// <summary>
+        /// Enumerates ancestors of the root node of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An enumerable of ancestor nodes.</returns>
+        public IEnumerable<T> EnumerateAncestors<T>(string namePattern) where T : SceneNode => RootNode.EnumerateAncestors<T>(namePattern);
+
+        /// <summary>
+        /// Enumerates ancestors of the root node of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An enumerable of ancestor nodes.</returns>
+        public IEnumerable<T> EnumerateAncestors<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => RootNode.EnumerateAncestors<T>(namePattern, filter);
+
+        /// <summary>
         /// Gets all descendants of the root node.
         /// </summary>
         /// <returns>An array of descendant nodes.</returns>
@@ -370,6 +466,70 @@ namespace RedFox.Graphics3D
         /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
         /// <returns>An array of ancestor nodes.</returns>
         public T[] GetAncestors<T>(SceneNodeFlags filter) where T : SceneNode => RootNode.GetAncestors<T>(filter);
+
+        /// <summary>
+        /// Gets all descendants of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An array of descendant nodes.</returns>
+        public SceneNode[] GetDescendants(string namePattern) => RootNode.GetDescendants(namePattern);
+
+        /// <summary>
+        /// Gets all descendants of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An array of descendant nodes.</returns>
+        public SceneNode[] GetDescendants(string namePattern, SceneNodeFlags filter) => RootNode.GetDescendants(namePattern, filter);
+
+        /// <summary>
+        /// Gets all descendants of the root node of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An array of descendant nodes.</returns>
+        public T[] GetDescendants<T>(string namePattern) where T : SceneNode => RootNode.GetDescendants<T>(namePattern);
+
+        /// <summary>
+        /// Gets all descendants of the root node of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An array of descendant nodes.</returns>
+        public T[] GetDescendants<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => RootNode.GetDescendants<T>(namePattern, filter);
+
+        /// <summary>
+        /// Gets all ancestors of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An array of ancestor nodes.</returns>
+        public SceneNode[] GetAncestors(string namePattern) => RootNode.GetAncestors(namePattern);
+
+        /// <summary>
+        /// Gets all ancestors of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An array of ancestor nodes.</returns>
+        public SceneNode[] GetAncestors(string namePattern, SceneNodeFlags filter) => RootNode.GetAncestors(namePattern, filter);
+
+        /// <summary>
+        /// Gets all ancestors of the root node of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An array of ancestor nodes.</returns>
+        public T[] GetAncestors<T>(string namePattern) where T : SceneNode => RootNode.GetAncestors<T>(namePattern);
+
+        /// <summary>
+        /// Gets all ancestors of the root node of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An array of ancestor nodes.</returns>
+        public T[] GetAncestors<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => RootNode.GetAncestors<T>(namePattern, filter);
 
         /// <summary>
         /// Finds a node by its path.
@@ -430,6 +590,36 @@ namespace RedFox.Graphics3D
         public SceneNode[] GetSiblings(SceneNodeFlags filter) => RootNode.GetSiblings(filter);
 
         /// <summary>
+        /// Enumerates siblings of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <returns>An enumerable of sibling nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateSiblings(string namePattern) => RootNode.EnumerateSiblings(namePattern);
+
+        /// <summary>
+        /// Enumerates siblings of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        /// <returns>An enumerable of sibling nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateSiblings(string namePattern, SceneNodeFlags filter) => RootNode.EnumerateSiblings(namePattern, filter);
+
+        /// <summary>
+        /// Gets all siblings of the root node whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <returns>An array of sibling nodes.</returns>
+        public SceneNode[] GetSiblings(string namePattern) => RootNode.GetSiblings(namePattern);
+
+        /// <summary>
+        /// Gets all siblings of the root node whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        /// <returns>An array of sibling nodes.</returns>
+        public SceneNode[] GetSiblings(string namePattern, SceneNodeFlags filter) => RootNode.GetSiblings(namePattern, filter);
+
+        /// <summary>
         /// Traverses all nodes in the scene.
         /// </summary>
         /// <param name="action">The action to perform on each node.</param>
@@ -478,7 +668,7 @@ namespace RedFox.Graphics3D
         /// <typeparam name="T">The node type to find.</typeparam>
         /// <param name="node">The found node, or null if not found.</param>
         /// <returns>True if the node was found; otherwise false.</returns>
-        public bool TryGetFirstOfType<T>(out T? node) where T : SceneNode => RootNode.TryGetFirstOfType<T>(out node);
+        public bool TryGetFirstOfType<T>(out T? node) where T : SceneNode => RootNode.TryGetFirstOfType(out node);
 
         /// <summary>
         /// Attempts to get the first node of the specified type that matches the provided filter.
@@ -487,7 +677,7 @@ namespace RedFox.Graphics3D
         /// <param name="filter">The flags the matching node must contain.</param>
         /// <param name="node">The found node, or null if not found.</param>
         /// <returns>True if the node was found; otherwise false.</returns>
-        public bool TryGetFirstOfType<T>(SceneNodeFlags filter, out T? node) where T : SceneNode => RootNode.TryGetFirstOfType<T>(filter, out node);
+        public bool TryGetFirstOfType<T>(SceneNodeFlags filter, out T? node) where T : SceneNode => RootNode.TryGetFirstOfType(filter, out node);
 
         /// <inheritdoc/>
         public override string ToString() => Name;

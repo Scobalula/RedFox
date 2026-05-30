@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Enumeration;
 using System.Numerics;
 using System.Xml.Linq;
 using RedFox.Graphics3D.Rendering;
@@ -121,6 +122,9 @@ namespace RedFox.Graphics3D
 
         private bool MatchesFilter(SceneNodeFlags filter) =>
             filter == SceneNodeFlags.None || (Flags & filter) == filter;
+
+        private bool MatchesName(string namePattern) =>
+            FileSystemName.MatchesSimpleExpression(namePattern, Name);
 
         /// <summary>
         /// Moves this node to a new parent while preserving world transforms.
@@ -1567,6 +1571,236 @@ namespace RedFox.Graphics3D
         /// <returns>An <see cref="IEnumerable{T}"/> yielding matching nodes.</returns>
         public IEnumerable<T> EnumerateHierarchy<T>(SceneNodeFlags filter) where T : SceneNode =>
             EnumerateHierarchy(filter).OfType<T>();
+
+        /// <summary>
+        /// Enumerates direct child nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching child nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateChildren(string namePattern) =>
+            EnumerateChildren(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates direct child nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching child nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateChildren(string namePattern, SceneNodeFlags filter) =>
+            EnumerateChildren(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates descendant nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching descendant nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateDescendants(string namePattern) =>
+            EnumerateDescendants(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates descendant nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching descendant nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateDescendants(string namePattern, SceneNodeFlags filter) =>
+            EnumerateDescendants(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates ancestor nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching ancestor nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateAncestors(string namePattern) =>
+            EnumerateAncestors(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates ancestor nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching ancestor nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateAncestors(string namePattern, SceneNodeFlags filter) =>
+            EnumerateAncestors(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates sibling nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching sibling nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateSiblings(string namePattern) =>
+            EnumerateSiblings(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates sibling nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching sibling nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateSiblings(string namePattern, SceneNodeFlags filter) =>
+            EnumerateSiblings(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates this node followed by all its descendants whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that node names must match.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateHierarchy(string namePattern) =>
+            EnumerateHierarchy(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates this node followed by all its descendants whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that node names must match.</param>
+        /// <param name="filter">The flags nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{SceneNode}"/> of matching nodes.</returns>
+        public IEnumerable<SceneNode> EnumerateHierarchy(string namePattern, SceneNodeFlags filter) =>
+            EnumerateHierarchy(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates child nodes of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching child nodes.</returns>
+        public IEnumerable<T> EnumerateChildren<T>(string namePattern) where T : SceneNode =>
+            EnumerateChildren<T>(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates child nodes of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that child names must match.</param>
+        /// <param name="filter">The flags child nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching child nodes.</returns>
+        public IEnumerable<T> EnumerateChildren<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateChildren<T>(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates descendant nodes of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching descendant nodes.</returns>
+        public IEnumerable<T> EnumerateDescendants<T>(string namePattern) where T : SceneNode =>
+            EnumerateDescendants<T>(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates descendant nodes of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching descendant nodes.</returns>
+        public IEnumerable<T> EnumerateDescendants<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateDescendants<T>(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates ancestor nodes of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching ancestor nodes.</returns>
+        public IEnumerable<T> EnumerateAncestors<T>(string namePattern) where T : SceneNode =>
+            EnumerateAncestors<T>(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates ancestor nodes of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching ancestor nodes.</returns>
+        public IEnumerable<T> EnumerateAncestors<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateAncestors<T>(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Enumerates this node and all descendants of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that node names must match.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching nodes.</returns>
+        public IEnumerable<T> EnumerateHierarchy<T>(string namePattern) where T : SceneNode =>
+            EnumerateHierarchy<T>(namePattern, SceneNodeFlags.None);
+
+        /// <summary>
+        /// Enumerates this node and all descendants of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that node names must match.</param>
+        /// <param name="filter">The flags nodes must contain to be returned.</param>
+        /// <returns>An <see cref="IEnumerable{T}"/> of matching nodes.</returns>
+        public IEnumerable<T> EnumerateHierarchy<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode =>
+            EnumerateHierarchy<T>(filter).Where(x => x.MatchesName(namePattern));
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        public SceneNode[] GetDescendants(string namePattern) => [.. EnumerateDescendants(namePattern)];
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        public SceneNode[] GetDescendants(string namePattern, SceneNodeFlags filter) => [.. EnumerateDescendants(namePattern, filter)];
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        public SceneNode[] GetAncestors(string namePattern) => [.. EnumerateAncestors(namePattern)];
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        public SceneNode[] GetAncestors(string namePattern, SceneNodeFlags filter) => [.. EnumerateAncestors(namePattern, filter)];
+
+        /// <summary>
+        /// Returns an array containing all sibling nodes whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        public SceneNode[] GetSiblings(string namePattern) => [.. EnumerateSiblings(namePattern)];
+
+        /// <summary>
+        /// Returns an array containing all sibling nodes whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that sibling names must match.</param>
+        /// <param name="filter">The flags sibling nodes must contain to be returned.</param>
+        public SceneNode[] GetSiblings(string namePattern, SceneNodeFlags filter) => [.. EnumerateSiblings(namePattern, filter)];
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        public T[] GetDescendants<T>(string namePattern) where T : SceneNode => [.. EnumerateDescendants<T>(namePattern)];
+
+        /// <summary>
+        /// Returns an array containing all descendant nodes of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that descendant names must match.</param>
+        /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
+        public T[] GetDescendants<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => [.. EnumerateDescendants<T>(namePattern, filter)];
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes of the specified type whose name matches the provided wildcard pattern.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        public T[] GetAncestors<T>(string namePattern) where T : SceneNode => [.. EnumerateAncestors<T>(namePattern)];
+
+        /// <summary>
+        /// Returns an array containing all ancestor nodes of the specified type whose name matches the provided wildcard pattern and that match the provided filter.
+        /// </summary>
+        /// <typeparam name="T">The node type to filter for.</typeparam>
+        /// <param name="namePattern">The wildcard pattern (using <c>*</c> and <c>?</c>) that ancestor names must match.</param>
+        /// <param name="filter">The flags ancestor nodes must contain to be returned.</param>
+        public T[] GetAncestors<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => [.. EnumerateAncestors<T>(namePattern, filter)];
 
         /// <summary>
         /// Gets the active local position from <see cref="LiveTransform"/>, falling back
