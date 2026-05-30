@@ -83,6 +83,12 @@ public sealed class GameExtractionConfig
     public bool SupportsProcessSources { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether the Explorer-style directory view toggle is exposed
+    /// to the user. When <c>false</c> (the default), only the flat asset list is shown.
+    /// </summary>
+    public bool EnableDirectoryView { get; init; }
+
+    /// <summary>
     /// Gets source options passed to each mount request.
     /// </summary>
     public IReadOnlyDictionary<string, object?> SourceOptions { get; init; } = EmptyOptions;

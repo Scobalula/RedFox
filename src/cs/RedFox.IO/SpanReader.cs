@@ -59,10 +59,10 @@ namespace RedFox.IO
         /// Reads a read-only byte slice of the given size from the specified position.
         /// This does not modify the current position.
         /// </summary>
-        /// <param name="position">The absolute byte offset within the buffer to read from.</param>
         /// <param name="size">The number of bytes to read.</param>
+        /// <param name="position">The absolute byte offset within the buffer to read from.</param>
         /// <returns>A read-only byte span over the requested region of the buffer.</returns>
-        public readonly ReadOnlySpan<byte> Read(int position, int size) => _buffer.Slice(position, size);
+        public readonly ReadOnlySpan<byte> Read(int size, int position) => _buffer.Slice(position, size);
 
         /// <summary>
         /// Reads a value of type <typeparamref name="T"/> from the current position and advances
@@ -95,7 +95,7 @@ namespace RedFox.IO
         /// <param name="count">The number of elements to read.</param>
         /// <returns>A read-only span of <typeparamref name="T"/> values reinterpreted from the buffer.</returns>
         public readonly ReadOnlySpan<T> ReadArray<T>(int count, int position) where T : unmanaged =>
-            MemoryMarshal.Cast<byte, T>(Read(position, Unsafe.SizeOf<T>() * count));
+            MemoryMarshal.Cast<byte, T>(Read(Unsafe.SizeOf<T>() * count, position));
 
         /// <summary>
         /// Reads a 64-bit signed integer from the current position and advances the position by 8 bytes.

@@ -11,6 +11,11 @@ public sealed class AssetReadResult
     public required Asset Asset { get; init; }
 
     /// <summary>
+    /// Gets the asset handler that provided this result.
+    /// </summary>
+    public required IAssetHandler Handler { get; set; }
+
+    /// <summary>
     /// Gets the decoded payload returned by the handler, or <see langword="null"/> when no payload is produced.
     /// </summary>
     public object? Data { get; init; }
@@ -29,7 +34,6 @@ public sealed class AssetReadResult
         }
 
         string actual = Data is null ? "null" : Data.GetType().FullName ?? Data.GetType().Name;
-        throw new InvalidOperationException(
-            $"Expected payload of type '{typeof(T).FullName}' but the result carries '{actual}'.");
+        throw new InvalidOperationException($"Expected payload of type '{typeof(T).FullName}' but the result carries '{actual}'.");
     }
 }

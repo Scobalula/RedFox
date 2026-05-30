@@ -93,6 +93,35 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnExplorerSelectionChanged(object? sender, SelectionChangedEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || sender is not DataGrid dataGrid)
+        {
+            return;
+        }
+
+        viewModel.SetSelectedExplorerEntries(dataGrid.SelectedItems.OfType<AssetExplorerEntry>());
+    }
+
+    private void OnExplorerDoubleTapped(object? sender, TappedEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || args.Source is not Visual source)
+        {
+            return;
+        }
+
+        AssetExplorerEntry? entry = source.FindAncestorOfType<DataGridRow>()?.DataContext as AssetExplorerEntry;
+        if (entry is null)
+        {
+            entry = (source as Control)?.DataContext as AssetExplorerEntry;
+        }
+
+        if (entry is not null)
+        {
+            viewModel.ActivateExplorerEntry(entry);
+        }
+    }
+
     private async Task<IReadOnlyList<string>> OnFileDialogRequested()
     {
         if (DataContext is not MainWindowViewModel viewModel)

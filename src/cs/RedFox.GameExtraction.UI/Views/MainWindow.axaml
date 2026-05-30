@@ -61,7 +61,7 @@
                                                    Width="32" Height="32"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,10,0"
-                                                   IsVisible="{Binding HasSidebarIcon}"/>
+                                                   IsVisible="{Binding HasSidebarIcon}" RenderOptions.BitmapInterpolationMode="HighQuality"/>
                                             <TextBlock Grid.Column="1" Grid.Row="0"
                                                        Classes="sidebar-title"
                                                        Text="{Binding SidebarTitle}"
@@ -147,16 +147,44 @@
 
             <DockPanel Margin="12,8,16,6">
                 <Border DockPanel.Dock="Top"
-                        Classes="search-container"
                         Margin="0,0,0,10">
-                    <TextBox Classes="search-box"
-                             Text="{Binding SearchText, Mode=TwoWay}"/>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right"
+                                Classes="sidebar-btn"
+                                Margin="8,0,0,0"
+                                Padding="10,4"
+                                Command="{Binding ToggleViewModeCommand}"
+                                IsVisible="{Binding IsDirectoryViewEnabled}"
+                                Content="{Binding ViewModeToggleLabel}"/>
+                        <Border Classes="search-container">
+                            <TextBox Classes="search-box"
+                                     Text="{Binding SearchText, Mode=TwoWay}"/>
+                        </Border>
+                    </DockPanel>
                 </Border>
 
                 <Border DockPanel.Dock="Top"
                         Margin="0,0,0,8">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Classes="status-text">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Left"
+                                    Orientation="Horizontal"
+                                    Spacing="6"
+                                    IsVisible="{Binding IsDirectoryViewActive}">
+                            <Button Classes="sidebar-btn"
+                                    Padding="6,2"
+                                    Command="{Binding NavigateUpCommand}"
+                                    IsEnabled="{Binding CanNavigateUp}"
+                                    ToolTip.Tip="Up one level">
+                                <PathIcon Data="{StaticResource IconArrowUp}" Width="14" Height="14"/>
+                            </Button>
+                            <TextBlock Classes="status-text"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding CurrentDirectoryPath}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <TextBlock Classes="status-text"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
                             <TextBlock.Text>
                                 <MultiBinding StringFormat="{}{0:N0} of {1:N0} assets shown">
                                     <Binding Path="FilteredCount"/>
@@ -164,7 +192,7 @@
                                 </MultiBinding>
                             </TextBlock.Text>
                         </TextBlock>
-                    </StackPanel>
+                    </DockPanel>
                 </Border>
 
                 <Panel>
@@ -173,31 +201,74 @@
                             Background="#1F1F22"
                             IsHitTestVisible="False"/>
                     <Border Classes="card-subtle" Padding="0" ClipToBounds="True">
-                        <DataGrid x:Name="AssetDataGrid"
-                                  x:CompileBindings="False"
-                                  ItemsSource="{Binding AssetsView}"
-                                  SelectedItem="{Binding SelectedAsset, Mode=TwoWay}"
-                                  AutoGenerateColumns="False"
-                                  CanUserResizeColumns="True"
-                                  CanUserSortColumns="True"
-                                  GridLinesVisibility="Horizontal"
-                                  HeadersVisibility="Column"
-                                  IsReadOnly="True"
-                                  SelectionMode="Extended"
-                                  ScrollViewer.AllowAutoHide="False"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  RowHeight="32"
-                                  SelectionChanged="OnAssetSelectionChanged"
-                                  DoubleTapped="OnAssetDoubleTapped">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
-                                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="140"/>
-                                <DataGridTextColumn Header="Information" Binding="{Binding Information}" Width="3*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <Panel>
+                            <DataGrid x:Name="AssetDataGrid"
+                                      x:CompileBindings="False"
+                                      IsVisible="{Binding !IsDirectoryViewActive}"
+                                      ItemsSource="{Binding AssetsView}"
+                                      SelectedItem="{Binding SelectedAsset, Mode=TwoWay}"
+                                      AutoGenerateColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="True"
+                                      GridLinesVisibility="Horizontal"
+                                      HeadersVisibility="Column"
+                                      IsReadOnly="True"
+                                      SelectionMode="Extended"
+                                      ScrollViewer.AllowAutoHide="False"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      RowHeight="32"
+                                      SelectionChanged="OnAssetSelectionChanged"
+                                      DoubleTapped="OnAssetDoubleTapped">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="140"/>
+                                    <DataGridTextColumn Header="Information" Binding="{Binding Information}" Width="3*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <DataGrid x:Name="ExplorerDataGrid"
+                                      x:CompileBindings="False"
+                                      IsVisible="{Binding IsDirectoryViewActive}"
+                                      ItemsSource="{Binding ExplorerView}"
+                                      AutoGenerateColumns="False"
+                                      CanUserResizeColumns="True"
+                                      CanUserSortColumns="False"
+                                      GridLinesVisibility="Horizontal"
+                                      HeadersVisibility="Column"
+                                      IsReadOnly="True"
+                                      SelectionMode="Extended"
+                                      ScrollViewer.AllowAutoHide="False"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      RowHeight="32"
+                                      SelectionChanged="OnExplorerSelectionChanged"
+                                      DoubleTapped="OnExplorerDoubleTapped">
+                                <DataGrid.Columns>
+                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <PathIcon Data="{StaticResource IconFolder}"
+                                                              Width="16" Height="16"
+                                                              IsVisible="{Binding IsFolder}"/>
+                                                    <PathIcon Data="{StaticResource IconFile}"
+                                                              Width="16" Height="16"
+                                                              IsVisible="{Binding IsFile}"/>
+                                                </Panel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeDisplay}" Width="140"/>
+                                    <DataGridTextColumn Header="Information" Binding="{Binding Information}" Width="3*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Panel>
                     </Border>
                 </Panel>
             </DockPanel>

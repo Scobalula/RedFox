@@ -353,7 +353,7 @@ namespace RedFox.Graphics3D
         /// <param name="filter">The flags child nodes must contain to be returned.</param>
         /// <returns>An <see cref="IEnumerable{SceneNode}"/> of child nodes (empty if none).</returns>
         public IEnumerable<SceneNode> EnumerateChildren(SceneNodeFlags filter) =>
-            _children?.Where(x => x.MatchesFilter(filter)) ?? Enumerable.Empty<SceneNode>();
+            _children?.Where(x => x.MatchesFilter(filter)) ?? [];
 
         /// <summary>
         /// Enumerates descendant nodes of the specified type.
@@ -1763,7 +1763,7 @@ namespace RedFox.Graphics3D
         /// <param name="key">The key/name of the attribute.</param>
         /// <param name="defaultValue">The default value to return if the attribute is not found.</param>
         /// <returns>The value of the attribute.</returns>
-        public object? GetAttribute(string key, object? defaultValue)
+        public object GetAttribute(string key, object defaultValue)
         {
             if (Attributes != null && Attributes.TryGetValue(key, out var value))
             {
@@ -1791,6 +1791,22 @@ namespace RedFox.Graphics3D
                 throw new InvalidCastException($"Attribute with key '{key}' is not of type {typeof(T).FullName}.");
             }
             return defaultValue;
+        }
+
+        /// <summary>
+        /// Gets the user data associated with this node, cast to the specified type.
+        /// </summary>
+        /// <typeparam name="T">The type to cast the user data to.</typeparam>
+        /// <returns>The user data cast to the specified type.</returns>
+        /// <exception cref="NullReferenceException">Thrown when the user data is null.</exception>
+        /// <exception cref="InvalidCastException">Thrown when the user data is not of the expected type.</exception>
+        public T GetUserData<T>()
+        {
+            if (UserData is null)
+                throw new NullReferenceException("UserData is null.");
+            if (UserData is not T data)
+                throw new InvalidCastException($"UserData is not of type {typeof(T).FullName}.");
+            return data;
         }
 
         /// <summary>
