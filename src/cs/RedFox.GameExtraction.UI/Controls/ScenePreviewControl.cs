@@ -367,7 +367,7 @@ public sealed class ScenePreviewControl : UserControl
         }
     }
 
-    private static void EnsureUniqueChildName(SceneRoot root, SceneNode node)
+    private static void EnsureUniqueChildName(SceneNode root, SceneNode node)
     {
         if (!root.TryFindChild(node.Name, StringComparison.OrdinalIgnoreCase, out _))
         {

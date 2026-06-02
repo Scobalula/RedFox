@@ -30,13 +30,10 @@ public class SemodelTranslator : SceneTranslator
     public override ReadOnlySpan<byte> MagicValue => "SEModel"u8;
 
     /// <inheritdoc/>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-        => ReadInternal(scene, stream, name, options, options.SourceDirectoryPath, token);
-
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
-        => ReadInternal(scene, stream, context.Name, context.Options, context.SourceDirectoryPath, token);
+        => ReadInternal(scene, stream, context.Name, context.SourceDirectoryPath, token);
 
-    private void ReadInternal(Scene scene, Stream stream, string name, SceneTranslatorOptions options, string? sourceDirectoryPath, CancellationToken? token)
+    private void ReadInternal(Scene scene, Stream stream, string name, string? sourceDirectoryPath, CancellationToken? token)
     {
         using var reader = new BinaryReader(stream, Encoding.Default, true);
 
@@ -219,15 +216,6 @@ public class SemodelTranslator : SceneTranslator
     }
 
     /// <inheritdoc/>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        var context = new SceneTranslationContext(name, options);
-        context.GetSelection(scene);
-        WriteInternal(scene, stream, context, token);
-    }
-
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
         => WriteInternal(scene, stream, context, token);
 

@@ -7,7 +7,7 @@ namespace RedFox.Graphics3D.Cast;
 
 internal static class CastModelTranslator
 {
-    public static void Read(Scene scene, ModelNode modelNode, string name)
+    public static void Read(Scene scene, ModelNode modelNode, string name, string? sourceDirectory)
     {
         var model = scene.RootNode.AddNode<Model>(name);
         var materialLookup = new Dictionary<ulong, Material>();
@@ -27,18 +27,21 @@ internal static class CastModelTranslator
             if (materialNode.Diffuse is FileNode diffuseFile)
             {
                 var diffuseTex = material.AddNode(new Texture(diffuseFile.Path));
+                diffuseTex.ResolveFilePath(sourceDirectory);
                 material.DiffuseMapName = "diffuse";
                 material.Connect("diffuse", diffuseTex);
             }
             if (materialNode.Normal is FileNode normalFile)
             {
                 var normalTex = material.AddNode(new Texture(normalFile.Path));
+                normalTex.ResolveFilePath(sourceDirectory);
                 material.NormalMapName = "normal";
                 material.Connect("normal", normalTex);
             }
             if (materialNode.Specular is FileNode specularFile)
             {
                 var specularTex = material.AddNode(new Texture(specularFile.Path));
+                specularTex.ResolveFilePath(sourceDirectory);
                 material.SpecularMapName = "specular";
                 material.Connect("specular", specularTex);
             }
@@ -53,7 +56,7 @@ internal static class CastModelTranslator
         }
     }
 
-    public static void Write(CastNode root, Model model, SceneTranslationSelection selection)
+    public static void Write(CastNode root, Model model, SceneTranslationSelection selection, string? targetDirectory)
     {
         var modelNode = root.AddNode<ModelNode>();
 
@@ -111,25 +114,27 @@ internal static class CastModelTranslator
 
             foreach (MaterialTextureBinding binding in material.Textures)
             {
+                string portablePath = binding.Texture.GetPortableFilePath(targetDirectory);
+
                 if (string.Equals(binding.SamplerUniform, "diffuse", StringComparison.OrdinalIgnoreCase))
                 {
                     var fileNode = materialNode.AddNode<FileNode>();
-                    fileNode.Hash = CastHasher.Compute(binding.Texture.EffectiveFilePath);
-                    fileNode.AddString("p", binding.Texture.EffectiveFilePath);
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
                     materialNode.AddValue("diffuse", fileNode.Hash);
                 }
                 else if (string.Equals(binding.SamplerUniform, "normal", StringComparison.OrdinalIgnoreCase))
                 {
                     var fileNode = materialNode.AddNode<FileNode>();
-                    fileNode.Hash = CastHasher.Compute(binding.Texture.EffectiveFilePath);
-                    fileNode.AddString("p", binding.Texture.EffectiveFilePath);
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
                     materialNode.AddValue("normal", fileNode.Hash);
                 }
                 else if (string.Equals(binding.SamplerUniform, "specular", StringComparison.OrdinalIgnoreCase))
                 {
                     var fileNode = materialNode.AddNode<FileNode>();
-                    fileNode.Hash = CastHasher.Compute(binding.Texture.EffectiveFilePath);
-                    fileNode.AddString("p", binding.Texture.EffectiveFilePath);
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
                     materialNode.AddValue("specular", fileNode.Hash);
                 }
             }

@@ -20,6 +20,17 @@ public abstract class ConstraintNode(string name, SceneNode constrainedNode, Sce
     /// </summary>
     public float Weight { get; set; } = 1.0f;
 
+    /// <inheritdoc/>
+    public override void Swap(SceneNode oldNode, SceneNode newNode)
+    {
+        base.Swap(oldNode, newNode);
+
+        if (ReferenceEquals(ConstrainedNode, oldNode))
+            ConstrainedNode = newNode;
+        if (ReferenceEquals(SourceNode, oldNode))
+            SourceNode = newNode;
+    }
+
     /// <summary>
     /// Creates the runtime solver equivalent for this imported constraint node.
     /// </summary>

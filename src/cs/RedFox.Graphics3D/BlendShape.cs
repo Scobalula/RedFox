@@ -59,5 +59,14 @@ namespace RedFox.Graphics3D
             TargetIndex = targetIndex;
             OwnerMesh = ownerMesh;
         }
+
+        /// <inheritdoc/>
+        public override void Swap(SceneNode oldNode, SceneNode newNode)
+        {
+            base.Swap(oldNode, newNode);
+
+            if (ReferenceEquals(OwnerMesh, oldNode) && newNode is Mesh newMesh)
+                OwnerMesh = newMesh;
+        }
     }
 }

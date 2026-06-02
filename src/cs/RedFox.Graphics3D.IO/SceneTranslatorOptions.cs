@@ -24,6 +24,13 @@ public class SceneTranslatorOptions
     public SceneNodeFlags Filter { get; set; }
 
     /// <summary>
+    /// Gets or sets the options controlling how a read result is committed into the target scene,
+    /// including duplicate detection and resolution. Defaults to a strict configuration that throws
+    /// on duplicate sibling names, matching the behavior of a fresh import.
+    /// </summary>
+    public SceneMergeOptions Merge { get; set; } = SceneMergeOptions.Strict;
+
+    /// <summary>
     /// Gets the full source file path for the current read operation.
     /// Set internally by the translation manager.
     /// </summary>

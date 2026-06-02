@@ -282,7 +282,10 @@ public sealed class SceneTranslatorManager
             throw new IOException($"No suitable translator found for file: {filePath}");
 
         stream.Position = readStart;
-        translator.Read(scene, stream, context, token);
+
+        var readContext = new SceneReadContext(scene, options.Merge);
+        translator.Read(readContext.Staging, stream, context, token);
+        readContext.Commit();
     }
 
     /// <summary>
@@ -416,7 +419,10 @@ public sealed class SceneTranslatorManager
             throw new IOException($"No suitable translator found for file: {filePath}");
 
         stream.Position = readStart;
-        translator.Read(scene, stream, context, token);
+
+        var readContext = new SceneReadContext(scene, options.Merge);
+        translator.Read(readContext.Staging, stream, context, token);
+        readContext.Commit();
     }
 
     /// <summary>

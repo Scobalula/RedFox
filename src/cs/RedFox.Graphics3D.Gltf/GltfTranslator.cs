@@ -35,38 +35,14 @@ public sealed class GltfTranslator : SceneTranslator
     public override ReadOnlySpan<byte> MagicValue => "glTF"u8;
 
     /// <summary>
-    /// Reads scene data from the specified glTF or GLB file, automatically resolving
-    /// any external buffer URIs relative to the file's directory.
-    /// </summary>
-    /// <param name="scene">The scene to populate.</param>
-    /// <param name="filePath">The path to the glTF or GLB file.</param>
-    /// <param name="options">Options that control how the scene data is read.</param>
-    /// <param name="token">An optional cancellation token.</param>
-    public override void Read(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        Read(scene, stream, CreateReadContext(filePath, options), token);
-    }
-
-    /// <summary>
     /// Reads scene data from the specified stream. For GLB streams, the binary
     /// buffer is embedded in the container. For JSON-based streams, only
     /// <c>data:</c> URIs can be resolved; external <c>.bin</c> files are unavailable.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
     /// <param name="stream">The input stream containing glTF or GLB data.</param>
-    /// <param name="name">The file or scene name used for the root model node.</param>
-    /// <param name="options">Options that control how the scene data is read.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">An optional cancellation token.</param>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        Read(scene, stream, new SceneTranslationContext(Path.GetFileNameWithoutExtension(name), options)
-        {
-            SourceDirectoryPath = options.SourceDirectoryPath,
-            SourceFilePath = options.SourceFilePath,
-        }, token);
-    }
-
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         GltfDocument doc = IsGlb(stream)
@@ -78,31 +54,12 @@ public sealed class GltfTranslator : SceneTranslator
     }
 
     /// <summary>
-    /// Writes scene data to the specified GLB file.
-    /// </summary>
-    /// <param name="scene">The scene to export.</param>
-    /// <param name="filePath">The output GLB file path.</param>
-    /// <param name="options">Options that control how the scene data is written.</param>
-    /// <param name="token">An optional cancellation token.</param>
-    public override void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        using FileStream stream = new(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 4096);
-        Write(scene, stream, CreateWriteContext(filePath, options), token);
-    }
-
-    /// <summary>
     /// Writes scene data to the specified stream in GLB binary format.
     /// </summary>
     /// <param name="scene">The scene to export.</param>
     /// <param name="stream">The output stream for the GLB data.</param>
-    /// <param name="name">The scene name.</param>
-    /// <param name="options">Options that control how the scene data is written.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">An optional cancellation token.</param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        Write(scene, stream, new SceneTranslationContext(name, options), token);
-    }
-
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         GltfWriter writer = new(context.Options, context.TargetDirectoryPath);
@@ -115,10 +72,10 @@ public sealed class GltfTranslator : SceneTranslator
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
     /// <param name="ext">The file extension.</param>
-    /// <param name="options">The translation options.</param>
+    /// <param name="context">The translation context.</param>
     /// <param name="startOfFile">A buffer of initial bytes from the file.</param>
     /// <returns><see langword="true"/> if the file is a valid glTF or GLB file.</returns>
-    public override bool IsValid(string filePath, string ext, SceneTranslatorOptions options, ReadOnlySpan<byte> startOfFile)
+    public override bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile)
     {
         if (Extensions.Contains(ext))
             return true;

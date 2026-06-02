@@ -1,4 +1,5 @@
-﻿using RedFox.Graphics3D.Bvh;
+﻿using RedFox.Graphics3D.ActorX;
+using RedFox.Graphics3D.Bvh;
 using RedFox.Graphics3D.Cast;
 using RedFox.Graphics3D.Gltf;
 using RedFox.Graphics3D.IO;
@@ -41,5 +42,7 @@ public class SceneTranslatorService
         Manager.Register<CastTranslator>();
         Manager.Register<GltfTranslator>();
         Manager.Register<BvhTranslator>();
+        Manager.Register<PskTranslator>();
+        Manager.Register<PsaTranslator>();
     }
 }

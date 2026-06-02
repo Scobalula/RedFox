@@ -38,19 +38,13 @@ public sealed class ObjTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".obj"];
 
     /// <summary>
-    /// Reads scene data from the specified OBJ file, automatically resolving any referenced
-    /// MTL material libraries relative to the OBJ file's directory.
+    /// Reads scene data from the specified OBJ stream, automatically resolving any referenced
+    /// MTL material libraries relative to the source directory when file system context is available.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
-    /// <param name="filePath">The path to the OBJ file.</param>
-    /// <param name="options">Options that control how the scene data is read.</param>
+    /// <param name="stream">The input stream containing OBJ data.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">An optional cancellation token.</param>
-    public override void Read(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        using FileStream stream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        Read(scene, stream, CreateReadContext(filePath, options), token);
-    }
-
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         ObjReader reader = new(stream, context.Name, context.Options);
@@ -74,37 +68,13 @@ public sealed class ObjTranslator : SceneTranslator
     }
 
     /// <summary>
-    /// Reads scene data from the specified OBJ stream. MTL material libraries cannot be
-    /// resolved without file system context and are not loaded in this overload.
-    /// </summary>
-    /// <param name="scene">The scene to populate.</param>
-    /// <param name="stream">The input stream containing OBJ data.</param>
-    /// <param name="name">The file or scene name used for the root model node.</param>
-    /// <param name="options">Options that control how the scene data is read.</param>
-    /// <param name="token">An optional cancellation token.</param>
-    public override void Read(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        Read(scene, stream, new SceneTranslationContext(name, options)
-        {
-            SourceDirectoryPath = options.SourceDirectoryPath,
-            SourceFilePath = options.SourceFilePath,
-        }, token);
-    }
-
-    /// <summary>
-    /// Writes scene data to the specified OBJ file. An accompanying .mtl file is automatically
-    /// generated in the same directory for any materials referenced by the scene's meshes.
+    /// Writes scene data to the specified OBJ stream. When file system context is available, an
+    /// accompanying .mtl file is generated for any materials referenced by the scene's meshes.
     /// </summary>
     /// <param name="scene">The scene to export.</param>
-    /// <param name="filePath">The output OBJ file path.</param>
-    /// <param name="options">Options that control how the scene data is written.</param>
+    /// <param name="stream">The output stream to write OBJ data to.</param>
+    /// <param name="context">The translation context for this operation.</param>
     /// <param name="token">An optional cancellation token.</param>
-    public override void Write(Scene scene, string filePath, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        using FileStream stream = new(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
-        Write(scene, stream, CreateWriteContext(filePath, options), token);
-    }
-
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
         string baseName = context.Name;
@@ -116,22 +86,8 @@ public sealed class ObjTranslator : SceneTranslator
         {
             string mtlPath = Path.Combine(context.TargetDirectoryPath, mtlFileName);
             using FileStream mtlStream = new(mtlPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096);
-            ObjMtlWriter.Write(mtlStream, materials);
+            ObjMtlWriter.Write(mtlStream, materials, context.TargetDirectoryPath);
         }
-    }
-
-    /// <summary>
-    /// Writes scene data to the specified OBJ stream. Only the OBJ geometry and a mtllib
-    /// directive are emitted; the MTL data must be written separately by the caller.
-    /// </summary>
-    /// <param name="scene">The scene to export.</param>
-    /// <param name="stream">The output stream to write OBJ data to.</param>
-    /// <param name="name">The scene or file name used in the OBJ header.</param>
-    /// <param name="options">Options that control how the scene data is written.</param>
-    /// <param name="token">An optional cancellation token.</param>
-    public override void Write(Scene scene, Stream stream, string name, SceneTranslatorOptions options, CancellationToken? token)
-    {
-        Write(scene, stream, new SceneTranslationContext(name, options), token);
     }
 
     private static Dictionary<string, Material> BuildMaterialDictionary(Scene scene)

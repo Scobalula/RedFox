@@ -480,7 +480,7 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        ReadAsync(asset, CancellationToken.None);
+        ReadAsync(asset, parentContext: null, userData: null, CancellationToken.None);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler.
@@ -488,7 +488,49 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public async Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken)
+    public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext: null, userData: null, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset using the first compatible registered handler, carrying optional user-defined data through the read context.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="userData">Optional user-defined data attached to the read operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset, object? userData, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext: null, userData, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset using the first compatible registered handler, recording the result as a reference on the supplied parent context.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="parentContext">
+    /// The parent read context to which the result should be appended as a reference, or <see langword="null"/>
+    /// when no tracking is required. When a handler calls <see cref="AssetReadContext.ReadAsync(Asset, CancellationToken)"/>
+    /// on its own context, the manager uses that context as the parent and the result lands in
+    /// <see cref="AssetReadContext.References"/>.
+    /// </param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext, userData: null, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset using the first compatible registered handler, recording the result as a reference on the supplied parent context.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="parentContext">
+    /// The parent read context to which the result should be appended as a reference, or <see langword="null"/>
+    /// when no tracking is required. When a handler calls <see cref="AssetReadContext.ReadAsync(Asset, CancellationToken)"/>
+    /// on its own context, the manager uses that context as the parent and the result lands in
+    /// <see cref="AssetReadContext.References"/> and, after the handler returns, in
+    /// <see cref="AssetReadResult.References"/>.
+    /// </param>
+    /// <param name="userData">Optional user-defined data attached to the read operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, object? userData, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
         cancellationToken.ThrowIfCancellationRequested();
@@ -500,8 +542,16 @@ public sealed class AssetManager
 
         try
         {
-            AssetReadContext context = new(this, source, sourceRequest);
+            AssetReadContext context = new(this, source, sourceRequest, userData);
             AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
+
+            foreach (AssetReadResult reference in context.References)
+            {
+                result.AddReference(reference);
+            }
+
+            parentContext?.AddReference(result);
+
             AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
             return result;
         }
@@ -703,7 +753,20 @@ public sealed class AssetManager
     /// <param name="configuration">The export configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    public Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+        ExportAsync(asset, relativeOutputDirectory, configuration, progress, cancellationToken, null);
+
+    /// <summary>
+    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, ExportConfiguration)"/>
+    /// overload and by <see cref="AssetExportContext"/> for recursive exports. Reads the asset via the handler.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <param name="userData">Optional user-defined data attached to the export operation.</param>
+    public async Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -714,7 +777,7 @@ public sealed class AssetManager
         string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
         IAssetHandler handler = GetRequiredHandler(asset);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken);
+        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken, userData);
 
         AssetExportStarting?.Invoke(this, new AssetExportEventArgs(asset, source, configuration, normalizedDir));
 
@@ -727,7 +790,7 @@ public sealed class AssetManager
             return;
         }
 
-        AssetReadResult result = await ReadAsync(asset, cancellationToken).ConfigureAwait(false);
+        AssetReadResult result = await ReadAsync(asset, userData, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
 
@@ -753,7 +816,20 @@ public sealed class AssetManager
     /// <param name="configuration">The export configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+        ExportAsync(asset, result, relativeOutputDirectory, configuration, progress, cancellationToken, null);
+
+    /// <summary>
+    /// Exports a single asset using a pre-read result, skipping the read step.
+    /// </summary>
+    /// <param name="asset">The asset to export.</param>
+    /// <param name="result">The already-read result to export.</param>
+    /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
+    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="progress">An optional progress sink.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <param name="userData">Optional user-defined data attached to the export operation.</param>
+    public async Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(result);
@@ -765,7 +841,7 @@ public sealed class AssetManager
         string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
         IAssetHandler handler = GetRequiredHandler(asset);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken);
+        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken, userData);
 
         AssetExportStarting?.Invoke(this, new AssetExportEventArgs(asset, source, configuration, normalizedDir));
 

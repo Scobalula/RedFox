@@ -52,7 +52,7 @@ public static class FbxSceneMapper
     ];
 
     /// <summary>
-    /// Determines whether a node is a top-level root container (direct child of <see cref="SceneRoot"/>,
+    /// Determines whether a node is a top-level root container (direct child of the <see cref="Scene"/> root,
     /// not a bone or mesh) whose transform is approximately identity, indicating it was stripped of
     /// the FBX coordinate-system basis rotation during import. On export these nodes receive
     /// <see cref="s_authoredRootPreRotation"/> so the FBX file correctly converts to Y-up.
@@ -61,7 +61,7 @@ public static class FbxSceneMapper
     /// <returns><see langword="true"/> when the node is a stripped or identity root container.</returns>
     public static bool IsIdentityRootContainer(SceneNode node)
     {
-        if (node.Parent is not SceneRoot || node is SkeletonBone or Mesh)
+        if (node.Parent is not Scene || node is SkeletonBone or Mesh)
         {
             return false;
         }
@@ -72,19 +72,19 @@ public static class FbxSceneMapper
     }
 
     /// <summary>
-    /// Resolves the top-level container ancestor for a node by walking up to the first child of <see cref="SceneRoot"/>.
+    /// Resolves the top-level container ancestor for a node by walking up to the first child of the <see cref="Scene"/> root.
     /// </summary>
     /// <param name="node">The node whose export root should be located.</param>
     /// <returns>The top-level export root, or <see langword="null"/> when none can be resolved.</returns>
     public static SceneNode? GetTopLevelExportRoot(SceneNode node)
     {
         SceneNode current = node;
-        while (current.Parent is not null and not SceneRoot)
+        while (current.Parent is not null and not Scene)
         {
             current = current.Parent;
         }
 
-        return current.Parent is SceneRoot ? current : null;
+        return current.Parent is Scene ? current : null;
     }
 
     /// <summary>
@@ -95,7 +95,7 @@ public static class FbxSceneMapper
     public static Matrix4x4 GetExportBindWorldMatrix(SceneNode node)
     {
         Matrix4x4 localMatrix = GetExportLocalBindMatrix(node);
-        return node.Parent is not null and not SceneRoot
+        return node.Parent is not null and not Scene
             ? localMatrix * GetExportBindWorldMatrix(node.Parent)
             : localMatrix;
     }
@@ -108,7 +108,7 @@ public static class FbxSceneMapper
     public static Matrix4x4 GetExportActiveWorldMatrix(SceneNode node)
     {
         Matrix4x4 localMatrix = GetExportLocalModelMatrix(node);
-        return node.Parent is not null and not SceneRoot
+        return node.Parent is not null and not Scene
             ? localMatrix * GetExportActiveWorldMatrix(node.Parent)
             : localMatrix;
     }
@@ -1159,7 +1159,7 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="sceneRoot">The destination scene root.</param>
     /// <param name="nodes">The imported nodes to inspect.</param>
-    public static void AttachImportedRootNodes(SceneRoot sceneRoot, IEnumerable<SceneNode> nodes)
+    public static void AttachImportedRootNodes(SceneNode sceneRoot, IEnumerable<SceneNode> nodes)
     {
         foreach (SceneNode node in nodes)
         {
@@ -1320,7 +1320,7 @@ public static class FbxSceneMapper
     /// <param name="modelNodes">Imported model nodes keyed by FBX object id.</param>
     /// <param name="constraintNodes">Constraint FBX nodes keyed by object id.</param>
     /// <param name="connections">The full FBX connection list.</param>
-    public static void ImportConstraints(SceneRoot sceneRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, FbxNode> constraintNodes, IReadOnlyList<FbxConnection> connections)
+    public static void ImportConstraints(SceneNode sceneRoot, Dictionary<long, SceneNode> modelNodes, Dictionary<long, FbxNode> constraintNodes, IReadOnlyList<FbxConnection> connections)
     {
         foreach ((long constraintId, FbxNode constraintNode) in constraintNodes)
         {
@@ -1350,7 +1350,7 @@ public static class FbxSceneMapper
     /// <param name="modelNodes">Imported model nodes keyed by FBX object id.</param>
     /// <param name="connections">The full FBX connection list.</param>
     /// <returns>The scene node that should own the imported constraint.</returns>
-    public static SceneNode ResolveConstraintParentNode(SceneRoot sceneRoot, long constraintId, SceneNode constrainedNode, Dictionary<long, SceneNode> modelNodes, IReadOnlyList<FbxConnection> connections)
+    public static SceneNode ResolveConstraintParentNode(SceneNode sceneRoot, long constraintId, SceneNode constrainedNode, Dictionary<long, SceneNode> modelNodes, IReadOnlyList<FbxConnection> connections)
     {
         for (int i = 0; i < connections.Count; i++)
         {

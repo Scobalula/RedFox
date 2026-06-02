@@ -31,7 +31,7 @@ public sealed class CastTranslator : SceneTranslator
 
         foreach (var modelNode in root.EnumerateChildrenOfType<ModelNode>())
         {
-            CastModelTranslator.Read(scene, modelNode, context.Name);
+            CastModelTranslator.Read(scene, modelNode, context.Name, context.SourceDirectoryPath);
         }
 
         foreach (var animationNode in root.EnumerateChildrenOfType<AnimationNode>())
@@ -52,7 +52,7 @@ public sealed class CastTranslator : SceneTranslator
 
         foreach (var model in GetExportModels(selection))
         {
-            CastModelTranslator.Write(root, model, selection);
+            CastModelTranslator.Write(root, model, selection, context.TargetDirectoryPath);
         }
 
         foreach (var animation in selection.GetDescendants<SkeletonAnimation>())

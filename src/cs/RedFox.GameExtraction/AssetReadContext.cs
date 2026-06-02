@@ -5,6 +5,8 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class AssetReadContext
 {
+    private readonly List<AssetReadResult> _references = [];
+
     /// <summary>
     /// Gets the manager coordinating the read.
     /// </summary>
@@ -25,14 +27,42 @@ public sealed class AssetReadContext
     /// </summary>
     public IReadOnlyDictionary<string, object?> SourceOptions => Request.Options;
 
+    /// <summary>
+    /// Gets optional user-defined data attached to the read operation.
+    /// </summary>
+    public object? UserData { get; }
+
+    /// <summary>
+    /// Gets the read results of any assets that were read as references through this context.
+    /// </summary>
+    /// <remarks>
+    /// Populated as <see cref="ReadAsync(Asset, CancellationToken)"/> calls on this context resolve
+    /// through the manager. The manager transfers the contents of this list into the
+    /// <see cref="AssetReadResult.References"/> of the result produced by the active handler once
+    /// the handler returns, so downstream consumers (e.g. <see cref="IAssetHandler.ExportAsync"/>) can
+    /// inspect the references on the result itself. This property is exposed for handlers that want
+    /// to observe references while the read is still in progress.
+    /// </remarks>
+    public IReadOnlyList<AssetReadResult> References => _references;
+
     internal AssetReadContext(
         AssetManager assetManager,
         IAssetSource source,
         AssetSourceRequest request)
+        : this(assetManager, source, request, null)
+    {
+    }
+
+    internal AssetReadContext(
+        AssetManager assetManager,
+        IAssetSource source,
+        AssetSourceRequest request,
+        object? userData)
     {
         AssetManager = assetManager;
         Source = source;
         Request = request;
+        UserData = userData;
     }
 
     /// <summary>
@@ -51,19 +81,21 @@ public sealed class AssetReadContext
     public T GetRequiredService<T>() where T : class => AssetManager.GetRequiredService<T>();
 
     /// <summary>
-    /// Reads another asset through the owning manager.
+    /// Reads another asset through the owning manager and tracks the result as a reference on this context.
     /// </summary>
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        AssetManager.ReadAsync(asset);
+        AssetManager.ReadAsync(asset, this, CancellationToken.None);
 
     /// <summary>
-    /// Reads another asset through the owning manager.
+    /// Reads another asset through the owning manager and tracks the result as a reference on this context.
     /// </summary>
     /// <param name="asset">The asset to read.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
-        AssetManager.ReadAsync(asset, cancellationToken);
+        AssetManager.ReadAsync(asset, this, cancellationToken);
+
+    internal void AddReference(AssetReadResult result) => _references.Add(result);
 }

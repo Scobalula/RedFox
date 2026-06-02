@@ -34,6 +34,50 @@ public class Texture(string filePath) : SceneNode(filePath)
     public string EffectiveFilePath => string.IsNullOrWhiteSpace(ResolvedFilePath) ? FilePath : ResolvedFilePath;
 
     /// <summary>
+    /// Resolves <see cref="ResolvedFilePath"/> to an absolute on-disk path derived from
+    /// <see cref="FilePath"/> and the supplied <paramref name="baseDirectory"/>. Data URIs and
+    /// empty references leave <see cref="ResolvedFilePath"/> unset.
+    /// </summary>
+    /// <param name="baseDirectory">The directory relative references are resolved against, typically the source file's directory.</param>
+    public void ResolveFilePath(string? baseDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(FilePath) || FilePath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            ResolvedFilePath = null;
+            return;
+        }
+
+        if (System.IO.Path.IsPathRooted(FilePath))
+        {
+            ResolvedFilePath = System.IO.Path.GetFullPath(FilePath);
+            return;
+        }
+
+        ResolvedFilePath = string.IsNullOrWhiteSpace(baseDirectory)
+            ? null
+            : System.IO.Path.GetFullPath(System.IO.Path.Combine(baseDirectory, FilePath));
+    }
+
+    /// <summary>
+    /// Returns a portable path suitable for writing into a scene file: relative to
+    /// <paramref name="targetDirectory"/> when an absolute path is available; otherwise the
+    /// stored <see cref="FilePath"/> reference.
+    /// </summary>
+    /// <param name="targetDirectory">The directory the output file is being written to.</param>
+    public string GetPortableFilePath(string? targetDirectory)
+    {
+        string effective = EffectiveFilePath;
+        if (!string.IsNullOrWhiteSpace(effective)
+            && System.IO.Path.IsPathRooted(effective)
+            && !string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            return System.IO.Path.GetRelativePath(targetDirectory, effective);
+        }
+
+        return FilePath;
+    }
+
+    /// <summary>
     /// Gets or sets the image data associated with this texture. This may be <see langword="null"/> if the image data has not been loaded yet.
     /// </summary>
     public Image? Data { get; set; }

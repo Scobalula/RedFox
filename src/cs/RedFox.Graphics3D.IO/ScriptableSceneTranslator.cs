@@ -14,8 +14,4 @@ public abstract class ScriptableSceneTranslator : SceneTranslator
     /// <inheritdoc />
     public sealed override bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
         IsValid(filePath, ext, context);
-
-    /// <inheritdoc />
-    public sealed override bool IsValid(string filePath, string ext, SceneTranslatorOptions options, ReadOnlySpan<byte> startOfFile) =>
-        IsValid(filePath, ext, options);
 }

@@ -30,6 +30,7 @@
     <ProjectReference Include="..\RedFox.Graphics2D.Tga\RedFox.Graphics2D.Tga.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.ActorX\RedFox.Graphics3D.ActorX.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Bvh\RedFox.Graphics3D.Bvh.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Cast\RedFox.Graphics3D.Cast.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Gltf\RedFox.Graphics3D.Gltf.csproj" />

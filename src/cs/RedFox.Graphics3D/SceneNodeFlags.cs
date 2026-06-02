@@ -26,4 +26,11 @@ public enum SceneNodeFlags
     /// Gets or sets a value indicating whether the item is selected.
     /// </summary>
     Selected = 4,
+
+    /// <summary>
+    /// Indicates that the node and all of its descendants are selected.
+    /// Mirrors Maya's hierarchy selection: selecting a node with this flag implicitly
+    /// selects everything beneath it without each descendant carrying its own flag.
+    /// </summary>
+    SelectedHierarchy = 8,
 }

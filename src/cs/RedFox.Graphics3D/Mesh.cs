@@ -307,6 +307,30 @@ namespace RedFox.Graphics3D
             _hasExplicitInverseBindMatrices = false;
         }
 
+        /// <inheritdoc/>
+        public override void Swap(SceneNode oldNode, SceneNode newNode)
+        {
+            base.Swap(oldNode, newNode);
+
+            if (oldNode is SkeletonBone oldBone && newNode is SkeletonBone newBone && _skinnedBones is { Length: > 0 } bones)
+            {
+                for (int i = 0; i < bones.Length; i++)
+                {
+                    if (ReferenceEquals(bones[i], oldBone))
+                        bones[i] = newBone;
+                }
+            }
+
+            if (oldNode is Material oldMaterial && newNode is Material newMaterial && Materials is { Count: > 0 } materials)
+            {
+                for (int i = 0; i < materials.Count; i++)
+                {
+                    if (ReferenceEquals(materials[i], oldMaterial))
+                        materials[i] = newMaterial;
+                }
+            }
+        }
+
         /// <summary>
         /// Ensures inverse bind matrices exist and are aligned with <see cref="SkinnedBones"/>.
         /// </summary>
@@ -1276,8 +1300,7 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Generates vertex normals for this mesh.
         /// </summary>
-        public void GenerateTangents()
-            => GenerateTangents(true);
+        public void GenerateTangents() => GenerateTangents(true);
 
         /// <summary>
         /// Generates vertex tangents for this mesh using the specified normal generation mode.

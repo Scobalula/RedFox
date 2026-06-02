@@ -403,6 +403,24 @@ public class Material(string name) : SceneNode(name)
         }
     }
 
+    /// <inheritdoc/>
+    public override void Swap(SceneNode oldNode, SceneNode newNode)
+    {
+        base.Swap(oldNode, newNode);
+
+        if (oldNode is not Texture oldTexture || newNode is not Texture newTexture)
+            return;
+
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            if (ReferenceEquals(_connections[i].Texture, oldTexture))
+            {
+                _connections[i] = new MaterialTextureBinding(newTexture, _connections[i].Slot, _connections[i].SamplerUniform);
+                _version++;
+            }
+        }
+    }
+
     /// <summary>
     /// Returns the texture connected at <paramref name="slotKey"/>.
     /// </summary>

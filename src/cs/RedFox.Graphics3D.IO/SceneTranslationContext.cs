@@ -6,29 +6,24 @@ namespace RedFox.Graphics3D.IO;
 /// Carries per-operation file-system context for scene translation.
 /// Created via <see cref="SceneTranslator.CreateReadContext"/> or <see cref="SceneTranslator.CreateWriteContext"/>.
 /// </summary>
-public sealed class SceneTranslationContext
+/// <remarks>
+/// Initializes a new <see cref="SceneTranslationContext"/> with the given name and options.
+/// </remarks>
+/// <param name="name">The logical scene or file name. Falls back to <c>"Scene"</c> when null or whitespace.</param>
+/// <param name="options">The translation options.</param>
+/// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
+public sealed class SceneTranslationContext(string name, SceneTranslatorOptions options)
 {
-    /// <summary>
-    /// Initializes a new <see cref="SceneTranslationContext"/> with the given name and options.
-    /// </summary>
-    /// <param name="name">The logical scene or file name. Falls back to <c>"Scene"</c> when null or whitespace.</param>
-    /// <param name="options">The translation options.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="options"/> is <see langword="null"/>.</exception>
-    public SceneTranslationContext(string name, SceneTranslatorOptions options)
-    {
-        Name = string.IsNullOrWhiteSpace(name) ? "Scene" : name;
-        Options = options ?? throw new ArgumentNullException(nameof(options));
-    }
 
     /// <summary>
     /// Gets the logical scene or file name used by stream-based translators.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = string.IsNullOrWhiteSpace(name) ? "Scene" : name;
 
     /// <summary>
     /// Gets the translation options for this operation.
     /// </summary>
-    public SceneTranslatorOptions Options { get; }
+    public SceneTranslatorOptions Options { get; } = options ?? throw new ArgumentNullException(nameof(options));
 
     /// <summary>
     /// Gets the scene selection view associated with this operation, when one has been created.

@@ -48,6 +48,11 @@ public sealed class AssetExportContext
     /// </summary>
     public string OutputDirectory => ResolveOutputDirectory();
 
+    /// <summary>
+    /// Gets optional user-defined data attached to the export operation.
+    /// </summary>
+    public object? UserData { get; }
+
     internal AssetExportContext(
         AssetManager assetManager,
         IAssetSource source,
@@ -56,6 +61,19 @@ public sealed class AssetExportContext
         string relativeOutputDirectory,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
+        : this(assetManager, source, request, exportConfiguration, relativeOutputDirectory, progress, cancellationToken, null)
+    {
+    }
+
+    internal AssetExportContext(
+        AssetManager assetManager,
+        IAssetSource source,
+        AssetSourceRequest request,
+        ExportConfiguration exportConfiguration,
+        string relativeOutputDirectory,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken,
+        object? userData)
     {
         AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));
         Source = source ?? throw new ArgumentNullException(nameof(source));
@@ -64,6 +82,7 @@ public sealed class AssetExportContext
         RelativeOutputDirectory = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
         _progress = progress;
         _cancellationToken = cancellationToken;
+        UserData = userData;
     }
 
     /// <summary>
@@ -128,7 +147,6 @@ public sealed class AssetExportContext
     /// <returns>The resolved absolute output path.</returns>
     public string ResolveOutputPath(string relativePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         return Path.Combine(OutputDirectory, NormalizeRelativePath(relativePath));
     }
 

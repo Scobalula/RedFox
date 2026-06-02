@@ -14,7 +14,8 @@ public static class ObjMtlWriter
     /// </summary>
     /// <param name="stream">The output stream to write MTL data to.</param>
     /// <param name="materials">The materials to export.</param>
-    public static void Write(Stream stream, IReadOnlyList<Material> materials)
+    /// <param name="targetDirectory">The directory the MTL file is written to, used to relativize texture paths.</param>
+    public static void Write(Stream stream, IReadOnlyList<Material> materials, string? targetDirectory = null)
     {
         using StreamWriter writer = new(stream, leaveOpen: true);
         writer.NewLine = "\n";
@@ -34,12 +35,12 @@ public static class ObjMtlWriter
             writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ks {0.0f:G9} {0.0f:G9} {0.0f:G9}"));
             writer.WriteLine("illum 2");
 
-            WriteTextureMap(writer, "map_Kd", mat, mat.DiffuseMapName);
-            WriteTextureMap(writer, "map_Ks", mat, mat.SpecularMapName);
-            WriteTextureMap(writer, "map_Bump", mat, mat.NormalMapName);
-            WriteTextureMap(writer, "map_Ke", mat, mat.EmissiveMapName);
-            WriteTextureMap(writer, "map_Ns", mat, mat.GlossMapName);
-            WriteTextureMap(writer, "map_d", mat, mat.CavityMapName);
+            WriteTextureMap(writer, "map_Kd", mat, mat.DiffuseMapName, targetDirectory);
+            WriteTextureMap(writer, "map_Ks", mat, mat.SpecularMapName, targetDirectory);
+            WriteTextureMap(writer, "map_Bump", mat, mat.NormalMapName, targetDirectory);
+            WriteTextureMap(writer, "map_Ke", mat, mat.EmissiveMapName, targetDirectory);
+            WriteTextureMap(writer, "map_Ns", mat, mat.GlossMapName, targetDirectory);
+            WriteTextureMap(writer, "map_d", mat, mat.CavityMapName, targetDirectory);
 
             if (i < materials.Count - 1)
             {
@@ -48,7 +49,7 @@ public static class ObjMtlWriter
         }
     }
 
-    private static void WriteTextureMap(StreamWriter writer, string mapType, Material material, string? slotKey)
+    private static void WriteTextureMap(StreamWriter writer, string mapType, Material material, string? slotKey, string? targetDirectory)
     {
         if (slotKey is null)
         {
@@ -57,7 +58,7 @@ public static class ObjMtlWriter
 
         if (material.TryGetTexture(slotKey, out Texture? texture))
         {
-            writer.WriteLine($"{mapType} {texture.FilePath}");
+            writer.WriteLine($"{mapType} {texture.GetPortableFilePath(targetDirectory)}");
         }
         else
         {
