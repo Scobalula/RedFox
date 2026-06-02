@@ -86,4 +86,41 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
 
     /// <inheritdoc/>
     public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);
+
+    public static void ExportMaterialImages(IEnumerable<Texture> textures, IEnumerable<string> formats, ImageTranslatorManager manager, string directory, bool stripImagePath, bool skipExisting)
+    {
+        foreach (var texture in textures)
+        {
+            ExportImage(texture, formats, manager, directory, stripImagePath, skipExisting);
+        }
+    }
+
+    public static void ExportImage(Texture texture, IEnumerable<string> formats, ImageTranslatorManager manager, string directory, bool stripImagePath, bool skipExisting)
+    {
+        if (texture.ImageLoader is null)
+            throw new NullReferenceException(nameof(texture.ImageLoader));
+
+        var data = texture.ImageLoader.Load(texture, manager);
+        var path = texture.Name;
+
+        if (stripImagePath)
+            path = Path.Combine(directory, Path.GetFileName(path));
+        else
+            path = Path.Combine(directory, path);
+
+        if (Path.GetDirectoryName(path) is string directoryToCreate)
+            Directory.CreateDirectory(directoryToCreate);
+
+        foreach (var format in formats)
+        {
+            // We will essentially assign the last written image
+            // as this textures new "path" for models, etc.
+            texture.FilePath = Path.GetFullPath(Path.ChangeExtension(path, format));
+
+            if (skipExisting && File.Exists(texture.FilePath))
+                continue;
+
+            manager.Write(texture.FilePath, data);
+        }
+    }
 }
