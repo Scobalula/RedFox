@@ -87,29 +87,29 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     /// <inheritdoc/>
     public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);
 
-    public static void ExportMaterialImages(IEnumerable<Texture> textures, IEnumerable<string> formats, ImageTranslatorManager manager, string directory, bool stripImagePath, bool skipExisting)
-    {
-        foreach (var texture in textures)
-        {
-            ExportImage(texture, formats, manager, directory, stripImagePath, skipExisting);
-        }
-    }
-
-    public static void ExportImage(Texture texture, IEnumerable<string> formats, ImageTranslatorManager manager, string directory, bool stripImagePath, bool skipExisting)
+    /// <summary>
+    /// Exports the given texture to the specified formats using the provided manager and updates the texture's file path accordingly.
+    /// </summary>
+    /// <param name="texture">The texture to export.</param>
+    /// <param name="formats">The formats to export the texture to.</param>
+    /// <param name="manager">The image translator manager.</param>
+    /// <param name="directory">The directory to export the texture to.</param>
+    /// <param name="imageName">The name of the image file.</param>
+    /// <param name="skipExisting">Whether to skip existing files.</param>
+    /// <exception cref="NullReferenceException">Thrown when the texture's image loader is null.</exception>
+    public static void ExportTexture(Texture texture, IEnumerable<string> formats, ImageTranslatorManager manager, string? directory, string imageName, bool skipExisting)
     {
         if (texture.ImageLoader is null)
             throw new NullReferenceException(nameof(texture.ImageLoader));
 
         var data = texture.ImageLoader.Load(texture, manager);
-        var path = texture.Name;
+        var path = imageName;
 
-        if (stripImagePath)
-            path = Path.Combine(directory, Path.GetFileName(path));
-        else
-            path = Path.Combine(directory, path);
-
-        if (Path.GetDirectoryName(path) is string directoryToCreate)
-            Directory.CreateDirectory(directoryToCreate);
+        if (directory is not null)
+        {
+            Directory.CreateDirectory(directory);
+            path = Path.Combine(directory, imageName);
+        }
 
         foreach (var format in formats)
         {
