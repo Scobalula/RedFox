@@ -54,6 +54,7 @@ public sealed class AnimationHandler : IAssetHandler
         {
             Asset = asset,
             Data = scene,
+            Handler = this,
         };
     }
 

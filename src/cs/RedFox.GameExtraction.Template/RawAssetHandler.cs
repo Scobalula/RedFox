@@ -41,6 +41,7 @@ public sealed class RawAssetHandler : IAssetHandler
         {
             Asset = asset,
             Data = buffer.ToArray(),
+            Handler = this,
         };
     }
 

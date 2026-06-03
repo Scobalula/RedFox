@@ -18,10 +18,7 @@ public sealed class ModelHandler : IAssetHandler
     /// <returns>Always <see langword="true"/> for this template handler.</returns>
     public bool CanHandle(Asset asset)
     {
-        if (asset.Name.EndsWith(".semodel"))
-            return true;
-
-        return false;
+        return asset.Name.EndsWith(".semodel");
     }
 
     /// <summary>
@@ -42,11 +39,11 @@ public sealed class ModelHandler : IAssetHandler
         var translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
 
 
-        await using Stream stream = OpenAssetStream(asset);
-        using MemoryStream buffer = new();
+        await using var stream = OpenAssetStream(asset);
+        await using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
         buffer.Position = 0;
-        buffer.Flush();
+        await buffer.FlushAsync(cancellationToken);
 
         var scene = await translator.ReadAsync(buffer, asset.Name, new(), cancellationToken);
 
@@ -55,6 +52,7 @@ public sealed class ModelHandler : IAssetHandler
         {
             Asset = asset,
             Data = scene,
+            Handler = this,
         };
     }
 
