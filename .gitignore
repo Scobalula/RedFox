@@ -401,3 +401,6 @@ FodyWeavers.xsd
 *.sln.iml
 *.sln.DotSettings
 *.idea
+
+# Modern .NET Launch Settings
+launchSettings.json

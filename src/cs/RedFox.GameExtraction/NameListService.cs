@@ -1,3 +1,5 @@
+using RedFox.GameExtraction.Hashing;
+
 namespace RedFox.GameExtraction;
 
 /// <summary>
@@ -8,7 +10,7 @@ public sealed class NameListService
     /// <summary>
     /// Gets the collection of names associated with this instance.
     /// </summary>
-    public NameList List { get; } = new();
+    public NameTableManager Manager { get; } = new();
 
     /// <summary>
     /// Creates a <see cref="NameListService"/> by loading every file from the supplied directory.
@@ -25,7 +27,7 @@ public sealed class NameListService
         {
             foreach (string file in Directory.EnumerateFiles(directory))
             {
-                nameListService.List.LoadFromFile(file);
+                nameListService.Manager.Load(file);
             }
         }
 
