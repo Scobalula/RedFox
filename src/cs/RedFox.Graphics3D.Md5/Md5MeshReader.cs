@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using RedFox.IO;
@@ -140,7 +141,7 @@ public sealed class Md5MeshReader
 
         if (meshDatas.Count > 0)
         {
-            var model = scene.RootNode.AddNode<Model>(_name);
+            var model = scene.RootNode.AddNode<MeshGroup>(_name);
 
             foreach (var (shader, verts, tris, weights) in meshDatas)
             {

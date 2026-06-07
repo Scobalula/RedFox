@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
@@ -14,7 +15,7 @@ namespace RedFox.Graphics3D.Smd;
 /// <para>
 /// A <em>reference</em> SMD contains a <c>nodes</c>, a single-frame <c>skeleton</c>
 /// (bind pose) and a <c>triangles</c> section.  The reader creates a <see cref="Skeleton"/>
-/// hierarchy and a <see cref="Model"/> containing one <see cref="Mesh"/> per material group.
+/// hierarchy and a <see cref="MeshGroup"/> containing one <see cref="Mesh"/> per material group.
 /// </para>
 /// <para>
 /// A <em>sequence</em> (animation) SMD contains the same <c>nodes</c> section but a
@@ -110,7 +111,7 @@ public sealed class SmdReader
         // ---- Build model + meshes from triangles ----
         if (triGroups.Count > 0)
         {
-            var model         = scene.RootNode.AddNode<Model>(_name);
+            var model         = scene.RootNode.AddNode<MeshGroup>(_name);
             int maxInfluences = ComputeMaxInfluences(triGroups);
 
             foreach (var (materialName, verts) in triGroups)

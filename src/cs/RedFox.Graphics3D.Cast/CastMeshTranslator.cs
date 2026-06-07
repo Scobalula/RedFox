@@ -1,6 +1,7 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using System.Numerics;
@@ -10,7 +11,7 @@ namespace RedFox.Graphics3D.Cast;
 
 internal static class CastMeshTranslator
 {
-    public static void Read(Model model, MeshNode meshNode, Dictionary<ulong, Material> materials, SkeletonBone[]? bones)
+    public static void Read(MeshGroup model, MeshNode meshNode, Dictionary<ulong, Material> materials, SkeletonBone[]? bones)
     {
         var mesh = model.AddNode<Mesh>();
         var posBuffer = meshNode.VertexPositionBuffer;

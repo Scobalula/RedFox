@@ -39,15 +39,6 @@ public sealed class SceneTranslationSelection(Scene scene, SceneNodeFlags filter
         if (node.Flags.HasFlag(Filter))
             return true;
 
-        if (!Filter.HasFlag(SceneNodeFlags.Selected) && !Filter.HasFlag(SceneNodeFlags.SelectedHierarchy))
-            return false;
-
-        for (SceneNode? current = node; current is not null; current = current.Parent)
-        {
-            if (current.Flags.HasFlag(SceneNodeFlags.SelectedHierarchy))
-                return true;
-        }
-
         return false;
     }
 

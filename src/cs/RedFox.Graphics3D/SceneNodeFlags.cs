@@ -28,11 +28,6 @@ public enum SceneNodeFlags
     Selected = 4,
 
     /// <summary>
-    /// Indicates that the node and all of its descendants are selected.
-    /// </summary>
-    SelectedHierarchy = 8,
-
-    /// <summary>
     /// Indicates that the node is disabled and should not be rendered, updated, or exported.
     /// </summary>
     Disabled = 16,

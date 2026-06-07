@@ -1,5 +1,6 @@
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.ActorX;
@@ -67,7 +68,7 @@ public sealed class PskReader
                 reader.BaseStream.Seek(chunk.BodySize, SeekOrigin.Current);
         }
 
-        var model = scene.RootNode.AddNode<Model>(_name);
+        var model = scene.RootNode.AddNode<MeshGroup>(_name);
         var bones = BuildSkeleton(model, boneRecords);
         BuildMeshes(model, points, wedges, faces, materials, bones, influences);
     }
@@ -171,7 +172,7 @@ public sealed class PskReader
         return influences;
     }
 
-    private static SkeletonBone[] BuildSkeleton(Model model, List<ActorXBone> boneRecords)
+    private static SkeletonBone[] BuildSkeleton(MeshGroup model, List<ActorXBone> boneRecords)
     {
         var bones = new SkeletonBone[boneRecords.Count];
         for (int i = 0; i < bones.Length; i++)
@@ -191,7 +192,7 @@ public sealed class PskReader
     }
 
     private static void BuildMeshes(
-        Model model,
+        MeshGroup model,
         Vector3[] points,
         List<ActorXVertex> wedges,
         List<ActorXTriangle> faces,
@@ -303,7 +304,7 @@ public sealed class PskReader
         return grouped;
     }
 
-    private static Material[] BuildMaterials(Model model, List<ActorXMaterial> materials)
+    private static Material[] BuildMaterials(MeshGroup model, List<ActorXMaterial> materials)
     {
         if (materials.Count == 0)
             return [model.AddNode<Material>($"{model.Name}_Material")];

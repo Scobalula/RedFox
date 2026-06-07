@@ -24,5 +24,23 @@ namespace RedFox.Compression.LZ4
 
         [LibraryImport(Library, EntryPoint = "LZ4_compressBound", SetLastError = true)]
         public static partial int GetMaxCompressedSize(int srcSize);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_createDecompressionContext", SetLastError = true)]
+        public static partial int FrameCreateDecompressionContext(ref nuint decompressionContextPointer, uint versionNumber);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_decompress", SetLastError = true)]
+        public static partial int FrameDecompress(nuint decompressionContextPointer, Span<byte> dst, ref nuint dstSize, ReadOnlySpan<byte> src, ref nuint srcSize, ReadOnlySpan<byte> opt);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_freeDecompressionContext", SetLastError = true)]
+        public static partial int FrameFreeDecompressionContext(nuint decompressionContextPointer);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_getVersion", SetLastError = true)]
+        public static partial uint FrameGetVersion();
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_isError", SetLastError = true)]
+        public static partial uint FrameIsError(int code);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_getErrorName", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+        public static partial string FrameGetErrorName(int code);
     }
 }

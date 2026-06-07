@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 
 namespace RedFox.Graphics3D.WavefrontObj;
@@ -54,7 +55,7 @@ public sealed class ObjReader
         Dictionary<string, Material> materialsByName = [];
         List<string> mtllibPaths = [];
 
-        Model model = scene.RootNode.AddNode(new Model { Name = _name });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = _name });
         Mesh? currentMesh = null;
         int meshIndex = 0;
 
@@ -179,7 +180,7 @@ public sealed class ObjReader
         return mtllibPaths;
     }
 
-    private static Mesh CreateMesh(Model model, string groupName, ref int meshIndex)
+    private static Mesh CreateMesh(MeshGroup model, string groupName, ref int meshIndex)
     {
         string meshName = string.IsNullOrWhiteSpace(groupName)
             ? $"mesh_{meshIndex}"
@@ -196,7 +197,7 @@ public sealed class ObjReader
         return mesh;
     }
 
-    private static void MergeMeshesByMaterial(Model model)
+    private static void MergeMeshesByMaterial(MeshGroup model)
     {
         List<Mesh> sourceMeshes = [];
         foreach (Mesh mesh in model.EnumerateChildren<Mesh>())

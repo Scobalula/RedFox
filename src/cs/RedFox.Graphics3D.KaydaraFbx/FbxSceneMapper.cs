@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 
 namespace RedFox.Graphics3D.KaydaraFbx;
@@ -698,7 +699,7 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneIds = [];
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
-        Model[] models = selection.GetDescendants<Model>();
+        MeshGroup[] models = selection.GetDescendants<MeshGroup>();
         Group[] groups = selection.GetDescendants<Group>();
         Mesh[] meshes = selection.GetDescendants<Mesh>();
         Material[] materials = selection.GetDescendants<Material>();
@@ -719,7 +720,7 @@ public static class FbxSceneMapper
 
         for (int i = 0; i < models.Length; i++)
         {
-            Model model = models[i];
+            MeshGroup model = models[i];
             long id = nextId++;
             modelIds[model] = id;
             SceneNode? exportedParent = SceneNode.GetBestParent(model, exportedModelNodes);
@@ -1217,12 +1218,12 @@ public static class FbxSceneMapper
         for (int i = 0; i < children.Length; i++)
         {
             SceneNode child = children[i];
-            allModelChildren &= child is Mesh or Model or Camera or Light;
+            allModelChildren &= child is Mesh or MeshGroup or Camera or Light;
         }
 
         if (allModelChildren)
         {
-            return new Model { Name = group.Name };
+            return new MeshGroup { Name = group.Name };
         }
 
         return group;
@@ -1548,8 +1549,8 @@ public static class FbxSceneMapper
 
             bool shouldReparent = (child, parent) switch
             {
-                (SkeletonBone, Model or Group) => true,
-                (Mesh or Group or Model, Model or Group) => true,
+                (SkeletonBone, MeshGroup or Group) => true,
+                (Mesh or Group or MeshGroup, MeshGroup or Group) => true,
                 (Camera or Light, _) => true,
                 _ => false,
             };

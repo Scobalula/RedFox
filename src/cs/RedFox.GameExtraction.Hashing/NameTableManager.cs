@@ -3,6 +3,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography;
 
 namespace RedFox.GameExtraction.Hashing;
 
@@ -145,7 +146,7 @@ public sealed class NameTableManager
     {
         foreach (var table in _tables)
         {
-            if (!string.Equals(table.HashAlgorithm, algorithm, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(table.Name, algorithm, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (table.TryGetValue(key, out value))
@@ -171,6 +172,28 @@ public sealed class NameTableManager
         }
 
         value = null;
+        return false;
+    }
+
+    public NameTable CreateNameTable(string name)
+    {
+        var table = new NameTable(name);
+        Add(table);
+        return table;
+    }
+
+    public bool TryGetTable(string name, [NotNullWhen(true)] out NameTable? nameTable)
+    {
+        foreach (var table in _tables)
+        {
+            if (!string.Equals(table.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                nameTable = table;
+                return true;
+            }
+        }
+
+        nameTable = null;
         return false;
     }
 }

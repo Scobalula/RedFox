@@ -1,5 +1,6 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
@@ -9,7 +10,7 @@ internal static class CastModelTranslator
 {
     public static void Read(Scene scene, ModelNode modelNode, string name, string? sourceDirectory)
     {
-        var model = scene.RootNode.AddNode<Model>(name);
+        var model = scene.RootNode.AddNode<MeshGroup>(name);
         var materialLookup = new Dictionary<ulong, Material>();
 
         // Skeleton
@@ -56,7 +57,7 @@ internal static class CastModelTranslator
         }
     }
 
-    public static void Write(CastNode root, Model model, SceneTranslationSelection selection, string? targetDirectory)
+    public static void Write(CastNode root, MeshGroup model, SceneTranslationSelection selection, string? targetDirectory)
     {
         var modelNode = root.AddNode<ModelNode>();
 

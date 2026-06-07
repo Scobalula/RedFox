@@ -1,5 +1,6 @@
 ﻿using Cast.NET;
 using Cast.NET.Nodes;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using System.Reflection;
@@ -84,25 +85,25 @@ public sealed class CastTranslator : SceneTranslator
         };
     }
 
-    private static IReadOnlyList<Model> GetExportModels(SceneTranslationSelection selection)
+    private static IReadOnlyList<MeshGroup> GetExportModels(SceneTranslationSelection selection)
     {
-        List<Model> models = [];
-        HashSet<Model> seen = [];
+        List<MeshGroup> models = [];
+        HashSet<MeshGroup> seen = [];
 
-        static void AddModel(List<Model> models, HashSet<Model> seen, Model? model)
+        static void AddModel(List<MeshGroup> models, HashSet<MeshGroup> seen, MeshGroup? model)
         {
             if (model is not null && seen.Add(model))
                 models.Add(model);
         }
 
-        foreach (Model model in selection.GetDescendants<Model>())
+        foreach (MeshGroup model in selection.GetDescendants<MeshGroup>())
             AddModel(models, seen, model);
 
         foreach (Mesh mesh in selection.GetDescendants<Mesh>())
-            AddModel(models, seen, mesh.EnumerateAncestors<Model>().FirstOrDefault());
+            AddModel(models, seen, mesh.EnumerateAncestors<MeshGroup>().FirstOrDefault());
 
         foreach (Material material in selection.GetDescendants<Material>())
-            AddModel(models, seen, material.EnumerateAncestors<Model>().FirstOrDefault());
+            AddModel(models, seen, material.EnumerateAncestors<MeshGroup>().FirstOrDefault());
 
         return models;
     }

@@ -76,10 +76,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     public object? UserData { get; set; }
 
     /// <summary>
+    /// Gets or Sets the custom user ID assigned to the node.
+    /// </summary>
+    public UInt128 UserId { get; set; }
+
+    /// <summary>
     /// Initializes a new instance of <see cref="SceneNode"/> with a generated name.
     /// </summary>
     public SceneNode() : this($"SceneNode{SceneNodeId.GetNextId()}")
     {
+        // By default - a new node is "selected"
+        Flags = SceneNodeFlags.Selected;
     }
 
     /// <summary>
@@ -98,6 +105,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="name">The name to assign to the node.</param>
     public SceneNode(string name)
     {
+        // By default - a new node is "selected"
+        Flags = SceneNodeFlags.Selected;
         Name = name;
     }
 

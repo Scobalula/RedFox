@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
@@ -79,7 +80,7 @@ public sealed class MayaAsciiWriter
 
         WriteHeader(name);
 
-        Model[] models = selection.GetDescendants<Model>();
+        MeshGroup[] models = selection.GetDescendants<MeshGroup>();
         Group[] groups = selection.GetDescendants<Group>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
         Mesh[] meshes = selection.GetDescendants<Mesh>();
@@ -91,7 +92,7 @@ public sealed class MayaAsciiWriter
         Dictionary<Material, string> materialNodeNames = [];
         Dictionary<Mesh, string> meshShapeNames = [];
 
-        foreach (Model model in models)
+        foreach (MeshGroup model in models)
         {
             WriteTransformNode(model);
         }

@@ -87,6 +87,15 @@ namespace RedFox.IO
         public readonly T Read<T>(int position) where T : unmanaged => MemoryMarshal.Read<T>(_buffer[position..]);
 
         /// <summary>
+        /// Reads a span of <paramref name="count"/> values of type <typeparamref name="T"/>.
+        /// </summary>
+        /// <typeparam name="T">An unmanaged, blittable value type to read.</typeparam>
+        /// <param name="count">The number of elements to read.</param>
+        /// <returns>A read-only span of <typeparamref name="T"/> values reinterpreted from the buffer.</returns>
+        public ReadOnlySpan<T> ReadArray<T>(int count) where T : unmanaged =>
+            MemoryMarshal.Cast<byte, T>(Read(Unsafe.SizeOf<T>() * count));
+
+        /// <summary>
         /// Reads a span of <paramref name="count"/> values of type <typeparamref name="T"/> from the
         /// specified position. This does not modify the current position.
         /// </summary>
@@ -465,6 +474,23 @@ namespace RedFox.IO
                 throw new IOException("Attempted to seek before the start of the buffer.");
 
             return _position;
+        }
+
+        public string ReadFixedString(int size)
+        {
+            var buffer = Read(size);
+
+            int i;
+
+            for (i = 0; i < buffer.Length; i++)
+            {
+                if (buffer[i] == 0x0)
+                {
+                    break;
+                }
+            }
+
+            return Encoding.UTF8.GetString(buffer[..i]);
         }
     }
 }

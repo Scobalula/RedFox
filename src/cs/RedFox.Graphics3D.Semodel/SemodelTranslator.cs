@@ -1,4 +1,5 @@
 ﻿using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using RedFox.IO;
@@ -118,7 +119,7 @@ public class SemodelTranslator : SceneTranslator
         bool hasColours = (meshDataPresence & (1 << 2)) != 0;
         bool hasWeights = (meshDataPresence & (1 << 3)) != 0;
 
-        var model = scene.RootNode.AddNode<Model>(name);
+        var model = scene.RootNode.AddNode<MeshGroup>(name);
         var materialIndices = new List<int[]>(meshCount);
 
         for (int i = 0; i < meshCount; i++)

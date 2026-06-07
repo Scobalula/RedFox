@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 
@@ -134,7 +135,7 @@ public sealed class GltfReader
     /// <param name="scene">The scene to populate.</param>
     public void Read(Scene scene)
     {
-        Model model = scene.RootNode.AddNode<Model>(_name);
+        MeshGroup model = scene.RootNode.AddNode<MeshGroup>(_name);
 
         // Collect all joint node indices
         CollectJointIndices();
@@ -208,7 +209,7 @@ public sealed class GltfReader
     /// <param name="materials">The array of resolved materials to assign to mesh primitives.</param>
     /// <param name="skeletons">The array of resolved skeletons for skinning setup.</param>
     /// <param name="meshCounter">A running counter used to generate unique mesh names.</param>
-    public void ProcessNodeForMeshes(int nodeIdx, Model model, Material[] materials, SkeletonBone[] skeletons, ref int meshCounter)
+    public void ProcessNodeForMeshes(int nodeIdx, MeshGroup model, Material[] materials, SkeletonBone[] skeletons, ref int meshCounter)
     {
         if (nodeIdx < 0 || nodeIdx >= _doc.Nodes.Count) return;
 
@@ -559,7 +560,7 @@ public sealed class GltfReader
     /// </summary>
     /// <param name="model">The model node to add material nodes to.</param>
     /// <returns>An array of <see cref="Material"/> instances corresponding to each glTF material.</returns>
-    public Material[] BuildMaterials(Model model)
+    public Material[] BuildMaterials(MeshGroup model)
     {
         Material[] result = new Material[_doc.Materials.Count];
 

@@ -125,6 +125,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.Hashi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.HashBuilder", "RedFox.GameExtraction.HashBuilder\RedFox.GameExtraction.HashBuilder.csproj", "{88CDB158-DF39-46DD-A82A-3F30076C9F22}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.Tests", "RedFox.GameExtraction.Tests\RedFox.GameExtraction.Tests.csproj", "{FD0489A4-DA2C-4734-A366-885BFA6B4179}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -807,6 +809,18 @@ Global
 		{88CDB158-DF39-46DD-A82A-3F30076C9F22}.Release|x64.Build.0 = Release|Any CPU
 		{88CDB158-DF39-46DD-A82A-3F30076C9F22}.Release|x86.ActiveCfg = Release|Any CPU
 		{88CDB158-DF39-46DD-A82A-3F30076C9F22}.Release|x86.Build.0 = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|x64.Build.0 = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Debug|x86.Build.0 = Debug|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x64.ActiveCfg = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x64.Build.0 = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x86.ActiveCfg = Release|Any CPU
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -857,6 +871,7 @@ Global
 		{57AE0B70-7983-4E19-9885-EF40D820E3B2} = {D9448966-738B-491F-808C-D3CA93154F02}
 		{403F0A44-6479-4056-9273-C5DE4331C91C} = {D2170853-0866-47B3-B1AF-D07763F67315}
 		{88CDB158-DF39-46DD-A82A-3F30076C9F22} = {D2170853-0866-47B3-B1AF-D07763F67315}
+		{FD0489A4-DA2C-4734-A366-885BFA6B4179} = {D2170853-0866-47B3-B1AF-D07763F67315}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3738E201-81CE-4763-95EF-6E986D660EFF}

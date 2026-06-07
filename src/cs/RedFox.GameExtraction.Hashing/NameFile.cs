@@ -2,6 +2,9 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
+using System.Reflection.PortableExecutable;
+using System.Runtime.Intrinsics.Arm;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace RedFox.GameExtraction.Hashing;
@@ -12,6 +15,7 @@ namespace RedFox.GameExtraction.Hashing;
 public static class NameFile
 {
     private const ulong MagicNumber = 0x454C494648534148;
+    private const int ChecksumSize = 32;
 
     /// <summary>
     /// Loads a name table from a file, automatically detecting the format from the file extension.
@@ -113,14 +117,14 @@ public static class NameFile
             throw new NotSupportedException($"Invalid magic number: {magic}");
 
         var flags = (NameFileFlags)reader.ReadUInt64();
-        var entryCount = reader.ReadInt32();
+        var entryCount = reader.Read7BitEncodedInt();
         var hashAlgorithm = reader.ReadString();
 
         var table = new NameTable(hashAlgorithm);
 
         if (flags.HasFlag(NameFileFlags.Metadata))
         {
-            var metadataCount = reader.ReadInt32();
+            var metadataCount = reader.Read7BitEncodedInt();
 
             for (var i = 0; i < metadataCount; i++)
             {
@@ -128,12 +132,12 @@ public static class NameFile
             }
         }
 
-        var uncompressedSize = reader.ReadInt32();
+        var uncompressedSize = reader.Read7BitEncodedInt();
         var entryData = new byte[uncompressedSize];
 
         if (flags.HasFlag(NameFileFlags.Compressed))
         {
-            var compressedSize = reader.ReadInt32();
+            var compressedSize = reader.Read7BitEncodedInt();
             var compressed = reader.ReadBytes(compressedSize);
 
             entryData = new byte[uncompressedSize];
@@ -146,6 +150,19 @@ public static class NameFile
             reader.ReadExactly(entryData);
         }
 
+        if (flags.HasFlag(NameFileFlags.Checksum))
+        {
+            Span<byte> expected = stackalloc byte[ChecksumSize];
+            Span<byte> checksum = stackalloc byte[ChecksumSize];
+
+            reader.ReadExactly(checksum);
+
+            if (SHA256.HashData(entryData, checksum) != ChecksumSize)
+                throw new InvalidOperationException("Failed to compute name file checksum.");
+            if (expected.SequenceEqual(checksum))
+                throw new InvalidDataException("Name file checksum mismatch.");
+        }
+
         using var dataStream = new MemoryStream(entryData);
         using var dataReader = new BinaryReader(dataStream, Encoding.UTF8);
 
@@ -153,7 +170,7 @@ public static class NameFile
 
         for (var i = 0; i < entryCount; i++)
         {
-            var keySize = dataReader.ReadByte();
+            var keySize = dataReader.Read7BitEncodedInt();
             var span = keyBuf[..keySize];
             dataReader.BaseStream.ReadExactly(span);
             var key = new NameKey(span);
@@ -268,12 +285,12 @@ public static class NameFile
 
         writer.Write(MagicNumber);
         writer.Write((ulong)effectiveFlags);
-        writer.Write(nameTable.Count);
-        writer.Write(nameTable.HashAlgorithm);
+        writer.Write7BitEncodedInt(nameTable.Count);
+        writer.Write(nameTable.Name);
 
         if (effectiveFlags.HasFlag(NameFileFlags.Metadata))
         {
-            writer.Write(nameTable.Metadata.Count);
+            writer.Write7BitEncodedInt(nameTable.Metadata.Count);
 
             foreach (var (key, value) in nameTable.Metadata)
             {
@@ -287,7 +304,7 @@ public static class NameFile
 
         foreach (var (key, value) in nameTable)
         {
-            packedWriter.Write((byte)key.Length);
+            packedWriter.Write7BitEncodedInt((byte)key.Length);
             packedWriter.Write(key.Span);
             packedWriter.Write(value);
         }
@@ -300,14 +317,24 @@ public static class NameFile
             var compressed = new byte[NameFileCompressor.GetMaxCompressedSize(buffer.Length)];
             var compressedSize = NameFileCompressor.Compress(buffer, compressed);
 
-            writer.Write(buffer.Length);
-            writer.Write(compressedSize);
+            writer.Write7BitEncodedInt(buffer.Length);
+            writer.Write7BitEncodedInt(compressedSize);
             writer.Write(compressed, 0, compressedSize);
         }
         else
         {
-            writer.Write(buffer.Length);
+            writer.Write7BitEncodedInt(buffer.Length);
             writer.Write(buffer);
+        }
+
+        if (flags.HasFlag(NameFileFlags.Checksum))
+        {
+            Span<byte> checksum = stackalloc byte[ChecksumSize];
+
+            if (SHA256.HashData(buffer, checksum) != ChecksumSize)
+                throw new InvalidOperationException("Failed to compute name file checksum.");
+
+            writer.Write(checksum);
         }
     }
 

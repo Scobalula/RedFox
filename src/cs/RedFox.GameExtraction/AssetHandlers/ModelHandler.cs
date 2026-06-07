@@ -1,4 +1,5 @@
 ﻿using RedFox.Graphics3D;
+using RedFox.Graphics3D.Groups;
 using Silk.NET.Vulkan;
 using System;
 using System.Collections.Generic;
@@ -34,8 +35,8 @@ public abstract class ModelHandler : IAssetHandler
         // But I definitely need to look into how we can advise the sub-handler of a parent in a clean manner
         // including where to export a given image, etc. including potential for Model -> Material -> Texture
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
-        var relativeImages = context.ExportConfiguration.GetOption("RelativeModelImages", true);
-        var relativeToMaterial = context.ExportConfiguration.GetOption("RelativeToMaterialImages", true);
+        var relativeImages = context.ExportConfiguration.GetOption("RelativeModelImages", false);
+        var relativeToMaterial = context.ExportConfiguration.GetOption("RelativeToMaterialImages", false);
         var skipExistingImages = context.ExportConfiguration.GetOption("SkipExistingImages", true);
 
         foreach (var material in scene.EnumerateDescendants<Material>())
@@ -60,25 +61,28 @@ public abstract class ModelHandler : IAssetHandler
             }
         }
 
-        var skipExisting = context.ExportConfiguration.GetOption("SkipExistingModels", false);
+        var skipExisting = context.ExportConfiguration.GetOption("SkipExistingModels", true);
         var modelFormats = context.ExportConfiguration.GetOption("ModelFormats", DefaultFormats);
 
-        foreach (var group in scene.EnumerateChildren<Model>("LOD*"))
+        foreach (var group in scene.EnumerateChildren<MeshGroup>())
         {
             Directory.CreateDirectory(outputDirectory);
-            group.Flags |= SceneNodeFlags.SelectedHierarchy;
+
+            group.Flags |= SceneNodeFlags.Selected;
 
             foreach (var modelFormat in modelFormats)
             {
                 var lodPath = Path.Combine(outputDirectory, modelName + group.Name + modelFormat);
 
-                if (skipExisting && Path.Exists(Path.GetFullPath(lodPath)))
-                    continue;
+                //if (skipExisting && Path.Exists(Path.GetFullPath(lodPath)))
+                //    continue;
 
-                await manager.WriteAsync(lodPath, scene, new(), cancellationToken);
+                // WriteRawVertices will hint to the downstream translator that it should not apply skinning
+                // We are reading and writing raw vertices from game formats so it's not needed.
+                await manager.WriteAsync(lodPath, scene, new() { Filter = SceneNodeFlags.Selected, WriteRawVertices = true }, cancellationToken);
             }
 
-            group.Flags ^= SceneNodeFlags.SelectedHierarchy;
+            group.Flags ^= SceneNodeFlags.Selected;
         }
     }
 

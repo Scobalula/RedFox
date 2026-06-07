@@ -24,4 +24,9 @@ public enum NameFileFlags : ulong
     /// Indicates that the name file contains metadata entries.
     /// </summary>
     Metadata = 1 << 1,
+
+    /// <summary>
+    /// Indicates a checksum buffer is present.
+    /// </summary>
+    Checksum = 1 << 2,
 }

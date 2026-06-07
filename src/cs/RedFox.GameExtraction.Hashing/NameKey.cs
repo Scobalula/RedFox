@@ -3,6 +3,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 using System.Buffers.Binary;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -11,7 +12,7 @@ namespace RedFox.GameExtraction.Hashing;
 /// <summary>
 /// Represents an immutable hash key that stores raw byte data, using inline storage for keys of 16 bytes or fewer.
 /// </summary>
-public readonly struct NameKey : IEquatable<NameKey>
+public readonly record struct NameKey : IEquatable<NameKey>
 {
     private readonly byte[]? _data;
     private readonly UInt128 _inline;
@@ -79,17 +80,22 @@ public readonly struct NameKey : IEquatable<NameKey>
     public NameKey(int value) : this((uint)value) { }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="NameKey"/> struct from a 32-bit unsigned integer, stored in big-endian order.
+    /// Initializes a new instance of the <see cref="NameKey"/> struct from a 32-bit unsigned integer, stored in minimal big-endian order.
     /// </summary>
+    /// <remarks>
+    /// Insignificant leading zero bytes are trimmed so that the key represents the logical value rather than a
+    /// fixed width, allowing numerically equal values to compare equal regardless of the integer type they came from.
+    /// </remarks>
     /// <param name="value">The unsigned integer value to use as the key.</param>
     public NameKey(uint value)
     {
-        var swapped = BinaryPrimitives.ReverseEndianness(value);
+        var length = (BitOperations.Log2(value) >> 3) + 1;
+        var inline = BinaryPrimitives.ReverseEndianness(value) >> ((sizeof(uint) - length) << 3);
 
         _data = null;
-        _inline = swapped;
-        _length = 4;
-        _hashCode = ComputeInlineHash(swapped, 4);
+        _inline = inline;
+        _length = length;
+        _hashCode = ComputeInlineHash(inline, length);
     }
 
     /// <summary>
@@ -99,17 +105,22 @@ public readonly struct NameKey : IEquatable<NameKey>
     public NameKey(long value) : this((ulong)value) { }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="NameKey"/> struct from a 64-bit unsigned integer, stored in big-endian order.
+    /// Initializes a new instance of the <see cref="NameKey"/> struct from a 64-bit unsigned integer, stored in minimal big-endian order.
     /// </summary>
+    /// <remarks>
+    /// Insignificant leading zero bytes are trimmed so that the key represents the logical value rather than a
+    /// fixed width, allowing numerically equal values to compare equal regardless of the integer type they came from.
+    /// </remarks>
     /// <param name="value">The unsigned long value to use as the key.</param>
     public NameKey(ulong value)
     {
-        var swapped = BinaryPrimitives.ReverseEndianness(value);
+        var length = (BitOperations.Log2(value) >> 3) + 1;
+        var inline = BinaryPrimitives.ReverseEndianness(value) >> ((sizeof(ulong) - length) << 3);
 
         _data = null;
-        _inline = unchecked((UInt128)swapped);
-        _length = 8;
-        _hashCode = ComputeInlineHash(swapped, 8);
+        _inline = inline;
+        _length = length;
+        _hashCode = ComputeInlineHash(inline, length);
     }
 
     /// <summary>
@@ -142,27 +153,8 @@ public readonly struct NameKey : IEquatable<NameKey>
     /// <param name="value">The unsigned long value to convert.</param>
     public static implicit operator NameKey(ulong value) => new(value);
 
-    /// <summary>
-    /// Determines whether two <see cref="NameKey"/> instances are equal by comparing their byte spans.
-    /// </summary>
-    /// <param name="left">The left key to compare.</param>
-    /// <param name="right">The right key to compare.</param>
-    /// <returns><see langword="true"/> if the keys are equal; otherwise, <see langword="false"/>.</returns>
-    public static bool operator ==(NameKey left, NameKey right) => left.Equals(right);
-
-    /// <summary>
-    /// Determines whether two <see cref="NameKey"/> instances are not equal.
-    /// </summary>
-    /// <param name="left">The left key to compare.</param>
-    /// <param name="right">The right key to compare.</param>
-    /// <returns><see langword="true"/> if the keys are not equal; otherwise, <see langword="false"/>.</returns>
-    public static bool operator !=(NameKey left, NameKey right) => !(left == right);
-
     /// <inheritdoc/>
     public bool Equals(NameKey other) => Span.SequenceEqual(other.Span);
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj) => obj is NameKey other && Equals(other);
 
     /// <inheritdoc/>
     public override int GetHashCode() => _hashCode;

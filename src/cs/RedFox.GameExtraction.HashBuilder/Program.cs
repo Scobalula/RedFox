@@ -25,16 +25,19 @@ var inputPath = args[0];
 var outputPath = args.Length > 1 && !args[1].StartsWith("--") ? args[1] : Path.ChangeExtension(inputPath, ".namefile");
 
 string? hashAlgorithm = null;
-var compress = false;
+var compress = true;
+var checksum = true;
 var metadataPairs = new List<string>();
 
 for (var i = 1; i < args.Length; i++)
 {
-    if (args[i] is "--algorithm" or "-a" && i + 1 < args.Length)
+    if (args[i] is "--name" && i + 1 < args.Length)
         hashAlgorithm = args[++i];
-    else if (args[i] is "--compress" or "-c")
-        compress = true;
-    else if (args[i] is "--metadata" or "-m" && i + 1 < args.Length)
+    else if (args[i] is "--nocompress")
+        compress = false;
+    else if (args[i] is "--nochecksum")
+        checksum = false;
+    else if (args[i] is "--metadata" && i + 1 < args.Length)
         metadataPairs.Add(args[++i]);
 }
 
@@ -80,7 +83,7 @@ else
     return 1;
 }
 
-Console.WriteLine($"Algorithm: {nameTable.HashAlgorithm}");
+Console.WriteLine($"Algorithm: {nameTable.Name}");
 Console.WriteLine($"Entries:   {nameTable.Count:N0}");
 
 nameTable.Metadata["Timestamp"] = DateTime.UtcNow.ToString("o");
@@ -89,6 +92,7 @@ nameTable.Metadata["SourceFile"] = Path.GetFileName(inputPath);
 foreach (var pair in metadataPairs)
 {
     var eq = pair.IndexOf('=');
+
     if (eq > 0)
     {
         nameTable.Metadata[pair[..eq].Trim()] = pair[(eq + 1)..].Trim();
@@ -106,7 +110,13 @@ if (nameTable.Metadata.Count > 0)
 
 Console.WriteLine($"Saving:    {outputPath}");
 
-var flags = compress ? NameFileFlags.Compressed : NameFileFlags.None;
+var flags = NameFileFlags.None;
+
+if (compress)
+    flags |= NameFileFlags.Compressed;
+if (checksum)
+    flags |= NameFileFlags.Checksum;
+
 NameFile.Save(outputPath, nameTable, flags);
 
 Console.WriteLine("Done.");

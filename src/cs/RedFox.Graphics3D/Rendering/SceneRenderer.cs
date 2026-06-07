@@ -569,6 +569,8 @@ public sealed class SceneRenderer : IDisposable
 
     private void BackgroundImageLoadLoop()
     {
+        return;
+
         while (true)
         {
             _backgroundImageLoadSignal.WaitOne();

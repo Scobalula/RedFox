@@ -116,6 +116,17 @@ public abstract class VirtualFile
     }
 
     /// <summary>
+    /// Creates all directories and subdirectories on-disk.
+    /// </summary>
+    public void CreateDirectory()
+    {
+        if (Parent is null)
+            return;
+
+        Directory.CreateDirectory(Parent.FullPath);
+    }
+
+    /// <summary>
     /// Writes the contents of the file. The file will be created if it does not exist, and overwritten if it does.
     /// </summary>
     public void WriteAllBytes() => WriteAllBytes(FullPath);

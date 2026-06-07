@@ -1,9 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace RedFox.Graphics3D.Groups;
 
+/// <summary>
+/// Represents a group of mesh nodes in the scene graph for logical grouping.
+/// </summary>
 public class MeshGroup : Group
 {
     /// <summary>

@@ -1,3 +1,4 @@
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 
 namespace RedFox.Graphics3D.Md5;
@@ -11,7 +12,7 @@ namespace RedFox.Graphics3D.Md5;
 /// </para>
 /// <para>
 /// On reading, the translator parses the joint hierarchy, creates a <see cref="Skeletal.Skeleton"/>
-/// and a <see cref="Model"/> containing one <see cref="Mesh"/> per sub-mesh block.  Vertex
+/// and a <see cref="MeshGroup"/> containing one <see cref="Mesh"/> per sub-mesh block.  Vertex
 /// positions, normals, and tangents are computed from the weight data.
 /// </para>
 /// <para>

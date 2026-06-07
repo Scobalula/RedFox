@@ -18,7 +18,7 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     /// <summary>
     /// Gets or sets the name of the hash algorithm used to generate the keys in this table.
     /// </summary>
-    public string HashAlgorithm { get; set; } = hashAlgorithm;
+    public string Name { get; set; } = hashAlgorithm;
 
     /// <summary>
     /// Gets the number of entries in the name table.
