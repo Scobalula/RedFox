@@ -77,7 +77,7 @@ public static class MeshNormals
 
         for (int v = 0; v < vertexCount; v++)
         {
-            Vector3 n = Vector3.Normalize(accum[v]);
+            Vector3 n = accum[v].LengthSquared() > Epsilon * Epsilon ? Vector3.Normalize(accum[v]) : Vector3.Zero;
             normalSpan[v] = clockwise ? -n : n;
         }
 
@@ -117,7 +117,12 @@ public static class MeshNormals
             Vector3 p0 = positions.GetVector3(i0, 0);
             Vector3 p1 = positions.GetVector3(i1, 0);
             Vector3 p2 = positions.GetVector3(i2, 0);
-            Vector3 faceNormal = Vector3.Normalize(Vector3.Cross(p1 - p0, p2 - p0));
+            Vector3 cross = Vector3.Cross(p1 - p0, p2 - p0);
+
+            if (cross.LengthSquared() <= Epsilon * Epsilon)
+                continue;
+
+            Vector3 faceNormal = Vector3.Normalize(cross);
 
             accum[i0] += faceNormal;
             accum[i1] += faceNormal;
@@ -149,7 +154,12 @@ public static class MeshNormals
             Vector3 p2 = positions.GetVector3(i2, 0);
 
             Vector3 e01 = p1 - p0, e02 = p2 - p0;
-            Vector3 faceNormal = Vector3.Normalize(Vector3.Cross(e01, e02));
+            Vector3 cross = Vector3.Cross(e01, e02);
+
+            if (cross.LengthSquared() <= Epsilon * Epsilon)
+                continue;
+
+            Vector3 faceNormal = Vector3.Normalize(cross);
 
             float w0 = MathF.Acos(float.Clamp(Vector3.Dot(Vector3.Normalize(e01), Vector3.Normalize(e02)), -1f, 1f));
             float w1 = MathF.Acos(float.Clamp(Vector3.Dot(Vector3.Normalize(p2 - p1), Vector3.Normalize(p0 - p1)), -1f, 1f));
@@ -185,10 +195,15 @@ public static class MeshNormals
             Vector3 p2 = positions.GetVector3(i2, 0);
 
             Vector3 e01 = p1 - p0, e02 = p2 - p0;
-            Vector3 faceNormal = Vector3.Normalize(Vector3.Cross(e01, e02));
+            Vector3 cross = Vector3.Cross(e01, e02);
+
+            if (cross.LengthSquared() <= Epsilon * Epsilon)
+                continue;
+
+            Vector3 faceNormal = Vector3.Normalize(cross);
 
             // The magnitude of the cross product equals twice the triangle area; all three corners share the same triangle.
-            float w = Vector3.Cross(e01, e02).Length();
+            float w = cross.Length();
 
             accum[i0] += faceNormal * w;
             accum[i1] += faceNormal * w;

@@ -394,7 +394,28 @@ namespace RedFox.IO
                 }
             }
 
-            throw new EndOfStreamException("Null terminator was not found.");
+            var end2 = _buffer.Length;
+            string value2 = encoding.GetString(_buffer[_position..end2]);
+            _position = _buffer.Length;
+            return value2;
+
+            // throw new EndOfStreamException("Null terminator was not found.");
+        }
+
+        public ReadOnlySpan<byte> ReadNullTerminatedSpan()
+        {
+            var start = _position;
+            for (int end = _position; end < _buffer.Length; end++)
+            {
+                if (_buffer[end] == 0x0)
+                {
+                    _position = end + 1;
+                    return _buffer[start..end];
+                }
+            }
+
+            _position = _buffer.Length;
+            return _buffer[start.._buffer.Length];
         }
 
         /// <summary>

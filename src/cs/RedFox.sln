@@ -127,6 +127,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.HashB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.GameExtraction.Tests", "RedFox.GameExtraction.Tests\RedFox.GameExtraction.Tests.csproj", "{FD0489A4-DA2C-4734-A366-885BFA6B4179}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Compression.Oodle", "RedFox.Compression.Oodle\RedFox.Compression.Oodle.csproj", "{A0C8606E-C65F-4E8E-9601-0C18044C77AD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -821,6 +823,18 @@ Global
 		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x64.Build.0 = Release|Any CPU
 		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x86.ActiveCfg = Release|Any CPU
 		{FD0489A4-DA2C-4734-A366-885BFA6B4179}.Release|x86.Build.0 = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|x64.Build.0 = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Debug|x86.Build.0 = Debug|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|x64.ActiveCfg = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|x64.Build.0 = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|x86.ActiveCfg = Release|Any CPU
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -872,6 +886,7 @@ Global
 		{403F0A44-6479-4056-9273-C5DE4331C91C} = {D2170853-0866-47B3-B1AF-D07763F67315}
 		{88CDB158-DF39-46DD-A82A-3F30076C9F22} = {D2170853-0866-47B3-B1AF-D07763F67315}
 		{FD0489A4-DA2C-4734-A366-885BFA6B4179} = {D2170853-0866-47B3-B1AF-D07763F67315}
+		{A0C8606E-C65F-4E8E-9601-0C18044C77AD} = {846F02B2-9911-4D62-9696-C7AF261FC7C7}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3738E201-81CE-4763-95EF-6E986D660EFF}

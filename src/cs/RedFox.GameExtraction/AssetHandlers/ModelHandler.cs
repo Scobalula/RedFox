@@ -3,6 +3,7 @@ using RedFox.Graphics3D.Groups;
 using Silk.NET.Vulkan;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace RedFox.GameExtraction.AssetHandlers;
@@ -64,26 +65,60 @@ public abstract class ModelHandler : IAssetHandler
         var skipExisting = context.ExportConfiguration.GetOption("SkipExistingModels", true);
         var modelFormats = context.ExportConfiguration.GetOption("ModelFormats", DefaultFormats);
 
+        var meshes = scene.EnumerateDescendants<Mesh>().ToArray();
+        var materials = scene.EnumerateDescendants<Material>().ToArray();
+
         foreach (var group in scene.EnumerateChildren<MeshGroup>())
         {
             Directory.CreateDirectory(outputDirectory);
 
-            group.Flags |= SceneNodeFlags.Selected;
+            // Remember the flags we touch so the scene is left as we found it.
+            var originalFlags = meshes.Cast<SceneNode>().Concat(materials).Append(group).ToDictionary(node => node, node => node.Flags);
 
-            foreach (var modelFormat in modelFormats)
+            SelectForGroup(group, meshes, materials);
+
+            try
             {
-                var lodPath = Path.Combine(outputDirectory, modelName + group.Name + modelFormat);
+                foreach (var modelFormat in modelFormats)
+                {
+                    var lodPath = Path.Combine(outputDirectory, modelName + group.Name + modelFormat);
 
-                //if (skipExisting && Path.Exists(Path.GetFullPath(lodPath)))
-                //    continue;
+                    //if (skipExisting && Path.Exists(Path.GetFullPath(lodPath)))
+                    //    continue;
 
-                // WriteRawVertices will hint to the downstream translator that it should not apply skinning
-                // We are reading and writing raw vertices from game formats so it's not needed.
-                await manager.WriteAsync(lodPath, scene, new() { Filter = SceneNodeFlags.Selected, WriteRawVertices = true }, cancellationToken);
+                    // WriteRawVertices will hint to the downstream translator that it should not apply skinning
+                    // We are reading and writing raw vertices from game formats so it's not needed.
+                    await manager.WriteAsync(lodPath, scene, new() { Filter = SceneNodeFlags.Selected, WriteRawVertices = true }, cancellationToken);
+                }
             }
-
-            group.Flags ^= SceneNodeFlags.Selected;
+            finally
+            {
+                foreach (var (node, flags) in originalFlags)
+                    node.Flags = flags;
+            }
         }
+    }
+
+    /// <summary>
+    /// Marks exactly the meshes under <paramref name="group"/> and the materials they use as selected, and clears
+    /// the selection on every other mesh and material. Selection is tested per node and nodes are selected by
+    /// default, so without this every group's meshes would be written into every group's file.
+    /// </summary>
+    /// <param name="group">The group being exported.</param>
+    /// <param name="meshes">Every mesh in the scene.</param>
+    /// <param name="materials">Every material in the scene.</param>
+    public static void SelectForGroup(MeshGroup group, IEnumerable<Mesh> meshes, IEnumerable<Material> materials)
+    {
+        var groupMeshes = group.EnumerateDescendants<Mesh>().ToHashSet();
+        var usedMaterials = groupMeshes.SelectMany(mesh => mesh.Materials ?? []).ToHashSet();
+
+        group.Flags |= SceneNodeFlags.Selected;
+
+        foreach (var mesh in meshes)
+            mesh.Flags = groupMeshes.Contains(mesh) ? mesh.Flags | SceneNodeFlags.Selected : mesh.Flags & ~SceneNodeFlags.Selected;
+
+        foreach (var material in materials)
+            material.Flags = usedMaterials.Contains(material) ? material.Flags | SceneNodeFlags.Selected : material.Flags & ~SceneNodeFlags.Selected;
     }
 
     /// <inheritdoc/>
