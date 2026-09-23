@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>RedFox.Graphics3D.Formats</PackageId>
+    <PackageDescription>Built-in scene translators for RedFox Graphics3D.</PackageDescription>
+    <PackageVersion Condition="'$(RedFoxGraphics3DFormatsPackageVersion)' != ''">$(RedFoxGraphics3DFormatsPackageVersion)</PackageVersion>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+    <ProjectReference Include="..\RedFox\RedFox.csproj" />
+    <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
+    <ProjectReference Include="..\..\..\..\CallOfFile\src\CallOfFile\CallOfFile.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Cast.NET" Version="2.0.0-alpha" />
+  </ItemGroup>
+</Project>

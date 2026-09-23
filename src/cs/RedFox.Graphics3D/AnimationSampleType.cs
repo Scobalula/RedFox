@@ -5,8 +5,23 @@
 /// </summary>
 public enum AnimationSampleType
 {
+    /// <summary>
+    /// Samples using a normalized position within the animation range.
+    /// </summary>
     Percentage,
+
+    /// <summary>
+    /// Samples using an absolute frame number.
+    /// </summary>
     AbsoluteFrameTime,
+
+    /// <summary>
+    /// Samples using an absolute time value.
+    /// </summary>
     AbsoluteTime,
+
+    /// <summary>
+    /// Advances sampling by the elapsed time since the previous update.
+    /// </summary>
     DeltaTime,
 }

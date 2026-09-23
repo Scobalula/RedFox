@@ -33,6 +33,9 @@ public class SkeletonAnimation : Animation
     /// </summary>
     public TransformSpace TransformSpace { get; set; }
 
+    /// <summary>
+    /// Initializes a skeletal animation with an empty track collection and a default framerate of 30 frames per second.
+    /// </summary>
     public SkeletonAnimation() : base()
     {
         Tracks = [];

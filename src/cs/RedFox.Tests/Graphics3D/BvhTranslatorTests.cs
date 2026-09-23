@@ -3,7 +3,7 @@
 //using System.Text;
 
 //using RedFox.Graphics3D;
-//using RedFox.Graphics3D.Bvh;
+//using RedFox.Graphics3D.Formats.Bvh;
 //using RedFox.Graphics3D.Buffers;
 //using RedFox.Graphics3D.IO;
 //using RedFox.Graphics3D.Skeletal;

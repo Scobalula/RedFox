@@ -10,7 +10,7 @@
 // using System.Numerics;
 // using RedFox.Graphics3D;
 // using RedFox.Graphics3D.Buffers;
-// using RedFox.Graphics3D.Gltf;
+// using RedFox.Graphics3D.Formats.Gltf;
 // using RedFox.Graphics3D.IO;
 // using RedFox.Graphics3D.Skeletal;
 

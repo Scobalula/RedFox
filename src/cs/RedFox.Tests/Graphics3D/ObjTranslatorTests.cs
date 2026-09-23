@@ -10,8 +10,9 @@ using System.Numerics;
 using System.Text;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
-using RedFox.Graphics3D.WavefrontObj;
+using RedFox.Graphics3D.Formats.WavefrontObj;
 
 namespace RedFox.Tests.Graphics3D;
 
@@ -145,7 +146,7 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_PositionsOnly_RoundTrips()
     {
         Scene scene = new("PositionsOnlyScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
         Mesh mesh = model.AddNode(new Mesh { Name = "pos_only" });
         mesh.Positions = new DataBuffer<float>(
         [
@@ -445,7 +446,7 @@ public sealed class ObjTranslatorTests
     {
         // Create a mesh with more than ushort.MaxValue vertices to force int indices
         Scene scene = new("LargeScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "LargeModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "LargeModel" });
         Mesh mesh = model.AddNode(new Mesh { Name = "large_mesh" });
 
         int vertexCount = ushort.MaxValue + 10;
@@ -475,7 +476,7 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_Write_Filter_ExportsSelectedMeshAndMaterial()
     {
         Scene scene = new("FilteredObjScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "Model" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "Model" });
 
         Material selectedMaterial = model.AddNode(new Material("SelectedMaterial") { Flags = SceneNodeFlags.Selected });
         Mesh selectedMesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
@@ -504,7 +505,7 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
     {
         Scene scene = new("FilteredObjMaterialScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "Model" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "Model" });
         Material material = model.AddNode(new Material("FilteredMaterial"));
         Mesh mesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
@@ -524,7 +525,7 @@ public sealed class ObjTranslatorTests
     private static Scene CreateTriangleScene()
     {
         Scene scene = new("TriangleScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
         Mesh mesh = model.AddNode(new Mesh { Name = "triangle" });
 
         mesh.Positions = new DataBuffer<float>(
@@ -555,7 +556,7 @@ public sealed class ObjTranslatorTests
     private static Scene CreateMultiMeshScene()
     {
         Scene scene = new("MultiMeshScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
 
         Mesh meshA = model.AddNode(new Mesh { Name = "BoxA" });
         meshA.Positions = new DataBuffer<float>(
@@ -593,7 +594,7 @@ public sealed class ObjTranslatorTests
     private static Scene CreateSceneWithMaterials()
     {
         Scene scene = new("MaterialScene");
-        Model model = scene.RootNode.AddNode(new Model { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
 
         Mesh mesh = model.AddNode(new Mesh { Name = "textured_mesh" });
         mesh.Positions = new DataBuffer<float>(

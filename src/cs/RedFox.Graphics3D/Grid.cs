@@ -62,8 +62,6 @@ namespace RedFox.Graphics3D
         /// </summary>
         public Vector4 AxisZColor { get; set; } = new Vector4(0.25f, 0.45f, 0.9f, 0.82f);
 
-        internal IRenderHandle? GraphicsHandle { get; set; }
-
         /// <summary>
         /// Initializes a new grid settings instance with default rendering values.
         /// </summary>

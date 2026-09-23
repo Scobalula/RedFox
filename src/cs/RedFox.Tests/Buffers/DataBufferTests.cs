@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
-using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Tests.Buffers;
 
@@ -209,23 +208,22 @@ public class DataBufferTests
     }
 
     [Fact]
-    public void DataBuffer_TryGetGpuBufferData_ReturnsTypedLiveByteView()
+    public void DataBuffer_TryGetRawData_ReturnsTypedLiveByteView()
     {
         DataBuffer<ushort> buffer = new(new ushort[] { 1, 2, 3, 4, 5, 6 }, 1, 3);
 
-        bool result = buffer.TryGetGpuBufferData(out GpuBufferData bufferData);
+        bool result = buffer.TryGetRawData(out DataBufferRawData bufferData);
         ReadOnlySpan<ushort> values = MemoryMarshal.Cast<byte, ushort>(bufferData.Bytes);
 
         Assert.True(result);
-        Assert.Equal(GpuBufferElementType.UInt16, bufferData.ElementType);
+        Assert.Equal(typeof(ushort), bufferData.ComponentType);
         Assert.Equal(2, bufferData.ElementCount);
         Assert.Equal(1, bufferData.ValueCount);
         Assert.Equal(3, bufferData.ComponentCount);
         Assert.Equal(sizeof(ushort) * 3, bufferData.ElementStrideBytes);
         Assert.Equal(sizeof(ushort) * 3, bufferData.ValueStrideBytes);
         Assert.Equal(sizeof(ushort), bufferData.ComponentSizeBytes);
-        Assert.Equal(6, bufferData.TotalComponentCount);
-        Assert.True(bufferData.IsTightlyPacked);
+        Assert.Equal(6, bufferData.ElementCount * bufferData.ValueCount * bufferData.ComponentCount);
         Assert.Equal(new ushort[] { 1, 2, 3, 4, 5, 6 }, values.ToArray());
 
         buffer.AsSpan()[1] = 42;
@@ -233,7 +231,7 @@ public class DataBufferTests
     }
 
     [Fact]
-    public void DataBuffer_CreateStrided_TryGetGpuBufferData_ReturnsPackedByteView()
+    public void DataBuffer_CreateStrided_TryGetRawData_ReturnsPackedByteView()
     {
         byte[] source = new byte[sizeof(float) * 8];
         Span<float> sourceValues = MemoryMarshal.Cast<byte, float>(source.AsSpan());
@@ -247,13 +245,12 @@ public class DataBufferTests
         sourceValues[7] = 100f;
         DataBuffer<float> buffer = DataBufferPacking.CreateStrided<float>(source, 2, byteOffset: 0, byteStride: sizeof(float) * 4, valueCount: 1, componentCount: 3, byteValueStride: sizeof(float) * 3);
 
-        bool result = buffer.TryGetGpuBufferData(out GpuBufferData bufferData);
+        bool result = buffer.TryGetRawData(out DataBufferRawData bufferData);
 
         Assert.True(result);
-        Assert.Equal(GpuBufferElementType.Float32, bufferData.ElementType);
+        Assert.Equal(typeof(float), bufferData.ComponentType);
         Assert.Equal(2, bufferData.ElementCount);
         Assert.Equal(sizeof(float) * 3, bufferData.ElementStrideBytes);
-        Assert.True(bufferData.IsTightlyPacked);
         Assert.Equal(new float[] { 1f, 2f, 3f, 4f, 5f, 6f }, MemoryMarshal.Cast<byte, float>(bufferData.Bytes).ToArray());
     }
 }

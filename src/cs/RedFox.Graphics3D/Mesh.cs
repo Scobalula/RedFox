@@ -1,7 +1,4 @@
 using RedFox.Graphics3D.Buffers;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -171,12 +168,6 @@ namespace RedFox.Graphics3D
         public void InvalidateSkinBoundsCache()
             => _cachedSkinBounds = null;
 
-        /// <inheritdoc/>
-        public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-        {
-            return new MeshRenderHandle(graphicsDevice, this);
-        }
-
         internal bool TryGetActiveSkinBounds(out SceneBounds bounds)
         {
             if (!HasSkinning
@@ -265,10 +256,6 @@ namespace RedFox.Graphics3D
         /// Sets the skin binding for this mesh and keeps the inverse bind matrices aligned.
         /// </summary>
         /// <param name="skinnedBones">The ordered skinned bones used by <see cref="BoneIndices"/>.</param>
-        /// <param name="inverseBindMatrices">
-        /// Optional inverse bind matrices aligned with <paramref name="skinnedBones"/>.
-        /// If omitted, inverse bind matrices are generated from the current bind transforms.
-        /// </param>
         public void SetSkinBinding(IReadOnlyList<SkeletonBone>? skinnedBones)
             => SetSkinBinding(skinnedBones, inverseBindMatrices: null);
 
@@ -399,7 +386,6 @@ namespace RedFox.Graphics3D
         /// Adds a skinned bone and appends a matching inverse bind matrix.
         /// </summary>
         /// <param name="bone">The bone to add.</param>
-        /// <param name="inverseBindMatrix">Optional explicit inverse bind matrix for the added bone.</param>
         /// <returns>The skin index of the added (or existing) bone.</returns>
         public int AddSkinnedBone(SkeletonBone bone)
             => AddSkinnedBone(bone, inverseBindMatrix: null);
@@ -704,6 +690,9 @@ namespace RedFox.Graphics3D
             && _skinnedBones is not null
             && _inverseBindMatrices.Length == _skinnedBones.Length;
 
+        /// <summary>
+        /// Gets the winding order used by the mesh's triangle faces.
+        /// </summary>
         public MeshFaceOrder FaceOrder { get; private set; }
 
         /// <summary>
@@ -1279,6 +1268,13 @@ namespace RedFox.Graphics3D
             return world;
         }
 
+        /// <summary>
+        /// Maps this mesh's skin palette to indices in a caller-provided bone table.
+        /// </summary>
+        /// <param name="boneTable">The global table that assigns an index to each skeleton bone.</param>
+        /// <returns>An array whose entries correspond to <see cref="SkinnedBones"/>.</returns>
+        /// <exception cref="NullReferenceException">The mesh does not define a skin palette.</exception>
+        /// <exception cref="KeyNotFoundException">A skinned bone is absent from <paramref name="boneTable"/>.</exception>
         public int[] GetBoneIndices(Dictionary<SkeletonBone, int> boneTable)
         {
             if (SkinnedBones is null)

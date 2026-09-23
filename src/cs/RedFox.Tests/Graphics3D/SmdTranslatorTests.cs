@@ -4,7 +4,7 @@
 //using RedFox.Graphics3D.Buffers;
 //using RedFox.Graphics3D.IO;
 //using RedFox.Graphics3D.Skeletal;
-//using RedFox.Graphics3D.Smd;
+//using RedFox.Graphics3D.Formats.Smd;
 
 //namespace RedFox.Tests.Graphics3D;
 

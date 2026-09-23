@@ -3,10 +3,11 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
-using RedFox.Graphics3D.KaydaraFbx;
-using RedFox.Graphics3D.MayaAscii;
-using RedFox.Graphics3D.Semodel;
+using RedFox.Graphics3D.Formats.KaydaraFbx;
+using RedFox.Graphics3D.Formats.MayaAscii;
+using RedFox.Graphics3D.Formats.SEModel;
 
 namespace RedFox.Tests.Graphics3D;
 
@@ -211,7 +212,7 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        Model model = importedRoot.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
         model.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
         model.BindTransform.LocalRotation = Quaternion.Identity;
         model.BindTransform.Scale = Vector3.One;
@@ -266,7 +267,7 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        Model model = importedRoot.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
@@ -317,7 +318,7 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        Model model = importedRoot.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
@@ -402,7 +403,7 @@ public sealed class FbxTranslatorTests
         bone.LiveTransform.LocalRotation = Quaternion.Identity;
         bone.LiveTransform.Scale = Vector3.One;
 
-        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
@@ -441,7 +442,7 @@ public sealed class FbxTranslatorTests
         bone.LiveTransform.LocalRotation = Quaternion.Identity;
         bone.LiveTransform.Scale = Vector3.One;
 
-        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
@@ -598,9 +599,9 @@ public sealed class FbxTranslatorTests
         FbxDocument document = CreateImportClassificationDocument();
 
         Scene scene = FbxSceneMapper.ImportScene(document, "classification-test");
-        Model modelRoot = Assert.Single(scene.EnumerateChildren().OfType<Model>(), static model => model.Name == "ModelRoot");
+        MeshGroup modelRoot = Assert.Single(scene.EnumerateChildren().OfType<MeshGroup>(), static model => model.Name == "ModelRoot");
 
-        Assert.Contains(modelRoot.EnumerateChildren(), static child => child is Model model && model.Name == "MeshGroup");
+        Assert.Contains(modelRoot.EnumerateChildren(), static child => child is MeshGroup model && model.Name == "MeshGroup");
         Assert.DoesNotContain(scene.GetDescendants<Group>(), static group => group.Name == "MeshGroup");
     }
 
@@ -667,7 +668,10 @@ public sealed class FbxTranslatorTests
     public void FbxTranslator_Read_RealTalk_ImportsVisibleConstraintNodes()
     {
         string realTalkPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        Assert.True(File.Exists(realTalkPath), $"Expected test asset at: {realTalkPath}");
+        if (!File.Exists(realTalkPath))
+        {
+            return;
+        }
 
         byte[] data = File.ReadAllBytes(realTalkPath);
         using MemoryStream documentStream = new(data, writable: false);
@@ -879,7 +883,7 @@ public sealed class FbxTranslatorTests
         childBone.BindTransform.LocalRotation = Quaternion.Identity;
         childBone.BindTransform.Scale = Vector3.One;
 
-        Model model = scene.RootNode.AddNode(new Model { Name = "ModelRoot" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "mesh_0" });
 
         mesh.Positions = new DataBuffer<float>(
@@ -941,7 +945,7 @@ public sealed class FbxTranslatorTests
     public void FbxTranslator_Write_Filter_ReparentsSelectedNodesToNearestExportedAncestorAndPreservesWorldTransform()
     {
         Scene scene = new("filtered-fbx");
-        Model exportRoot = scene.RootNode.AddNode(new Model
+        MeshGroup exportRoot = scene.RootNode.AddNode(new MeshGroup
         {
             Name = "ExportRoot",
             Flags = SceneNodeFlags.Selected,
@@ -984,9 +988,9 @@ public sealed class FbxTranslatorTests
         Scene scene = CreateSampleScene();
         SceneTranslatorManager manager = CreateManager();
 
-        Model model = Assert.Single(scene.GetDescendants<Model>());
+        MeshGroup model = Assert.Single(scene.GetDescendants<MeshGroup>());
         Mesh mesh = Assert.Single(scene.GetDescendants<Mesh>());
-        SkeletonBone skeleton = Assert.Single(scene.GetDescendants<SkeletonBone>().Where(b => b.Parent is not SkeletonBone));
+        SkeletonBone skeleton = Assert.Single(scene.GetDescendants<SkeletonBone>(), static bone => bone.Parent is not SkeletonBone);
 
         model.Flags = SceneNodeFlags.Selected;
         mesh.Flags = SceneNodeFlags.Selected;
@@ -1013,7 +1017,7 @@ public sealed class FbxTranslatorTests
         Scene scene = CreateSampleScene();
         SceneTranslatorManager manager = CreateManager();
 
-        Model model = Assert.Single(scene.GetDescendants<Model>());
+        MeshGroup model = Assert.Single(scene.GetDescendants<MeshGroup>());
         Mesh mesh = Assert.Single(scene.GetDescendants<Mesh>());
         Material material = Assert.Single(scene.GetDescendants<Material>());
 

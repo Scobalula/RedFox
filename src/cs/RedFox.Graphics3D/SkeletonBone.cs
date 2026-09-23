@@ -1,7 +1,4 @@
 using System.Numerics;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -90,15 +87,18 @@ public class SkeletonBone : SceneNode
     /// </summary>
     public float BoneNameColorValue { get; set; } = 0.95f;
 
+    /// <summary>
+    /// Initializes a skeleton bone with the specified name.
+    /// </summary>
+    /// <param name="name">The name assigned to the bone node.</param>
     public SkeletonBone(string name) : base(name) { }
 
+    /// <summary>
+    /// Initializes a skeleton bone with the specified name and flags.
+    /// </summary>
+    /// <param name="name">The name assigned to the bone node.</param>
+    /// <param name="flags">The flags assigned to the bone node.</param>
     public SkeletonBone(string name, SceneNodeFlags flags) : base(name, flags) { }
-
-    /// <inheritdoc/>
-    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-    {
-        return new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, this);
-    }
 
     /// <inheritdoc/>
     public override bool TryGetSceneBounds(out SceneBounds bounds)

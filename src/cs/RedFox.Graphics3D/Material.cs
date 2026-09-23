@@ -1,8 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -330,30 +327,6 @@ public class Material(string name) : SceneNode(name)
     /// Initializes a new instance of the <see cref="Material"/> class with default values.
     /// </summary>
     public Material() : this(string.Empty) { }
-
-    /// <inheritdoc/>
-    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-        => EnsureGraphicsHandle(graphicsDevice);
-
-    internal MaterialRenderHandle EnsureGraphicsHandle(IGraphicsDevice graphicsDevice)
-    {
-        ArgumentNullException.ThrowIfNull(graphicsDevice);
-
-        if (GraphicsHandle is MaterialRenderHandle existingHandle && existingHandle.IsOwnedBy(graphicsDevice))
-        {
-            return existingHandle;
-        }
-
-        if (GraphicsHandle is not null)
-        {
-            GraphicsHandle.Release();
-            GraphicsHandle.Dispose();
-        }
-
-        MaterialRenderHandle materialHandle = new(graphicsDevice, this);
-        GraphicsHandle = materialHandle;
-        return materialHandle;
-    }
 
     /// <summary>
     /// Connects <paramref name="texture"/> to this material under <paramref name="slotKey"/>.

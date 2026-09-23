@@ -1,5 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -7,18 +6,15 @@
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.2" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
-
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Compression\RedFox.Compression.csproj" />
     <ProjectReference Include="..\RedFox.Compression.Deflate\RedFox.Compression.Deflate.csproj" />
@@ -37,22 +33,11 @@
     <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
     <ProjectReference Include="..\RedFox.Graphics2D.Ktx\RedFox.Graphics2D.Ktx.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.KaydaraFbx\RedFox.Graphics3D.KaydaraFbx.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.MayaAscii\RedFox.Graphics3D.MayaAscii.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.IO\RedFox.Graphics3D.IO.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Seanim\RedFox.Graphics3D.Seanim.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Semodel\RedFox.Graphics3D.Semodel.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.WavefrontObj\RedFox.Graphics3D.WavefrontObj.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Smd\RedFox.Graphics3D.Smd.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Gltf\RedFox.Graphics3D.Gltf.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Md5\RedFox.Graphics3D.Md5.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.Bvh\RedFox.Graphics3D.Bvh.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D.XAsset\RedFox.Graphics3D.XAsset.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Formats\RedFox.Graphics3D.Formats.csproj" />
   </ItemGroup>
-
 </Project>

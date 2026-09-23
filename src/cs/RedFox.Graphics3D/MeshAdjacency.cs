@@ -215,6 +215,14 @@ public static class MeshAdjacency
                 }
                 else
                 {
+                    // Every distinct vertex can require one collision-chain entry, even when
+                    // the hash table itself uses fewer buckets.
+                    if (freeEntry == hashTable.Length)
+                    {
+                        Array.Resize(ref hashTable, vertexCount);
+                        Array.Resize(ref hashNext, vertexCount);
+                    }
+
                     hashTable[freeEntry] = (pos.X, pos.Y, pos.Z, (uint)vert);
                     hashNext[freeEntry]  = hashHead[hashKey];
                     hashHead[hashKey]    = freeEntry;

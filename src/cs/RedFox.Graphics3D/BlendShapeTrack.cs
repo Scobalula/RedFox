@@ -8,8 +8,8 @@ namespace RedFox.Graphics3D
     /// over time. Contains a scalar <see cref="AnimationCurve"/> whose sampled
     /// value is applied as the morph target weight during playback.
     /// <para>
-    /// The track's <see cref="SceneNode.Name"/> should match the
-    /// <see cref="BlendShape.Name"/> it targets, enabling name-based binding
+    /// The track's name should match the name of the
+    /// <see cref="BlendShape"/> it targets, enabling name-based binding
     /// in the <see cref="BlendShapeSampler"/>.
     /// </para>
     /// </summary>

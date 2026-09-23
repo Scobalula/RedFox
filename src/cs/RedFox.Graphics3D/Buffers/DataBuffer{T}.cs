@@ -4,10 +4,13 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Buffers
 {
+    /// <summary>
+    /// Provides mutable, strongly typed storage for a structured data buffer.
+    /// </summary>
+    /// <typeparam name="T">The unmanaged numeric component type stored in the buffer.</typeparam>
     public sealed class DataBuffer<T> : DataBuffer where T : unmanaged, INumber<T>
     {
         internal T[] _items;
@@ -63,19 +66,14 @@ namespace RedFox.Graphics3D.Buffers
         }
 
         /// <inheritdoc/>
-        public override bool TryGetGpuBufferData(out GpuBufferData bufferData)
+        public override bool TryGetRawData(out DataBufferRawData bufferData)
         {
-            if (!DataBufferGpuElementTypes.TryGet<T>(out GpuBufferElementType elementType, out int componentSizeBytes))
-            {
-                bufferData = default;
-                return false;
-            }
-
+            int componentSizeBytes = Unsafe.SizeOf<T>();
             int valueStrideBytes = _componentCount * componentSizeBytes;
             int elementStrideBytes = _valueCount * valueStrideBytes;
-            bufferData = new GpuBufferData(
+            bufferData = new DataBufferRawData(
                 MemoryMarshal.AsBytes(AsReadOnlySpan()),
-                elementType,
+                typeof(T),
                 _elementCount,
                 _valueCount,
                 _componentCount,

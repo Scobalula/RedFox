@@ -113,11 +113,17 @@ public class AnimationPlayer(string name) : SceneNode(name)
     /// </summary>
     /// <param name="layer">The sampler layer.</param>
     /// <param name="blendMode">How this layer combines with previous layers.</param>
-    /// <param name="weight">Constant weight for this layer (0..1).</param>
     /// <returns>This <see cref="AnimationPlayer"/> for chaining.</returns>
     public AnimationPlayer WithSubLayer(AnimationSampler? layer, AnimationBlendMode blendMode)
         => WithSubLayer(layer, blendMode, weight: 1.0f);
 
+    /// <summary>
+    /// Adds a layer with an explicit blend mode and constant weight.
+    /// </summary>
+    /// <param name="layer">The sampler layer to add. A null value leaves this player unchanged.</param>
+    /// <param name="blendMode">How the layer combines with preceding layers.</param>
+    /// <param name="weight">The constant blend weight for the layer.</param>
+    /// <returns>This player, so calls can be chained.</returns>
     public AnimationPlayer WithSubLayer(AnimationSampler? layer, AnimationBlendMode blendMode, float weight)
     {
         if (layer is not null)

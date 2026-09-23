@@ -34,10 +34,17 @@ public abstract class Animation : SceneNode
     /// <returns>A tuple of (minFrame, maxFrame).</returns>
     public abstract (float, float) GetAnimationFrameRange();
 
+    /// <summary>
+    /// Initializes a new animation with the default scene-node name.
+    /// </summary>
     public Animation() : base()
     {
     }
 
+    /// <summary>
+    /// Initializes a new animation with the specified scene-node name.
+    /// </summary>
+    /// <param name="name">The name assigned to the animation node.</param>
     public Animation(string name) : base(name)
     {
     }

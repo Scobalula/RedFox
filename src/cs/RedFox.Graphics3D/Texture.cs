@@ -1,8 +1,5 @@
 using RedFox.Graphics2D;
 using RedFox.Graphics2D.IO;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
@@ -15,7 +12,13 @@ namespace RedFox.Graphics3D;
 /// <param name="filePath">The full path to the image file to be used as the texture.</param>
 public class Texture(string filePath) : SceneNode(filePath)
 {
-    internal bool LoadAttempted;
+    /// <summary>
+    /// Gets or sets a value indicating whether asynchronous image loading has already been queued for this texture.
+    /// </summary>
+    /// <value>
+    /// <see langword="true"/> when image loading has been queued; otherwise, <see langword="false"/>.
+    /// </value>
+    public bool LoadAttempted { get; set; }
 
     /// <summary>
     /// Gets or sets the full path to the file associated with this texture.
@@ -149,29 +152,4 @@ public class Texture(string filePath) : SceneNode(filePath)
         return Data is not null;
     }
 
-    /// <inheritdoc/>
-    public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-    {
-        return EnsureGraphicsHandle(graphicsDevice);
-    }
-
-    internal TextureRenderHandle EnsureGraphicsHandle(IGraphicsDevice graphicsDevice)
-    {
-        ArgumentNullException.ThrowIfNull(graphicsDevice);
-
-        if (GraphicsHandle is TextureRenderHandle existingHandle && existingHandle.IsOwnedBy(graphicsDevice))
-        {
-            return existingHandle;
-        }
-
-        if (GraphicsHandle is not null)
-        {
-            GraphicsHandle.Release();
-            GraphicsHandle.Dispose();
-        }
-
-        TextureRenderHandle textureHandle = new(graphicsDevice, this);
-        GraphicsHandle = textureHandle;
-        return textureHandle;
-    }
 }

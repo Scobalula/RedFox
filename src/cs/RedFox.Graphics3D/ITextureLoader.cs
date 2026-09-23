@@ -12,6 +12,6 @@ namespace RedFox.Graphics3D
         /// <summary>
         /// Loads and returns the image data, or <see langword="null"/> if the source is unavailable.
         /// </summary>
-        Image Load(Texture texture, ImageTranslatorManager translatorManager);
+        Image? Load(Texture texture, ImageTranslatorManager translatorManager);
     }
 }

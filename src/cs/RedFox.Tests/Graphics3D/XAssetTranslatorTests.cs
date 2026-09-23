@@ -1,4 +1,4 @@
-using RedFox.Graphics3D.XAsset;
+using RedFox.Graphics3D.Formats.XAsset;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using RedFox.Graphics3D;
@@ -74,7 +74,7 @@ public sealed class XAssetTranslatorTests
             mesh.BoneWeights = null;
             mesh.SkinnedBones = null;
         }
-        foreach (SkeletonBone bone in scene.RootNode.Children.OfType<SkeletonBone>().ToArray())
+        foreach (SkeletonBone bone in (scene.RootNode.Children ?? []).OfType<SkeletonBone>().ToArray())
             scene.RootNode.RemoveNode(bone);
 
         using MemoryStream output = new();
@@ -82,13 +82,13 @@ public sealed class XAssetTranslatorTests
         output.Position = 0;
         Scene roundTripped = manager.Read(output, "roundtrip.xmodel_bin", new SceneTranslatorOptions());
         SkeletonBone[] bones = roundTripped.GetDescendants<SkeletonBone>();
-        Assert.Single(bones.Where(static bone => bone.Name == "tag_origin"));
+        Assert.Single(bones, static bone => bone.Name == "tag_origin");
         Assert.All(roundTripped.GetDescendants<Mesh>(), static mesh =>
         {
-            Assert.NotNull(mesh.BoneIndices);
-            Assert.NotNull(mesh.BoneWeights);
-            Assert.Equal(0, mesh.BoneIndices.Get<int>(0, 0, 0));
-            Assert.Equal(1f, mesh.BoneWeights.Get<float>(0, 0, 0));
+            DataBuffer boneIndices = Assert.IsAssignableFrom<DataBuffer>(mesh.BoneIndices);
+            DataBuffer boneWeights = Assert.IsAssignableFrom<DataBuffer>(mesh.BoneWeights);
+            Assert.Equal(0, boneIndices.Get<int>(0, 0, 0));
+            Assert.Equal(1f, boneWeights.Get<float>(0, 0, 0));
         });
     }
 

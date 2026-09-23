@@ -14,7 +14,7 @@ using System.Numerics;
 namespace RedFox.Graphics3D.Skeletal;
 
 /// <summary>
-/// Binds a <see cref="SkeletonAnimation"/> to a <see cref="Skeleton"/> and samples
+/// Binds a <see cref="SkeletonAnimation"/> to a <see cref="SkeletonBone"/> hierarchy and samples
 /// the animation's tracks onto matching bones each frame. Supports weighted blending
 /// via <see cref="AnimationSampler.CurrentWeight"/> and optional
 /// <see cref="AnimationSampler.Mask"/> filtering.

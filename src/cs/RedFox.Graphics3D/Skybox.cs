@@ -28,5 +28,4 @@ public sealed class Skybox
     /// </summary>
     public Vector4 Tint { get; set; } = Vector4.One;
 
-    internal IRenderHandle? GraphicsHandle { get; set; }
 }

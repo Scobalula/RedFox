@@ -116,14 +116,14 @@ public class AnimationCurve
     /// <summary>
     /// Creates a new curve configured for <see cref="Vector3"/> values.
     /// </summary>
-    /// <param name="capacity">Initial keyframe capacity (0 for default).</param>
     /// <returns>A new <see cref="AnimationCurve"/> with 3-component value buffer.</returns>
     public static AnimationCurve CreateVector3() => CreateVector3(capacity: 0);
 
     /// <summary>
     /// Creates a new curve configured for <see cref="Vector3"/> values.
     /// </summary>
-    /// <returns>A new <see cref="AnimationCurve"/> with 3-component value buffer.</returns>
+    /// <param name="capacity">The initial keyframe capacity. Specify zero to use the default.</param>
+    /// <returns>A new <see cref="AnimationCurve"/> with a three-component value buffer.</returns>
     public static AnimationCurve CreateVector3(int capacity)
     {
         return new AnimationCurve
@@ -157,8 +157,18 @@ public class AnimationCurve
     /// Creates a new curve configured for <see cref="Vector3"/> values with the
     /// specified transform space and type.
     /// </summary>
+    /// <param name="space">The coordinate space for curve values.</param>
+    /// <param name="type">How curve values are applied to the target transform.</param>
+    /// <returns>A curve configured for three-component vector values.</returns>
     public static AnimationCurve CreateVector3(TransformSpace space, TransformType type) => CreateVector3(space, type, capacity: 0);
 
+    /// <summary>
+    /// Creates a new curve configured for <see cref="Vector3"/> values with the specified transform metadata.
+    /// </summary>
+    /// <param name="space">The coordinate space for curve values.</param>
+    /// <param name="type">How curve values are applied to the target transform.</param>
+    /// <param name="capacity">The initial keyframe capacity. Specify zero to use the default.</param>
+    /// <returns>A curve configured for three-component vector values.</returns>
     public static AnimationCurve CreateVector3(TransformSpace space, TransformType type, int capacity)
     {
         var curve = CreateVector3(capacity);
@@ -171,9 +181,19 @@ public class AnimationCurve
     /// Creates a new curve configured for <see cref="Quaternion"/> values with the
     /// specified transform space and type.
     /// </summary>
+    /// <param name="space">The coordinate space for curve values.</param>
+    /// <param name="type">How curve values are applied to the target transform.</param>
+    /// <returns>A curve configured for four-component quaternion values.</returns>
     public static AnimationCurve CreateQuaternion(TransformSpace space, TransformType type)
         => CreateQuaternion(space, type, capacity: 0);
 
+    /// <summary>
+    /// Creates a new curve configured for <see cref="Quaternion"/> values with the specified transform metadata.
+    /// </summary>
+    /// <param name="space">The coordinate space for curve values.</param>
+    /// <param name="type">How curve values are applied to the target transform.</param>
+    /// <param name="capacity">The initial keyframe capacity. Specify zero to use the default.</param>
+    /// <returns>A curve configured for four-component quaternion values.</returns>
     public static AnimationCurve CreateQuaternion(TransformSpace space, TransformType type, int capacity)
     {
         var curve = CreateQuaternion(capacity);

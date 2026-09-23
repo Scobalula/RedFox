@@ -9,7 +9,7 @@
 //using System.Numerics;
 //using RedFox.Graphics3D;
 //using RedFox.Graphics3D.IO;
-//using RedFox.Graphics3D.SEAnim;
+//using RedFox.Graphics3D.Formats.SEAnim;
 //using RedFox.Graphics3D.Skeletal;
 
 //namespace RedFox.Tests.Graphics3D;

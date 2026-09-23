@@ -55,12 +55,18 @@ public static class AnimationHelper
     /// </summary>
     /// <param name="curve">The weight curve (1-component scalar).</param>
     /// <param name="time">Current playback time.</param>
-    /// <param name="defaultWeight">Value returned when the curve is empty.</param>
     /// <returns>The interpolated weight at the given time.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static float GetWeight(AnimationCurve? curve, float time)
         => GetWeight(curve, time, defaultWeight: 1.0f);
 
+    /// <summary>
+    /// Interpolates the weight at the given time from a scalar animation curve.
+    /// </summary>
+    /// <param name="curve">The scalar curve to sample. A null or empty curve returns <paramref name="defaultWeight"/>.</param>
+    /// <param name="time">The playback time to sample.</param>
+    /// <param name="defaultWeight">The value returned when <paramref name="curve"/> has no keyframes.</param>
+    /// <returns>The interpolated curve value or <paramref name="defaultWeight"/>.</returns>
     public static float GetWeight(AnimationCurve? curve, float time, float defaultWeight)
     {
         if (curve is null || curve.KeyFrameCount == 0)

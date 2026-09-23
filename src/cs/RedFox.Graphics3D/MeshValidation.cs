@@ -176,6 +176,14 @@ public static class MeshValidation
                     if (neighbour == MeshAdjacency.Unused)
                         continue;
 
+                    if (neighbour >= (uint)faceCount)
+                    {
+                        if (messages is null) return false;
+                        valid = false;
+                        messages.AppendLine($"Neighbour triangle ({neighbour}) referenced by face {face} is outside the adjacency range.");
+                        continue;
+                    }
+
                     bool found = false;
                     for (int p2 = 0; p2 < 3; p2++)
                     {

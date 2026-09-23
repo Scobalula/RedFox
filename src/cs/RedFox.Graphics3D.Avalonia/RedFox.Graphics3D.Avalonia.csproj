@@ -5,6 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>RedFox.Graphics3D.Avalonia</PackageId>
+    <PackageDescription>Avalonia control integration for RedFox Graphics3D renderers.</PackageDescription>
+    <PackageVersion Condition="'$(RedFoxGraphics3DAvaloniaPackageVersion)' != ''">$(RedFoxGraphics3DAvaloniaPackageVersion)</PackageVersion>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Avalonia.Themes\RedFox.Avalonia.Themes.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Rendering\RedFox.Graphics3D.Rendering.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
   </ItemGroup>
 

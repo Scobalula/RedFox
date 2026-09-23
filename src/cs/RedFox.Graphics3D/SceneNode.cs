@@ -2,15 +2,12 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Enumeration;
 using System.Numerics;
 using System.Xml.Linq;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D;
 
 /// <summary>
 /// Represents a node in a scene graph. Scene nodes can have a parent and zero or more
-/// child nodes, carry transform information and optional rendering handles, and
-/// participate in update traversal.
+/// child nodes, carry transform information, and participate in update traversal.
 /// </summary>
 public abstract class SceneNode : IUpdatable, IDisposable
 {
@@ -56,11 +53,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
     public Transform LiveTransform { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets the renderer-specific handle used for rendering operations.
-    /// </summary>
-    public IRenderHandle? GraphicsHandle { get; set; }
-
-    /// <summary>
     /// Gets or sets the flags that define the properties and behaviors of the scene node.
     /// </summary>
     public SceneNodeFlags Flags { get; set; }
@@ -85,8 +77,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// </summary>
     public SceneNode() : this($"SceneNode{SceneNodeId.GetNextId()}")
     {
-        // By default - a new node is "selected"
-        Flags = SceneNodeFlags.Selected;
+        Flags = SceneNodeFlags.None;
     }
 
     /// <summary>
@@ -105,8 +96,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="name">The name to assign to the node.</param>
     public SceneNode(string name)
     {
-        // By default - a new node is "selected"
-        Flags = SceneNodeFlags.Selected;
+        Flags = SceneNodeFlags.None;
         Name = name;
     }
 
@@ -120,19 +110,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
     {
         Name = name;
         Flags = flags;
-    }
-
-    /// <summary>
-    /// Creates the render handle for this node.
-    /// </summary>
-    /// <param name="graphicsDevice">The graphics device that will own the handle resources.</param>
-    /// <param name="materialTypes">The material type registry used to resolve material pipelines.</param>
-    /// <returns>The created render handle, or <see langword="null"/> when this node does not render.</returns>
-    public virtual IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-    {
-        ArgumentNullException.ThrowIfNull(graphicsDevice);
-        ArgumentNullException.ThrowIfNull(materialTypes);
-        return null;
     }
 
     private bool MatchesFilter(SceneNodeFlags filter) =>
@@ -3289,7 +3266,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Disposes this node, its render handle, and all descendant nodes.
+    /// Disposes this node and all descendant nodes.
     /// </summary>
     public void Dispose()
     {
@@ -3297,14 +3274,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         {
             return;
         }
-
-        if (GraphicsHandle is { } graphicsHandle)
-        {
-            graphicsHandle.Release();
-            graphicsHandle.Dispose();
-        }
-
-        GraphicsHandle = null;
 
         DisposeCore();
 

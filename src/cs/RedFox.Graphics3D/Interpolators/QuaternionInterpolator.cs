@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D.Interpolators
 {
+    /// <summary>
+    /// Interpolates quaternion animation values.
+    /// </summary>
     public class QuaternionInterpolator : IValueManipulator<Quaternion>
     {
         /// <inheritdoc/>

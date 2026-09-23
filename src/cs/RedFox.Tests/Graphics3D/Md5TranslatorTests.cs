@@ -3,7 +3,7 @@
 //using RedFox.Graphics3D;
 //using RedFox.Graphics3D.Buffers;
 //using RedFox.Graphics3D.IO;
-//using RedFox.Graphics3D.Md5;
+//using RedFox.Graphics3D.Formats.Md5;
 //using RedFox.Graphics3D.Skeletal;
 
 //namespace RedFox.Tests.Graphics3D;

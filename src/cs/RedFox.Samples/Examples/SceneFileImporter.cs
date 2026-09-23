@@ -1,16 +1,7 @@
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Buffers;
-using RedFox.Graphics3D.Bvh;
-using RedFox.Graphics3D.Cast;
-using RedFox.Graphics3D.Gltf;
+using RedFox.Graphics3D.Formats;
 using RedFox.Graphics3D.IO;
-using RedFox.Graphics3D.KaydaraFbx;
-using RedFox.Graphics3D.MayaAscii;
-using RedFox.Graphics3D.Md5;
-using RedFox.Graphics3D.SEAnim;
-using RedFox.Graphics3D.Semodel;
-using RedFox.Graphics3D.Smd;
-using RedFox.Graphics3D.WavefrontObj;
 using System.Numerics;
 
 namespace RedFox.Samples.Examples;
@@ -93,19 +84,7 @@ internal sealed class SceneFileImporter
 
     private static SceneTranslatorManager CreateTranslatorManager()
     {
-        SceneTranslatorManager manager = new();
-        manager.Register<ObjTranslator>();
-        manager.Register<GltfTranslator>();
-        manager.Register<SemodelTranslator>();
-        manager.Register<SmdTranslator>();
-        manager.Register<MayaAsciiTranslator>();
-        manager.Register<FbxTranslator>();
-        manager.Register<CastTranslator>();
-        manager.Register<BvhTranslator>();
-        manager.Register<Md5MeshTranslator>();
-        manager.Register<Md5AnimTranslator>();
-        manager.Register<SeanimTranslator>();
-        return manager;
+        return BuiltInFormats.CreateDefaultManager();
     }
 
     private static DataBuffer<float> CreatePositions()

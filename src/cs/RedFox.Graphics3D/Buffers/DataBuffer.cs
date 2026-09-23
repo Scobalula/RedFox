@@ -1,5 +1,4 @@
 ﻿using System.Numerics;
-using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Buffers;
 
@@ -84,11 +83,11 @@ public abstract class DataBuffer
     }
 
     /// <summary>
-    /// Tries to expose the populated storage as a contiguous GPU upload payload without converting component values.
+    /// Tries to expose the populated storage as a contiguous raw payload without converting component values.
     /// </summary>
     /// <param name="bufferData">When this method returns <see langword="true"/>, receives the byte payload and source layout metadata.</param>
-    /// <returns><see langword="true"/> when a direct contiguous GPU-compatible payload is available; otherwise <see langword="false"/>.</returns>
-    public virtual bool TryGetGpuBufferData(out GpuBufferData bufferData)
+    /// <returns><see langword="true"/> when a direct contiguous payload is available; otherwise <see langword="false"/>.</returns>
+    public virtual bool TryGetRawData(out DataBufferRawData bufferData)
     {
         bufferData = default;
         return false;

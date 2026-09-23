@@ -1,0 +1,144 @@
+using Cast.NET;
+using Cast.NET.Nodes;
+using RedFox.Graphics3D.Groups;
+using RedFox.Graphics3D.IO;
+using RedFox.Graphics3D.Skeletal;
+
+namespace RedFox.Graphics3D.Formats.Cast;
+
+internal static class CastModelTranslator
+{
+    public static void Read(Scene scene, ModelNode modelNode, string name, string? sourceDirectory)
+    {
+        var model = scene.RootNode.AddNode<MeshGroup>(name);
+        var materialLookup = new Dictionary<ulong, Material>();
+
+        // Skeleton
+        SkeletonBone[]? bones = null;
+        if (modelNode.Skeleton is SkeletonNode skeletonNode)
+        {
+            bones = CastSkeletonTranslator.Read(model, skeletonNode, $"{name}_Skeleton");
+        }
+
+        // Materials
+        foreach (var materialNode in modelNode.Materials)
+        {
+            var material = model.AddNode<Material>(materialNode.Name);
+
+            if (materialNode.Diffuse is FileNode diffuseFile)
+            {
+                var diffuseTex = material.AddNode(new Texture(diffuseFile.Path));
+                diffuseTex.ResolveFilePath(sourceDirectory);
+                material.DiffuseMapName = "diffuse";
+                material.Connect("diffuse", diffuseTex);
+            }
+            if (materialNode.Normal is FileNode normalFile)
+            {
+                var normalTex = material.AddNode(new Texture(normalFile.Path));
+                normalTex.ResolveFilePath(sourceDirectory);
+                material.NormalMapName = "normal";
+                material.Connect("normal", normalTex);
+            }
+            if (materialNode.Specular is FileNode specularFile)
+            {
+                var specularTex = material.AddNode(new Texture(specularFile.Path));
+                specularTex.ResolveFilePath(sourceDirectory);
+                material.SpecularMapName = "specular";
+                material.Connect("specular", specularTex);
+            }
+
+            materialLookup[materialNode.Hash] = material;
+        }
+
+        // Meshes
+        foreach (var meshNode in modelNode.Meshes)
+        {
+            CastMeshTranslator.Read(model, meshNode, materialLookup, bones);
+        }
+    }
+
+    public static void Write(CastNode root, MeshGroup model, SceneTranslationSelection selection, string? targetDirectory)
+    {
+        var modelNode = root.AddNode<ModelNode>();
+
+        // Skeleton — find bones from the scene
+        var bones = selection.GetDescendants<SkeletonBone>();
+        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
+
+        if (bones.Length > 0)
+        {
+            var skeletonNode = modelNode.AddNode<SkeletonNode>();
+            var boneNodes = new BoneNode[bones.Length];
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                var bone = bones[i];
+                var boneNode = skeletonNode.AddNode<BoneNode>();
+
+                boneNode.AddString("n", bone.Name);
+
+                if (bone.BindTransform.LocalPosition.HasValue)
+                    boneNode.AddValue("lp", bone.BindTransform.LocalPosition.Value);
+                if (bone.BindTransform.LocalRotation.HasValue)
+                    boneNode.AddValue("lr", CastHelpers.CreateVector4FromQuaternion(bone.BindTransform.LocalRotation.Value));
+                if (bone.BindTransform.WorldPosition.HasValue)
+                    boneNode.AddValue("wp", bone.BindTransform.WorldPosition.Value);
+                if (bone.BindTransform.WorldRotation.HasValue)
+                    boneNode.AddValue("wr", CastHelpers.CreateVector4FromQuaternion(bone.BindTransform.WorldRotation.Value));
+
+                boneNodes[i] = boneNode;
+            }
+
+            // Second pass — resolve parent indices
+            for (int i = 0; i < bones.Length; i++)
+            {
+                int bestParentIndex = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes);
+                uint parentIndex = bestParentIndex >= 0 ? (uint)bestParentIndex : uint.MaxValue;
+                boneNodes[i].AddValue("p", parentIndex);
+            }
+        }
+
+        // Meshes
+        var boneTable = new Dictionary<SkeletonBone, int>(bones.Length);
+        for (int i = 0; i < bones.Length; i++)
+            boneTable[bones[i]] = i;
+
+        foreach (Mesh mesh in model.GetDescendants<Mesh>(selection.Filter))
+        {
+            CastMeshTranslator.Write(modelNode, mesh, boneTable, selection);
+        }
+
+        // Materials
+        foreach (Material material in model.GetDescendants<Material>(selection.Filter))
+        {
+            var materialNode = modelNode.AddNode(new MaterialNode(material.Name, "pbr"));
+
+            foreach (MaterialTextureBinding binding in material.Textures)
+            {
+                string portablePath = binding.Texture.GetPortableFilePath(targetDirectory);
+
+                if (string.Equals(binding.SamplerUniform, "diffuse", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fileNode = materialNode.AddNode<FileNode>();
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
+                    materialNode.AddValue("diffuse", fileNode.Hash);
+                }
+                else if (string.Equals(binding.SamplerUniform, "normal", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fileNode = materialNode.AddNode<FileNode>();
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
+                    materialNode.AddValue("normal", fileNode.Hash);
+                }
+                else if (string.Equals(binding.SamplerUniform, "specular", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fileNode = materialNode.AddNode<FileNode>();
+                    fileNode.Hash = CastHasher.Compute(portablePath);
+                    fileNode.AddString("p", portablePath);
+                    materialNode.AddValue("specular", fileNode.Hash);
+                }
+            }
+        }
+    }
+}

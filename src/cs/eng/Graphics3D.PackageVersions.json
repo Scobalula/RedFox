@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "packages": {
+    "RedFox.Graphics3D": {
+      "project": "RedFox.Graphics3D/RedFox.Graphics3D.csproj",
+      "versionProperty": "RedFoxGraphics3DCorePackageVersion",
+      "dependencies": [],
+      "lastPublishedVersion": "2026.9.23.3"
+    },
+    "RedFox.Graphics3D.Formats": {
+      "project": "RedFox.Graphics3D.Formats/RedFox.Graphics3D.Formats.csproj",
+      "versionProperty": "RedFoxGraphics3DFormatsPackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D"
+      ],
+      "lastPublishedVersion": "2026.9.23.4"
+    },
+    "RedFox.Graphics3D.Rendering": {
+      "project": "RedFox.Graphics3D.Rendering/RedFox.Graphics3D.Rendering.csproj",
+      "versionProperty": "RedFoxGraphics3DRenderingPackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D"
+      ],
+      "lastPublishedVersion": "2026.9.23.3"
+    },
+    "RedFox.Graphics3D.Silk": {
+      "project": "RedFox.Graphics3D.Silk/RedFox.Graphics3D.Silk.csproj",
+      "versionProperty": "RedFoxGraphics3DSilkPackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D.Rendering"
+      ],
+      "lastPublishedVersion": "2026.9.23.3"
+    },
+    "RedFox.Graphics3D.D3D11": {
+      "project": "RedFox.Graphics3D.D3D11/RedFox.Graphics3D.D3D11.csproj",
+      "versionProperty": "RedFoxGraphics3DD3D11PackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D.Rendering",
+        "RedFox.Graphics3D.Silk"
+      ],
+      "lastPublishedVersion": "2026.9.23.3"
+    },
+    "RedFox.Graphics3D.OpenGL": {
+      "project": "RedFox.Graphics3D.OpenGL/RedFox.Graphics3D.OpenGL.csproj",
+      "versionProperty": "RedFoxGraphics3DOpenGLPackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D.Rendering",
+        "RedFox.Graphics3D.Silk"
+      ],
+      "lastPublishedVersion": "2026.9.23.3"
+    },
+    "RedFox.Graphics3D.Avalonia": {
+      "project": "RedFox.Graphics3D.Avalonia/RedFox.Graphics3D.Avalonia.csproj",
+      "versionProperty": "RedFoxGraphics3DAvaloniaPackageVersion",
+      "dependencies": [
+        "RedFox.Graphics3D.Rendering",
+        "RedFox.Graphics3D.OpenGL"
+      ],
+      "lastPublishedVersion": "2026.9.23.3"
+    }
+  }
+}

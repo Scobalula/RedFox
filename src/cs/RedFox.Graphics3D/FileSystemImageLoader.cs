@@ -16,7 +16,7 @@ namespace RedFox.Graphics3D
         public static FileSystemImageLoader Shared { get; } = new();
 
         /// <inheritdoc/>
-        public Image Load(Texture texture, ImageTranslatorManager translatorManager)
+        public Image? Load(Texture texture, ImageTranslatorManager translatorManager)
         {
             // Try the path as given first (absolute or already resolved).
             if (File.Exists(texture.FilePath))

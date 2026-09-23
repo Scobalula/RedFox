@@ -1,7 +1,4 @@
 using System.Numerics;
-using RedFox.Graphics3D.Rendering;
-using RedFox.Graphics3D.Rendering.Handles;
-using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D
 {
@@ -49,10 +46,5 @@ namespace RedFox.Graphics3D
         {
         }
 
-        /// <inheritdoc/>
-        public override IRenderHandle? CreateRenderHandle(IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-        {
-            return new LightRenderHandle(this);
-        }
     }
 }

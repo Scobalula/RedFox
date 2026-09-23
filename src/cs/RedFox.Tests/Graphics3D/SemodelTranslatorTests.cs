@@ -10,7 +10,7 @@
 //using RedFox.Graphics3D;
 //using RedFox.Graphics3D.Buffers;
 //using RedFox.Graphics3D.IO;
-//using RedFox.Graphics3D.Semodel;
+//using RedFox.Graphics3D.Formats.SEModel;
 //using RedFox.Graphics3D.Skeletal;
 
 //namespace RedFox.Tests.Graphics3D;

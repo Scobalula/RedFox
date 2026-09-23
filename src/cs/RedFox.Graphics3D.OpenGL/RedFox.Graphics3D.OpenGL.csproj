@@ -6,6 +6,12 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>RedFox.Graphics3D.OpenGL</PackageId>
+    <PackageDescription>OpenGL rendering backend for RedFox Graphics3D.</PackageDescription>
+    <PackageVersion Condition="'$(RedFoxGraphics3DOpenGLPackageVersion)' != ''">$(RedFoxGraphics3DOpenGLPackageVersion)</PackageVersion>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,14 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
+    <ProjectReference Include="..\RedFox.Graphics3D.Rendering\RedFox.Graphics3D.Rendering.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Silk\RedFox.Graphics3D.Silk.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="..\RedFox.Rendering.OpenGL\**\*.cs" Exclude="..\RedFox.Rendering.OpenGL\bin\**\*;..\RedFox.Rendering.OpenGL\obj\**\*;..\RedFox.Rendering.OpenGL\Handles\**\*;..\RedFox.Rendering.OpenGL\Passes\**\*;..\RedFox.Rendering.OpenGL\OpenGlFaceWinding.cs;..\RedFox.Rendering.OpenGL\OpenGlFrameQueues.cs;..\RedFox.Rendering.OpenGL\OpenGlLightFrameData.cs;..\RedFox.Rendering.OpenGL\OpenGlRenderResources.cs;..\RedFox.Rendering.OpenGL\OpenGlRenderSettings.cs;..\RedFox.Rendering.OpenGL\OpenGlSurfaceMaterial.cs;..\RedFox.Rendering.OpenGL\OpenGlUpAxis.cs;..\RedFox.Rendering.OpenGL\SkinningMode.cs">
-      <Link>MergedRuntime\%(RecursiveDir)%(Filename)%(Extension)</Link>
-    </Compile>
   </ItemGroup>
 
   <ItemGroup>
