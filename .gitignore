@@ -404,3 +404,8 @@ FodyWeavers.xsd
 
 # Modern .NET Launch Settings
 launchSettings.json
+
+# Claude
+CLAUDE.MD
+PROMPT.MD
+NEXTAGENT.MD
