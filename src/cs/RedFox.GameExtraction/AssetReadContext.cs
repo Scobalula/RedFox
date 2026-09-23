@@ -32,6 +32,9 @@ public sealed class AssetReadContext
     /// </summary>
     public object? UserData { get; }
 
+    /// <summary>Gets the cancellation token for this read operation.</summary>
+    public CancellationToken CancellationToken { get; }
+
     /// <summary>
     /// Gets the read results of any assets that were read as references through this context.
     /// </summary>
@@ -49,7 +52,7 @@ public sealed class AssetReadContext
         AssetManager assetManager,
         IAssetSource source,
         AssetSourceRequest request)
-        : this(assetManager, source, request, null)
+        : this(assetManager, source, request, null, CancellationToken.None)
     {
     }
 
@@ -57,12 +60,14 @@ public sealed class AssetReadContext
         AssetManager assetManager,
         IAssetSource source,
         AssetSourceRequest request,
-        object? userData)
+        object? userData,
+        CancellationToken cancellationToken)
     {
         AssetManager = assetManager;
         Source = source;
         Request = request;
         UserData = userData;
+        CancellationToken = cancellationToken;
     }
 
     /// <summary>
@@ -86,7 +91,7 @@ public sealed class AssetReadContext
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        AssetManager.ReadAsync(asset, this, CancellationToken.None);
+        AssetManager.ReadAsync(asset, this, CancellationToken);
 
     /// <summary>
     /// Reads another asset through the owning manager and tracks the result as a reference on this context.

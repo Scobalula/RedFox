@@ -414,6 +414,10 @@ public sealed class AssetManager
         {
             source = await reader.OpenAsync(request, this, progress, cancellationToken).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, ex));
@@ -542,7 +546,7 @@ public sealed class AssetManager
 
         try
         {
-            AssetReadContext context = new(this, source, sourceRequest, userData);
+            AssetReadContext context = new(this, source, sourceRequest, userData, cancellationToken);
             AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
 
             foreach (AssetReadResult reference in context.References)
@@ -554,6 +558,10 @@ public sealed class AssetManager
 
             AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
             return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -740,6 +748,7 @@ public sealed class AssetManager
 
         foreach (Asset asset in assets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             await ExportAsync(asset, string.Empty, configuration, progress, cancellationToken).ConfigureAwait(false);
         }
     }
@@ -797,6 +806,10 @@ public sealed class AssetManager
         try
         {
             await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -859,6 +872,10 @@ public sealed class AssetManager
         try
         {
             await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

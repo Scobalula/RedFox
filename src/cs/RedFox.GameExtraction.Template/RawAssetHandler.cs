@@ -90,7 +90,7 @@ public sealed class RawAssetHandler : IAssetHandler
             Directory.CreateDirectory(outputDirectory);
         }
 
-        await File.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
+        await AtomicFileWriter.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
     }
 
     private static Stream OpenAssetStream(Asset asset)

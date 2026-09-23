@@ -53,6 +53,9 @@ public sealed class AssetExportContext
     /// </summary>
     public object? UserData { get; }
 
+    /// <summary>Gets the cancellation token for this export operation.</summary>
+    public CancellationToken CancellationToken => _cancellationToken;
+
     internal AssetExportContext(
         AssetManager assetManager,
         IAssetSource source,

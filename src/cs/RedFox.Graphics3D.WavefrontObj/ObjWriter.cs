@@ -172,8 +172,8 @@ public sealed class ObjWriter
         for (int face = 0; face < faceCount; face++)
         {
             int i0 = mesh.FaceIndices.Get<int>(face * 3, 0, 0);
-            int i1 = mesh.FaceIndices.Get<int>(face * 3 + 1, 0, 0);
-            int i2 = mesh.FaceIndices.Get<int>(face * 3 + 2, 0, 0);
+            int i2 = mesh.FaceIndices.Get<int>(face * 3 + 1, 0, 0);
+            int i1 = mesh.FaceIndices.Get<int>(face * 3 + 2, 0, 0);
 
             writer.Write("f ");
             WriteFaceVertex(writer, i0, positionOffset, texCoordOffset, normalOffset, hasUVs, hasNormals);

@@ -5,6 +5,7 @@ namespace RedFox.GameExtraction.Template.Cli;
 internal static class Program
 {
     private const int PreviewByteCount = 32;
+    private const int CancelledExitCode = 130;
 
     private static async Task<int> Main(string[] arguments)
     {
@@ -21,6 +22,23 @@ internal static class Program
             return 0;
         }
 
+        using CancellationTokenSource cancellationSource = new();
+        bool cancellationRequested = false;
+        ConsoleCancelEventHandler cancelHandler = (_, eventArgs) =>
+        {
+            if (cancellationRequested)
+            {
+                eventArgs.Cancel = false;
+                return;
+            }
+
+            cancellationRequested = true;
+            eventArgs.Cancel = true;
+            cancellationSource.Cancel();
+            Console.Error.WriteLine("Cancellation requested; finishing the current operation...");
+        };
+        Console.CancelKeyPress += cancelHandler;
+
         AssetManager manager = TemplateAssetManagerFactory.Create();
         IAssetSource? source = null;
 
@@ -31,16 +49,21 @@ internal static class Program
                 parsedArguments.ZipPath!,
                 null,
                 progress,
-                CancellationToken.None).ConfigureAwait(false);
+                cancellationSource.Token).ConfigureAwait(false);
 
             return parsedArguments.Command switch
             {
                 CliCommand.List => WriteAssetList(source),
-                CliCommand.Read => await ReadAssetAsync(manager, source, parsedArguments.AssetPath!).ConfigureAwait(false),
-                CliCommand.Export => await ExportAssetsAsync(manager, source, parsedArguments.OutputDirectory!).ConfigureAwait(false),
+                CliCommand.Read => await ReadAssetAsync(manager, source, parsedArguments.AssetPath!, cancellationSource.Token).ConfigureAwait(false),
+                CliCommand.Export => await ExportAssetsAsync(manager, source, parsedArguments.OutputDirectory!, cancellationSource.Token).ConfigureAwait(false),
                 CliCommand.Vfs => WriteVirtualFileSystem(manager),
                 _ => 1,
             };
+        }
+        catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+        {
+            Console.Error.WriteLine("Conversion cancelled.");
+            return CancelledExitCode;
         }
         catch (Exception exception)
         {
@@ -53,6 +76,8 @@ internal static class Program
             {
                 await manager.UnloadAsync(source).ConfigureAwait(false);
             }
+
+            Console.CancelKeyPress -= cancelHandler;
         }
     }
 
@@ -69,7 +94,7 @@ internal static class Program
         return 0;
     }
 
-    private static async Task<int> ReadAssetAsync(AssetManager manager, IAssetSource source, string assetPath)
+    private static async Task<int> ReadAssetAsync(AssetManager manager, IAssetSource source, string assetPath, CancellationToken cancellationToken)
     {
         if (!source.TryGetAsset(assetPath, out Asset? asset) || asset is null)
         {
@@ -77,8 +102,9 @@ internal static class Program
             return 1;
         }
 
-        AssetReadResult result = await manager.ReadAsync(asset).ConfigureAwait(false);
+        AssetReadResult result = await manager.ReadAsync(asset, cancellationToken).ConfigureAwait(false);
         byte[] bytes = result.GetData<byte[]>();
+        cancellationToken.ThrowIfCancellationRequested();
 
         byte[] previewBytes = bytes.Take(PreviewByteCount).ToArray();
         Console.WriteLine($"Asset: {asset.Name}");
@@ -88,7 +114,7 @@ internal static class Program
         return 0;
     }
 
-    private static async Task<int> ExportAssetsAsync(AssetManager manager, IAssetSource source, string outputDirectory)
+    private static async Task<int> ExportAssetsAsync(AssetManager manager, IAssetSource source, string outputDirectory, CancellationToken cancellationToken)
     {
         ExportConfiguration configuration = new()
         {
@@ -97,7 +123,8 @@ internal static class Program
         };
 
         Progress<string> progress = new(message => Console.WriteLine(message));
-        await manager.ExportAsync(source.Assets, configuration, progress).ConfigureAwait(false);
+        await manager.ExportAsync(source.Assets, configuration, progress, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         Console.WriteLine($"Exported {source.Assets.Count} assets to {configuration.OutputDirectory}");
         return 0;
     }
