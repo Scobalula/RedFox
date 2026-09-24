@@ -113,6 +113,12 @@ namespace RedFox.Graphics3D
         }
 
         /// <summary>
+        /// Scenes own renderer settings, animation players, and change events that cannot be shared, so they cannot be cloned.
+        /// </summary>
+        /// <exception cref="NotSupportedException">Always thrown.</exception>
+        protected override void OnCloned() => throw new NotSupportedException("Scenes cannot be cloned; clone their child nodes instead.");
+
+        /// <summary>
         /// Updates the animation players owned by this scene. Invoked by the inherited
         /// <see cref="SceneNode.Update(float)"/> before the scene graph is traversed.
         /// </summary>

@@ -44,6 +44,12 @@ public class Transform
     public Vector3? Scale { get; set; }
 
     /// <summary>
+    /// Creates a copy of this transform.
+    /// </summary>
+    /// <returns>A new <see cref="Transform"/> with the same values.</returns>
+    public Transform Clone() => (Transform)MemberwiseClone();
+
+    /// <summary>
     /// Copies the local and world transformation properties from the current instance to the specified <see
     /// cref="Transform"/> object.
     /// </summary>

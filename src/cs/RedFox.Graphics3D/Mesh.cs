@@ -887,6 +887,16 @@ namespace RedFox.Graphics3D
             MeshNormals.Generate(this, mode, FaceOrder);
         }
 
+        /// <inheritdoc/>
+        protected override void OnCloned()
+        {
+            _skinnedBones = _skinnedBones?.ToArray();
+            _inverseBindMatrices = _inverseBindMatrices?.ToArray();
+            _cachedSkinBounds = null;
+
+            Materials = Materials is null ? null : [.. Materials];
+        }
+
         private Vector3 ApplySkinningDirect(Vector3 value, int vertexIndex, bool transformAsDirection)
         {
             if (BoneIndices is null || BoneWeights is null || _skinnedBones is not { Length: > 0 } skinnedBones)

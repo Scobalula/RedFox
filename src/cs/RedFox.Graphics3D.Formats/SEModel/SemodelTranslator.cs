@@ -313,9 +313,6 @@ public class SemodelTranslator : SceneTranslator
             if (mesh.FaceIndices is null)
                 throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' has no face index data.");
 
-            mesh.BoneIndices = null;
-            mesh.BoneWeights = null;
-
             int vertexCount = mesh.Positions.ElementCount;
             int faceCount   = mesh.FaceIndices.ElementCount / 3;
             int layerCount  = mesh.UVLayers?.ValueCount ?? 0;

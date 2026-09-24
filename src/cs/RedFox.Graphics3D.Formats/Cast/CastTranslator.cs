@@ -85,26 +85,15 @@ public sealed class CastTranslator : SceneTranslator
         };
     }
 
-    private static IReadOnlyList<MeshGroup> GetExportModels(SceneTranslationSelection selection)
+    private static IReadOnlyList<SceneNode> GetExportModels(SceneTranslationSelection selection)
     {
-        List<MeshGroup> models = [];
-        HashSet<MeshGroup> seen = [];
+        // Without any mesh groups the scene itself is the model.
+        if (selection.GetDescendants<MeshGroup>().Length == 0)
+            return [selection.Scene];
 
-        static void AddModel(List<MeshGroup> models, HashSet<MeshGroup> seen, MeshGroup? model)
-        {
-            if (model is not null && seen.Add(model))
-                models.Add(model);
-        }
+        var meshModels = selection.GetDescendants<Mesh>().Select(mesh => mesh.EnumerateAncestors<MeshGroup>().FirstOrDefault());
+        var materialModels = selection.GetDescendants<Material>().Select(material => material.EnumerateAncestors<MeshGroup>().FirstOrDefault());
 
-        foreach (MeshGroup model in selection.GetDescendants<MeshGroup>())
-            AddModel(models, seen, model);
-
-        foreach (Mesh mesh in selection.GetDescendants<Mesh>())
-            AddModel(models, seen, mesh.EnumerateAncestors<MeshGroup>().FirstOrDefault());
-
-        foreach (Material material in selection.GetDescendants<Material>())
-            AddModel(models, seen, material.EnumerateAncestors<MeshGroup>().FirstOrDefault());
-
-        return models;
+        return [.. selection.GetDescendants<MeshGroup>().Concat(meshModels).Concat(materialModels).OfType<MeshGroup>().Distinct()];
     }
 }

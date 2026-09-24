@@ -1,15 +1,11 @@
-﻿using RedFox.Graphics3D;
-using RedFox.Graphics3D.Groups;
-using Silk.NET.Vulkan;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using RedFox.Graphics3D;
 
 namespace RedFox.GameExtraction.AssetHandlers;
 
 /// <summary>
-/// A standard <see cref="IAssetHandler"/> implementation for handling models.
+/// A standard <see cref="IAssetHandler"/> implementation for handling models. Implementations read a model into
+/// an array of <see cref="Scene"/> instances, one per exported model (for example per LOD or variant), each of
+/// which is self-contained and written to its own file named after the scene.
 /// </summary>
 public abstract class ModelHandler : IAssetHandler
 {
@@ -25,10 +21,9 @@ public abstract class ModelHandler : IAssetHandler
 
         var imageManager = context.GetRequiredService<ImageTranslatorService>().Manager;
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
-        var scene = result.GetData<Scene>();
+        var scenes = result.GetData<Scene[]>();
 
         var outputDirectory = Path.Combine(context.OutputDirectory, result.Asset.Name);
-        var modelName = Path.GetFileNameWithoutExtension(result.Asset.Name);
 
         // TODO: Need to nail down a good API in asset manager so we can pass this onto the asset handler
         // but exporting images and where to export them to from the POV of a model is just so specific
@@ -40,7 +35,10 @@ public abstract class ModelHandler : IAssetHandler
         var relativeToMaterial = context.ExportConfiguration.GetOption("RelativeToMaterialImages", false);
         var skipExistingImages = context.ExportConfiguration.GetOption("SkipExistingImages", true);
 
-        foreach (var material in scene.EnumerateDescendants<Material>())
+        // Scenes hold their own copies of shared materials, so the same material is seen once per scene that uses it.
+        var materials = scenes.SelectMany(scene => scene.EnumerateDescendants<Material>()).DistinctBy(material => material.Name);
+
+        foreach (var material in materials)
         {
             foreach (var textureSlot in material.Textures)
             {
@@ -62,63 +60,19 @@ public abstract class ModelHandler : IAssetHandler
             }
         }
 
-        var skipExisting = context.ExportConfiguration.GetOption("SkipExistingModels", true);
         var modelFormats = context.ExportConfiguration.GetOption("ModelFormats", DefaultFormats);
 
-        var meshes = scene.EnumerateDescendants<Mesh>().ToArray();
-        var materials = scene.EnumerateDescendants<Material>().ToArray();
+        Directory.CreateDirectory(outputDirectory);
 
-        foreach (var group in scene.EnumerateChildren<MeshGroup>())
+        foreach (var scene in scenes)
         {
-            Directory.CreateDirectory(outputDirectory);
-
-            // Remember the flags we touch so the scene is left as we found it.
-            var originalFlags = meshes.Cast<SceneNode>().Concat(materials).Append(group).ToDictionary(node => node, node => node.Flags);
-
-            SelectForGroup(group, meshes, materials);
-
-            try
+            foreach (var modelFormat in modelFormats)
             {
-                foreach (var modelFormat in modelFormats)
-                {
-                    var lodPath = Path.Combine(outputDirectory, modelName + group.Name + modelFormat);
-
-                    //if (skipExisting && Path.Exists(Path.GetFullPath(lodPath)))
-                    //    continue;
-
-                    // WriteRawVertices will hint to the downstream translator that it should not apply skinning
-                    // We are reading and writing raw vertices from game formats so it's not needed.
-                    await manager.WriteAsync(lodPath, scene, new() { Filter = SceneNodeFlags.Selected, WriteRawVertices = true }, cancellationToken);
-                }
-            }
-            finally
-            {
-                foreach (var (node, flags) in originalFlags)
-                    node.Flags = flags;
+                // WriteRawVertices will hint to the downstream translator that it should not apply skinning
+                // We are reading and writing raw vertices from game formats so it's not needed.
+                await manager.WriteAsync(Path.Combine(outputDirectory, scene.Name + modelFormat), scene, new() { WriteRawVertices = true }, cancellationToken);
             }
         }
-    }
-
-    /// <summary>
-    /// Marks exactly the meshes under <paramref name="group"/> and the materials they use as selected, and clears
-    /// the selection on every other mesh and material. Selection is tested per node and nodes are selected by
-    /// default, so without this every group's meshes would be written into every group's file.
-    /// </summary>
-    /// <param name="group">The group being exported.</param>
-    /// <param name="meshes">Every mesh in the scene.</param>
-    /// <param name="materials">Every material in the scene.</param>
-    public static void SelectForGroup(MeshGroup group, IEnumerable<Mesh> meshes, IEnumerable<Material> materials)
-    {
-        var groupMeshes = group.EnumerateDescendants<Mesh>().ToHashSet();
-        var usedMaterials = groupMeshes.SelectMany(mesh => mesh.Materials ?? []).ToHashSet();
-
-        group.Flags |= SceneNodeFlags.Selected;
-
-        foreach (var mesh in meshes)
-            mesh.Flags = groupMeshes.Contains(mesh) ? mesh.Flags | SceneNodeFlags.Selected : mesh.Flags & ~SceneNodeFlags.Selected;
-
-        foreach (var material in materials)
-            material.Flags = usedMaterials.Contains(material) ? material.Flags | SceneNodeFlags.Selected : material.Flags & ~SceneNodeFlags.Selected;
     }
 
     /// <inheritdoc/>

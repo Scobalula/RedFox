@@ -2015,6 +2015,44 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
+    /// Creates a detached copy of this node and all of its descendants. References held between nodes
+    /// inside the copied hierarchy, such as material texture connections, are redirected to their copies,
+    /// while heavy data such as vertex buffers and images is shared with the source nodes.
+    /// </summary>
+    /// <returns>The copy of this node, without a parent or scene.</returns>
+    public SceneNode Clone()
+    {
+        var clones = new Dictionary<SceneNode, SceneNode>();
+
+        foreach (var source in EnumerateHierarchy(SceneNodeFlags.None))
+        {
+            var clone = (SceneNode)source.MemberwiseClone();
+
+            clone._children = null;
+            clone._scene = null;
+            clone._disposed = false;
+            clone.Parent = null;
+            clone.BindTransform = source.BindTransform.Clone();
+            clone.LiveTransform = source.LiveTransform.Clone();
+            clone.Attributes = source.Attributes is null ? null : new(source.Attributes);
+            clone.OnCloned();
+
+            clones[source] = clone;
+
+            if (source != this)
+                clones[source.Parent!].AddNode(clone);
+        }
+
+        foreach (var node in clones.Values)
+        {
+            foreach (var (source, copy) in clones)
+                node.Swap(source, copy);
+        }
+
+        return clones[this];
+    }
+
+    /// <summary>
     /// Traverses this node and all descendants, performing an action on each.
     /// </summary>
     /// <param name="action">The action to perform on each node.</param>
@@ -3312,6 +3350,14 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// Releases node-specific resources during disposal.
     /// </summary>
     protected virtual void DisposeCore()
+    {
+    }
+
+    /// <summary>
+    /// Called on a freshly copied node during <see cref="Clone"/>. The copy starts as a shallow copy of the source,
+    /// so any derived type that holds mutable reference-typed state must override this to give the copy its own instance.
+    /// </summary>
+    protected virtual void OnCloned()
     {
     }
 

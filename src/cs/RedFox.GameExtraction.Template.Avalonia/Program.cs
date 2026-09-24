@@ -117,7 +117,14 @@ internal static class Program
             },
             PreviewControlFactory = viewModel =>
             {
-                if (viewModel.PreviewData is Scene scene)
+                var scene = viewModel.PreviewData switch
+                {
+                    Scene single => single,
+                    Scene[] { Length: > 0 } scenes => scenes[0],
+                    _ => null,
+                };
+
+                if (scene is not null)
                 {
                     if (scene.GetDescendants<Mesh>().Length == 0
                         && scene.GetDescendants<SkeletonAnimation>().Length > 0

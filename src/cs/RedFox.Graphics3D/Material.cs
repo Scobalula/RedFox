@@ -11,7 +11,7 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public class Material(string name) : SceneNode(name)
 {
-    private readonly List<MaterialTextureBinding> _connections = [];
+    private List<MaterialTextureBinding> _connections = [];
     private uint _version;
 
     /// <summary>
@@ -633,6 +633,12 @@ public class Material(string name) : SceneNode(name)
         }
 
         Connect(slotKey, value);
+    }
+
+    /// <inheritdoc/>
+    protected override void OnCloned()
+    {
+        _connections = [.. _connections];
     }
 
     private Texture GetRequiredTexture(string? slotKey, string slotKeyPropertyName)

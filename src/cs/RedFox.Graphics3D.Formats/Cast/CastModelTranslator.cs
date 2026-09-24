@@ -57,7 +57,7 @@ internal static class CastModelTranslator
         }
     }
 
-    public static void Write(CastNode root, MeshGroup model, SceneTranslationSelection selection, string? targetDirectory)
+    public static void Write(CastNode root, SceneNode model, SceneTranslationSelection selection, string? targetDirectory)
     {
         var modelNode = root.AddNode<ModelNode>();
 
