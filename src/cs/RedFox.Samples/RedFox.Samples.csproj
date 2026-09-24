@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="12.0.1" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.1" />
@@ -13,15 +13,7 @@
     <ProjectReference Include="..\RedFox.Compression.ZStandard\RedFox.Compression.ZStandard.csproj" />
     <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Bmp\RedFox.Graphics2D.Bmp.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Dds\RedFox.Graphics2D.Dds.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Jpeg\RedFox.Graphics2D.Jpeg.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Ktx\RedFox.Graphics2D.Ktx.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Png\RedFox.Graphics2D.Png.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Tga\RedFox.Graphics2D.Tga.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
+    <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Avalonia\RedFox.Graphics3D.Avalonia.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.D3D11\RedFox.Graphics3D.D3D11.csproj" />

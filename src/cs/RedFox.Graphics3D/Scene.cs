@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using RedFox.Graphics2D.IO;
+using RedFox.Imaging.IO;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D

@@ -1,4 +1,5 @@
-using RedFox.Graphics2D;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
 using RedFox.Graphics3D.Rendering;
 using Silk.NET.Core;
 using Silk.NET.Core.Native;

@@ -13,7 +13,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D\RedFox.Graphics2D.csproj" />
+    <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Materials\Definitions\*.materialtype.json" Link="MaterialTypes\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

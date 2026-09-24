@@ -2,6 +2,7 @@ using RedFox.Graphics3D.Formats.XAsset;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.Buffers;
 
 namespace RedFox.Tests.Graphics3D;
 

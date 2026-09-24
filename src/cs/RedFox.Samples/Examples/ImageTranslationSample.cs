@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
-using RedFox.Graphics2D;
-using RedFox.Graphics2D.IO;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
+using RedFox.Imaging.IO;
 
 namespace RedFox.Samples.Examples;
 

@@ -1,4 +1,3 @@
-using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -22,8 +21,7 @@ public static class DataBufferPacking
     /// <param name="componentCount">The number of components stored per value.</param>
     /// <param name="byteValueStride">The byte distance between consecutive values within a single element.</param>
     /// <returns>A contiguous data buffer containing the packed values in value-major order.</returns>
-    public static DataBuffer<T> CreateStrided<T>(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount, int componentCount, int byteValueStride)
-        where T : unmanaged, INumber<T>
+    public static DataBuffer<T> CreateStrided<T>(byte[] source, int elementCount, int byteOffset, int byteStride, int valueCount, int componentCount, int byteValueStride) where T : unmanaged, INumber<T>
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfNegative(elementCount);

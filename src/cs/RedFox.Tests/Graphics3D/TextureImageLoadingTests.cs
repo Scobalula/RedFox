@@ -1,6 +1,7 @@
-using RedFox.Graphics2D;
-using RedFox.Graphics2D.IO;
-using RedFox.Graphics2D.Png;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
+using RedFox.Imaging.IO;
+using RedFox.Imaging.Formats.Png;
 using RedFox.Graphics3D;
 
 namespace RedFox.Tests.Graphics3D;

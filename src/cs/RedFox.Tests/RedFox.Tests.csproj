@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -23,16 +23,8 @@
     <ProjectReference Include="..\RedFox.Compression.ZStandard\RedFox.Compression.ZStandard.csproj" />
     <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
     <ProjectReference Include="..\RedFox.GameExtraction\RedFox.GameExtraction.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.BlockCompression.Vulkan\RedFox.Graphics2D.BlockCompression.Vulkan.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.BlockCompression\RedFox.Graphics2D.BlockCompression.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Jpeg\RedFox.Graphics2D.Jpeg.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Png\RedFox.Graphics2D.Png.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Dds\RedFox.Graphics2D.Dds.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Bmp\RedFox.Graphics2D.Bmp.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Tga\RedFox.Graphics2D.Tga.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Exr\RedFox.Graphics2D.Exr.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Tiff\RedFox.Graphics2D.Tiff.csproj" />
-    <ProjectReference Include="..\RedFox.Graphics2D.Ktx\RedFox.Graphics2D.Ktx.csproj" />
+    <ProjectReference Include="..\\RedFox.Imaging.BlockCompression.Vulkan\\RedFox.Imaging.BlockCompression.Vulkan.csproj" />
+    <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
     <ProjectReference Include="..\RedFox\RedFox.csproj" />

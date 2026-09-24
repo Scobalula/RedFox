@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.Intrinsics.X86;
-using RedFox.Graphics2D;
-using RedFox.Graphics2D.BC;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
+using RedFox.Imaging.BlockCompression;
 
 const int width = 256;
 const int height = 256;

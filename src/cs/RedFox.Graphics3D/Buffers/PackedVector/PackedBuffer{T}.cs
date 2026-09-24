@@ -208,9 +208,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {TPacked.ComponentCount}.");
 
             var idx = elementIndex * _valueCount + valueIndex;
-            var floatValue = typeof(TInput) == typeof(float)
-                ? Unsafe.As<TInput, float>(ref value)
-                : float.CreateSaturating(value);
+            var floatValue = typeof(TInput) == typeof(float) ? Unsafe.As<TInput, float>(ref value) : float.CreateSaturating(value);
 
             SetComponentInternal(idx, componentIndex, floatValue);
         }
@@ -238,9 +236,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             var idx = elementIndex * _valueCount + valueIndex;
             EnsureCapacity(Math.Max(idx + 1, (elementIndex + 1) * _valueCount));
 
-            var floatValue = typeof(TInput) == typeof(float)
-                ? Unsafe.As<TInput, float>(ref value)
-                : float.CreateSaturating(value);
+            var floatValue = typeof(TInput) == typeof(float) ? Unsafe.As<TInput, float>(ref value) : float.CreateSaturating(value);
 
             SetComponentInternal(idx, componentIndex, floatValue);
 
@@ -252,9 +248,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         {
             ref var packed = ref _items[index];
 
-            var targetValue = _scaleComponents[componentIndex] != 0f
-                ? (floatValue - _offsetComponents[componentIndex]) / _scaleComponents[componentIndex]
-                : floatValue;
+            var targetValue = _scaleComponents[componentIndex] != 0f ? (floatValue - _offsetComponents[componentIndex]) / _scaleComponents[componentIndex] : floatValue;
 
             var v = packed.Unpack();
 

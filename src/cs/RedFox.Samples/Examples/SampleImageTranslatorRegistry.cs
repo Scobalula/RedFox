@@ -1,11 +1,12 @@
-using RedFox.Graphics2D.Bmp;
-using RedFox.Graphics2D.Exr;
-using RedFox.Graphics2D.IO;
-using RedFox.Graphics2D.Jpeg;
-using RedFox.Graphics2D.Ktx;
-using RedFox.Graphics2D.Png;
-using RedFox.Graphics2D.Tga;
-using RedFox.Graphics2D.Tiff;
+using RedFox.Imaging.Formats.Bmp;
+using RedFox.Imaging.Formats.Dds;
+using RedFox.Imaging.Formats.Exr;
+using RedFox.Imaging.IO;
+using RedFox.Imaging.Formats.Jpeg;
+using RedFox.Imaging.Formats.Ktx;
+using RedFox.Imaging.Formats.Png;
+using RedFox.Imaging.Formats.Tga;
+using RedFox.Imaging.Formats.Tiff;
 
 namespace RedFox.Samples.Examples;
 

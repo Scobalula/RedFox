@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
-using RedFox.Graphics2D;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
 using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.Graphics3D.Rendering.Handles;

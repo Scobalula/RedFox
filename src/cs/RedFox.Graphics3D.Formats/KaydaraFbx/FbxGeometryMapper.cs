@@ -36,6 +36,8 @@ public static class FbxGeometryMapper
         mesh.FaceIndices = new DataBuffer<int>(triangulation.TriangleIndices, 1, 1);
 
         ImportNormals(mesh, geometry, polygonVertexIndices, vertexCount);
+        ImportTangents(mesh, geometry, polygonVertexIndices, vertexCount);
+        ImportColorLayers(mesh, geometry, polygonVertexIndices, vertexCount);
         ImportUvLayers(mesh, geometry, polygonVertexIndices, vertexCount);
         return ImportPerTriangleMaterialIndices(geometry, triangulation.TrianglesPerFace);
     }
@@ -88,6 +90,33 @@ public static class FbxGeometryMapper
             geometry.Children.Add(layerNormals);
         }
 
+        if (mesh.Tangents is not null)
+        {
+            FbxNode layerTangents = new("LayerElementTangent");
+            layerTangents.Properties.Add(new FbxProperty('I', 0));
+            layerTangents.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 101) } });
+            layerTangents.Children.Add(new FbxNode("Name") { Properties = { new FbxProperty('S', string.Empty) } });
+            layerTangents.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "ByVertice") } });
+            layerTangents.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "Direct") } });
+            layerTangents.Children.Add(new FbxNode("Tangents") { Properties = { new FbxProperty('d', ExtractTangents(mesh)) } });
+            geometry.Children.Add(layerTangents);
+        }
+
+        if (mesh.ColorLayers is not null)
+        {
+            for (int layerIndex = 0; layerIndex < mesh.ColorLayerCount; layerIndex++)
+            {
+                FbxNode layerColor = new("LayerElementColor");
+                layerColor.Properties.Add(new FbxProperty('I', layerIndex));
+                layerColor.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 101) } });
+                layerColor.Children.Add(new FbxNode("Name") { Properties = { new FbxProperty('S', layerIndex == 0 ? "Color" : $"Color_{layerIndex}") } });
+                layerColor.Children.Add(new FbxNode("MappingInformationType") { Properties = { new FbxProperty('S', "ByVertice") } });
+                layerColor.Children.Add(new FbxNode("ReferenceInformationType") { Properties = { new FbxProperty('S', "Direct") } });
+                layerColor.Children.Add(new FbxNode("Colors") { Properties = { new FbxProperty('d', ExtractColorLayer(mesh, layerIndex)) } });
+                geometry.Children.Add(layerColor);
+            }
+        }
+
         if (mesh.UVLayers is not null)
         {
             for (int layerIndex = 0; layerIndex < mesh.UVLayerCount; layerIndex++)
@@ -126,6 +155,25 @@ public static class FbxGeometryMapper
             normalsElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementNormal") } });
             normalsElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', 0) } });
             layer.Children.Add(normalsElement);
+        }
+
+        if (mesh.Tangents is not null)
+        {
+            FbxNode tangentsElement = new("LayerElement");
+            tangentsElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementTangent") } });
+            tangentsElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', 0) } });
+            layer.Children.Add(tangentsElement);
+        }
+
+        if (mesh.ColorLayers is not null)
+        {
+            for (int layerIndex = 0; layerIndex < mesh.ColorLayerCount; layerIndex++)
+            {
+                FbxNode colorElement = new("LayerElement");
+                colorElement.Children.Add(new FbxNode("Type") { Properties = { new FbxProperty('S', "LayerElementColor") } });
+                colorElement.Children.Add(new FbxNode("TypedIndex") { Properties = { new FbxProperty('I', layerIndex) } });
+                layer.Children.Add(colorElement);
+            }
         }
 
         if (mesh.UVLayers is not null)
@@ -206,6 +254,127 @@ public static class FbxGeometryMapper
         }
 
         mesh.Normals = new DataBuffer<float>(output, 1, 3);
+    }
+
+    /// <summary>
+    /// Imports tangent vectors from an FBX geometry node into the target mesh.
+    /// </summary>
+    /// <param name="mesh">The destination mesh.</param>
+    /// <param name="geometry">The source FBX geometry node.</param>
+    /// <param name="polygonVertexIndices">The raw polygon vertex index array.</param>
+    /// <param name="vertexCount">The number of vertices in the mesh.</param>
+    public static void ImportTangents(Mesh mesh, FbxNode geometry, int[] polygonVertexIndices, int vertexCount)
+    {
+        FbxNode? tangentNode = geometry.Children.FirstOrDefault(child => string.Equals(child.Name, "LayerElementTangent", StringComparison.Ordinal));
+        if (tangentNode is null)
+            return;
+
+        double[] tangents = FbxSceneMapper.GetNodeArray<double>(tangentNode, "Tangents");
+        if (tangents.Length == 0)
+            return;
+
+        string mapping = FbxSceneMapper.GetNodeString(tangentNode, "MappingInformationType") ?? "ByPolygonVertex";
+        string reference = FbxSceneMapper.GetNodeString(tangentNode, "ReferenceInformationType") ?? "Direct";
+        int[] tangentIndices = FbxSceneMapper.GetNodeArray<int>(tangentNode, "TangentsIndex");
+        const int componentCount = 4;
+        Vector4[] sums = new Vector4[vertexCount];
+        int[] counts = new int[vertexCount];
+        int polygonVertexCounter = 0;
+
+        foreach (int encodedVertex in polygonVertexIndices)
+        {
+            int vertexIndex = encodedVertex < 0 ? -encodedVertex - 1 : encodedVertex;
+            int mappedIndex = ResolveMappedIndex(mapping, reference, polygonVertexCounter, vertexIndex, tangentIndices);
+            Vector4 tangent = ReadVector4(tangents, mappedIndex, componentCount);
+            if (tangent.LengthSquared() > 0f)
+            {
+                sums[vertexIndex] += tangent;
+                counts[vertexIndex]++;
+            }
+
+            polygonVertexCounter++;
+        }
+
+        float[] output = new float[vertexCount * 4];
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+        {
+            Vector4 tangent = counts[vertexIndex] > 0 ? sums[vertexIndex] / counts[vertexIndex] : Vector4.Zero;
+            Vector3 direction = new(tangent.X, tangent.Y, tangent.Z);
+            if (direction.LengthSquared() > 0f)
+                direction = Vector3.Normalize(direction);
+            int outputOffset = vertexIndex * 4;
+            output[outputOffset] = direction.X;
+            output[outputOffset + 1] = direction.Y;
+            output[outputOffset + 2] = direction.Z;
+            output[outputOffset + 3] = tangent.W;
+        }
+
+        mesh.Tangents = new DataBuffer<float>(output, 1, 4);
+    }
+
+    /// <summary>
+    /// Imports vertex color layers from an FBX geometry node into the target mesh.
+    /// </summary>
+    /// <param name="mesh">The destination mesh.</param>
+    /// <param name="geometry">The source FBX geometry node.</param>
+    /// <param name="polygonVertexIndices">The raw polygon vertex index array.</param>
+    /// <param name="vertexCount">The number of vertices in the mesh.</param>
+    public static void ImportColorLayers(Mesh mesh, FbxNode geometry, int[] polygonVertexIndices, int vertexCount)
+    {
+        FbxNode[] colorNodes = geometry.Children.Where(child => string.Equals(child.Name, "LayerElementColor", StringComparison.Ordinal)).ToArray();
+        if (colorNodes.Length == 0)
+            return;
+
+        Dictionary<int, FbxNode> colorLayers = [];
+        foreach (FbxNode colorNode in colorNodes)
+        {
+            int layerIndex = colorNode.Properties.Count > 0 ? (int)colorNode.Properties[0].AsInt64() : colorLayers.Count;
+            if (layerIndex < 0 || layerIndex >= 256)
+                throw new InvalidDataException($"FBX color layer index {layerIndex} is invalid.");
+            colorLayers[layerIndex] = colorNode;
+        }
+
+        int layerCount = colorLayers.Keys.Max() + 1;
+        float[] output = new float[vertexCount * layerCount * 4];
+        foreach ((int layerIndex, FbxNode colorNode) in colorLayers)
+        {
+            double[] colors = FbxSceneMapper.GetNodeArray<double>(colorNode, "Colors");
+            if (colors.Length == 0)
+                continue;
+
+            string mapping = FbxSceneMapper.GetNodeString(colorNode, "MappingInformationType") ?? "ByPolygonVertex";
+            string reference = FbxSceneMapper.GetNodeString(colorNode, "ReferenceInformationType") ?? "Direct";
+            int[] colorIndices = FbxSceneMapper.GetNodeArray<int>(colorNode, "ColorIndex");
+            Vector4[] sums = new Vector4[vertexCount];
+            int[] counts = new int[vertexCount];
+            int polygonVertexCounter = 0;
+
+            foreach (int encodedVertex in polygonVertexIndices)
+            {
+                int vertexIndex = encodedVertex < 0 ? -encodedVertex - 1 : encodedVertex;
+                int mappedIndex = ResolveMappedIndex(mapping, reference, polygonVertexCounter, vertexIndex, colorIndices);
+                Vector4 color = ReadVector4(colors, mappedIndex, 4);
+                if (mappedIndex >= 0)
+                {
+                    sums[vertexIndex] += color;
+                    counts[vertexIndex]++;
+                }
+
+                polygonVertexCounter++;
+            }
+
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
+            {
+                Vector4 color = counts[vertexIndex] > 0 ? sums[vertexIndex] / counts[vertexIndex] : Vector4.Zero;
+                int outputOffset = (vertexIndex * layerCount + layerIndex) * 4;
+                output[outputOffset] = color.X;
+                output[outputOffset + 1] = color.Y;
+                output[outputOffset + 2] = color.Z;
+                output[outputOffset + 3] = color.W;
+            }
+        }
+
+        mesh.ColorLayers = new DataBuffer<float>(output, layerCount, 4);
     }
 
     /// <summary>
@@ -467,6 +636,55 @@ public static class FbxGeometryMapper
     }
 
     /// <summary>
+    /// Extracts tangent vectors and handedness from a mesh as a flat double array.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <returns>Flat tangent XYZW array, or an empty array when no tangents are present.</returns>
+    public static double[] ExtractTangents(Mesh mesh)
+    {
+        if (mesh.Tangents is null)
+            return [];
+
+        double[] result = new double[mesh.VertexCount * 4];
+        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+        {
+            Vector4 tangent = mesh.GetVertexTangent(vertexIndex, raw: true);
+            int offset = vertexIndex * 4;
+            result[offset] = tangent.X;
+            result[offset + 1] = tangent.Y;
+            result[offset + 2] = tangent.Z;
+            result[offset + 3] = tangent.W;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Extracts one vertex color layer from a mesh as a flat RGBA double array.
+    /// </summary>
+    /// <param name="mesh">The source mesh.</param>
+    /// <param name="layerIndex">The zero-based color layer index.</param>
+    /// <returns>Flat RGBA double array.</returns>
+    public static double[] ExtractColorLayer(Mesh mesh, int layerIndex)
+    {
+        if (mesh.ColorLayers is null)
+            return [];
+
+        double[] result = new double[mesh.VertexCount * 4];
+        for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+        {
+            Vector4 color = mesh.ColorLayers.GetVector4(vertexIndex, layerIndex, 1f);
+            int offset = vertexIndex * 4;
+            result[offset] = color.X;
+            result[offset + 1] = color.Y;
+            result[offset + 2] = color.Z;
+            result[offset + 3] = color.W;
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Extracts a single UV layer from a mesh as a flat double array.
     /// </summary>
     /// <param name="mesh">The source mesh.</param>
@@ -614,5 +832,15 @@ public static class FbxGeometryMapper
         }
 
         return result;
+    }
+
+    private static Vector4 ReadVector4(double[] source, int index, int componentCount)
+    {
+        if (index < 0 || componentCount < 3 || index >= source.Length / componentCount)
+            return Vector4.Zero;
+
+        int offset = index * componentCount;
+        float fourthComponent = componentCount > 3 ? (float)source[offset + 3] : 1f;
+        return new Vector4((float)source[offset], (float)source[offset + 1], (float)source[offset + 2], fourthComponent);
     }
 }

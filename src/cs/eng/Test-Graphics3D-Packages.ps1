@@ -45,10 +45,7 @@ try
             "../../../CallOfFile/src/CallOfFile/CallOfFile.csproj",
             "RedFox/RedFox.csproj",
             "RedFox.IO/RedFox.IO.csproj",
-            "RedFox.Graphics2D.Primitives/RedFox.Graphics2D.Primitives.csproj",
-            "RedFox.Graphics2D.Codecs/RedFox.Graphics2D.Codecs.csproj",
-            "RedFox.Graphics2D.BlockCompression/RedFox.Graphics2D.BlockCompression.csproj",
-            "RedFox.Graphics2D/RedFox.Graphics2D.csproj"
+            "RedFox.Imaging/RedFox.Imaging.csproj"
         )
 
         New-Item -ItemType Directory -Path $dependencyFeedPath | Out-Null

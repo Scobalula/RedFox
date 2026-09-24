@@ -1,8 +1,9 @@
 using System;
 using System.Numerics;
 using System.Threading;
-using RedFox.Graphics2D;
-using RedFox.Graphics2D.IO;
+using RedFox.Imaging;
+using RedFox.Imaging.Primitives;
+using RedFox.Imaging.IO;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering.Handles;
 

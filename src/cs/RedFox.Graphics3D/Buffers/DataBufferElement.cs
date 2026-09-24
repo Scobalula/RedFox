@@ -85,6 +85,7 @@ public struct DataBufferElement
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex, value.X);
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex + 1, value.Y);
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex + 2, value.Z);
+
         AdvanceWithinValue(3);
         return this;
     }
@@ -102,6 +103,7 @@ public struct DataBufferElement
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex + 1, value.Y);
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex + 2, value.Z);
         Buffer.Set(ElementIndex, _nextValueIndex, _nextComponentIndex + 3, value.W);
+
         AdvanceWithinValue(4);
         return this;
     }
@@ -164,8 +166,7 @@ public struct DataBufferElement
 
         if (_nextComponentIndex + componentCount > Buffer.ComponentCount)
         {
-            throw new InvalidOperationException(
-                $"Cannot append a {componentCount}-component vector at value {_nextValueIndex}, component {_nextComponentIndex} because it would cross into the next value.");
+            throw new InvalidOperationException($"Cannot append a {componentCount}-component vector at value {_nextValueIndex}, component {_nextComponentIndex} because it would cross into the next value.");
         }
     }
 
