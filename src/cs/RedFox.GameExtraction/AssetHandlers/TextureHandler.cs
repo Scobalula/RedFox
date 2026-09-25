@@ -20,28 +20,10 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     {
         var manager = context.AssetManager.GetRequiredService<ImageTranslatorService>().Manager;
         var texture = result.GetData<Texture>();
-        var fullPath = Path.Combine(context.OutputDirectory, texture.Name);
         var skipExisting = context.ExportConfiguration.GetOption("SkipExistingImages", true);
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", DefaultFormats);
 
-        if (Path.GetDirectoryName(fullPath) is string directory)
-            Directory.CreateDirectory(directory);
-        if (texture.ImageLoader is null)
-            throw new InvalidOperationException("Texture data does not have an image loader.");
-
-        var data = texture.ImageLoader.Load(texture, manager);
-
-        foreach (var format in imageFormats)
-        {
-            // We will essentially assign the last written image
-            // as this textures new "path" for models, etc.
-            texture.FilePath = Path.GetFullPath(Path.ChangeExtension(fullPath, format));
-
-            if (skipExisting && File.Exists(texture.FilePath))
-                continue;
-
-            manager.Write(texture.FilePath, data);
-        }
+        ExportTexture(texture, imageFormats, manager, Path.Combine(context.OutputDirectory, texture.Name), skipExisting);
     }
 
     /// <inheritdoc/>
@@ -89,39 +71,38 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);
 
     /// <summary>
-    /// Exports the given texture to the specified formats using the provided manager and updates the texture's file path accordingly.
+    /// Exports the given texture to each of the specified formats. The image is only decoded when at least one
+    /// format has to be written, so exporting textures that already exist on disk is cheap.
     /// </summary>
     /// <param name="texture">The texture to export.</param>
-    /// <param name="formats">The formats to export the texture to.</param>
+    /// <param name="formats">The formats to export the texture to, as file extensions.</param>
     /// <param name="manager">The image translator manager.</param>
-    /// <param name="directory">The directory to export the texture to.</param>
-    /// <param name="imageName">The name of the image file.</param>
-    /// <param name="skipExisting">Whether to skip existing files.</param>
-    /// <exception cref="NullReferenceException">Thrown when the texture's image loader is null.</exception>
-    public static void ExportTexture(Texture texture, IEnumerable<string> formats, ImageTranslatorManager manager, string? directory, string imageName, bool skipExisting)
+    /// <param name="path">The output path of the image, its extension is replaced by each format.</param>
+    /// <param name="skipExisting">Whether to skip formats whose file already exists.</param>
+    /// <returns>
+    /// The full path of the image written for the last format, which models should reference, or the texture's current
+    /// <see cref="Texture.FilePath"/> when no formats are provided.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">Thrown when the texture has no image loader, or its image could not be loaded.</exception>
+    public static string ExportTexture(Texture texture, IReadOnlyList<string> formats, ImageTranslatorManager manager, string path, bool skipExisting)
     {
-        if (texture.ImageLoader is null)
-            throw new NullReferenceException(nameof(texture.ImageLoader));
-
-        var data = texture.ImageLoader.Load(texture, manager);
-        var path = imageName;
-
-        if (directory is not null)
-        {
-            Directory.CreateDirectory(directory);
-            path = Path.Combine(directory, imageName);
-        }
+        Image? image = null;
 
         foreach (var format in formats)
         {
-            // We will essentially assign the last written image
-            // as this textures new "path" for models, etc.
-            texture.FilePath = Path.GetFullPath(Path.ChangeExtension(path, format));
+            var filePath = Path.GetFullPath(Path.ChangeExtension(path, format));
 
-            if (skipExisting && File.Exists(texture.FilePath))
+            if (skipExisting && File.Exists(filePath))
                 continue;
 
-            manager.Write(texture.FilePath, data);
+            var loader = texture.ImageLoader ?? throw new InvalidOperationException($"Texture '{texture.Name}' does not have an image loader.");
+
+            image ??= loader.Load(texture, manager) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            manager.Write(filePath, image);
         }
+
+        return formats.Count > 0 ? Path.GetFullPath(Path.ChangeExtension(path, formats[^1])) : texture.FilePath;
     }
 }

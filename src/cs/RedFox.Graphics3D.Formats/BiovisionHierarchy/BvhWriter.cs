@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
-
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
 

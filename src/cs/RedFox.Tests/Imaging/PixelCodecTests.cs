@@ -18,7 +18,7 @@ public sealed class PixelCodecTests
         foreach (ImageFormat format in Enum.GetValues<ImageFormat>())
         {
             bool expected = expectedFormats.Contains(format);
-            bool actual = PixelCodec.TryGetCodec(format, out IPixelCodec? codec);
+            bool actual = PixelCodecs.TryGetCodec(format, out IPixelCodec? codec);
 
             Assert.Equal(expected, actual);
 

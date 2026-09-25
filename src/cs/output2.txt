@@ -1,0 +1,574 @@
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D
+
+23/09/2026  13:05             6,050 Animation.cs
+05/05/2026  10:29               866 AnimationAction.cs
+05/05/2026  10:29               973 AnimationBlendMode.cs
+23/09/2026  13:05            18,503 AnimationCurve.cs
+23/09/2026  13:05             3,212 AnimationHelper.cs
+05/05/2026  10:29             1,242 AnimationKeyFrame{TFrame, TValue}.cs
+05/05/2026  10:29             4,454 AnimationMask.cs
+23/09/2026  13:05            10,225 AnimationPlayer.cs
+05/05/2026  10:29             8,202 AnimationSampler.cs
+05/05/2026  10:29             3,135 AnimationSamplerSolver.cs
+23/09/2026  13:06               667 AnimationSampleType.cs
+05/05/2026  10:29             8,148 AnimationTrack.cs
+30/05/2026  21:52             3,066 BlendShape.cs
+24/05/2026  20:39             2,642 BlendShapeAnimation.cs
+05/05/2026  10:29             3,216 BlendShapeSampler.cs
+23/09/2026  13:05             2,725 BlendShapeTrack.cs
+05/05/2026  10:29             5,534 Camera.cs
+05/05/2026  10:29             1,631 CameraControllerInput.cs
+05/05/2026  10:29               523 CameraProjection.cs
+05/05/2026  10:29             1,281 CameraView.cs
+30/05/2026  21:33             1,346 ConstraintNode.cs
+05/05/2026  10:29               425 FaceWinding.cs
+23/09/2026  14:25             1,047 FileSystemImageLoader.cs
+05/05/2026  10:29             3,680 FpsCamera.cs
+23/09/2026  11:31             4,294 Grid.cs
+05/05/2026  10:29             1,018 Group.cs
+23/09/2026  14:25               605 ITextureLoader.cs
+05/05/2026  10:29               795 IUpdatable.cs
+23/09/2026  13:05             1,234 IValueManipulator{T}.cs
+23/09/2026  11:31             1,544 Light.cs
+05/05/2026  10:29             3,152 LruState.cs
+24/09/2026  19:52            31,683 Material.cs
+05/05/2026  10:29             1,188 MaterialTextureBinding.cs
+24/09/2026  19:52            57,769 Mesh.cs
+23/09/2026  13:13            23,289 MeshAdjacency.cs
+23/09/2026  13:05               550 MeshFaceOrder.cs
+16/09/2026  22:58            10,765 MeshNormals.cs
+05/05/2026  10:29            17,062 MeshOptimizer.cs
+05/05/2026  10:29             5,792 MeshRemap.cs
+05/05/2026  10:29            14,350 MeshTangentFrame.cs
+05/05/2026  10:29               397 MeshTriangulationResult.cs
+05/05/2026  10:29             4,710 MeshTriangulator.cs
+23/09/2026  13:13             9,841 MeshValidation.cs
+05/05/2026  10:29             1,307 MeshValidationFlags.cs
+05/05/2026  10:29               835 NormalGenerationMode.cs
+05/05/2026  10:29            11,092 OrbitCamera.cs
+05/05/2026  10:29               997 OrientConstraintNode.cs
+05/05/2026  10:29             1,261 ParentConstraintNode.cs
+05/05/2026  10:29             1,455 PerspectiveCamera.cs
+05/05/2026  10:29               670 ReparentTransformMode.cs
+24/09/2026  19:52             9,906 Scene.cs
+05/05/2026  10:29             2,079 SceneBounds.cs
+05/05/2026  10:29             3,502 SceneBoundsCalculator.cs
+05/05/2026  10:29             1,104 SceneChangedEventArgs.cs
+05/05/2026  10:29               572 SceneChangeKind.cs
+30/05/2026  21:33             1,802 SceneMergeOptions.cs
+30/05/2026  21:33             7,746 SceneMerger.cs
+30/05/2026  21:33               980 SceneMergeStrategy.cs
+24/09/2026  20:03           172,402 SceneNode.cs
+23/09/2026  13:06             1,185 SceneNodeDuplicateException.cs
+05/06/2026  11:43               853 SceneNodeFlags.cs
+05/05/2026  10:29               540 SceneNodeId.cs
+30/05/2026  21:33               774 SceneNodeMatchScope.cs
+23/09/2026  13:06             1,168 SceneNodeNotFoundException.cs
+23/09/2026  13:06             1,159 SceneNodeParentException.cs
+05/05/2026  10:29               190 SceneRenderType.cs
+05/05/2026  10:29               409 SceneUpAxis.cs
+23/09/2026  13:06             4,607 SkeletonAnimation.cs
+23/09/2026  13:06             9,079 SkeletonAnimationSampler.cs
+05/05/2026  10:29             3,957 SkeletonAnimationTrack.cs
+23/09/2026  13:06             5,265 SkeletonBone.cs
+05/05/2026  10:29               388 SkinningMode.cs
+23/09/2026  11:31               887 Skybox.cs
+23/09/2026  14:25             5,742 Texture.cs
+24/09/2026  19:51             5,136 Transform.cs
+05/05/2026  10:29               575 TransformSpace.cs
+05/05/2026  10:29             1,804 TransformType.cs
+              77 File(s)        544,259 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\Buffers
+
+23/09/2026  11:32            22,743 DataBuffer.cs
+23/09/2026  20:58             7,109 DataBufferElement.cs
+23/09/2026  20:27             3,139 DataBufferPacking.cs
+23/09/2026  13:02             3,537 DataBufferRawData.cs
+23/09/2026  13:05            14,637 DataBuffer{T}.cs
+               5 File(s)         51,165 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\Buffers\PackedVector
+
+05/05/2026  10:29             1,646 Byte2.cs
+05/05/2026  10:29             2,071 Byte4.cs
+05/05/2026  10:29             1,825 ByteN2.cs
+05/05/2026  10:29             2,379 ByteN4.cs
+05/05/2026  10:29             2,245 Color.cs
+05/05/2026  10:29             5,423 Float3PK.cs
+05/05/2026  10:29             2,888 Float3SE.cs
+05/05/2026  10:29             1,624 Half2.cs
+05/05/2026  10:29             2,084 Half4.cs
+05/05/2026  10:29             1,031 IPackedVector.cs
+23/09/2026  20:33            13,994 PackedBuffer{T}.cs
+05/05/2026  10:29             1,511 Short2.cs
+05/05/2026  10:29             1,948 Short4.cs
+05/05/2026  10:29             1,851 ShortN2.cs
+05/05/2026  10:29             2,252 ShortN4.cs
+05/05/2026  10:29             1,821 U555.cs
+05/05/2026  10:29             1,670 U565.cs
+05/05/2026  10:29             1,626 UByte2.cs
+05/05/2026  10:29             1,840 UByte4.cs
+05/05/2026  10:29             1,729 UByteN2.cs
+05/05/2026  10:29             2,210 UByteN4.cs
+05/05/2026  10:29             2,109 UDec4.cs
+05/05/2026  10:29             2,254 UDecN4.cs
+05/05/2026  10:29             2,048 UNibble4.cs
+05/05/2026  10:29             1,638 UShort2.cs
+05/05/2026  10:29             2,081 UShort4.cs
+05/05/2026  10:29             1,749 UShortN2.cs
+05/05/2026  10:29             2,288 UShortN4.cs
+05/05/2026  10:29             2,706 XDecN4.cs
+              29 File(s)         72,541 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\Groups
+
+02/06/2026  10:06             1,070 MaterialGroup.cs
+05/06/2026  11:40             1,008 MeshGroup.cs
+               2 File(s)          2,078 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\Interpolators
+
+23/09/2026  13:06               658 FloatInterpolator.cs
+23/09/2026  13:06               688 QuaternionInterpolator.cs
+23/09/2026  13:06               677 Vector3Interpolator.cs
+               3 File(s)          2,023 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\IO
+
+30/05/2026  21:33             2,360 SceneReadContext.cs
+30/05/2026  21:04             2,848 SceneTranslationContext.cs
+23/09/2026  13:06             3,017 SceneTranslationSelection.cs
+30/05/2026  23:56             5,598 SceneTranslator.cs
+23/09/2026  13:05            27,771 SceneTranslatorManager.cs
+30/05/2026  21:33             4,286 SceneTranslatorOptions.cs
+30/05/2026  23:56               809 ScriptableSceneTranslator.cs
+               7 File(s)         46,689 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\obj\Debug\net10.0
+
+12/09/2026  16:09               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,025 RedFox.Graphics3D.AssemblyInfo.cs
+17/03/2026  09:37               239 RedFox.Graphics3D.GlobalUsings.g.cs
+               3 File(s)          1,464 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\obj\Debug\net9.0
+
+25/04/2026  11:21               198 .NETCoreApp,Version=v9.0.AssemblyAttributes.cs
+05/05/2026  10:29             1,025 RedFox.Graphics3D.AssemblyInfo.cs
+25/04/2026  11:21               239 RedFox.Graphics3D.GlobalUsings.g.cs
+               3 File(s)          1,462 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\obj\Release\net10.0
+
+12/09/2026  18:35               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,027 RedFox.Graphics3D.AssemblyInfo.cs
+17/03/2026  19:06               239 RedFox.Graphics3D.GlobalUsings.g.cs
+               3 File(s)          1,466 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D\Solvers
+
+05/05/2026  10:29             5,540 AimConstraint.cs
+05/05/2026  10:29             8,317 CCDIKSolver.cs
+05/05/2026  10:29             4,666 LookAtConstraint.cs
+05/05/2026  10:29             2,114 OrientConstraint.cs
+05/05/2026  10:29             3,236 ParentConstraint.cs
+05/05/2026  10:29             9,535 TwoBoneIKSolver.cs
+               6 File(s)         33,408 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Avalonia
+
+05/05/2026  10:29               566 AnimationCurveListItem.cs
+05/05/2026  10:29             8,416 AvaloniaCameraInputAdapter.cs
+05/05/2026  10:29            13,745 AvaloniaOpenGlRendererControl.cs
+05/05/2026  10:29             1,838 AvaloniaRenderFrameEventArgs.cs
+05/05/2026  10:29             4,267 SkeletonAnimationCurveComponent.cs
+05/05/2026  10:29            25,660 SkeletonAnimationCurveGraphControl.cs
+05/05/2026  10:29               128 SkeletonAnimationCurveGraphDragMode.cs
+05/05/2026  10:29             1,513 SkeletonAnimationCurveKey.cs
+05/05/2026  10:29            30,709 SkeletonAnimationCurveViewer.cs
+05/05/2026  10:29               517 SkeletonAnimationCurveViewerMode.cs
+              10 File(s)         87,359 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Avalonia\obj\Debug\net10.0
+
+13/09/2026  11:45               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,052 RedFox.Graphics3D.Avalonia.AssemblyInfo.cs
+25/04/2026  13:32               239 RedFox.Graphics3D.Avalonia.GlobalUsings.g.cs
+               3 File(s)          1,491 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Avalonia\obj\Release\net10.0
+
+13/09/2026  11:50               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,054 RedFox.Graphics3D.Avalonia.AssemblyInfo.cs
+27/04/2026  21:19               239 RedFox.Graphics3D.Avalonia.GlobalUsings.g.cs
+               3 File(s)          1,493 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.D3D11
+
+05/05/2026  10:29             1,945 D3D11Buffer.cs
+05/05/2026  10:29            30,857 D3D11CommandList.cs
+05/05/2026  10:29               243 D3D11ConstantBufferSlot.cs
+05/05/2026  10:29             8,718 D3D11Context.cs
+05/05/2026  10:29               448 D3D11Exception.cs
+23/09/2026  14:25            48,192 D3D11GraphicsDevice.cs
+23/09/2026  14:25             4,609 D3D11Helpers.cs
+05/05/2026  10:29             1,266 D3D11MaterialShaderFactory.cs
+05/05/2026  10:29               560 D3D11MaterialTypeRegistry.cs
+05/05/2026  10:29             5,812 D3D11PipelineState.cs
+05/05/2026  10:29             1,775 D3D11RenderTarget.cs
+05/05/2026  10:29             1,354 D3D11Shader.cs
+05/05/2026  10:29               718 D3D11ShaderConstantBufferLayout.cs
+05/05/2026  10:29             7,432 D3D11ShaderReflection.cs
+05/05/2026  10:29               688 D3D11ShaderReflectionResult.cs
+05/05/2026  10:29               385 D3D11ShaderResourceBinding.cs
+05/05/2026  10:29               174 D3D11ShaderStageFlags.cs
+05/05/2026  10:29               119 D3D11ShaderVariableKind.cs
+05/05/2026  10:29               952 D3D11ShaderVariableLayout.cs
+05/05/2026  10:29             1,171 D3D11SilkPresenter.cs
+05/05/2026  10:29             1,201 D3D11SilkPresenterFactory.cs
+23/09/2026  14:25             2,198 D3D11Texture.cs
+05/05/2026  10:29             1,751 D3D11UniformValue.cs
+05/05/2026  10:29               197 D3D11UniformValueKind.cs
+05/05/2026  10:29             1,521 HlslShaderSourceLoader.cs
+              25 File(s)        124,286 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.D3D11\obj\Debug\net10.0
+
+19/09/2026  19:19               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  21:17             1,083 RedFox.Graphics3D.D3D11.AssemblyInfo.cs
+24/04/2026  21:30               239 RedFox.Graphics3D.D3D11.GlobalUsings.g.cs
+               3 File(s)          1,522 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.D3D11\obj\Release\net10.0
+
+04/06/2026  10:54               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+04/06/2026  10:54             1,085 RedFox.Graphics3D.D3D11.AssemblyInfo.cs
+27/04/2026  21:19               239 RedFox.Graphics3D.D3D11.GlobalUsings.g.cs
+               3 File(s)          1,524 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats
+
+24/09/2026  14:03             2,904 BuiltInFormats.cs
+               1 File(s)          2,904 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\ActorX
+
+23/09/2026  11:19             1,455 ActorXAnimInfo.cs
+23/09/2026  11:19               633 ActorXAnimKey.cs
+23/09/2026  11:19             3,921 ActorXBinary.cs
+23/09/2026  11:19             1,122 ActorXBone.cs
+23/09/2026  11:19             2,342 ActorXChunkHeader.cs
+23/09/2026  11:19             2,039 ActorXChunkId.cs
+23/09/2026  11:19               506 ActorXInfluence.cs
+23/09/2026  11:19               874 ActorXMaterial.cs
+23/09/2026  11:19               797 ActorXTriangle.cs
+23/09/2026  11:19               676 ActorXVertex.cs
+23/09/2026  11:19             6,073 PsaReader.cs
+23/09/2026  11:19             1,122 PsaTranslator.cs
+23/09/2026  11:19             5,818 PsaWriter.cs
+23/09/2026  11:19            13,081 PskReader.cs
+23/09/2026  11:19             1,135 PskTranslator.cs
+23/09/2026  11:19            10,262 PskWriter.cs
+              16 File(s)         51,856 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\BiovisionHierarchy
+
+24/09/2026  09:46               956 BvhChannelType.cs
+24/09/2026  09:46             6,196 BvhFormat.cs
+24/09/2026  09:46            22,609 BvhReader.cs
+24/09/2026  09:47            14,490 BvhRotation.cs
+24/09/2026  09:46             3,108 BvhTranslator.cs
+24/09/2026  20:56            28,664 BvhWriter.cs
+               6 File(s)         76,023 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\Cast
+
+25/09/2026  15:02            10,730 CastAnimationTranslator.cs
+23/09/2026  11:19             7,818 CastMeshTranslator.cs
+24/09/2026  19:53             6,170 CastModelTranslator.cs
+23/09/2026  11:19             1,561 CastSkeletonTranslator.cs
+25/09/2026  14:49             3,763 CastTranslator.cs
+               5 File(s)         30,042 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\GLTransmissionFormat
+
+24/09/2026  09:56             2,463 GltfAccessor.cs
+24/09/2026  09:56               879 GltfAnimation.cs
+24/09/2026  09:56               758 GltfAnimationChannel.cs
+24/09/2026  09:56               814 GltfAnimationSampler.cs
+24/09/2026  09:56               850 GltfBuffer.cs
+24/09/2026  09:56             1,258 GltfBufferView.cs
+24/09/2026  09:56             1,450 GltfCamera.cs
+24/09/2026  09:56             6,913 GltfConstants.cs
+24/09/2026  09:56             8,673 GltfDocument.cs
+24/09/2026  09:56               910 GltfImage.cs
+24/09/2026  09:56            23,973 GltfJsonParser.cs
+24/09/2026  09:56            20,686 GltfJsonWriter.cs
+24/09/2026  09:56             2,901 GltfMaterial.cs
+24/09/2026  09:56               734 GltfMesh.cs
+24/09/2026  09:56             1,448 GltfMeshPrimitive.cs
+24/09/2026  09:56             1,968 GltfNode.cs
+24/09/2026  09:56            41,127 GltfReader.cs
+24/09/2026  09:56               934 GltfSampler.cs
+24/09/2026  09:56               507 GltfScene.cs
+24/09/2026  09:56               985 GltfSkin.cs
+24/09/2026  09:56               699 GltfTexture.cs
+24/09/2026  09:56             4,950 GltfTranslator.cs
+24/09/2026  09:56            44,414 GltfWriter.cs
+              23 File(s)        170,294 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\IdTech
+
+24/09/2026  13:59             2,024 Md5AnimJoint.cs
+24/09/2026  13:59            17,430 Md5AnimReader.cs
+24/09/2026  13:59             2,971 Md5AnimTranslator.cs
+24/09/2026  13:59            12,723 Md5AnimWriter.cs
+24/09/2026  13:59             1,835 Md5Format.cs
+24/09/2026  13:59             1,416 Md5Joint.cs
+24/09/2026  13:59            17,720 Md5MeshReader.cs
+24/09/2026  13:59             3,047 Md5MeshTranslator.cs
+24/09/2026  13:59            13,987 Md5MeshWriter.cs
+24/09/2026  13:59             1,214 Md5Vertex.cs
+24/09/2026  13:59             1,314 Md5Weight.cs
+              11 File(s)         75,681 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\IwEngine
+
+24/09/2026  14:03             4,798 XAnimReader.cs
+24/09/2026  14:03             2,548 XAnimTranslator.cs
+24/09/2026  14:03             4,454 XAnimWriter.cs
+24/09/2026  14:03             1,200 XAssetTokenDataExtensions.cs
+24/09/2026  14:03             2,628 XAssetTokenStream.cs
+24/09/2026  14:03               483 XAssetTransform.cs
+24/09/2026  14:03               585 XAssetWriter.cs
+24/09/2026  14:03            12,774 XModelReader.cs
+24/09/2026  14:03             2,559 XModelTranslator.cs
+24/09/2026  14:03            12,332 XModelWriter.cs
+              10 File(s)         44,361 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\KaydaraFbx
+
+23/09/2026  11:19               443 FbxArrayFactory.cs
+23/09/2026  11:19            13,860 FbxAsciiTokenizer.cs
+23/09/2026  11:19               641 FbxConnection.cs
+23/09/2026  11:19             2,338 FbxDocument.cs
+23/09/2026  11:19               988 FbxDocumentIO.cs
+23/09/2026  11:19            74,029 FbxDocumentSerializer.cs
+23/09/2026  11:19               372 FbxFormat.cs
+23/09/2026  18:14            37,784 FbxGeometryMapper.cs
+23/09/2026  11:19             3,100 FbxNode.cs
+23/09/2026  11:19             1,622 FbxProperty.cs
+23/09/2026  11:19             7,411 FbxRotation.cs
+23/09/2026  13:19           142,767 FbxSceneMapper.cs
+23/09/2026  11:19            19,128 FbxSkinningMapper.cs
+23/09/2026  11:19             2,850 FbxTranslator.cs
+              14 File(s)        307,333 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\MayaAscii
+
+23/09/2026  11:19             3,045 MayaAsciiTranslator.cs
+23/09/2026  11:19             3,095 MayaAsciiWriteOptions.cs
+23/09/2026  13:08            61,106 MayaAsciiWriter.cs
+23/09/2026  11:19               855 MayaConnection.cs
+23/09/2026  11:19             4,074 MayaNodeTypes.cs
+23/09/2026  11:19             2,829 MayaUnits.cs
+               6 File(s)         75,004 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\obj\Debug\net10.0
+
+23/09/2026  12:43               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,049 RedFox.Graphics3D.Formats.AssemblyInfo.cs
+23/09/2026  12:43               239 RedFox.Graphics3D.Formats.GlobalUsings.g.cs
+               3 File(s)          1,488 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\obj\Release\net10.0
+
+23/09/2026  16:54               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,051 RedFox.Graphics3D.Formats.AssemblyInfo.cs
+23/09/2026  16:54               239 RedFox.Graphics3D.Formats.GlobalUsings.g.cs
+               3 File(s)          1,490 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\SEAnim
+
+25/09/2026  15:02            13,131 SeanimTranslator.cs
+               1 File(s)         13,131 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\SEModel
+
+24/09/2026  19:53            23,044 SemodelTranslator.cs
+               1 File(s)         23,044 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\StudioMDL
+
+24/09/2026  09:56            22,322 SmdReader.cs
+24/09/2026  09:56             3,537 SmdTranslator.cs
+24/09/2026  09:56             1,433 SmdVertex.cs
+24/09/2026  09:56            22,849 SmdWriter.cs
+               4 File(s)         50,141 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Formats\WavefrontObj
+
+23/09/2026  13:15             8,497 ObjMtlReader.cs
+23/09/2026  11:19             2,892 ObjMtlWriter.cs
+23/09/2026  13:15            21,494 ObjReader.cs
+23/09/2026  11:19             4,874 ObjTranslator.cs
+23/09/2026  13:14             8,206 ObjWriter.cs
+               5 File(s)         45,963 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL
+
+05/05/2026  10:29               789 OpenGlSilkPresenter.cs
+05/05/2026  10:29             2,181 OpenGlSilkPresenterFactory.cs
+               2 File(s)          2,970 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL\Backend
+
+05/05/2026  10:29             3,446 OpenGlBuffer.cs
+05/05/2026  10:29            26,637 OpenGlCommandList.cs
+23/09/2026  14:25            49,729 OpenGlGraphicsDevice.cs
+05/05/2026  10:29             1,203 OpenGlMaterialShaderFactory.cs
+05/05/2026  10:29               572 OpenGlMaterialTypeRegistry.cs
+05/05/2026  10:29             6,806 OpenGlPipelineState.cs
+05/05/2026  10:29             2,521 OpenGlRenderTarget.cs
+05/05/2026  10:29             1,376 OpenGlShader.cs
+23/09/2026  14:25             5,520 OpenGlTexture.cs
+               9 File(s)         97,810 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL\obj\Debug\net10.0
+
+12/09/2026  19:09               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,046 RedFox.Graphics3D.OpenGL.AssemblyInfo.cs
+20/04/2026  22:21               239 RedFox.Graphics3D.OpenGL.GlobalUsings.g.cs
+               3 File(s)          1,485 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL\obj\Release\net10.0
+
+13/09/2026  11:50               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,048 RedFox.Graphics3D.OpenGL.AssemblyInfo.cs
+27/04/2026  21:19               239 RedFox.Graphics3D.OpenGL.GlobalUsings.g.cs
+               3 File(s)          1,487 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL\Resources
+
+05/05/2026  10:29             3,444 GlComputeProgram.cs
+05/05/2026  10:29             9,802 GlProgramBase.cs
+05/05/2026  10:29               810 GlShaderProgram.cs
+05/05/2026  10:29             8,849 OpenGlContext.cs
+               4 File(s)         22,905 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.OpenGL\Shaders
+
+05/05/2026  10:29             1,948 GlslShaderSourceLoader.cs
+               1 File(s)          1,948 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering
+
+05/05/2026  10:29             1,209 BlendFactor.cs
+05/05/2026  10:29               802 BlendOp.cs
+05/05/2026  10:29             1,315 BufferUsage.cs
+05/05/2026  10:29             1,421 ClearAndStateResetPass.cs
+05/05/2026  10:29             1,221 CompareFunc.cs
+05/05/2026  10:29               465 CullMode.cs
+05/05/2026  10:29             4,081 GpuBufferData.cs
+05/05/2026  10:29             1,898 GpuBufferElementType.cs
+05/05/2026  10:29             8,031 ICommandList.cs
+05/05/2026  10:29               858 IGpuBuffer.cs
+05/05/2026  10:29               807 IGpuPipelineState.cs
+05/05/2026  10:29               327 IGpuRenderTarget.cs
+05/05/2026  10:29               314 IGpuShader.cs
+05/05/2026  10:29               316 IGpuTexture.cs
+23/09/2026  14:25             9,339 IGraphicsDevice.cs
+23/09/2026  11:33             1,823 IRenderHandle.cs
+05/05/2026  10:29             1,289 IRenderPass.cs
+05/05/2026  10:29             1,807 IRenderPipeline.cs
+23/09/2026  11:32            13,419 MeshGpuBufferBinding.cs
+05/05/2026  10:29               656 PrimitiveTopology.cs
+23/09/2026  13:09               798 RenderFlags.cs
+05/05/2026  10:29             4,872 RenderFrameContext.cs
+05/05/2026  10:29               572 RenderHandleFlags.cs
+05/05/2026  10:29             1,873 RenderPass.cs
+05/05/2026  10:29             1,346 RenderPassPhase.cs
+05/05/2026  10:29             3,720 RenderPipeline.cs
+23/09/2026  14:25            25,665 SceneRenderer.cs
+23/09/2026  11:30             2,188 SceneRenderResources.cs
+23/09/2026  11:31             6,453 SceneTraversal.cs
+05/05/2026  10:29               432 ShaderStage.cs
+05/05/2026  10:29               904 TextureUsage.cs
+05/05/2026  10:29             1,668 VertexAttribute.cs
+05/05/2026  10:29               983 VertexAttributeType.cs
+              33 File(s)        102,872 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering\Handles
+
+05/05/2026  10:29             4,236 GridRenderHandle.cs
+05/05/2026  10:29             1,763 LightRenderHandle.cs
+23/09/2026  14:25             9,703 MaterialRenderHandle.cs
+23/09/2026  11:32             6,816 MeshRenderHandle.cs
+05/05/2026  10:29             1,490 RenderHandle.cs
+24/05/2026  20:07            14,795 SkeletonBoneRenderHandle.cs
+23/09/2026  14:25             6,170 SkyboxRenderHandle.cs
+23/09/2026  14:25             6,222 TextureRenderHandle.cs
+               8 File(s)         51,195 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering\Hosting
+
+05/05/2026  10:29               415 IInputSource.cs
+05/05/2026  10:29               421 IRendererHost.cs
+05/05/2026  10:29            13,101 SceneViewportController.cs
+               3 File(s)         13,937 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering\Materials
+
+05/05/2026  10:29             2,350 BuiltInMaterialTypes.cs
+05/05/2026  10:29               393 IMaterialPipelineProvider.cs
+05/05/2026  10:29               720 IMaterialShaderFactory.cs
+05/05/2026  10:29             1,231 IMaterialTypeRegistry.cs
+05/05/2026  10:29               420 MaterialPipelineKind.cs
+05/05/2026  10:29             3,561 MaterialPipelineStateDefinition.cs
+05/05/2026  10:29             1,335 MaterialTextureRequirement.cs
+05/05/2026  10:29               928 MaterialTypeDefinition.cs
+05/05/2026  10:29            11,421 MaterialTypeDescriptor.cs
+05/05/2026  10:29             7,980 MaterialTypeJsonLoader.cs
+05/05/2026  10:29               457 MaterialTypePipelineCacheEntry.cs
+05/05/2026  10:29             5,356 MaterialTypeRegistry.cs
+05/05/2026  10:29             2,670 MaterialTypeRequirements.cs
+05/05/2026  10:29             1,197 MaterialUniformRequirement.cs
+05/05/2026  10:29               987 MaterialValueType.cs
+              15 File(s)         41,006 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering\obj\Debug\net10.0
+
+23/09/2026  12:43               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,055 RedFox.Graphics3D.Rendering.AssemblyInfo.cs
+23/09/2026  12:43               239 RedFox.Graphics3D.Rendering.GlobalUsings.g.cs
+               3 File(s)          1,494 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Rendering\obj\Release\net10.0
+
+25/09/2026  14:42               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,057 RedFox.Graphics3D.Rendering.AssemblyInfo.cs
+25/09/2026  14:42               239 RedFox.Graphics3D.Rendering.GlobalUsings.g.cs
+               3 File(s)          1,496 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Silk
+
+05/05/2026  10:29               808 ISilkGraphicsPresenter.cs
+05/05/2026  10:29               762 ISilkGraphicsPresenterFactory.cs
+05/05/2026  10:29             5,554 SilkCameraInputAdapter.cs
+05/05/2026  10:29             5,668 SilkRendererHost.cs
+               4 File(s)         12,792 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Silk\obj\Debug\net10.0
+
+13/09/2026  11:45               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:49             1,040 RedFox.Graphics3D.Silk.AssemblyInfo.cs
+25/04/2026  11:57               239 RedFox.Graphics3D.Silk.GlobalUsings.g.cs
+               3 File(s)          1,479 bytes
+
+ Directory of G:\Projects\Public\RedFox\src\cs\RedFox.Graphics3D.Silk\obj\Release\net10.0
+
+13/09/2026  11:50               200 .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
+25/09/2026  14:42             1,042 RedFox.Graphics3D.Silk.AssemblyInfo.cs
+27/04/2026  21:19               239 RedFox.Graphics3D.Silk.GlobalUsings.g.cs
+               3 File(s)          1,481 bytes

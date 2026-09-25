@@ -3,73 +3,72 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Imaging.Primitives;
 
-namespace RedFox.Imaging.Codecs
+namespace RedFox.Imaging.Codecs;
+
+/// <summary>
+/// Codec for <see cref="ImageFormat.A8Unorm"/>.
+/// 8-bit alpha-only format.
+/// </summary>
+public sealed class A8Codec : IPixelCodec
 {
     /// <summary>
-    /// Codec for <see cref="ImageFormat.A8Unorm"/>.
-    /// 8-bit alpha-only format.
+    /// Initializes a new instance of the <see cref="A8Codec"/> class.
     /// </summary>
-    public sealed class A8Codec : IPixelCodec
+    public A8Codec()
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="A8Codec"/> class.
-        /// </summary>
-        public A8Codec()
+    }
+    private const float Inv255 = 1.0f / 255.0f;
+
+    /// <inheritdoc/>
+    public ImageFormat Format => ImageFormat.A8Unorm;
+
+    /// <inheritdoc/>
+    public int BytesPerPixel => 1;
+
+    /// <inheritdoc/>
+    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
+    {
+        int pixelCount = width * height;
+
+        for (int i = 0; i < pixelCount; i++)
         {
+            destination[i] = new Vector4(0f, 0f, 0f, source[i] * Inv255);
         }
-        private const float Inv255 = 1.0f / 255.0f;
+    }
 
-        /// <inheritdoc/>
-        public ImageFormat Format => ImageFormat.A8Unorm;
+    /// <inheritdoc/>
+    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+    {
+        int pixelCount = width * height;
 
-        /// <inheritdoc/>
-        public int BytesPerPixel => 1;
-
-        /// <inheritdoc/>
-        public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
+        for (int i = 0; i < pixelCount; i++)
         {
-            int pixelCount = width * height;
-
-            for (int i = 0; i < pixelCount; i++)
-            {
-                destination[i] = new Vector4(0f, 0f, 0f, source[i] * Inv255);
-            }
+            destination[i] = (byte)(Math.Clamp(source[i].W, 0f, 1f) * 255f + 0.5f);
         }
+    }
 
-        /// <inheritdoc/>
-        public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+    /// <inheritdoc/>
+    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
+    {
+        return new Vector4(0f, 0f, 0f, source[pixelIndex] * Inv255);
+    }
+
+    /// <inheritdoc/>
+    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
+    {
+        destination[pixelIndex] = (byte)(Math.Clamp(pixel.W, 0f, 1f) * 255f + 0.5f);
+    }
+
+    /// <inheritdoc/>
+    public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+    {
+        if (sourceCodec is A8Codec)
         {
-            int pixelCount = width * height;
-
-            for (int i = 0; i < pixelCount; i++)
-            {
-                destination[i] = (byte)(Math.Clamp(source[i].W, 0f, 1f) * 255f + 0.5f);
-            }
+            int byteCount = width * height;
+            source[..byteCount].CopyTo(destination);
+            return;
         }
 
-        /// <inheritdoc/>
-        public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
-        {
-            return new Vector4(0f, 0f, 0f, source[pixelIndex] * Inv255);
-        }
-
-        /// <inheritdoc/>
-        public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
-        {
-            destination[pixelIndex] = (byte)(Math.Clamp(pixel.W, 0f, 1f) * 255f + 0.5f);
-        }
-
-        /// <inheritdoc/>
-        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
-        {
-            if (sourceCodec is A8Codec)
-            {
-                int byteCount = width * height;
-                source[..byteCount].CopyTo(destination);
-                return;
-            }
-
-            sourceCodec.DecodeTo(source, this, destination, width, height);
-        }
+        sourceCodec.DecodeTo(source, this, destination, width, height);
     }
 }

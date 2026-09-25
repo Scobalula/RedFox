@@ -267,8 +267,8 @@ public sealed class Image
         if (Format == targetFormat)
             return;
 
-        IPixelCodec sourceCodec = PixelCodec.GetCodec(Format);
-        IPixelCodec targetCodec = PixelCodec.GetCodec(targetFormat);
+        IPixelCodec sourceCodec = PixelCodecs.GetCodec(Format);
+        IPixelCodec targetCodec = PixelCodecs.GetCodec(targetFormat);
 
         int totalSize = CalculateTotalSize(Width, Height, Depth, ArraySize, MipLevels, targetFormat);
         byte[] newPixels = new byte[totalSize];
@@ -326,7 +326,7 @@ public sealed class Image
     public Vector4[] DecodeSlice(int mipLevel, int arrayIndex, int depthSlice)
     {
         ref readonly ImageSlice slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
-        IPixelCodec codec = PixelCodec.GetCodec(Format);
+        IPixelCodec codec = PixelCodecs.GetCodec(Format);
         Vector4[] result = new Vector4[slice.Width * slice.Height];
         codec.Decode(slice.PixelSpan, result, slice.Width, slice.Height);
         return result;

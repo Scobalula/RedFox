@@ -25,38 +25,34 @@ public abstract class ModelHandler : IAssetHandler
 
         var outputDirectory = Path.Combine(context.OutputDirectory, result.Asset.Name);
 
-        // TODO: Need to nail down a good API in asset manager so we can pass this onto the asset handler
-        // but exporting images and where to export them to from the POV of a model is just so specific
-        // it gets yucky and so I feel its best to let it handler it and pass it to a shared static method..
-        // But I definitely need to look into how we can advise the sub-handler of a parent in a clean manner
-        // including where to export a given image, etc. including potential for Model -> Material -> Texture
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
         var relativeImages = context.ExportConfiguration.GetOption("RelativeModelImages", false);
         var relativeToMaterial = context.ExportConfiguration.GetOption("RelativeToMaterialImages", false);
         var skipExistingImages = context.ExportConfiguration.GetOption("SkipExistingImages", true);
 
-        // Scenes hold their own copies of shared materials, so the same material is seen once per scene that uses it.
-        var materials = scenes.SelectMany(scene => scene.EnumerateDescendants<Material>()).DistinctBy(material => material.Name);
+        // Each scene holds its own clones of shared materials and textures, so every clone must point at the
+        // exported image, while each image is only written once.
+        var exportedImages = new Dictionary<string, string>();
 
-        foreach (var material in materials)
+        foreach (var material in scenes.SelectMany(scene => scene.EnumerateDescendants<Material>()))
         {
-            foreach (var textureSlot in material.Textures)
+            foreach (var texture in material.Textures.Select(binding => binding.Texture))
             {
-                var texture = textureSlot.Texture;
-
-                string textureDirectory;
-                string textureFileName = Path.GetFileName(texture.Name).Split('.')[0];
-
-                if (relativeImages)
-                    textureDirectory = Path.Combine(outputDirectory, "_images");
-                else
-                    textureDirectory = Path.Combine(context.OutputDirectory, Path.GetDirectoryName(texture.Name) ?? string.Empty);
+                var textureDirectory = relativeImages ? Path.Combine(outputDirectory, "_images") : Path.Combine(context.OutputDirectory, Path.GetDirectoryName(texture.Name) ?? string.Empty);
 
                 // We only export relative to material IF we are doing relative images at all
                 if (relativeImages && relativeToMaterial)
                     textureDirectory = Path.Combine(textureDirectory, material.Name);
 
-                TextureHandler.ExportTexture(texture, imageFormats, imageManager, textureDirectory, textureFileName, skipExistingImages);
+                var texturePath = Path.Combine(textureDirectory, Path.GetFileName(texture.Name).Split('.')[0]);
+
+                if (!exportedImages.TryGetValue(texturePath, out var filePath))
+                {
+                    filePath = TextureHandler.ExportTexture(texture, imageFormats, imageManager, texturePath, skipExistingImages);
+                    exportedImages[texturePath] = filePath;
+                }
+
+                texture.FilePath = filePath;
             }
         }
 

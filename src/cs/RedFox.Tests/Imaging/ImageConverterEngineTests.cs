@@ -70,7 +70,7 @@ public sealed class ImageConverterEngineTests
         }
 
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R8G8B8A8Unorm, width, height).SlicePitch];
-        PixelCodec.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
+        PixelCodecs.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
         return sourceBytes;
     }
 }

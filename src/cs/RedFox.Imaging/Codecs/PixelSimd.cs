@@ -78,9 +78,6 @@ internal static class PixelSimd
         }
     }
 
-    /// <summary>
-    /// Decodes contiguous R8G8B8A8 bytes into <see cref="Vector4"/> (normalized 0–1).
-    /// </summary>
     internal static void DecodeRgba8(ReadOnlySpan<byte> source, Span<Vector4> destination, int pixelCount)
     {
         int i = 0;
@@ -109,9 +106,6 @@ internal static class PixelSimd
         }
     }
 
-    /// <summary>
-    /// Decodes contiguous B8G8R8A8 bytes into <see cref="Vector4"/> (RGBA order, normalized 0–1).
-    /// </summary>
     internal static void DecodeBgra8(ReadOnlySpan<byte> source, Span<Vector4> destination, int pixelCount)
     {
         int i = 0;
@@ -152,9 +146,6 @@ internal static class PixelSimd
         }
     }
 
-    /// <summary>
-    /// Encodes <see cref="Vector4"/> pixels (RGBA, 0–1) to R8G8B8A8 bytes.
-    /// </summary>
     internal static void EncodeToRgba8(ReadOnlySpan<Vector4> source, Span<byte> destination, int pixelCount)
     {
         int i = 0;
@@ -182,9 +173,6 @@ internal static class PixelSimd
         }
     }
 
-    /// <summary>
-    /// Encodes <see cref="Vector4"/> pixels (RGBA, 0–1) to B8G8R8A8 bytes.
-    /// </summary>
     internal static void EncodeToBgra8(ReadOnlySpan<Vector4> source, Span<byte> destination, int pixelCount)
     {
         int i = 0;

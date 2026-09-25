@@ -155,7 +155,8 @@ public class SeanimTranslator : SceneTranslator
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 
-        var tracks     = data.Tracks;
+        // SEAnim can only store transforms, so tracks holding nothing but custom curves are left out.
+        var tracks     = data.Tracks.Where(track => track.HasKeyFrames).ToList();
         int trackCount = tracks.Count;
 
         var (_, maxTrackFrame) = data.GetAnimationFrameRange();

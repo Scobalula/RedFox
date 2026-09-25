@@ -99,7 +99,7 @@ namespace RedFox.Imaging.BlockCompression
         public Vector4 ReadPixel(ReadOnlySpan<byte> source, int x, int y, int width)
         {
             int blocksX = Math.Max(1, (width + 3) / 4);
-            int blockOffset = ((y / 4) * blocksX + (x / 4)) * BytesPerBlock;
+            int blockOffset = (y / 4 * blocksX + (x / 4)) * BytesPerBlock;
             Span<Vector4> blockPixels = stackalloc Vector4[16];
             DecodeBlock(source.Slice(blockOffset, BytesPerBlock), blockPixels, IsSigned);
             return blockPixels[(y % 4) * 4 + (x % 4)];
@@ -293,7 +293,7 @@ namespace RedFox.Imaging.BlockCompression
                 b[i] = Unquantize(b[i], info.EndpointBits, signed);
             }
 
-            var reader = new BitReader(block);
+            var reader = new BcnBitReader(block);
             int totalIdxBits = info.IndexBits * 16 - (info.NumSubsets == 1 ? 1 : 2);
             int idxStart = 128 - totalIdxBits;
             var wt = info.IndexBits == 3 ? BC6HPartitionTable.Weights3 : BC6HPartitionTable.Weights4;
@@ -358,7 +358,7 @@ namespace RedFox.Imaging.BlockCompression
         private static int ExtractEndpoints(ReadOnlySpan<byte> block, int mode,
             Span<int> r, Span<int> g, Span<int> b)
         {
-            var reader = new BitReader(block);
+            var reader = new BcnBitReader(block);
             return mode switch
             {
                  0 => Extract0(reader, r, g, b),
@@ -380,7 +380,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 0: 2-bit mode (00), 10:5:5:5, 2 subsets, transformed
-        private static int Extract0(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract0(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10);
             r[1] = d.Bits(35, 5);
@@ -398,7 +398,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 1: 2-bit mode (01), 7:6:6:6, 2 subsets, transformed
-        private static int Extract1(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract1(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 7);
             r[1] = d.Bits(35, 6);
@@ -416,7 +416,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 2: 5-bit mode (00010), 11:5:4:4, 2 subsets, transformed
-        private static int Extract2(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract2(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(40) << 10);
             r[1] = d.Bits(35, 5);
@@ -434,7 +434,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 3: 5-bit mode (00110), 11:4:5:4, 2 subsets, transformed
-        private static int Extract3(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract3(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(39) << 10);
             r[1] = d.Bits(35, 4);
@@ -452,7 +452,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 4: 5-bit mode (01010), 11:4:4:5, 2 subsets, transformed
-        private static int Extract4(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract4(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(39) << 10);
             r[1] = d.Bits(35, 4);
@@ -470,7 +470,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 5: 5-bit mode (01110), 9:5:5:5, 2 subsets, transformed
-        private static int Extract5(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract5(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 9);
             r[1] = d.Bits(35, 5);
@@ -488,7 +488,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 6: 5-bit mode (10010), 8:6:5:5, 2 subsets, transformed
-        private static int Extract6(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract6(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 8);
             r[1] = d.Bits(35, 6);
@@ -506,7 +506,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 7: 5-bit mode (10110), 8:5:6:5, 2 subsets, transformed
-        private static int Extract7(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract7(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 8);
             r[1] = d.Bits(35, 5);
@@ -524,7 +524,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 8: 5-bit mode (11010), 8:5:5:6, 2 subsets, transformed
-        private static int Extract8(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract8(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 8);
             r[1] = d.Bits(35, 5);
@@ -542,7 +542,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 9: 5-bit mode (11110), 6:6:6:6, 2 subsets, NON-transformed
-        private static int Extract9(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract9(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 6);
             r[1] = d.Bits(35, 6);
@@ -560,7 +560,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 10: 5-bit mode (00011), 10:10:10:10, 1 subset, NON-transformed
-        private static int Extract10(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract10(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10);
             r[1] = d.Bits(35, 10);
@@ -572,7 +572,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 11: 5-bit mode (00111), 11:9:9:9, 1 subset, transformed
-        private static int Extract11(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract11(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(44) << 10);
             r[1] = d.Bits(35, 9);
@@ -584,7 +584,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 12: 5-bit mode (01011), 12:8:8:8, 1 subset, transformed
-        private static int Extract12(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract12(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(44) << 10) | (d.Bit(43) << 11);
             r[1] = d.Bits(35, 8);
@@ -596,7 +596,7 @@ namespace RedFox.Imaging.BlockCompression
         }
 
         // Mode 13: 5-bit mode (01111), 16:4:4:4, 1 subset, transformed
-        private static int Extract13(BitReader d, Span<int> r, Span<int> g, Span<int> b)
+        private static int Extract13(BcnBitReader d, Span<int> r, Span<int> g, Span<int> b)
         {
             r[0] = d.Bits(5, 10) | (d.Bit(44) << 10) | (d.Bit(43) << 11) | (d.Bit(42) << 12) | (d.Bit(41) << 13) | (d.Bit(40) << 14) | (d.Bit(39) << 15);
             r[1] = d.Bits(35, 4);

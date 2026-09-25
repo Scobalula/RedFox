@@ -71,7 +71,7 @@ namespace RedFox.Imaging
         /// <returns>The decoded pixel as normalized RGBA values.</returns>
         public Vector4 GetPixel(int x, int y)
         {
-            IPixelCodec codec = PixelCodec.GetCodec(Format);
+            IPixelCodec codec = PixelCodecs.GetCodec(Format);
             return codec.ReadPixel(PixelSpan, x, y, Width);
         }
     }

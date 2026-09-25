@@ -11,9 +11,9 @@ public sealed class BcCodecTests
     [Fact]
     public void PixelCodec_GetCodec_ResolvesBc6hAndBc7Codecs()
     {
-        IPixelCodec bc6UnsignedCodec = PixelCodec.GetCodec(ImageFormat.BC6HUF16);
-        IPixelCodec bc6SignedCodec = PixelCodec.GetCodec(ImageFormat.BC6HSF16);
-        IPixelCodec bc7Codec = PixelCodec.GetCodec(ImageFormat.BC7Unorm);
+        IPixelCodec bc6UnsignedCodec = PixelCodecs.GetCodec(ImageFormat.BC6HUF16);
+        IPixelCodec bc6SignedCodec = PixelCodecs.GetCodec(ImageFormat.BC6HSF16);
+        IPixelCodec bc7Codec = PixelCodecs.GetCodec(ImageFormat.BC7Unorm);
 
         Assert.IsType<BC6HCodec>(bc6UnsignedCodec);
         Assert.IsType<BC6HCodec>(bc6SignedCodec);
@@ -85,7 +85,7 @@ public sealed class BcCodecTests
 
         Vector4[] sourcePixels = CreateOpaqueColorPattern(width, height);
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R8G8B8A8Unorm, width, height).SlicePitch];
-        PixelCodec.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
+        PixelCodecs.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
 
         Image image = new(width, height, ImageFormat.R8G8B8A8Unorm, sourceBytes);
         image.Convert(ImageFormat.BC7Unorm, ImageConvertFlags.PreferFastBc7Encoding);
@@ -94,7 +94,7 @@ public sealed class BcCodecTests
         Assert.Equal(ImageFormatInfo.CalculatePitch(ImageFormat.BC7Unorm, width, height).SlicePitch, image.PixelData.Length);
 
         Vector4[] decodedPixels = new Vector4[width * height];
-        PixelCodec.Bc7Unorm.Decode(image.PixelData, decodedPixels, width, height);
+        PixelCodecs.Bc7Unorm.Decode(image.PixelData, decodedPixels, width, height);
         AssertBlockErrorWithinTolerance(sourcePixels, decodedPixels, maxAbsoluteError: 0.42f, maxAverageAbsoluteError: 0.12f);
     }
 
@@ -106,7 +106,7 @@ public sealed class BcCodecTests
 
         Vector4[] sourcePixels = CreateSignedHdrGradient();
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R16G16B16A16Float, width, height).SlicePitch];
-        PixelCodec.R16G16B16A16Float.Encode(sourcePixels, sourceBytes, width, height);
+        PixelCodecs.R16G16B16A16Float.Encode(sourcePixels, sourceBytes, width, height);
 
         Image image = new(width, height, ImageFormat.R16G16B16A16Float, sourceBytes);
         image.Convert(ImageFormat.BC6HSF16, ImageConvertFlags.PreferFastBc6HEncoding);
@@ -115,7 +115,7 @@ public sealed class BcCodecTests
         Assert.Equal(ImageFormatInfo.CalculatePitch(ImageFormat.BC6HSF16, width, height).SlicePitch, image.PixelData.Length);
 
         Vector4[] decodedPixels = new Vector4[width * height];
-        PixelCodec.Bc6HSf16.Decode(image.PixelData, decodedPixels, width, height);
+        PixelCodecs.Bc6HSf16.Decode(image.PixelData, decodedPixels, width, height);
 
         Assert.True(decodedPixels[0].X < 0f, "Expected fast BC6H conversion to preserve negative values.");
         Assert.True(decodedPixels[^1].X > 0f, "Expected fast BC6H conversion to preserve positive values.");

@@ -50,16 +50,10 @@ public sealed class BC7Codec : IPixelCodec
     public int BytesPerPixel => 0;
 
     /// <inheritdoc/>
-    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
-    {
-        BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
-    }
+    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
-    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
-    {
-        BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlock);
-    }
+    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height) => BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlock);
 
     /// <summary>
     /// Encodes pixels into BC7 using a reduced CPU search intended to favor throughput over quality.
@@ -69,14 +63,10 @@ public sealed class BC7Codec : IPixelCodec
     /// <param name="destination">The destination span that receives BC7 blocks.</param>
     /// <param name="width">The image width in pixels.</param>
     /// <param name="height">The image height in pixels.</param>
-    public static void EncodeFast(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
-    {
-        BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlockFast);
-    }
+    public static void EncodeFast(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height) => BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlockFast);
 
     /// <inheritdoc/>
-    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) =>
-        throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
+    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) => throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
 
     /// <inheritdoc/>
     public Vector4 ReadPixel(ReadOnlySpan<byte> source, int x, int y, int width)
@@ -89,20 +79,13 @@ public sealed class BC7Codec : IPixelCodec
     }
 
     /// <inheritdoc/>
-    public void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height)
-    {
-        BlockProcessor.DecodeRows(source, destination, startRow, rowCount, width, height, BytesPerBlock, DecodeBlock);
-    }
+    public void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height) => BlockProcessor.DecodeRows(source, destination, startRow, rowCount, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
-    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex) =>
-        throw new NotSupportedException("Block-compressed formats do not support per-pixel writes.");
+    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex) => throw new NotSupportedException("Block-compressed formats do not support per-pixel writes.");
 
     /// <inheritdoc/>
-    public void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height)
-    {
-        BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
-    }
+    public void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height) => BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
     public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
@@ -115,8 +98,6 @@ public sealed class BC7Codec : IPixelCodec
         BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock, EncodeBlock);
     }
 
-    #region Decode Helpers
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int Unquantize(int value, int precision)
     {
@@ -127,10 +108,6 @@ public sealed class BC7Codec : IPixelCodec
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int Interpolate(int e0, int e1, int weight) =>
         ((64 - weight) * e0 + weight * e1 + 32) >> 6;
-
-    #endregion
-
-    #region Block Decoding
 
     /// <summary>
     /// Decodes a single 16-byte BC7 block into 16 <see cref="Vector4"/> RGBA pixels.
@@ -150,7 +127,7 @@ public sealed class BC7Codec : IPixelCodec
         }
 
         var info = Modes[mode];
-        var reader = new BitReader(block);
+        var reader = new BcnBitReader(block);
         reader.Skip(mode + 1);
 
         int partition = (int)reader.Read(info.PartitionBits);
@@ -288,10 +265,6 @@ public sealed class BC7Codec : IPixelCodec
 
         BcSimd.StoreNormalizedRgba8(outR, outG, outB, outA, pixels);
     }
-
-    #endregion
-
-    #region Block Encoding
 
     /// <summary>
     /// Encodes 16 <see cref="Vector4"/> RGBA pixels into a single 16-byte BC7 block.
@@ -641,10 +614,6 @@ public sealed class BC7Codec : IPixelCodec
         return totalError;
     }
 
-    #endregion
-
-    #region Encoding Helpers
-
     private static void FindMinMax(ReadOnlySpan<int> values, int count, out int min, out int max)
     {
         min = int.MaxValue;
@@ -694,6 +663,4 @@ public sealed class BC7Codec : IPixelCodec
 
         return bestValue;
     }
-
-    #endregion
 }

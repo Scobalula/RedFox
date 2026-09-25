@@ -87,9 +87,9 @@ public sealed class CastTranslator : SceneTranslator
 
     private static IReadOnlyList<SceneNode> GetExportModels(SceneTranslationSelection selection)
     {
-        // Without any mesh groups the scene itself is the model.
+        // Without any mesh groups the scene itself is the model, unless it holds no model data at all (e.g. animation only scenes).
         if (selection.GetDescendants<MeshGroup>().Length == 0)
-            return [selection.Scene];
+            return selection.GetDescendants<Mesh>().Length > 0 || selection.GetDescendants<SkeletonBone>().Length > 0 || selection.GetDescendants<Material>().Length > 0 ? [selection.Scene] : [];
 
         var meshModels = selection.GetDescendants<Mesh>().Select(mesh => mesh.EnumerateAncestors<MeshGroup>().FirstOrDefault());
         var materialModels = selection.GetDescendants<Material>().Select(material => material.EnumerateAncestors<MeshGroup>().FirstOrDefault());

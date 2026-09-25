@@ -56,7 +56,7 @@ public sealed class ImageTranslatorManagerCodecResolutionTests
         int compressedSize = ImageFormatInfo.CalculatePitch(targetFormat, sourceSlice.Width, sourceSlice.Height).SlicePitch;
         byte[] encoded = new byte[compressedSize];
 
-        IPixelCodec codec = PixelCodec.GetCodec(targetFormat);
+        IPixelCodec codec = PixelCodecs.GetCodec(targetFormat);
         codec.Encode(pixels, encoded, sourceSlice.Width, sourceSlice.Height);
 
         return new Image(sourceSlice.Width, sourceSlice.Height, targetFormat, encoded);

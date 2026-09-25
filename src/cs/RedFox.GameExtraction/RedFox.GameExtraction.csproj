@@ -16,7 +16,6 @@
     <ProjectReference Include="..\RedFox.Compression\RedFox.Compression.csproj" />
     <ProjectReference Include="..\RedFox.Cryptography.MurMur3\RedFox.Cryptography.MurMur3.csproj" />
     <ProjectReference Include="..\RedFox.GameExtraction.Hashing\RedFox.GameExtraction.Hashing.csproj" />
-    <ProjectReference Include="..\\RedFox.Imaging.BlockCompression.Vulkan\\RedFox.Imaging.BlockCompression.Vulkan.csproj" />
     <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />

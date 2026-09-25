@@ -112,7 +112,7 @@ public sealed class VulkanBcConverterEngineGpuTests
         }
 
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R8G8B8A8Unorm, width, height).SlicePitch];
-        PixelCodec.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
+        PixelCodecs.R8G8B8A8Unorm.Encode(sourcePixels, sourceBytes, width, height);
         return sourceBytes;
     }
 
@@ -131,7 +131,7 @@ public sealed class VulkanBcConverterEngineGpuTests
         }
 
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R16G16B16A16Float, width, height).SlicePitch];
-        PixelCodec.R16G16B16A16Float.Encode(sourcePixels, sourceBytes, width, height);
+        PixelCodecs.R16G16B16A16Float.Encode(sourcePixels, sourceBytes, width, height);
         return sourceBytes;
     }
 
