@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <PackageDescription>GDeflate compression codec for RedFox Compression.</PackageDescription>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -15,7 +16,7 @@
     <None Update="Native\gdeflate.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="Native\libgdeflate.dll">
+    <None Update="Native\libgdeflate.dll" Pack="true" PackagePath="runtimeFiles">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -163,18 +163,78 @@ namespace RedFox.Graphics3D
         public bool HasExplicitInverseBindMatrices => _hasExplicitInverseBindMatrices;
 
         /// <summary>
-        /// Invalidates the cached animated bounds. Call this after mutating skinning-related buffers in place.
+        /// Gets the number of vertices described by the mesh buffers.
         /// </summary>
-        public void InvalidateSkinBoundsCache()
-            => _cachedSkinBounds = null;
+        public int VertexCount => Positions?.ElementCount ?? Normals?.ElementCount ?? Tangents?.ElementCount ?? BiTangents?.ElementCount ?? ColorLayers?.ElementCount ?? UVLayers?.ElementCount ?? BoneIndices?.ElementCount ?? BoneWeights?.ElementCount ?? DeltaPositions?.ElementCount ?? DeltaNormals?.ElementCount ?? DeltaTangents?.ElementCount ?? 0;
+
+        /// <summary>
+        /// Gets the number of vertex references stored in <see cref="FaceIndices"/>.
+        /// </summary>
+        public int IndexCount => FaceIndices?.ElementCount ?? 0;
+
+        /// <summary>
+        /// Gets the number of triangle faces described by the mesh topology.
+        /// </summary>
+        public int FaceCount => (FaceIndices?.ElementCount ?? 0) / 3;
+
+        /// <summary>
+        /// Gets the number of UV layers stored on the mesh.
+        /// </summary>
+        public int UVLayerCount => UVLayers?.ValueCount ?? 0;
+
+        /// <summary>
+        /// Gets the number of color layers stored on the mesh.
+        /// </summary>
+        public int ColorLayerCount => ColorLayers?.ValueCount ?? 0;
+
+        /// <summary>
+        /// Gets the number of skin influences stored per vertex.
+        /// </summary>
+        public int SkinInfluenceCount => BoneIndices?.ValueCount ?? BoneWeights?.ValueCount ?? 0;
+
+        /// <summary>
+        /// Gets the number of morph targets described by the delta buffers.
+        /// </summary>
+        public int MorphTargetCount => DeltaPositions?.ValueCount ?? DeltaNormals?.ValueCount ?? DeltaTangents?.ValueCount ?? 0;
+
+        /// <summary>
+        /// Gets a value indicating whether the mesh contains indexed topology.
+        /// </summary>
+        public bool IsIndexed => FaceIndices is not null;
+
+        /// <summary>
+        /// Gets a value indicating whether the mesh contains skinning data.
+        /// </summary>
+        public bool HasSkinning => BoneIndices is not null && BoneWeights is not null;
+
+        /// <summary>
+        /// Gets a value indicating whether the mesh contains morph target data.
+        /// </summary>
+        public bool HasMorphTargets => DeltaPositions is not null || DeltaNormals is not null || DeltaTangents is not null;
+
+        /// <summary>
+        /// Gets a value indicating whether the mesh uses a named influence palette for skinning.
+        /// </summary>
+        public bool HasExplicitSkinPalette => _skinnedBones is not null && _skinnedBones.Length > 0;
+
+        /// <summary>
+        /// Gets a value indicating whether the mesh has explicit inverse bind matrices.
+        /// </summary>
+        public bool HasInverseBindPalette => _inverseBindMatrices is not null && _skinnedBones is not null && _inverseBindMatrices.Length == _skinnedBones.Length;
+
+        /// <summary>
+        /// Gets the winding order used by the mesh's triangle faces.
+        /// </summary>
+        public MeshFaceOrder FaceOrder { get; private set; }
+
+        /// <summary>
+        /// Invalidates the cached animated bounds.
+        /// </summary>
+        public void InvalidateSkinBoundsCache() => _cachedSkinBounds = null;
 
         internal bool TryGetActiveSkinBounds(out SceneBounds bounds)
         {
-            if (!HasSkinning
-                || Positions is not { ElementCount: > 0 }
-                || BoneIndices is null
-                || BoneWeights is null
-                || _skinnedBones is not { Length: > 0 } skinnedBones)
+            if (!HasSkinning || Positions is not { ElementCount: > 0 } || BoneIndices is null || BoneWeights is null || _skinnedBones is not { Length: > 0 } skinnedBones)
             {
                 bounds = SceneBounds.Invalid;
                 return false;
@@ -612,88 +672,6 @@ namespace RedFox.Graphics3D
             _cachedSkinBounds = null;
             SkinBindingName = null;
         }
-
-        /// <summary>
-        /// Gets the number of vertices described by the mesh buffers.
-        /// </summary>
-        public int VertexCount => Positions?.ElementCount
-            ?? Normals?.ElementCount
-            ?? Tangents?.ElementCount
-            ?? BiTangents?.ElementCount
-            ?? ColorLayers?.ElementCount
-            ?? UVLayers?.ElementCount
-            ?? BoneIndices?.ElementCount
-            ?? BoneWeights?.ElementCount
-            ?? DeltaPositions?.ElementCount
-            ?? DeltaNormals?.ElementCount
-            ?? DeltaTangents?.ElementCount
-            ?? 0;
-
-        /// <summary>
-        /// Gets the number of vertex references stored in <see cref="FaceIndices"/>.
-        /// </summary>
-        public int IndexCount => FaceIndices?.ElementCount ?? 0;
-
-        /// <summary>
-        /// Gets the number of triangle faces described by the mesh topology.
-        /// </summary>
-        public int FaceCount => (FaceIndices?.ElementCount ?? 0) / 3;
-
-        /// <summary>
-        /// Gets the number of UV layers stored on the mesh.
-        /// </summary>
-        public int UVLayerCount => UVLayers?.ValueCount ?? 0;
-
-        /// <summary>
-        /// Gets the number of color layers stored on the mesh.
-        /// </summary>
-        public int ColorLayerCount => ColorLayers?.ValueCount ?? 0;
-
-        /// <summary>
-        /// Gets the number of skin influences stored per vertex.
-        /// </summary>
-        public int SkinInfluenceCount => BoneIndices?.ValueCount ?? BoneWeights?.ValueCount ?? 0;
-
-        /// <summary>
-        /// Gets the number of morph targets described by the delta buffers.
-        /// </summary>
-        public int MorphTargetCount => DeltaPositions?.ValueCount
-            ?? DeltaNormals?.ValueCount
-            ?? DeltaTangents?.ValueCount
-            ?? 0;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh contains indexed topology.
-        /// </summary>
-        public bool IsIndexed => FaceIndices is not null;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh contains skinning data.
-        /// </summary>
-        public bool HasSkinning => BoneIndices is not null && BoneWeights is not null;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh contains morph target data.
-        /// </summary>
-        public bool HasMorphTargets => DeltaPositions is not null || DeltaNormals is not null || DeltaTangents is not null;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh uses a named influence palette for skinning.
-        /// </summary>
-        public bool HasExplicitSkinPalette => _skinnedBones is not null && _skinnedBones.Length > 0;
-
-        /// <summary>
-        /// Gets a value indicating whether the mesh has explicit inverse bind matrices.
-        /// </summary>
-        public bool HasInverseBindPalette =>
-            _inverseBindMatrices is not null
-            && _skinnedBones is not null
-            && _inverseBindMatrices.Length == _skinnedBones.Length;
-
-        /// <summary>
-        /// Gets the winding order used by the mesh's triangle faces.
-        /// </summary>
-        public MeshFaceOrder FaceOrder { get; private set; }
 
         /// <summary>
         /// Gets the vertex position for the specified vertex index, applying the current skin pose when available.

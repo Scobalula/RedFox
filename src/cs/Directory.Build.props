@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <Version>$([System.DateTime]::UtcNow.ToString("yyyy.M.d"))</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>Scobalula</Company>
+    <Authors>Scobalula</Authors>
+    <Copyright>Copyright © $([System.DateTime]::UtcNow.ToString("yyyy")) Scobalula</Copyright>
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
+
+</Project>

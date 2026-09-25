@@ -5,7 +5,7 @@ namespace RedFox.Imaging.Vulkan;
 /// <summary>
 /// Provides static helpers for Vulkan device memory type selection, mapped memory flush/invalidate, and alignment calculations.
 /// </summary>
-public static unsafe class VulkanBcDeviceMemoryManager
+public static class VulkanBcDeviceMemoryManager
 {
     /// <summary>
     /// Attempts to find a memory type that satisfies the required and preferred property flags.

@@ -7,10 +7,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RedFox.Graphics3D</PackageId>
     <PackageDescription>Scene, mesh, material, animation, and translation abstractions for RedFox Graphics3D.</PackageDescription>
-    <PackageVersion Condition="'$(RedFoxGraphics3DCorePackageVersion)' != ''">$(RedFoxGraphics3DCorePackageVersion)</PackageVersion>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

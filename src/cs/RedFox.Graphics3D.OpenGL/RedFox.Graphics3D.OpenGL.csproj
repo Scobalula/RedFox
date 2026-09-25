@@ -8,10 +8,6 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>RedFox.Graphics3D.OpenGL</PackageId>
     <PackageDescription>OpenGL rendering backend for RedFox Graphics3D.</PackageDescription>
-    <PackageVersion Condition="'$(RedFoxGraphics3DOpenGLPackageVersion)' != ''">$(RedFoxGraphics3DOpenGLPackageVersion)</PackageVersion>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Shaders\Glsl\**\*.*">
+    <Content Include="Shaders\Glsl\**\*.*" Pack="true" PackagePath="runtimeFiles/Shaders/Glsl">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

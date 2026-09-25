@@ -8,10 +8,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>RedFox.Graphics3D.D3D11</PackageId>
     <PackageDescription>Direct3D 11 rendering backend for RedFox Graphics3D.</PackageDescription>
-    <PackageVersion Condition="'$(RedFoxGraphics3DD3D11PackageVersion)' != ''">$(RedFoxGraphics3DD3D11PackageVersion)</PackageVersion>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">0.0.0-local</PackageVersion>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Shaders\Hlsl\**\*.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Shaders\Hlsl\**\*.hlsl" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimeFiles" />
   </ItemGroup>
 
 </Project>

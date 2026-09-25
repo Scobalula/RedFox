@@ -1,7 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <PackageDescription>Zstandard compression codec for RedFox Compression, backed by native libzstd.</PackageDescription>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -12,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Native\libzstd.dll">
+    <None Update="Native\libzstd.dll" Pack="true" PackagePath="runtimeFiles">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

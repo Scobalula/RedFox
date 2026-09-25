@@ -121,19 +121,16 @@ public static class VulkanBcFormatMap
                 shaderResourceName = "BcDecodeRgba8.spv";
                 bytesPerPixel = 4;
                 return true;
-
             case ImageFormat.R16G16B16A16Float:
                 vulkanFormat = Format.R16G16B16A16Sfloat;
                 shaderResourceName = "BcDecodeRgba16.spv";
                 bytesPerPixel = 8;
                 return true;
-
             case ImageFormat.R32G32B32A32Float:
                 vulkanFormat = Format.R32G32B32A32Sfloat;
                 shaderResourceName = "BcDecodeRgba32.spv";
                 bytesPerPixel = 16;
                 return true;
-
             default:
                 vulkanFormat = Format.Undefined;
                 shaderResourceName = string.Empty;
@@ -155,7 +152,6 @@ public static class VulkanBcFormatMap
         {
             ImageFormat.R8G8B8A8Unorm or
             ImageFormat.R8G8B8A8UnormSrgb => Format.R8G8B8A8Unorm,
-
             ImageFormat.R16G16B16A16Float => Format.R16G16B16A16Sfloat,
             ImageFormat.R32G32B32A32Float => Format.R32G32B32A32Sfloat,
             _ => Format.Undefined,
@@ -180,19 +176,16 @@ public static class VulkanBcFormatMap
                 isBc7 = false;
                 shaderFormatId = 95;
                 return true;
-
             case ImageFormat.BC6HSF16:
                 isBc7 = false;
                 shaderFormatId = 96;
                 return true;
-
             case ImageFormat.BC7Typeless:
             case ImageFormat.BC7Unorm:
             case ImageFormat.BC7UnormSrgb:
                 isBc7 = true;
                 shaderFormatId = 98;
                 return true;
-
             default:
                 isBc7 = false;
                 shaderFormatId = 0;
