@@ -6,7 +6,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// Writes individual bits into a JPEG entropy-coded data stream, handling byte-stuffing for 0xFF values.
 /// </summary>
 /// <param name="stream">The JPEG entropy-coded stream to write.</param>
-public sealed class JpegBitWriter(Stream stream)
+internal sealed class JpegBitWriter(Stream stream)
 {
     private readonly Stream _stream = stream;
     private int _bitBuffer;

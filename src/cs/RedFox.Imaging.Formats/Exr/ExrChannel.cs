@@ -8,4 +8,4 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <param name="IsLinear">Whether the channel stores linear (non-perceptual) data.</param>
 /// <param name="XSampling">Horizontal sub-sampling factor (1 = full resolution).</param>
 /// <param name="YSampling">Vertical sub-sampling factor (1 = full resolution).</param>
-public sealed record ExrChannel(string Name, ExrPixelType PixelType, bool IsLinear, int XSampling, int YSampling);
+internal sealed record ExrChannel(string Name, ExrPixelType PixelType, bool IsLinear, int XSampling, int YSampling);

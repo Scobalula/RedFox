@@ -5,7 +5,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// <summary>
 /// Represents TIFF-native, interleaved sample data prepared for writing.
 /// </summary>
-public readonly record struct TiffEncodedPixelData
+internal readonly record struct TiffEncodedPixelData
 {
     /// <summary>
     /// Gets the TIFF sample bytes in interleaved channel order.
@@ -51,5 +51,4 @@ public readonly record struct TiffEncodedPixelData
         SamplesPerPixel = samplesPerPixel;
         ExtraSamples = extraSamples;
     }
-
 }

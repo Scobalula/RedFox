@@ -14,7 +14,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="preferredProperties">Memory property flags that are preferred but not required.</param>
 public readonly struct VulkanBcBufferAllocation(ulong size, BufferUsageFlags usage, MemoryPropertyFlags requiredProperties, MemoryPropertyFlags preferredProperties)
 {
-
     /// <summary>
     /// Gets the buffer size in bytes.
     /// </summary>

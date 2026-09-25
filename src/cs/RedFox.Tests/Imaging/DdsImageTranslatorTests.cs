@@ -45,13 +45,19 @@ public sealed class DdsImageTranslatorTests
     }
 
     [Fact]
-    public void DdsTranslator_ViaManager_InvalidCubemap_ThrowsInvalidDataException()
+    public void Image_InvalidCubemapArraySize_CannotBeConstructed()
     {
-        Image invalidCubemap = new(4, 4, depth: 1, arraySize: 5, mipLevels: 1, ImageFormat.R8G8B8A8Unorm, isCubemap: true);
+        Assert.Throws<ArgumentException>(() => new Image(4, 4, depth: 1, arraySize: 5, mipLevels: 1, ImageFormat.R8G8B8A8Unorm, isCubemap: true));
+    }
+
+    [Fact]
+    public void DdsTranslator_ViaManager_VolumeArray_ThrowsInvalidDataException()
+    {
+        Image volumeArray = new(4, 4, depth: 2, arraySize: 2, mipLevels: 1, ImageFormat.R8G8B8A8Unorm, isCubemap: false);
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new DdsImageTranslator());
         using MemoryStream stream = new();
 
-        Assert.Throws<InvalidDataException>(() => manager.Write(stream, "cubemap.dds", invalidCubemap));
+        Assert.Throws<InvalidDataException>(() => manager.Write(stream, "volume.dds", volumeArray));
     }
 
     [Fact]

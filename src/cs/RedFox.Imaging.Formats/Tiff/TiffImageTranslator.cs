@@ -23,13 +23,6 @@ namespace RedFox.Imaging.Formats.Tiff;
 public sealed class TiffImageTranslator : ImageTranslator
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="TiffImageTranslator"/> class.
-    /// </summary>
-    public TiffImageTranslator()
-    {
-    }
-
-    /// <summary>
     /// Gets or sets the encoder options used when writing TIFF files.
     /// </summary>
     public TiffEncoderOptions EncoderOptions { get; set; } = new();
@@ -44,7 +37,22 @@ public sealed class TiffImageTranslator : ImageTranslator
     public override bool CanWrite => true;
 
     /// <inheritdoc/>
+    public override bool CanReadInfo => true;
+
+    /// <inheritdoc/>
     public override IReadOnlyList<string> Extensions { get; } = [".tif", ".tiff"];
+
+    /// <inheritdoc/>
+    public override ImageInfo ReadInfo(Stream stream)
+    {
+        var data = ReadAllBytes(stream);
+        bool le = ParseByteOrder(data);
+        var tags = TiffIfdReader.ParseIFD(data, TiffIfdReader.ReadUInt32(data, 4, le), le);
+
+        ImageInfo info = new(TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageWidth, data, le), TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageLength, data, le), ImageFormat.R8G8B8A8Unorm);
+        info.Validate();
+        return info;
+    }
 
     /// <inheritdoc/>
     public override Image Read(Stream stream)
@@ -65,8 +73,10 @@ public sealed class TiffImageTranslator : ImageTranslator
         int predictor = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPredictor, data, le, (int)TiffPredictor.None);
         int planarConfiguration = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPlanarConfiguration, data, le, 1);
 
-        if (width <= 0 || height <= 0)
-            throw new InvalidDataException($"Invalid TIFF dimensions: {width}x{height}.");
+        new ImageInfo(width, height, ImageFormat.R8G8B8A8Unorm).Validate();
+
+        if (samplesPerPixel is < 1 or > 16)
+            throw new NotSupportedException($"Unsupported TIFF samples per pixel: {samplesPerPixel}.");
 
         if (planarConfiguration != 1)
             throw new NotSupportedException($"Unsupported TIFF planar configuration: {planarConfiguration}.");
@@ -107,10 +117,9 @@ public sealed class TiffImageTranslator : ImageTranslator
         if (stripByteCounts.Length != stripOffsets.Length && stripByteCounts.Length != 1)
             throw new InvalidDataException("TIFF strip offset and byte count arrays must have matching lengths.");
 
-        // Decode all strips into a contiguous raw pixel buffer.
         int bytesPerSample = bitsPerSample / 8;
-        int srcRowBytes = width * samplesPerPixel * bytesPerSample;
-        var rawPixels = new byte[srcRowBytes * height];
+        int srcRowBytes = checked(width * samplesPerPixel * bytesPerSample);
+        var rawPixels = new byte[checked(srcRowBytes * height)];
         int rowsDecoded = 0;
 
         for (int i = 0; i < stripOffsets.Length && rowsDecoded < height; i++)
@@ -140,7 +149,6 @@ public sealed class TiffImageTranslator : ImageTranslator
             rowsDecoded += stripRows;
         }
 
-        // Convert decoded samples to RGBA8.
         var output = new byte[width * height * 4];
 
         if (bitsPerSample == 8)
@@ -164,12 +172,26 @@ public sealed class TiffImageTranslator : ImageTranslator
         WriteCore(stream, image, ResolveEncoderOptions(options));
     }
 
+    /// <inheritdoc/>
+    public override bool IsValid(ReadOnlySpan<byte> header, string filePath, string extension)
+    {
+        if (!IsValid(filePath, extension) || header.Length < 4)
+            return false;
+
+        if (header[0] == (byte)'I' && header[1] == (byte)'I')
+            return BinaryPrimitives.ReadUInt16LittleEndian(header[2..]) == 42;
+        if (header[0] == (byte)'M' && header[1] == (byte)'M')
+            return BinaryPrimitives.ReadUInt16BigEndian(header[2..]) == 42;
+
+        return false;
+    }
+
     /// <summary>
     /// Resolves generic image translator options into TIFF-specific encoder options.
     /// </summary>
     /// <param name="options">The generic write options to map into TIFF encoder settings.</param>
     /// <returns>A <see cref="TiffEncoderOptions"/> instance derived from <paramref name="options"/>.</returns>
-    public TiffEncoderOptions ResolveEncoderOptions(ImageTranslatorOptions options)
+    private TiffEncoderOptions ResolveEncoderOptions(ImageTranslatorOptions options)
     {
         TiffCompression compression = ResolveCompression(EncoderOptions.Compression, options.Compression);
         TiffPredictor predictor = ResolvePredictor(EncoderOptions.Predictor, options.Compression, compression);
@@ -187,7 +209,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="defaultCompression">The default TIFF compression mode to use when the hint is <see cref="ImageCompressionPreference.Default"/>.</param>
     /// <param name="compressionPreference">The generic compression hint to interpret.</param>
     /// <returns>The TIFF compression mode that best matches <paramref name="compressionPreference"/>.</returns>
-    public static TiffCompression ResolveCompression(TiffCompression defaultCompression, ImageCompressionPreference compressionPreference)
+    private static TiffCompression ResolveCompression(TiffCompression defaultCompression, ImageCompressionPreference compressionPreference)
     {
         return compressionPreference switch
         {
@@ -206,7 +228,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="compressionPreference">The generic compression hint to interpret.</param>
     /// <param name="compression">The TIFF compression mode selected for the write operation.</param>
     /// <returns>The TIFF predictor that best matches the requested encoding settings.</returns>
-    public static TiffPredictor ResolvePredictor(TiffPredictor defaultPredictor, ImageCompressionPreference compressionPreference, TiffCompression compression)
+    private static TiffPredictor ResolvePredictor(TiffPredictor defaultPredictor, ImageCompressionPreference compressionPreference, TiffCompression compression)
     {
         if (compressionPreference == ImageCompressionPreference.Default)
             return defaultPredictor;
@@ -220,7 +242,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="stream">The destination stream that receives the TIFF file data.</param>
     /// <param name="image">The image to encode.</param>
     /// <param name="encoderOptions">The explicit TIFF encoder settings to apply.</param>
-    public static void WriteCore(Stream stream, Image image, TiffEncoderOptions encoderOptions)
+    private static void WriteCore(Stream stream, Image image, TiffEncoderOptions encoderOptions)
     {
         ref readonly var slice = ref image.GetSlice(0, 0, 0);
         int width = slice.Width;
@@ -237,7 +259,6 @@ public sealed class TiffImageTranslator : ImageTranslator
             TiffPredictorTransform.ApplyHorizontalDifferencing(sampleData, width, height, encodedPixelData.SamplesPerPixel, encodedPixelData.BitsPerSample[0], littleEndian);
         }
 
-        // Optionally compress the pixel data.
         byte[] imageData = compressionCode switch
         {
             TiffConstants.CompressionDeflate => TiffCompressor.CompressDeflate(sampleData),
@@ -247,11 +268,7 @@ public sealed class TiffImageTranslator : ImageTranslator
         };
         int imageDataSize = imageData.Length;
 
-        // ── File layout ──────────────────────────────
-        // [0..7]    Header (8 bytes)
-        // [8..N]    IFD (count + entries + next-IFD pointer)
-        // [N..]     Rational values, BPS array (if needed), pixel data
-
+        // TIFF layout: [0..7] header, [8..N] IFD (count + entries + next-IFD pointer), [N..] rational values, BPS array (if needed), pixel data.
         bool writeBitsPerSampleArray = encodedPixelData.BitsPerSample.Length > 2;
         bool hasExtraSamples = encodedPixelData.ExtraSamples.HasValue;
         int tagCount = 12;
@@ -267,12 +284,11 @@ public sealed class TiffImageTranslator : ImageTranslator
         int bpsArraySize = writeBitsPerSampleArray ? encodedPixelData.BitsPerSample.Length * 2 : 0;
         int pixelDataOffset = bpsArrayOffset + bpsArraySize;
 
-        // ── Header ───────────────────────────────────
         Span<byte> header = stackalloc byte[8];
         if (littleEndian)
         {
             header[0] = (byte)'I';
-            header[1] =(byte)'I';
+            header[1] = (byte)'I';
         }
         else
         {
@@ -284,7 +300,6 @@ public sealed class TiffImageTranslator : ImageTranslator
         WriteUInt32(header, 4, (uint)ifdOffset, littleEndian);
         stream.Write(header);
 
-        // ── IFD entries ──────────────────────────────
         var ifd = new byte[ifdSize];
         WriteUInt16(ifd, 0, (ushort)tagCount, littleEndian);
         int pos = 2;
@@ -313,10 +328,9 @@ public sealed class TiffImageTranslator : ImageTranslator
         if (hasExtraSamples)
             pos = WriteIFDEntry(ifd, pos, TiffConstants.TagExtraSamples, TiffConstants.TypeShort, 1, encodedPixelData.ExtraSamples!.Value, littleEndian);
 
-        WriteUInt32(ifd, pos, 0, littleEndian); // Next IFD = 0 (single image)
+        WriteUInt32(ifd, pos, 0, littleEndian);
         stream.Write(ifd);
 
-        // ── Rational values (72 DPI) ─────────────────
         Span<byte> rationals = stackalloc byte[16];
         WriteUInt32(rationals, 0, 72, littleEndian);
         WriteUInt32(rationals, 4, 1, littleEndian);
@@ -324,7 +338,6 @@ public sealed class TiffImageTranslator : ImageTranslator
         WriteUInt32(rationals, 12, 1, littleEndian);
         stream.Write(rationals);
 
-        // ── BitsPerSample array ──────────────────────
         if (writeBitsPerSampleArray)
         {
             Span<byte> bpsArray = stackalloc byte[encodedPixelData.BitsPerSample.Length * 2];
@@ -333,34 +346,16 @@ public sealed class TiffImageTranslator : ImageTranslator
             stream.Write(bpsArray);
         }
 
-        // ── Pixel data ──────────────────────────────
         stream.Write(imageData);
     }
 
-    /// <inheritdoc/>
-    public override bool IsValid(ReadOnlySpan<byte> header, string filePath, string extension)
-    {
-        if (!IsValid(filePath, extension) || header.Length < 4)
-            return false;
-
-        if (header[0] == (byte)'I' && header[1] == (byte)'I')
-            return BinaryPrimitives.ReadUInt16LittleEndian(header[2..]) == 42;
-        if (header[0] == (byte)'M' && header[1] == (byte)'M')
-            return BinaryPrimitives.ReadUInt16BigEndian(header[2..]) == 42;
-
-        return false;
-    }
-
     /// <summary>
-    /// Reads an entire stream into a byte array.
+    /// Reads the remainder of a stream, from its current position, into a byte array.
     /// </summary>
     /// <param name="stream">The source stream to read.</param>
-    /// <returns>A byte array containing the full contents of <paramref name="stream"/>.</returns>
-    public static byte[] ReadAllBytes(Stream stream)
+    /// <returns>A byte array containing the remaining contents of <paramref name="stream"/>.</returns>
+    private static byte[] ReadAllBytes(Stream stream)
     {
-        if (stream is MemoryStream ms)
-            return ms.ToArray();
-
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
@@ -371,7 +366,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// </summary>
     /// <param name="data">The TIFF file header bytes to inspect.</param>
     /// <returns><see langword="true"/> for little-endian TIFF data; <see langword="false"/> for big-endian TIFF data.</returns>
-    public static bool ParseByteOrder(ReadOnlySpan<byte> data)
+    private static bool ParseByteOrder(ReadOnlySpan<byte> data)
     {
         if (data.Length < 8)
             throw new InvalidDataException("TIFF header is incomplete.");
@@ -388,7 +383,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="encodedPixelData">The encoded sample layout being written.</param>
     /// <param name="predictor">The predictor requested for encoding.</param>
     /// <returns><see langword="true"/> when horizontal differencing should be applied; otherwise <see langword="false"/>.</returns>
-    public static bool ShouldApplyPredictor(ushort compression, TiffEncodedPixelData encodedPixelData, TiffPredictor predictor)
+    private static bool ShouldApplyPredictor(ushort compression, TiffEncodedPixelData encodedPixelData, TiffPredictor predictor)
     {
         if (predictor != TiffPredictor.Horizontal)
             return false;
@@ -406,7 +401,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="offset">The byte offset of the requested range.</param>
     /// <param name="byteCount">The number of bytes to include in the returned range.</param>
     /// <returns>A bounded slice of <paramref name="data"/>.</returns>
-    public static ReadOnlySpan<byte> GetRange(ReadOnlySpan<byte> data, int offset, int byteCount)
+    private static ReadOnlySpan<byte> GetRange(ReadOnlySpan<byte> data, int offset, int byteCount)
     {
         if ((uint)offset > data.Length || byteCount < 0 || offset > data.Length - byteCount)
             throw new InvalidDataException("TIFF strip data references bytes outside the file bounds.");
@@ -419,7 +414,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// </summary>
     /// <param name="data">The input bytes whose bit order should be reversed.</param>
     /// <returns>A new array containing the bit-reversed bytes.</returns>
-    public static byte[] ReverseBitsPerByte(ReadOnlySpan<byte> data)
+    private static byte[] ReverseBitsPerByte(ReadOnlySpan<byte> data)
     {
         byte[] reversed = new byte[data.Length];
         for (int i = 0; i < data.Length; i++)
@@ -433,17 +428,13 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// </summary>
     /// <param name="value">The byte whose bits should be reversed.</param>
     /// <returns>The bit-reversed representation of <paramref name="value"/>.</returns>
-    public static byte ReverseBits(byte value)
+    private static byte ReverseBits(byte value)
     {
         value = (byte)(((value & 0xAA) >> 1) | ((value & 0x55) << 1));
         value = (byte)(((value & 0xCC) >> 2) | ((value & 0x33) << 2));
         value = (byte)(((value & 0xF0) >> 4) | ((value & 0x0F) << 4));
         return value;
     }
-
-    // ──────────────────────────────────────────────
-    // Binary write helpers
-    // ──────────────────────────────────────────────
 
     /// <summary>
     /// Writes a 16-bit unsigned integer using the specified byte order.
@@ -452,7 +443,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="offset">The byte offset at which to write the value.</param>
     /// <param name="value">The 16-bit value to write.</param>
     /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
-    public static void WriteUInt16(Span<byte> buf, int offset, ushort value, bool le)
+    private static void WriteUInt16(Span<byte> buf, int offset, ushort value, bool le)
     {
         if (le)
             BinaryPrimitives.WriteUInt16LittleEndian(buf[offset..], value);
@@ -467,7 +458,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="offset">The byte offset at which to write the value.</param>
     /// <param name="value">The 32-bit value to write.</param>
     /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
-    public static void WriteUInt32(Span<byte> buf, int offset, uint value, bool le)
+    private static void WriteUInt32(Span<byte> buf, int offset, uint value, bool le)
     {
         if (le)
             BinaryPrimitives.WriteUInt32LittleEndian(buf[offset..], value);
@@ -486,7 +477,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="value">The inline value or offset to write.</param>
     /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
     /// <returns>The byte position immediately following the written entry.</returns>
-    public static int WriteIFDEntry(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint value, bool le)
+    private static int WriteIFDEntry(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint value, bool le)
     {
         WriteUInt16(ifd, pos, tag, le);
         WriteUInt16(ifd, pos + 2, type, le);
@@ -516,7 +507,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="offset">The external data offset to write into the entry.</param>
     /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
     /// <returns>The byte position immediately following the written entry.</returns>
-    public static int WriteIFDEntryOffset(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint offset, bool le)
+    private static int WriteIFDEntryOffset(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint offset, bool le)
     {
         WriteUInt16(ifd, pos, tag, le);
         WriteUInt16(ifd, pos + 2, type, le);

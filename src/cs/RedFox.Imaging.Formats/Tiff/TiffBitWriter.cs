@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -11,7 +11,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// Initializes a bit writer over the specified destination buffer.
 /// </remarks>
 /// <param name="buffer">The destination buffer that receives encoded bytes.</param>
-public ref struct TiffBitWriter(byte[] buffer)
+internal ref struct TiffBitWriter(byte[] buffer)
 {
     private int _bytePos = 0;
     private ulong _bitBuffer = 0ul;
@@ -56,11 +56,9 @@ public ref struct TiffBitWriter(byte[] buffer)
     /// <param name="codeSize">The number of bits from <paramref name="code"/> to write.</param>
     public void Write(int code, int codeSize)
     {
-        // Append bits to the buffer: shift existing bits left and OR-in the new code.
         _bitBuffer = (_bitBuffer << codeSize) | (uint)code;
         _bitsInBuffer += codeSize;
 
-        // Flush whole bytes from the top of the bit buffer.
         while (_bitsInBuffer >= 8)
         {
             int shift = _bitsInBuffer - 8;

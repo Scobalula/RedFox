@@ -9,7 +9,7 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <summary>
 /// Reconstructs B44 and B44A compressed scanline blocks.
 /// </summary>
-public static class ExrB44Compression
+internal static class ExrB44Compression
 {
     /// <summary>
     /// Encodes a channel-major scanline block using the B44 or B44A HALF block layout.
@@ -88,13 +88,7 @@ public static class ExrB44Compression
                 continue;
             }
 
-            DecodeHalfPlane(
-                packedData,
-                ref sourceOffset,
-                scratch.AsSpan(scratchOffset, planeLength),
-                width,
-                rowsInBlock,
-                channel.IsLinear);
+            DecodeHalfPlane(packedData, ref sourceOffset, scratch.AsSpan(scratchOffset, planeLength), width, rowsInBlock, channel.IsLinear);
 
             scratchOffset += planeLength;
         }
@@ -279,11 +273,7 @@ public static class ExrB44Compression
         for (int index = 0; index < source.Length; index++)
         {
             ushort value = source[index];
-            transformed[index] = (value & 0x7C00) == 0x7C00
-                ? (ushort)0x8000
-                : (value & 0x8000) != 0
-                    ? (ushort)~value
-                    : (ushort)(value | 0x8000);
+            transformed[index] = (value & 0x7C00) == 0x7C00 ? (ushort)0x8000 : (value & 0x8000) != 0 ? (ushort)~value : (ushort)(value | 0x8000);
         }
 
         ushort maximum = transformed.Max();

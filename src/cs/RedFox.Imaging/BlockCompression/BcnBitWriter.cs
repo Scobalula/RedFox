@@ -7,26 +7,26 @@ namespace RedFox.Imaging.BlockCompression;
 /// Lightweight sequential bit writer for block-compressed format encoding.
 /// Writes bits LSB-first into a byte span, maintaining a running position.
 /// </summary>
-public ref struct BitWriter
+internal ref struct BcnBitWriter
 {
     private readonly Span<byte> _data;
     private int _position;
 
     /// <summary>
-    /// Initializes a new <see cref="BitWriter"/> over the specified data span.
+    /// Gets the current bit position within the data.
+    /// </summary>
+    public readonly int Position => _position;
+
+    /// <summary>
+    /// Initializes a new <see cref="BcnBitWriter"/> over the specified data span.
     /// The span should be pre-zeroed before writing.
     /// </summary>
     /// <param name="data">The destination byte span to write bits into.</param>
-    public BitWriter(Span<byte> data)
+    public BcnBitWriter(Span<byte> data)
     {
         _data = data;
         _position = 0;
     }
-
-    /// <summary>
-    /// Gets the current bit position within the data.
-    /// </summary>
-    public readonly int Position => _position;
 
     /// <summary>
     /// Writes <paramref name="numBits"/> bits of <paramref name="value"/> at the current position and advances.
@@ -52,8 +52,7 @@ public ref struct BitWriter
     /// <param name="p">The zero-based bit position to write.</param>
     /// <param name="value">The bit value (0 or 1).</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly void SetBit(int p, int value) =>
-        _data[p >> 3] |= (byte)((value & 1) << (p & 7));
+    public readonly void SetBit(int p, int value) => _data[p >> 3] |= (byte)((value & 1) << (p & 7));
 
     /// <summary>
     /// Writes <paramref name="count"/> bits of <paramref name="value"/> starting at position <paramref name="start"/>

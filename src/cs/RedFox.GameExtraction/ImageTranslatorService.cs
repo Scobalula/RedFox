@@ -1,33 +1,23 @@
-using RedFox.Imaging.Formats.Exr;
-using RedFox.Imaging.Formats.Dds;
+using RedFox.Imaging.Formats;
 using RedFox.Imaging.IO;
-using RedFox.Imaging.Formats.Jpeg;
-using RedFox.Imaging.Formats.Png;
-using RedFox.Imaging.Formats.Tga;
-using RedFox.Imaging.Formats.Tiff;
 
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// 
+/// Owns the image translator manager used for texture import and export, pre-populated with the built-in formats.
 /// </summary>
 public class ImageTranslatorService
 {
     /// <summary>
-    /// Gets the manager responsible for handling scene translation operations.
+    /// Gets the manager responsible for image translation operations.
     /// </summary>
     public ImageTranslatorManager Manager { get; } = new ImageTranslatorManager();
 
     /// <summary>
-    /// Initializes a new instance of the ImageTranslatorService class.
+    /// Initializes a new instance of the <see cref="ImageTranslatorService"/> class and registers every built-in image format.
     /// </summary>
     public ImageTranslatorService()
     {
-        Manager.Register(new PngImageTranslator());
-        Manager.Register(new DdsImageTranslator());
-        Manager.Register(new TgaImageTranslator());
-        Manager.Register(new TiffImageTranslator());
-        Manager.Register(new JpegImageTranslator());
-        Manager.Register(new ExrImageTranslator());
+        BuiltInImageFormats.RegisterAll(Manager);
     }
 }

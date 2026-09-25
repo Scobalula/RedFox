@@ -7,7 +7,7 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <summary>
 /// Provides decompression helpers for OpenEXR scanline blocks.
 /// </summary>
-public static class ExrCompression
+internal static class ExrCompression
 {
     /// <summary>
     /// Compresses EXR block data with zlib using the smallest output size.
@@ -200,20 +200,6 @@ public static class ExrCompression
     }
 
     /// <summary>
-    /// Counts the number of repeated bytes in an RLE run.
-    /// </summary>
-    private static int CountRunLength(ReadOnlySpan<byte> data, int offset)
-    {
-        int runLength = 1;
-        byte value = data[offset];
-
-        while (offset + runLength < data.Length && runLength < 128 && data[offset + runLength] == value)
-            runLength++;
-
-        return runLength;
-    }
-
-    /// <summary>
     /// Applies the inverse of the OpenEXR predictor and byte-shuffle transforms.
     /// </summary>
     /// <param name="data">The predictor-encoded and shuffled data.</param>
@@ -239,5 +225,19 @@ public static class ExrCompression
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Counts the number of repeated bytes in an RLE run.
+    /// </summary>
+    private static int CountRunLength(ReadOnlySpan<byte> data, int offset)
+    {
+        int runLength = 1;
+        byte value = data[offset];
+
+        while (offset + runLength < data.Length && runLength < 128 && data[offset + runLength] == value)
+            runLength++;
+
+        return runLength;
     }
 }

@@ -7,4 +7,4 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <param name="MinY">Minimum Y coordinate (inclusive).</param>
 /// <param name="MaxX">Maximum X coordinate (inclusive).</param>
 /// <param name="MaxY">Maximum Y coordinate (inclusive).</param>
-public readonly record struct ExrBox2I(int MinX, int MinY, int MaxX, int MaxY);
+internal readonly record struct ExrBox2I(int MinX, int MinY, int MaxX, int MaxY);

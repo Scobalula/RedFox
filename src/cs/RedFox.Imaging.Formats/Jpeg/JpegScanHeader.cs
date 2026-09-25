@@ -3,15 +3,8 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// Parsed SOS (Start of Scan) segment header containing component assignments and progressive-scan parameters.
 /// </summary>
-public sealed class JpegScanHeader
+internal sealed class JpegScanHeader
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="JpegScanHeader"/> class.
-    /// </summary>
-    public JpegScanHeader()
-    {
-    }
-
     /// <summary>Components participating in this scan.</summary>
     public JpegScanComponent[] Components { get; set; } = [];
 

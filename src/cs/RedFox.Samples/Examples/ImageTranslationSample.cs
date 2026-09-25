@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using RedFox.Imaging;
+using RedFox.Imaging.Formats;
 using RedFox.Imaging.Primitives;
 using RedFox.Imaging.IO;
 
@@ -25,7 +26,9 @@ internal sealed class ImageTranslationSample : ISample
 
         Directory.CreateDirectory(outputDirectory);
 
-        ImageTranslatorManager manager = CreateManager();
+        ImageTranslatorManager manager = new();
+        BuiltInImageFormats.RegisterAll(manager);
+
         Image standardDynamicRangeImage = CreatePatternImage(width: 192, height: 128);
         Image highDynamicRangeImage = CreateHighDynamicRangeImage(width: 96, height: 64);
 
@@ -45,11 +48,6 @@ internal sealed class ImageTranslationSample : ISample
 
         Console.WriteLine("For precise codec-specific control, use the individual translator or writer APIs directly.");
         return 0;
-    }
-
-    private static ImageTranslatorManager CreateManager()
-    {
-        return SampleImageTranslatorRegistry.CreateDefaultManager();
     }
 
     private static void WriteVariant(ImageTranslatorManager manager, Image image, string outputPath, ImageTranslatorOptions options)

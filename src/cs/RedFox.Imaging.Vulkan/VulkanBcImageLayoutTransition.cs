@@ -16,7 +16,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="destinationStageMask">The pipeline stage that consumes the destination access.</param>
 public readonly struct VulkanBcImageLayoutTransition(ImageLayout oldLayout, ImageLayout newLayout, AccessFlags sourceAccessMask, AccessFlags destinationAccessMask, PipelineStageFlags sourceStageMask, PipelineStageFlags destinationStageMask)
 {
-
     /// <summary>
     /// Gets the current image layout before the transition.
     /// </summary>

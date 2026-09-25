@@ -18,11 +18,4 @@ public sealed class TiffEncoderOptions
     /// Defaults to <see cref="TiffPredictor.None"/>.
     /// </summary>
     public TiffPredictor Predictor { get; set; } = TiffPredictor.None;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TiffEncoderOptions"/> class.
-    /// </summary>
-    public TiffEncoderOptions()
-    {
-    }
 }

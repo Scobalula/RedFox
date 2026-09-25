@@ -13,13 +13,6 @@ namespace RedFox.Imaging.Formats.Exr;
 public sealed class ExrImageTranslator : ImageTranslator
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ExrImageTranslator"/> class.
-    /// </summary>
-    public ExrImageTranslator()
-    {
-    }
-
-    /// <summary>
     /// Gets or sets the default encoder options used when writing EXR files.
     /// </summary>
     public ExrWriteOptions EncoderOptions { get; set; } = new();
@@ -37,7 +30,13 @@ public sealed class ExrImageTranslator : ImageTranslator
     public override IReadOnlyList<string> Extensions { get; } = [".exr"];
 
     /// <inheritdoc/>
+    public override bool CanReadInfo => true;
+
+    /// <inheritdoc/>
     public override Image Read(Stream stream) => ExrLoader.Load(stream);
+
+    /// <inheritdoc/>
+    public override ImageInfo ReadInfo(Stream stream) => ExrLoader.LoadInfo(stream);
 
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)

@@ -3,7 +3,6 @@ using System.Buffers;
 using System.IO;
 using System.IO.Compression;
 
-
 namespace RedFox.Imaging.Formats.Tiff;
 
 /// <summary>
@@ -11,7 +10,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// LZW uses MSB-first bit packing with variable code widths (9–12 bits)
 /// and early code-size increase per the TIFF 6.0 specification.
 /// </summary>
-public static class TiffCompressor
+internal static class TiffCompressor
 {
     /// <summary>
     /// Compresses data using the PackBits (byte-oriented RLE) scheme.
@@ -20,7 +19,6 @@ public static class TiffCompressor
     /// <returns>A byte array containing the PackBits-compressed data.</returns>
     public static byte[] CompressPackBits(ReadOnlySpan<byte> src)
     {
-        // Worst case: each input byte can produce up to 2 output bytes (header + literal).
         int worstCase = Math.Max(4, src.Length * 2);
         var outBuf = ArrayPool<byte>.Shared.Rent(worstCase);
         try
@@ -30,7 +28,6 @@ public static class TiffCompressor
 
             while (pos < src.Length)
             {
-                // Look for a run of identical bytes (min 2 to justify RLE header).
                 if (pos + 1 < src.Length && src[pos] == src[pos + 1])
                 {
                     byte value = src[pos];
@@ -45,18 +42,15 @@ public static class TiffCompressor
                 }
                 else
                 {
-                    // Literal run: count consecutive non-repeating bytes.
                     int litStart = pos;
                     int litLen = 1;
                     while (litLen < 128 && pos + litLen < src.Length)
                     {
-                        // Stop if the next two bytes start a run.
                         if (pos + litLen + 1 < src.Length && src[pos + litLen] == src[pos + litLen + 1])
                             break;
                         litLen++;
                     }
 
-                    // Header byte: litLen - 1.
                     outBuf[outPos++] = (byte)(litLen - 1);
                     src.Slice(litStart, litLen).CopyTo(outBuf.AsSpan(outPos));
                     outPos += litLen;
@@ -84,7 +78,6 @@ public static class TiffCompressor
     {
         if (src.Length == 0)
         {
-            // Emit ClearCode + EOI with 9-bit codes using BitWriter into a small buffer.
             var emptyBuf = new byte[3];
             var smallWriter = new TiffBitWriter(emptyBuf);
             smallWriter.Write(TiffConstants.LzwClearCode, TiffConstants.LzwInitialCodeSize);
@@ -95,21 +88,17 @@ public static class TiffCompressor
             return res;
         }
 
-        // Output buffer — rent from pool to reduce allocations. Use a slightly
-        // generous initial size similar to the previous heuristic.
         int initialOutput = Math.Max(512, src.Length * 2 + 512);
         var output = ArrayPool<byte>.Shared.Rent(initialOutput);
 
-        // String table: maps (prefix, suffix) → code.
-        // Using a simple hash table with open addressing for fast lookups.
-        int tableCapacity = 8192; // Power of two, larger than LzwMaxTableSize.
+        int tableCapacity = 8192;
         var hashKeys = ArrayPool<long>.Shared.Rent(tableCapacity);
         var hashValues = ArrayPool<int>.Shared.Rent(tableCapacity);
         int nextCode;
         int codeSize;
+
         void ResetTable()
         {
-            // Initialize only the active portion of the rented array.
             Array.Fill(hashKeys, -1L, 0, tableCapacity);
             nextCode = TiffConstants.LzwFirstCode;
             codeSize = TiffConstants.LzwInitialCodeSize;
@@ -124,32 +113,29 @@ public static class TiffCompressor
             while (true)
             {
                 if (hashKeys[slot] == key)
-                    return hashValues[slot];   // Found — return existing code.
+                    return hashValues[slot];
                 if (hashKeys[slot] == -1L)
                 {
-                    // Not found — insert if table has room.
                     if (nextCode < TiffConstants.LzwMaxTableSize)
                     {
                         hashKeys[slot] = key;
                         hashValues[slot] = nextCode++;
                     }
-                    return -1; // Signal "not found".
+                    return -1;
                 }
                 slot = (slot + 1) & mask;
             }
         }
 
-        // BitWriter will manage writing bits into the rented output buffer.
         var writer = new TiffBitWriter(output);
 
         try
         {
             ResetTable();
 
-            // Emit initial ClearCode.
             writer.Write(TiffConstants.LzwClearCode, TiffConstants.LzwInitialCodeSize);
 
-            int w = src[0]; // Current string represented as its code.
+            int w = src[0];
             int srcPos = 1;
 
             while (srcPos < src.Length)
@@ -159,30 +145,26 @@ public static class TiffCompressor
 
                 if (code >= 0)
                 {
-                    // w + k exists in the table — extend the current string.
                     w = code;
                 }
                 else
                 {
-                    // w + k is new — emit code for w.
                     writer.Write(w, codeSize);
 
                     // TIFF LZW uses the historical Aldus off-by-one code-size transition.
                     if (nextCode >= ((1 << codeSize) - 1) && codeSize < TiffConstants.LzwMaxCodeSize)
                         codeSize++;
 
-                    // Reset when table is full.
                     if (nextCode >= TiffConstants.LzwMaxTableSize)
                     {
                         writer.Write(TiffConstants.LzwClearCode, codeSize);
                         ResetTable();
                     }
 
-                    w = k; // Start new string with k.
+                    w = k;
                 }
             }
 
-            // Emit code for the final string and EOI marker, then flush writer.
             writer.Write(w, codeSize);
             writer.Write(TiffConstants.LzwEoiCode, codeSize);
 

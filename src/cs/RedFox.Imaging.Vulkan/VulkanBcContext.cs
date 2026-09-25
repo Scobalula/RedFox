@@ -43,45 +43,64 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
     private VulkanBcComputePipeline _bc7EncodeBlockPipeline;
     private bool _disposed;
 
-    /// <summary>Gets the Vulkan API instance.</summary>
+    /// <summary>
+    /// Gets the Vulkan API instance.
+    /// </summary>
     public Vk Vk => _vk;
 
-    /// <summary>Gets the logical Vulkan device.</summary>
+    /// <summary>
+    /// Gets the logical Vulkan device.
+    /// </summary>
     public Device Device => _device;
 
-    /// <summary>Gets the physical Vulkan device.</summary>
+    /// <summary>
+    /// Gets the physical Vulkan device.
+    /// </summary>
     public PhysicalDevice PhysicalDevice => _physicalDevice;
 
-    /// <summary>Gets the device queue used for command submission.</summary>
+    /// <summary>
+    /// Gets the device queue used for command submission.
+    /// </summary>
     public Queue Queue => _queue;
 
-    /// <summary>Gets the Vulkan instance.</summary>
+    /// <summary>
+    /// Gets the Vulkan instance.
+    /// </summary>
     public Instance Instance => _instance;
 
-    /// <summary>Gets the command pool used for short-lived command buffers.</summary>
+    /// <summary>
+    /// Gets the command pool used for short-lived command buffers.
+    /// </summary>
     public CommandPool CommandPool => _commandPool;
 
-    /// <summary>Gets the non-coherent atom size from the physical device limits.</summary>
+    /// <summary>
+    /// Gets the non-coherent atom size from the physical device limits.
+    /// </summary>
     public ulong NonCoherentAtomSize => _nonCoherentAtomSize;
 
-    /// <summary>Creates a fully initialized Vulkan BC context when a suitable compute device is available.</summary>
+    /// <summary>
+    /// Creates a fully initialized Vulkan BC context when a suitable compute device is available.
+    /// </summary>
     /// <returns>The initialized context when creation succeeds; otherwise <see langword="null"/>.</returns>
     public static VulkanBcContext? Create()
     {
         Vk vk = Vk.GetApi();
         VulkanBcContext context = new(vk);
 
-        try 
+        try
         {
             return context.Initialize() ? context : null;
         }
         catch
         {
-            context.Dispose(); return null;
+            context.Dispose();
+            return null;
         }
     }
 
-    /// <summary>Attempts to execute a BC encode or decode conversion on the GPU.</summary>
+    /// <summary>
+    /// Attempts to execute a BC encode or decode conversion on the GPU.
+    /// </summary>
     /// <param name="request">The conversion request containing source, destination, dimensions, and flags.</param>
     /// <returns><see langword="true"/> when the GPU path handled the conversion; otherwise <see langword="false"/>.</returns>
     public bool TryConvert(in VulkanBcConversionRequest request)
@@ -98,7 +117,9 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         return false;
     }
 
-    /// <summary>Attempts to execute a BC encode or decode conversion on the GPU.</summary>
+    /// <summary>
+    /// Attempts to execute a BC encode or decode conversion on the GPU.
+    /// </summary>
     /// <param name="source">The source image bytes.</param>
     /// <param name="sourceFormat">The source image format.</param>
     /// <param name="destination">The destination image bytes.</param>
@@ -305,16 +326,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             new(3, DescriptorType.UniformBuffer, 1, ShaderStageFlags.ComputeBit, null),
         ];
 
-        return TryCreateComputePipeline("BcDecodeRgba8.spv", "DecodeMain", decodeBindings, out _decodeRgba8Pipeline)
-            && TryCreateComputePipeline("BcDecodeRgba16.spv", "DecodeMain", decodeBindings, out _decodeRgba16Pipeline)
-            && TryCreateComputePipeline("BcDecodeRgba32.spv", "DecodeMain", decodeBindings, out _decodeRgba32Pipeline)
-            && TryCreateComputePipeline("BC6HEncode_TryModeG10CS.spv", "TryModeG10CS", encodeBindings, out _bc6hTryModeG10Pipeline)
-            && TryCreateComputePipeline("BC6HEncode_TryModeLE10CS.spv", "TryModeLE10CS", encodeBindings, out _bc6hTryModeLE10Pipeline)
-            && TryCreateComputePipeline("BC6HEncode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc6hEncodeBlockPipeline)
-            && TryCreateComputePipeline("BC7Encode_TryMode456CS.spv", "TryMode456CS", encodeBindings, out _bc7TryMode456Pipeline)
-            && TryCreateComputePipeline("BC7Encode_TryMode137CS.spv", "TryMode137CS", encodeBindings, out _bc7TryMode137Pipeline)
-            && TryCreateComputePipeline("BC7Encode_TryMode02CS.spv", "TryMode02CS", encodeBindings, out _bc7TryMode02Pipeline)
-            && TryCreateComputePipeline("BC7Encode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc7EncodeBlockPipeline);
+        return TryCreateComputePipeline("BcDecodeRgba8.spv", "DecodeMain", decodeBindings, out _decodeRgba8Pipeline) && TryCreateComputePipeline("BcDecodeRgba16.spv", "DecodeMain", decodeBindings, out _decodeRgba16Pipeline) && TryCreateComputePipeline("BcDecodeRgba32.spv", "DecodeMain", decodeBindings, out _decodeRgba32Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeG10CS.spv", "TryModeG10CS", encodeBindings, out _bc6hTryModeG10Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeLE10CS.spv", "TryModeLE10CS", encodeBindings, out _bc6hTryModeLE10Pipeline) && TryCreateComputePipeline("BC6HEncode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc6hEncodeBlockPipeline) && TryCreateComputePipeline("BC7Encode_TryMode456CS.spv", "TryMode456CS", encodeBindings, out _bc7TryMode456Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode137CS.spv", "TryMode137CS", encodeBindings, out _bc7TryMode137Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode02CS.spv", "TryMode02CS", encodeBindings, out _bc7TryMode02Pipeline) && TryCreateComputePipeline("BC7Encode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc7EncodeBlockPipeline);
     }
 
     private bool TryCreateComputePipeline(string shaderFileName, string entryPoint, ReadOnlySpan<DescriptorSetLayoutBinding> bindings, out VulkanBcComputePipeline pipeline)
@@ -337,7 +349,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             {
                 ShaderModuleCreateInfo modInfo = new()
                 {
-                    SType = StructureType.ShaderModuleCreateInfo, 
+                    SType = StructureType.ShaderModuleCreateInfo,
                     CodeSize = (nuint)shaderBytes.Length,
                     PCode = (uint*)ptr
                 };
@@ -357,7 +369,8 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             {
                 SType = StructureType.ComputePipelineCreateInfo,
                 Stage = stage,
-                Layout = pipelineLayout };
+                Layout = pipelineLayout
+            };
 
             if (_vk.CreateComputePipelines(_device, default, 1, in pipeInfo, null, out Pipeline handle) != Result.Success)
                 return false;
@@ -435,7 +448,8 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             VulkanBcBufferAllocation constantAlloc = new((ulong)Marshal.SizeOf<VulkanBcDecodeConstants>(), BufferUsageFlags.UniformBufferBit, MemoryPropertyFlags.HostVisibleBit, MemoryPropertyFlags.HostCoherentBit);
             if (!VulkanBcGpuResourceAllocator.TryCreateBuffer(this, in constantAlloc, out constantBuffer))
                 return false;
-            if (!VulkanBcGpuResourceAllocator.TryWriteBuffer(this, constantBuffer, new VulkanBcDecodeConstants { Width = (uint)request.Width, Height = (uint)request.Height })) return false;
+            if (!VulkanBcGpuResourceAllocator.TryWriteBuffer(this, constantBuffer, new VulkanBcDecodeConstants { Width = (uint)request.Width, Height = (uint)request.Height }))
+                return false;
 
             VulkanBcImageAllocation imageAlloc = new(sourceFormat, (uint)request.Width, (uint)request.Height, ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit);
             if (!VulkanBcGpuResourceAllocator.TryCreateImage(this, in imageAlloc, out sourceImage))
@@ -689,7 +703,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
     private bool TryAllocateCommandBuffer(out CommandBuffer commandBuffer)
     {
         CommandBufferAllocateInfo info = new()
-        { 
+        {
             SType = StructureType.CommandBufferAllocateInfo,
             CommandPool = _commandPool,
             Level = CommandBufferLevel.Primary,
@@ -715,8 +729,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         {
             SType = StructureType.SubmitInfo,
             CommandBufferCount = 1,
-            PCommandBuffers =
-            &commandBuffer
+            PCommandBuffers = &commandBuffer
         };
 
         if (_vk.QueueSubmit(_queue, 1, in info, fence) != Result.Success)

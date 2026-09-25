@@ -52,8 +52,8 @@ public sealed class VulkanBcConverterEngine : ConverterEngine, IDisposable
         if (!VulkanBcFormatMap.IsBcFormat(sourceFormat) && !VulkanBcFormatMap.IsBcFormat(destinationFormat))
             return false;
 
-        IPixelCodec sourceCodec = PixelCodec.GetCodec(sourceFormat);
-        IPixelCodec destinationCodec = PixelCodec.GetCodec(destinationFormat);
+        IPixelCodec sourceCodec = PixelCodecs.GetCodec(sourceFormat);
+        IPixelCodec destinationCodec = PixelCodecs.GetCodec(destinationFormat);
         destinationCodec.ConvertFrom(source, sourceCodec, destination, width, height);
         return true;
     }

@@ -6,7 +6,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// A JPEG Huffman decoding table built from code-length and value arrays. Supports variable-length symbol decoding from a <see cref="JpegBitReader"/>.
 /// </summary>
-public sealed class JpegHuffmanTable
+internal sealed class JpegHuffmanTable
 {
     private readonly int[] _minCode = new int[17];
     private readonly int[] _maxCode = new int[17];

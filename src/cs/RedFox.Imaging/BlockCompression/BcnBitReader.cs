@@ -7,25 +7,25 @@ namespace RedFox.Imaging.BlockCompression;
 /// Lightweight sequential bit reader for block-compressed format decoding.
 /// Reads bits LSB-first from a byte span, maintaining a running position.
 /// </summary>
-public ref struct BitReader
+internal ref struct BcnBitReader
 {
     private readonly ReadOnlySpan<byte> _data;
     private int _position;
 
     /// <summary>
-    /// Initializes a new <see cref="BitReader"/> over the specified data.
+    /// Gets the current bit position within the data.
+    /// </summary>
+    public readonly int Position => _position;
+
+    /// <summary>
+    /// Initializes a new <see cref="BcnBitReader"/> over the specified data.
     /// </summary>
     /// <param name="data">The source byte span to read bits from.</param>
-    public BitReader(ReadOnlySpan<byte> data)
+    public BcnBitReader(ReadOnlySpan<byte> data)
     {
         _data = data;
         _position = 0;
     }
-
-    /// <summary>
-    /// Gets the current bit position within the data.
-    /// </summary>
-    public readonly int Position => _position;
 
     /// <summary>
     /// Reads <paramref name="numBits"/> bits from the current position and advances.

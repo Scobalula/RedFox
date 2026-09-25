@@ -3,7 +3,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// Describes a single component within a JPEG scan segment, including its Huffman table assignments.
 /// </summary>
-public readonly struct JpegScanComponent
+internal readonly struct JpegScanComponent
 {
     /// <summary>Component identifier matching the frame header.</summary>
     public int ComponentId { get; init; }

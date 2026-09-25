@@ -11,12 +11,6 @@ namespace RedFox.Imaging.Codecs;
 /// </summary>
 public sealed class A8Codec : IPixelCodec
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="A8Codec"/> class.
-    /// </summary>
-    public A8Codec()
-    {
-    }
     private const float Inv255 = 1.0f / 255.0f;
 
     /// <inheritdoc/>

@@ -5,7 +5,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// including IFD tag identifiers, compression codes, photometric interpretation
 /// values, and IFD entry data types.
 /// </summary>
-public static class TiffConstants
+internal static class TiffConstants
 {
     /// <summary>
     /// The number of columns in the image (pixels per row).

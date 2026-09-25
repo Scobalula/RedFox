@@ -47,8 +47,7 @@ public static class BlockColorOperations
     /// <param name="t">The interpolation factor in [0, 1].</param>
     /// <returns>The interpolated result.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector4 Lerp(Vector4 a, Vector4 b, float t) =>
-        a + (b - a) * t;
+    public static Vector4 Lerp(Vector4 a, Vector4 b, float t) => a + (b - a) * t;
 
     /// <summary>
     /// Decodes a BC4/BC5-style interpolated alpha block (8 bytes) into 16 scalar values.

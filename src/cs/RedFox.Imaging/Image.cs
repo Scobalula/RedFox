@@ -9,11 +9,16 @@ using RedFox.Imaging.Processing;
 namespace RedFox.Imaging;
 
 /// <summary>
-/// Represents texture or image data and its subresources in contiguous storage.
+/// Represents texture or image data and all of its subresources in a single contiguous managed buffer.
 /// </summary>
+/// <remarks>
+/// <para>The image owns its pixel buffer. When a buffer is supplied to a constructor it is adopted without copying, so the caller must not keep using that array independently.</para>
+/// <para>Subresources are laid out array element first, then mip level, then depth slice. <see cref="ImageSlice"/> values are non-owning views of that buffer.</para>
+/// <para>The image holds no unmanaged resources and does not need to be disposed.</para>
+/// </remarks>
 public sealed class Image
 {
-    private byte[] _pixels;
+    private Memory<byte> _pixels;
     private ImageSlice[] _slices;
 
     /// <summary>
@@ -32,7 +37,7 @@ public sealed class Image
     public int Depth { get; }
 
     /// <summary>
-    /// Gets the number of texture-array elements.
+    /// Gets the number of texture-array elements, including every cube face.
     /// </summary>
     public int ArraySize { get; }
 
@@ -42,14 +47,19 @@ public sealed class Image
     public int MipLevels { get; }
 
     /// <summary>
-    /// Gets the pixel format of the image.
+    /// Gets the pixel format of the image. Use <see cref="Convert(ImageFormat)"/> to change it.
     /// </summary>
-    public ImageFormat Format { get; set; }
+    public ImageFormat Format { get; private set; }
 
     /// <summary>
     /// Gets whether this image represents a cube map texture.
     /// </summary>
     public bool IsCubemap { get; }
+
+    /// <summary>
+    /// Gets the layout description of this image.
+    /// </summary>
+    public ImageInfo Info => new(Width, Height, Depth, ArraySize, MipLevels, Format, IsCubemap);
 
     /// <summary>
     /// Gets the total number of sub-image slices.
@@ -62,12 +72,12 @@ public sealed class Image
     public ReadOnlySpan<ImageSlice> Slices => _slices;
 
     /// <summary>
-    /// Gets the entire pixel buffer as a span.
+    /// Gets the entire pixel buffer as a span. The span covers exactly the bytes described by the layout.
     /// </summary>
-    public Span<byte> PixelData => _pixels;
+    public Span<byte> PixelData => _pixels.Span;
 
     /// <summary>
-    /// Gets the entire pixel buffer as a <see cref="Memory{T}"/>.
+    /// Gets the entire pixel buffer as a <see cref="Memory{T}"/>. The memory covers exactly the bytes described by the layout.
     /// </summary>
     public Memory<byte> PixelMemory => _pixels;
 
@@ -77,18 +87,24 @@ public sealed class Image
     /// <param name="width">Width of the top-level image in pixels.</param>
     /// <param name="height">Height of the top-level image in pixels.</param>
     /// <param name="depth">Depth of the image (1 for 2D textures).</param>
-    /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+    /// <param name="arraySize">Number of array elements (1 for non-array textures, a multiple of 6 for cube maps).</param>
     /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
     /// <param name="format">The pixel format.</param>
     /// <param name="isCubemap">Whether this image is a cube map texture.</param>
-    /// <param name="data">Initial pixel data, or <see langword="null"/> to allocate storage.</param>
+    /// <param name="data">Pixel data to adopt without copying, or <see langword="null"/> to allocate zeroed storage. It may be longer than required; trailing bytes are ignored.</param>
+    /// <exception cref="ArgumentException">Thrown when the layout is invalid, too large, or <paramref name="data"/> is too small.</exception>
     public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap, byte[]? data)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(depth, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(arraySize, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(mipLevels, 1);
+        ImageInfo info = new(width, height, depth, arraySize, mipLevels, format, isCubemap);
+        string? error = info.GetValidationError();
+
+        if (error is not null)
+            throw new ArgumentException(error);
+
+        int totalSize = (int)info.CalculateTotalByteCount();
+
+        if (data is not null && data.Length < totalSize)
+            throw new ArgumentException($"Provided data ({data.Length} bytes) is smaller than the required size ({totalSize} bytes).", nameof(data));
 
         Width = width;
         Height = height;
@@ -98,21 +114,8 @@ public sealed class Image
         Format = format;
         IsCubemap = isCubemap;
 
-        var totalSize = CalculateTotalSize(width, height, depth, arraySize, mipLevels, format);
-
-        if (data != null)
-        {
-            if (data.Length < totalSize)
-                throw new ArgumentException($"Provided data ({data.Length} bytes) is smaller than the required size ({totalSize} bytes).", nameof(data));
-
-            _pixels = data;
-        }
-        else
-        {
-            _pixels = new byte[totalSize];
-        }
-
-        _slices = BuildSlices(width, height, depth, arraySize, mipLevels, format, _pixels);
+        _pixels = (data ?? new byte[totalSize]).AsMemory(0, totalSize);
+        _slices = BuildSlices(info, _pixels);
     }
 
     /// <summary>
@@ -121,12 +124,11 @@ public sealed class Image
     /// <param name="width">Width of the top-level image in pixels.</param>
     /// <param name="height">Height of the top-level image in pixels.</param>
     /// <param name="depth">Depth of the image (1 for 2D textures).</param>
-    /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+    /// <param name="arraySize">Number of array elements (1 for non-array textures, a multiple of 6 for cube maps).</param>
     /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
     /// <param name="format">The pixel format.</param>
     /// <param name="isCubemap">Whether this image is a cube map texture.</param>
-    public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap)
-        : this(width, height, depth, arraySize, mipLevels, format, isCubemap, null)
+    public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, bool isCubemap) : this(width, height, depth, arraySize, mipLevels, format, isCubemap, null)
     {
     }
 
@@ -136,7 +138,7 @@ public sealed class Image
     /// <param name="width">Width of the top-level image in pixels.</param>
     /// <param name="height">Height of the top-level image in pixels.</param>
     /// <param name="depth">Depth of the image (1 for 2D textures).</param>
-    /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+    /// <param name="arraySize">Number of array elements (1 for non-array textures).</param>
     /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
     /// <param name="format">The pixel format.</param>
     public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format) : this(width, height, depth, arraySize, mipLevels, format, false, null)
@@ -149,10 +151,10 @@ public sealed class Image
     /// <param name="width">Width of the top-level image in pixels.</param>
     /// <param name="height">Height of the top-level image in pixels.</param>
     /// <param name="depth">Depth of the image (1 for 2D textures).</param>
-    /// <param name="arraySize">Number of array elements (1 for non-array textures, 6 for cube maps).</param>
+    /// <param name="arraySize">Number of array elements (1 for non-array textures).</param>
     /// <param name="mipLevels">Number of mip map levels (1 for no mipmaps).</param>
     /// <param name="format">The pixel format.</param>
-    /// <param name="data">Initial pixel data.</param>
+    /// <param name="data">Pixel data to adopt without copying.</param>
     public Image(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, byte[] data) : this(width, height, depth, arraySize, mipLevels, format, false, data)
     {
     }
@@ -163,7 +165,7 @@ public sealed class Image
     /// <param name="width">Width of the image in pixels.</param>
     /// <param name="height">Height of the image in pixels.</param>
     /// <param name="format">The pixel format.</param>
-    /// <param name="data">Initial pixel data.</param>
+    /// <param name="data">Pixel data to adopt without copying.</param>
     public Image(int width, int height, ImageFormat format, byte[] data) : this(width, height, 1, 1, 1, format, false, data)
     {
     }
@@ -179,7 +181,24 @@ public sealed class Image
     }
 
     /// <summary>
-    /// Gets the <see cref="ImageSlice"/> for the specified mip level and array element.
+    /// Creates an image with zeroed storage for the given layout.
+    /// </summary>
+    /// <param name="info">The image layout.</param>
+    public Image(ImageInfo info) : this(info.Width, info.Height, info.Depth, info.ArraySize, info.MipLevels, info.Format, info.IsCubemap, null)
+    {
+    }
+
+    /// <summary>
+    /// Creates an image for the given layout that adopts the supplied data without copying.
+    /// </summary>
+    /// <param name="info">The image layout.</param>
+    /// <param name="data">Pixel data to adopt without copying.</param>
+    public Image(ImageInfo info, byte[] data) : this(info.Width, info.Height, info.Depth, info.ArraySize, info.MipLevels, info.Format, info.IsCubemap, data)
+    {
+    }
+
+    /// <summary>
+    /// Gets the <see cref="ImageSlice"/> for the specified mip level, array element, and depth slice.
     /// </summary>
     /// <param name="mipLevel">The mip level (0 is the largest).</param>
     /// <param name="arrayIndex">The array element index.</param>
@@ -187,14 +206,14 @@ public sealed class Image
     /// <returns>The corresponding <see cref="ImageSlice"/>.</returns>
     public ref readonly ImageSlice GetSlice(int mipLevel, int arrayIndex, int depthSlice)
     {
-        var mipDepth = Math.Max(1, Depth >> mipLevel);
-
+        ArgumentOutOfRangeException.ThrowIfNegative(mipLevel);
+        ArgumentOutOfRangeException.ThrowIfNegative(arrayIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(depthSlice);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(mipLevel, MipLevels);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(arrayIndex, ArraySize);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(depthSlice, mipDepth);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(depthSlice, Math.Max(1, Depth >> mipLevel));
 
-        var index = GetSliceIndex(mipLevel, arrayIndex, depthSlice);
-        return ref _slices[index];
+        return ref _slices[GetSliceIndex(mipLevel, arrayIndex, depthSlice)];
     }
 
     /// <summary>
@@ -258,47 +277,38 @@ public sealed class Image
 
     /// <summary>
     /// Converts this image in place to the specified format with an optional converter engine.
+    /// Slices the engine declines are converted with the built-in CPU codecs.
+    /// Previously obtained <see cref="ImageSlice"/> views keep referencing the old buffer.
     /// </summary>
     /// <param name="targetFormat">The target format.</param>
     /// <param name="flags">Conversion hints.</param>
-    /// <param name="converterEngine">The converter engine to use when possible.</param>
+    /// <param name="converterEngine">The converter engine to try first, or <see langword="null"/> to use the CPU codecs only.</param>
     public void Convert(ImageFormat targetFormat, ImageConvertFlags flags, ConverterEngine? converterEngine)
     {
         if (Format == targetFormat)
             return;
 
+        ImageInfo targetInfo = Info with { Format = targetFormat };
+        string? error = targetInfo.GetValidationError();
+
+        if (error is not null)
+            throw new NotSupportedException(error);
+
         IPixelCodec sourceCodec = PixelCodecs.GetCodec(Format);
         IPixelCodec targetCodec = PixelCodecs.GetCodec(targetFormat);
 
-        int totalSize = CalculateTotalSize(Width, Height, Depth, ArraySize, MipLevels, targetFormat);
-        byte[] newPixels = new byte[totalSize];
-        ImageSlice[] newSlices = BuildSlices(Width, Height, Depth, ArraySize, MipLevels, targetFormat, newPixels);
+        Memory<byte> newPixels = new byte[targetInfo.CalculateTotalByteCount()];
+        ImageSlice[] newSlices = BuildSlices(targetInfo, newPixels);
 
         for (int i = 0; i < _slices.Length; i++)
         {
-            ref readonly ImageSlice srcSlice = ref _slices[i];
-            ref readonly ImageSlice dstSlice = ref newSlices[i];
+            ref readonly ImageSlice source = ref _slices[i];
+            ref readonly ImageSlice destination = ref newSlices[i];
 
-            if (converterEngine is not null && !ReferenceEquals(converterEngine, ConverterEngine.None))
-            {
-                converterEngine.TryConvert(srcSlice.PixelSpan, Format, dstSlice.PixelSpan, targetFormat, srcSlice.Width, srcSlice.Height, flags);
-            }
-            else if ((flags & ImageConvertFlags.PreferFastBc7Encoding) != 0 && targetCodec is BC7Codec bc7Codec)
-            {
-                Vector4[] pixels = new Vector4[srcSlice.Width * srcSlice.Height];
-                sourceCodec.Decode(srcSlice.PixelSpan, pixels, srcSlice.Width, srcSlice.Height);
-                BC7Codec.EncodeFast(pixels, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
-            }
-            else if ((flags & ImageConvertFlags.PreferFastBc6HEncoding) != 0 && targetCodec is BC6HCodec bc6hCodec)
-            {
-                Vector4[] pixels = new Vector4[srcSlice.Width * srcSlice.Height];
-                sourceCodec.Decode(srcSlice.PixelSpan, pixels, srcSlice.Width, srcSlice.Height);
-                bc6hCodec.EncodeFast(pixels, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
-            }
-            else
-            {
-                targetCodec.ConvertFrom(srcSlice.PixelSpan, sourceCodec, dstSlice.PixelSpan, srcSlice.Width, srcSlice.Height);
-            }
+            if (converterEngine is not null && converterEngine.TryConvert(source.PixelSpan, Format, destination.PixelSpan, targetFormat, source.Width, source.Height, flags))
+                continue;
+
+            ConvertSlice(source, sourceCodec, destination, targetCodec, flags);
         }
 
         _pixels = newPixels;
@@ -307,17 +317,18 @@ public sealed class Image
     }
 
     /// <summary>
-    /// Reinterprets the pixel buffer as a span of <typeparamref name="T"/>.
+    /// Reinterprets the entire raw pixel buffer as a span of <typeparamref name="T"/>.
+    /// This is an explicit, unchecked reinterpretation of the stored bytes and performs no format conversion.
     /// </summary>
     /// <typeparam name="T">The unmanaged element type to reinterpret the pixel buffer as.</typeparam>
     /// <returns>A span over the underlying pixel buffer reinterpreted as <typeparamref name="T"/> values.</returns>
     public Span<T> GetPixelData<T>() where T : unmanaged
     {
-        return MemoryMarshal.Cast<byte, T>((Span<byte>)_pixels);
+        return MemoryMarshal.Cast<byte, T>(_pixels.Span);
     }
 
     /// <summary>
-    /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values using the built-in codec resolver.
+    /// Decodes all pixels of a specific slice to <see cref="Vector4"/> values using the built-in codec.
     /// </summary>
     /// <param name="mipLevel">The mip level (0 is the largest).</param>
     /// <param name="arrayIndex">The array element index.</param>
@@ -326,9 +337,8 @@ public sealed class Image
     public Vector4[] DecodeSlice(int mipLevel, int arrayIndex, int depthSlice)
     {
         ref readonly ImageSlice slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
-        IPixelCodec codec = PixelCodecs.GetCodec(Format);
         Vector4[] result = new Vector4[slice.Width * slice.Height];
-        codec.Decode(slice.PixelSpan, result, slice.Width, slice.Height);
+        PixelCodecs.GetCodec(Format).Decode(slice.PixelSpan, result, slice.Width, slice.Height);
         return result;
     }
 
@@ -363,7 +373,7 @@ public sealed class Image
     }
 
     /// <summary>
-    /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/> using the built-in codec resolver.
+    /// Decodes all pixels of a specific slice to values of type <typeparamref name="T"/> using the built-in codec.
     /// Each pixel produces 4 component values (RGBA).
     /// </summary>
     /// <typeparam name="T">The numeric component type to convert each RGBA channel into.</typeparam>
@@ -373,17 +383,18 @@ public sealed class Image
     /// <returns>An array containing interleaved RGBA component values for every decoded pixel.</returns>
     public T[] DecodeSlice<T>(int mipLevel, int arrayIndex, int depthSlice) where T : INumber<T>
     {
-        Vector4[] vec4Data = DecodeSlice(mipLevel, arrayIndex, depthSlice);
-        T[] result = new T[vec4Data.Length * 4];
+        Vector4[] decoded = DecodeSlice(mipLevel, arrayIndex, depthSlice);
+        T[] result = new T[decoded.Length * 4];
 
-        for (int i = 0; i < vec4Data.Length; i++)
+        for (int i = 0; i < decoded.Length; i++)
         {
-            ref Vector4 v = ref vec4Data[i];
+            ref Vector4 pixel = ref decoded[i];
             int offset = i * 4;
-            result[offset + 0] = T.CreateSaturating(v.X);
-            result[offset + 1] = T.CreateSaturating(v.Y);
-            result[offset + 2] = T.CreateSaturating(v.Z);
-            result[offset + 3] = T.CreateSaturating(v.W);
+
+            result[offset + 0] = T.CreateSaturating(pixel.X);
+            result[offset + 1] = T.CreateSaturating(pixel.Y);
+            result[offset + 2] = T.CreateSaturating(pixel.Z);
+            result[offset + 3] = T.CreateSaturating(pixel.W);
         }
 
         return result;
@@ -422,102 +433,78 @@ public sealed class Image
         return DecodeSlice<T>(mipLevel, 0, 0);
     }
 
+    /// <summary>
+    /// Encodes <see cref="Vector4"/> pixels into a specific slice using the built-in codec for <see cref="Format"/>.
+    /// Block-compressed formats are re-encoded, which is lossy.
+    /// </summary>
+    /// <param name="mipLevel">The mip level (0 is the largest).</param>
+    /// <param name="arrayIndex">The array element index.</param>
+    /// <param name="depthSlice">The depth slice index (for 3D textures).</param>
+    /// <param name="pixels">One RGBA pixel per slice pixel in row-major order.</param>
+    public void EncodeSlice(int mipLevel, int arrayIndex, int depthSlice, ReadOnlySpan<Vector4> pixels)
+    {
+        ref readonly ImageSlice slice = ref GetSlice(mipLevel, arrayIndex, depthSlice);
+
+        if (pixels.Length != slice.Width * slice.Height)
+            throw new ArgumentException($"Expected {slice.Width * slice.Height} pixels but received {pixels.Length}.", nameof(pixels));
+
+        PixelCodecs.GetCodec(Format).Encode(pixels, slice.PixelSpan, slice.Width, slice.Height);
+    }
+
     private int GetSliceIndex(int mipLevel, int arrayIndex, int depthSlice)
     {
-        int index = 0;
-
-        for (int arr = 0; arr < arrayIndex; arr++)
-        {
-            for (int mip = 0; mip < MipLevels; mip++)
-            {
-                index += Math.Max(1, Depth >> mip);
-            }
-        }
+        int slicesPerArrayElement = _slices.Length / ArraySize;
+        int index = arrayIndex * slicesPerArrayElement + depthSlice;
 
         for (int mip = 0; mip < mipLevel; mip++)
-        {
             index += Math.Max(1, Depth >> mip);
-        }
 
-        index += depthSlice;
         return index;
     }
 
-    private static ImageSlice[] BuildSlices(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format, byte[] pixels)
+    private static void ConvertSlice(in ImageSlice source, IPixelCodec sourceCodec, in ImageSlice destination, IPixelCodec targetCodec, ImageConvertFlags flags)
     {
-        int sliceCount = CalculateSliceCount(depth, arraySize, mipLevels);
-        var slices = new ImageSlice[sliceCount];
+        bool fastBc7 = (flags & ImageConvertFlags.PreferFastBc7Encoding) != 0 && targetCodec is BC7Codec;
+        bool fastBc6H = (flags & ImageConvertFlags.PreferFastBc6HEncoding) != 0 && targetCodec is BC6HCodec;
+
+        if (!fastBc7 && !fastBc6H)
+        {
+            targetCodec.ConvertFrom(source.PixelSpan, sourceCodec, destination.PixelSpan, source.Width, source.Height);
+            return;
+        }
+
+        Vector4[] pixels = new Vector4[source.Width * source.Height];
+        sourceCodec.Decode(source.PixelSpan, pixels, source.Width, source.Height);
+
+        if (fastBc7)
+            BC7Codec.EncodeFast(pixels, destination.PixelSpan, source.Width, source.Height);
+        else
+            ((BC6HCodec)targetCodec).EncodeFast(pixels, destination.PixelSpan, source.Width, source.Height);
+    }
+
+    private static ImageSlice[] BuildSlices(ImageInfo info, Memory<byte> pixels)
+    {
+        var slices = new ImageSlice[info.CalculateSliceCount()];
         int index = 0;
         int offset = 0;
 
-        for (int arr = 0; arr < arraySize; arr++)
+        for (int arrayIndex = 0; arrayIndex < info.ArraySize; arrayIndex++)
         {
-            int mipWidth = width;
-            int mipHeight = height;
-            int mipDepth = depth;
-
-            for (int mip = 0; mip < mipLevels; mip++)
+            for (int mip = 0; mip < info.MipLevels; mip++)
             {
-                var (rowPitch, slicePitch) = ImageFormatInfo.CalculatePitch(format, mipWidth, mipHeight);
+                int mipWidth = Math.Max(1, info.Width >> mip);
+                int mipHeight = Math.Max(1, info.Height >> mip);
+                int mipDepth = Math.Max(1, info.Depth >> mip);
+                var (rowPitch, slicePitch) = ImageFormatInfo.CalculatePitch(info.Format, mipWidth, mipHeight);
 
-                for (int d = 0; d < mipDepth; d++)
+                for (int depthIndex = 0; depthIndex < mipDepth; depthIndex++)
                 {
-                    slices[index++] = new ImageSlice(
-                        mipWidth,
-                        mipHeight,
-                        format,
-                        rowPitch,
-                        slicePitch,
-                        new Memory<byte>(pixels, offset, slicePitch));
-
+                    slices[index++] = new ImageSlice(mipWidth, mipHeight, info.Format, rowPitch, slicePitch, pixels.Slice(offset, slicePitch), mip, arrayIndex, depthIndex);
                     offset += slicePitch;
                 }
-
-                mipWidth = Math.Max(1, mipWidth >> 1);
-                mipHeight = Math.Max(1, mipHeight >> 1);
-                mipDepth = Math.Max(1, mipDepth >> 1);
             }
         }
 
         return slices;
-    }
-
-    private static int CalculateTotalSize(int width, int height, int depth, int arraySize, int mipLevels, ImageFormat format)
-    {
-        int total = 0;
-
-        for (int arr = 0; arr < arraySize; arr++)
-        {
-            int mipWidth = width;
-            int mipHeight = height;
-            int mipDepth = depth;
-
-            for (int mip = 0; mip < mipLevels; mip++)
-            {
-                var (_, slicePitch) = ImageFormatInfo.CalculatePitch(format, mipWidth, mipHeight);
-                total += slicePitch * mipDepth;
-
-                mipWidth = Math.Max(1, mipWidth >> 1);
-                mipHeight = Math.Max(1, mipHeight >> 1);
-                mipDepth = Math.Max(1, mipDepth >> 1);
-            }
-        }
-
-        return total;
-    }
-
-    private static int CalculateSliceCount(int depth, int arraySize, int mipLevels)
-    {
-        int count = 0;
-        for (int arr = 0; arr < arraySize; arr++)
-        {
-            int mipDepth = depth;
-            for (int mip = 0; mip < mipLevels; mip++)
-            {
-                count += mipDepth;
-                mipDepth = Math.Max(1, mipDepth >> 1);
-            }
-        }
-        return count;
     }
 }

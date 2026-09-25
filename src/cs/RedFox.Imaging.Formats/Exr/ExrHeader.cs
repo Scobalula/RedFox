@@ -11,4 +11,4 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <param name="MinY">Minimum Y coordinate of the data window.</param>
 /// <param name="Compression">The compression algorithm used for the pixel data.</param>
 /// <param name="Channels">The ordered list of channel definitions in the image.</param>
-public sealed record ExrHeader(int Width, int Height, int MinX, int MinY, ExrCompressionType Compression, IReadOnlyList<ExrChannel> Channels);
+internal sealed record ExrHeader(int Width, int Height, int MinX, int MinY, ExrCompressionType Compression, IReadOnlyList<ExrChannel> Channels);

@@ -9,7 +9,7 @@ namespace RedFox.Imaging;
 /// <summary>
 /// Resolves the built-in pixel codec for a known <see cref="ImageFormat"/>.
 /// </summary>
-public static class PixelCodec
+public static class PixelCodecs
 {
     /// <summary>
     /// Codec for <see cref="ImageFormat.R8G8B8A8Unorm"/>.
@@ -22,6 +22,26 @@ public static class PixelCodec
     public static readonly IPixelCodec R8G8B8A8UnormSrgb = new R8G8B8A8Codec(ImageFormat.R8G8B8A8UnormSrgb);
 
     /// <summary>
+    /// Codec for <see cref="ImageFormat.R8G8B8A8Typeless"/>.
+    /// </summary>
+    public static readonly IPixelCodec R8G8B8A8Typeless = new R8G8B8A8Codec(ImageFormat.R8G8B8A8Typeless);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.R8G8B8A8Uint"/>.
+    /// </summary>
+    public static readonly IPixelCodec R8G8B8A8Uint = new R8G8B8A8Codec(ImageFormat.R8G8B8A8Uint);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.R8G8B8A8Snorm"/>.
+    /// </summary>
+    public static readonly IPixelCodec R8G8B8A8Snorm = new R8G8B8A8Codec(ImageFormat.R8G8B8A8Snorm);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.R8G8B8A8Sint"/>.
+    /// </summary>
+    public static readonly IPixelCodec R8G8B8A8Sint = new R8G8B8A8Codec(ImageFormat.R8G8B8A8Sint);
+
+    /// <summary>
     /// Codec for <see cref="ImageFormat.B8G8R8A8Unorm"/>.
     /// </summary>
     public static readonly IPixelCodec B8G8R8A8Unorm = new B8G8R8A8Codec(ImageFormat.B8G8R8A8Unorm);
@@ -30,6 +50,31 @@ public static class PixelCodec
     /// Codec for <see cref="ImageFormat.B8G8R8A8UnormSrgb"/>.
     /// </summary>
     public static readonly IPixelCodec B8G8R8A8UnormSrgb = new B8G8R8A8Codec(ImageFormat.B8G8R8A8UnormSrgb);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.B8G8R8A8Typeless"/>.
+    /// </summary>
+    public static readonly IPixelCodec B8G8R8A8Typeless = new B8G8R8A8Codec(ImageFormat.B8G8R8A8Typeless);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.B8G8R8X8Unorm"/>.
+    /// </summary>
+    public static readonly IPixelCodec B8G8R8X8Unorm = new B8G8R8X8Codec(ImageFormat.B8G8R8X8Unorm);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.B8G8R8X8UnormSrgb"/>.
+    /// </summary>
+    public static readonly IPixelCodec B8G8R8X8UnormSrgb = new B8G8R8X8Codec(ImageFormat.B8G8R8X8UnormSrgb);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.B8G8R8X8Typeless"/>.
+    /// </summary>
+    public static readonly IPixelCodec B8G8R8X8Typeless = new B8G8R8X8Codec(ImageFormat.B8G8R8X8Typeless);
+
+    /// <summary>
+    /// Codec for <see cref="ImageFormat.R9G9B9E5SharedExp"/>.
+    /// </summary>
+    public static readonly IPixelCodec R9G9B9E5SharedExp = new R9G9B9E5Codec();
 
     /// <summary>
     /// Codec for <see cref="ImageFormat.R32G32B32A32Float"/>.
@@ -59,22 +104,22 @@ public static class PixelCodec
     /// <summary>
     /// Codec for <see cref="ImageFormat.R32G32B32Typeless"/>.
     /// </summary>
-    public static readonly IPixelCodec R32G32B32Typeless = new R32G32B32FloatCodec(ImageFormat.R32G32B32Typeless);
+    public static readonly IPixelCodec R32G32B32Typeless = new R32G32B32Codec(ImageFormat.R32G32B32Typeless);
 
     /// <summary>
     /// Codec for <see cref="ImageFormat.R32G32B32Float"/>.
     /// </summary>
-    public static readonly IPixelCodec R32G32B32Float = new R32G32B32FloatCodec(ImageFormat.R32G32B32Float);
+    public static readonly IPixelCodec R32G32B32Float = new R32G32B32Codec(ImageFormat.R32G32B32Float);
 
     /// <summary>
     /// Codec for <see cref="ImageFormat.R32G32B32Uint"/>.
     /// </summary>
-    public static readonly IPixelCodec R32G32B32Uint = new R32G32B32FloatCodec(ImageFormat.R32G32B32Uint);
+    public static readonly IPixelCodec R32G32B32Uint = new R32G32B32Codec(ImageFormat.R32G32B32Uint);
 
     /// <summary>
     /// Codec for <see cref="ImageFormat.R32G32B32Sint"/>.
     /// </summary>
-    public static readonly IPixelCodec R32G32B32Sint = new R32G32B32FloatCodec(ImageFormat.R32G32B32Sint);
+    public static readonly IPixelCodec R32G32B32Sint = new R32G32B32Codec(ImageFormat.R32G32B32Sint);
 
     /// <summary>
     /// Codec for <see cref="ImageFormat.R16G16B16A16Typeless"/>.
@@ -438,8 +483,19 @@ public static class PixelCodec
             // 8-bit RGBA formats
             ImageFormat.R8G8B8A8Unorm => R8G8B8A8Unorm,
             ImageFormat.R8G8B8A8UnormSrgb => R8G8B8A8UnormSrgb,
+            ImageFormat.R8G8B8A8Typeless => R8G8B8A8Typeless,
+            ImageFormat.R8G8B8A8Uint => R8G8B8A8Uint,
+            ImageFormat.R8G8B8A8Snorm => R8G8B8A8Snorm,
+            ImageFormat.R8G8B8A8Sint => R8G8B8A8Sint,
             ImageFormat.B8G8R8A8Unorm => B8G8R8A8Unorm,
             ImageFormat.B8G8R8A8UnormSrgb => B8G8R8A8UnormSrgb,
+            ImageFormat.B8G8R8A8Typeless => B8G8R8A8Typeless,
+            ImageFormat.B8G8R8X8Unorm => B8G8R8X8Unorm,
+            ImageFormat.B8G8R8X8UnormSrgb => B8G8R8X8UnormSrgb,
+            ImageFormat.B8G8R8X8Typeless => B8G8R8X8Typeless,
+
+            // Shared-exponent HDR format
+            ImageFormat.R9G9B9E5SharedExp => R9G9B9E5SharedExp,
 
             // 32-bit float RGBA formats
             ImageFormat.R32G32B32A32Typeless => R32G32B32A32Typeless,

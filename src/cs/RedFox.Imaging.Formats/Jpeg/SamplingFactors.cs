@@ -10,13 +10,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <param name="CbV">Vertical sampling factor for the blue-difference chroma (Cb) component.</param>
 /// <param name="CrH">Horizontal sampling factor for the red-difference chroma (Cr) component.</param>
 /// <param name="CrV">Vertical sampling factor for the red-difference chroma (Cr) component.</param>
-public readonly record struct SamplingFactors(
-    int YH,
-    int YV,
-    int CbH,
-    int CbV,
-    int CrH,
-    int CrV)
+internal readonly record struct SamplingFactors(int YH, int YV, int CbH, int CbV, int CrH, int CrV)
 {
     /// <summary>
     /// Gets the maximum horizontal sampling factor across all components.

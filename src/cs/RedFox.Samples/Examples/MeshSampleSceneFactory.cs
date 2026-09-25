@@ -1,3 +1,4 @@
+using RedFox.Imaging.Formats;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.Formats;
@@ -240,7 +241,7 @@ internal static class MeshSampleSceneFactory
 
         SceneTranslatorManager manager = CreateTranslatorManager();
         scene = new Scene(Path.GetFileName(scenePaths[0]));
-        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
+        BuiltInImageFormats.RegisterAll(scene.ImageTranslators);
 
         try
         {
@@ -278,7 +279,7 @@ internal static class MeshSampleSceneFactory
     private static Scene CreateFallbackScene(string fallbackSceneName)
     {
         Scene scene = new(fallbackSceneName);
-        SampleImageTranslatorRegistry.RegisterDefaults(scene.ImageTranslators);
+        BuiltInImageFormats.RegisterAll(scene.ImageTranslators);
         Mesh mesh = scene.RootNode.AddNode<Mesh>("Triangle");
         mesh.Positions = CreatePositions();
         mesh.Normals = CreateNormals();

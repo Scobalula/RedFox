@@ -3,15 +3,8 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// Describes a single component within a JPEG frame, including sampling factors, quantization assignment, and decoded block storage.
 /// </summary>
-public sealed class JpegFrameComponent
+internal sealed class JpegFrameComponent
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="JpegFrameComponent"/> class.
-    /// </summary>
-    public JpegFrameComponent()
-    {
-    }
-
     /// <summary>Component identifier as declared in the frame header.</summary>
     public int Id { get; set; }
 

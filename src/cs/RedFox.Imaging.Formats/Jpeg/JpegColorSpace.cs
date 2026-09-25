@@ -3,7 +3,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// Identifies the color space used by a JPEG image.
 /// </summary>
-public enum JpegColorSpace
+internal enum JpegColorSpace
 {
     /// <summary>Single-channel luminance.</summary>
     Grayscale,

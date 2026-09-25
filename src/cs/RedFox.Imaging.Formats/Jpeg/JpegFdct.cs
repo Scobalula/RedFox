@@ -10,7 +10,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// Forward Discrete Cosine Transform for 8×8 blocks using the AAN algorithm.
 /// Supports scalar, SSE2, and AVX2 fast paths.
 /// </summary>
-public static class JpegFdct
+internal static class JpegFdct
 {
     // AAN FDCT fixed-point constants (same butterfly structure as IDCT, reversed flow).
     // These match the constants used in libjpeg's jfdctint.c (scaled by 2^13).
@@ -42,13 +42,11 @@ public static class JpegFdct
 
     private static void TransformScalar(Span<int> block)
     {
-        // Pass 1: Process rows
         for (int row = 0; row < 8; row++)
         {
             FdctRow(block, row);
         }
 
-        // Pass 2: Process columns
         for (int col = 0; col < 8; col++)
         {
             FdctColumn(block, col);
@@ -85,7 +83,7 @@ public static class JpegFdct
         int tmp11 = tmp1 + tmp2;
         int tmp12 = tmp1 - tmp2;
 
-        // Apply scaling (shift left by 13 for fixed-point precision in row pass)
+        // The row pass keeps two extra fractional bits (PASS1_BITS); the column pass removes them.
         block[offset + 0] = (tmp10 + tmp11) << 2;
         block[offset + 4] = (tmp10 - tmp11) << 2;
 
@@ -174,7 +172,6 @@ public static class JpegFdct
     {
         ref int blockRef = ref MemoryMarshal.GetReference(block);
 
-        // Load all 8 rows into vectors
         var r0 = Vector256.LoadUnsafe(ref blockRef, 0);
         var r1 = Vector256.LoadUnsafe(ref blockRef, 8);
         var r2 = Vector256.LoadUnsafe(ref blockRef, 16);
@@ -200,26 +197,19 @@ public static class JpegFdct
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void FdctPassAvx2Row(
-        ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3,
-        ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7)
+    private static void FdctPassAvx2Row(ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3, ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7)
     {
         FdctButterflyAvx2(ref s0, ref s1, ref s2, ref s3, ref s4, ref s5, ref s6, ref s7, isRowPass: true);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void FdctPassAvx2Column(
-        ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3,
-        ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7)
+    private static void FdctPassAvx2Column(ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3, ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7)
     {
         FdctButterflyAvx2(ref s0, ref s1, ref s2, ref s3, ref s4, ref s5, ref s6, ref s7, isRowPass: false);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void FdctButterflyAvx2(
-        ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3,
-        ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7,
-        bool isRowPass)
+    private static void FdctButterflyAvx2(ref Vector256<int> s0, ref Vector256<int> s1, ref Vector256<int> s2, ref Vector256<int> s3, ref Vector256<int> s4, ref Vector256<int> s5, ref Vector256<int> s6, ref Vector256<int> s7, bool isRowPass)
     {
         // Stage 1: butterfly sums/differences
         var tmp0 = Avx2.Add(s0, s7);
@@ -308,9 +298,7 @@ public static class JpegFdct
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void Transpose8x8Avx2(
-        ref Vector256<int> r0, ref Vector256<int> r1, ref Vector256<int> r2, ref Vector256<int> r3,
-        ref Vector256<int> r4, ref Vector256<int> r5, ref Vector256<int> r6, ref Vector256<int> r7)
+    private static void Transpose8x8Avx2(ref Vector256<int> r0, ref Vector256<int> r1, ref Vector256<int> r2, ref Vector256<int> r3, ref Vector256<int> r4, ref Vector256<int> r5, ref Vector256<int> r6, ref Vector256<int> r7)
     {
         var a0 = Avx2.UnpackLow(r0, r1);
         var a1 = Avx2.UnpackHigh(r0, r1);

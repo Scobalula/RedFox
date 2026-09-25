@@ -28,6 +28,12 @@ public sealed class BC7Codec : IPixelCodec
         new(2, 6, 0, 0, 5, 5, 1, 0, 2, 0), // Mode 7
     ];
 
+    /// <inheritdoc/>
+    public ImageFormat Format { get; }
+
+    /// <inheritdoc/>
+    public int BytesPerPixel => 0;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="BC7Codec"/> class for the specified format variant.
     /// </summary>
@@ -42,12 +48,6 @@ public sealed class BC7Codec : IPixelCodec
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC7Codec supports only BC7Typeless, BC7Unorm, and BC7UnormSrgb."),
         };
     }
-
-    /// <inheritdoc/>
-    public ImageFormat Format { get; }
-
-    /// <inheritdoc/>
-    public int BytesPerPixel => 0;
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
@@ -90,24 +90,11 @@ public sealed class BC7Codec : IPixelCodec
     /// <inheritdoc/>
     public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
     {
-        // Decode source pixels to Vector4 buffer
         Vector4[] pixels = new Vector4[width * height];
         sourceCodec.Decode(source, pixels, width, height);
 
-        // Encode to BC blocks
         BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock, EncodeBlock);
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Unquantize(int value, int precision)
-    {
-        if (precision >= 8) return value;
-        return (value << (8 - precision)) | (value >> (2 * precision - 8));
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Interpolate(int e0, int e1, int weight) =>
-        ((64 - weight) * e0 + weight * e1 + 32) >> 6;
 
     /// <summary>
     /// Decodes a single 16-byte BC7 block into 16 <see cref="Vector4"/> RGBA pixels.
@@ -290,9 +277,18 @@ public sealed class BC7Codec : IPixelCodec
         EncodeBlockCore(pixels, block, fastMode: true);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int Unquantize(int value, int precision)
+    {
+        if (precision >= 8) return value;
+        return (value << (8 - precision)) | (value >> (2 * precision - 8));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int Interpolate(int e0, int e1, int weight) => ((64 - weight) * e0 + weight * e1 + 32) >> 6;
+
     private static void EncodeBlockCore(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool fastMode)
     {
-        // Convert to 8-bit RGBA.
         Span<int> rPix = stackalloc int[16];
         Span<int> gPix = stackalloc int[16];
         Span<int> bPix = stackalloc int[16];
@@ -313,7 +309,6 @@ public sealed class BC7Codec : IPixelCodec
         }
 
         // Try Mode 1: 2 subsets, 6-bit color, shared P-bits, 3-bit indices (best for opaque).
-        // Test a few partition candidates.
         bool allOpaque = true;
         for (int i = 0; i < 16; i++)
         {
@@ -322,7 +317,6 @@ public sealed class BC7Codec : IPixelCodec
 
         if (allOpaque && !fastMode)
         {
-            // Try a subset of partitions for mode 1.
             for (int p = 0; p < 64; p++)
             {
                 candidate.Clear();
@@ -341,22 +335,7 @@ public sealed class BC7Codec : IPixelCodec
     private static float TryEncodeMode6(ReadOnlySpan<int> rPix, ReadOnlySpan<int> gPix, ReadOnlySpan<int> bPix, ReadOnlySpan<int> aPix, Span<byte> block)
     {
         // Mode 6: 1 subset, 7-bit color, 7-bit alpha, endpoint P-bits, 4-bit indices.
-        // Effective precision = 8 bits (7 + 1 P-bit).
-        // Total bits: 7(mode) + 0(partition) + 0(rotation) + 0(idxSel) +
-        //   7*2*4(color) = 56, 7*2(alpha) = 14, 2 P-bits, 16*4-1 = 63 indices.
-        //   7 + 56 + 14 + 2 + 63 = 142? No wait, mode 6 marker is 7 bits (0000001).
-        //   Actually the mode marker is (mode+1) bits = 7 bits for mode 6.
-        //   End: endpoints 7*4*2 = 56(color) + 7*2 = 14(alpha) = 70 ep bits.
-        //   + 2 P-bits + 63 index bits + 7 mode bits = 142. But block is 128 bits.
-        //   Hmm... let me re-check. The mode 6 spec says:
-        //   Subsets=1, PartBits=0, RotBits=0, IdxSelBits=0,
-        //   ColorBits=7, AlphaBits=7, EndpointPBits=1 (per endpoint, so 2 total), SharedPBits=0,
-        //   IndexBits=4, SecondaryIndexBits=0.
-        //   Header = 7 bits (mode marker 0000001).
-        //   Endpoints = 2 endpoints × (3 color × 7 + 1 alpha × 7) = 2 × 28 = 56 bits.
-        //   P-bits = 2.
-        //   Indices = 16 × 4 - 1 = 63.
-        //   Total = 7 + 56 + 2 + 63 = 128 ✓
+        // Layout: 7 mode bits (0000001) + 2 endpoints × (3 color × 7 + 1 alpha × 7) = 56 bits + 2 P-bits + 16 × 4 - 1 = 63 index bits = 128.
 
         FindMinMax(rPix, 16, out int rMin, out int rMax);
         FindMinMax(gPix, 16, out int gMin, out int gMax);
@@ -370,7 +349,6 @@ public sealed class BC7Codec : IPixelCodec
         int aE0 = aMin >> 1, aE1 = aMax >> 1;
         int pbit0 = rMin & 1, pbit1 = rMax & 1;
 
-        // Reconstruct 8-bit endpoints.
         int r0 = Unquantize((rE0 << 1) | pbit0, 8);
         int r1 = Unquantize((rE1 << 1) | pbit1, 8);
         int g0 = Unquantize((gE0 << 1) | pbit0, 8);
@@ -398,7 +376,7 @@ public sealed class BC7Codec : IPixelCodec
         }
 
         block.Clear();
-        var writer = new BitWriter(block);
+        var writer = new BcnBitWriter(block);
 
         // Mode 6: marker is 0000001 (7 bits).
         writer.Write(1u << 6, 7);
@@ -433,12 +411,10 @@ public sealed class BC7Codec : IPixelCodec
         // Endpoints: 4 endpoints × 3 channels × 6 = 72 bits. 2 shared P-bits.
         // Indices: 16 × 3 - 2 = 46. Total = 2 + 6 + 72 + 2 + 46 = 128 ✓
 
-        // Classify pixels into subsets.
         Span<int> subsetIdx = stackalloc int[16];
         for (int i = 0; i < 16; i++)
             subsetIdx[i] = BC7PartitionTable.GetSubset(2, partition, i);
 
-        // Find min/max per subset.
         Span<int> rMinS = stackalloc int[2];
         Span<int> rMaxS = stackalloc int[2];
         Span<int> gMinS = stackalloc int[2];
@@ -569,7 +545,6 @@ public sealed class BC7Codec : IPixelCodec
 
         if (indices[anchor0] >= 4)
         {
-            // Swap subset 0 endpoints.
             (rE[0], rE[1]) = (rE[1], rE[0]);
             (gE[0], gE[1]) = (gE[1], gE[0]);
             (bE[0], bE[1]) = (bE[1], bE[0]);
@@ -578,7 +553,6 @@ public sealed class BC7Codec : IPixelCodec
         }
         if (indices[anchor1] >= 4)
         {
-            // Swap subset 1 endpoints.
             (rE[2], rE[3]) = (rE[3], rE[2]);
             (gE[2], gE[3]) = (gE[3], gE[2]);
             (bE[2], bE[3]) = (bE[3], bE[2]);
@@ -587,12 +561,11 @@ public sealed class BC7Codec : IPixelCodec
         }
 
         block.Clear();
-        var writer = new BitWriter(block);
+        var writer = new BcnBitWriter(block);
 
         // Mode 1 marker: 00000010 → bit 1 set = 0x02.
         writer.Write(0b10, 2);
 
-        // Partition: 6 bits.
         writer.Write((uint)partition, 6);
 
         // Color endpoints: R0, R1, R2, R3, G0..G3, B0..B3 (6 bits each).

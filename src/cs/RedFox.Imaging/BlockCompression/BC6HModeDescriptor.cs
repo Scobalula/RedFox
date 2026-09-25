@@ -16,7 +16,6 @@ namespace RedFox.Imaging.BlockCompression;
 /// <param name="indexBits">Number of bits per interpolation index (3 or 4).</param>
 public readonly struct BC6HModeDescriptor(int numSubsets, bool transformed, int endpointBits, int deltaBitsR, int deltaBitsG, int deltaBitsB, int indexBits)
 {
-
     /// <summary>
     /// Gets the number of partition subsets used by the mode.
     /// </summary>

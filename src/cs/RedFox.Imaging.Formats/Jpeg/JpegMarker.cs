@@ -3,7 +3,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// JPEG marker byte values that delimit segments in the bitstream.
 /// </summary>
-public enum JpegMarker : byte
+internal enum JpegMarker : byte
 {
     /// <summary>Start of image marker.</summary>
     SOI = 0xD8,

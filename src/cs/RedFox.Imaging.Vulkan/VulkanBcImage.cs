@@ -13,7 +13,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="view">The image view used by shaders.</param>
 public readonly struct VulkanBcImage(Silk.NET.Vulkan.Image handle, DeviceMemory memory, ImageView view)
 {
-
     /// <summary>
     /// Gets the Vulkan image handle.
     /// </summary>

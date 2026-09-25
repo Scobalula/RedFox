@@ -6,12 +6,20 @@ namespace RedFox.Imaging.Formats.Png;
 
 internal static class PngDecompressor
 {
-    public static byte[] InflateZlib(byte[] compressed)
+    public static byte[] InflateZlib(byte[] compressed, long expectedLength)
     {
+        if (expectedLength > Array.MaxLength)
+            throw new InvalidDataException($"PNG image data would inflate to {expectedLength} bytes, which exceeds the maximum buffer size.");
+
         using MemoryStream source = new(compressed);
         using ZLibStream zlib = new(source, CompressionMode.Decompress);
-        using MemoryStream output = new();
-        zlib.CopyTo(output);
-        return output.ToArray();
+        byte[] output = new byte[expectedLength];
+
+        if (zlib.ReadAtLeast(output, output.Length, throwOnEndOfStream: false) < output.Length)
+            throw new InvalidDataException("Unexpected end of PNG image data.");
+        if (zlib.ReadByte() >= 0)
+            throw new InvalidDataException("Unexpected trailing data in PNG image data.");
+
+        return output;
     }
 }

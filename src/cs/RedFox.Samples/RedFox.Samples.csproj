@@ -23,6 +23,7 @@
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
     <ProjectReference Include="..\RedFox.Plugins\RedFox.Plugins.csproj" />
     <ProjectReference Include="..\RedFox.Plugins.Python\RedFox.Plugins.Python.csproj" />
+    <ProjectReference Include="..\RedFox.Imaging.Formats\RedFox.Imaging.Formats.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="Examples\Plugins\**\*.py" CopyToOutputDirectory="PreserveNewest" />

@@ -6,7 +6,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// <summary>
 /// Applies and reverses TIFF horizontal differencing predictor transforms.
 /// </summary>
-public static class TiffPredictorTransform
+internal static class TiffPredictorTransform
 {
     /// <summary>
     /// Applies TIFF horizontal differencing to a span of interleaved sample data.

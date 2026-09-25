@@ -6,7 +6,7 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <summary>
 /// Describes the byte layout and block sizing rules for scanline OpenEXR files.
 /// </summary>
-public static class ExrFileLayout
+internal static class ExrFileLayout
 {
     /// <summary>
     /// The OpenEXR file magic value.

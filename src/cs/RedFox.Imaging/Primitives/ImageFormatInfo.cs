@@ -80,7 +80,41 @@ public static class ImageFormatInfo
     /// </summary>
     /// <param name="format">The uncompressed image format to inspect.</param>
     /// <returns>The number of bits in one pixel.</returns>
-    public static int GetBitsPerPixel(ImageFormat format) => format switch
+    /// <exception cref="NotSupportedException">Thrown when <paramref name="format"/> has no defined bits-per-pixel value.</exception>
+    public static int GetBitsPerPixel(ImageFormat format)
+    {
+        if (TryGetBitsPerPixel(format, out int bitsPerPixel))
+            return bitsPerPixel;
+
+        throw new NotSupportedException($"Bits per pixel not defined for format {format}.");
+    }
+
+    /// <summary>
+    /// Attempts to get the number of bits per pixel for an uncompressed format.
+    /// </summary>
+    /// <param name="format">The uncompressed image format to inspect.</param>
+    /// <param name="bitsPerPixel">The number of bits in one pixel when defined; otherwise 0.</param>
+    /// <returns><see langword="true"/> when <paramref name="format"/> has a defined bits-per-pixel value; otherwise <see langword="false"/>.</returns>
+    public static bool TryGetBitsPerPixel(ImageFormat format, out int bitsPerPixel)
+    {
+        bitsPerPixel = LookupBitsPerPixel(format);
+        return bitsPerPixel > 0;
+    }
+
+    /// <summary>
+    /// Gets the number of whole bytes per pixel for an uncompressed, byte-aligned format.
+    /// </summary>
+    /// <param name="format">The image format to inspect.</param>
+    /// <returns>The bytes per pixel, or 0 when <paramref name="format"/> is block-compressed, sub-byte, or has no defined size.</returns>
+    public static int GetBytesPerPixel(ImageFormat format)
+    {
+        if (IsBlockCompressed(format) || !TryGetBitsPerPixel(format, out int bitsPerPixel) || bitsPerPixel % 8 != 0)
+            return 0;
+
+        return bitsPerPixel / 8;
+    }
+
+    private static int LookupBitsPerPixel(ImageFormat format) => format switch
     {
         ImageFormat.R32G32B32A32Typeless or
         ImageFormat.R32G32B32A32Float or
@@ -106,6 +140,7 @@ public static class ImageFormatInfo
         ImageFormat.R10G10B10A2Typeless or
         ImageFormat.R10G10B10A2Unorm or
         ImageFormat.R10G10B10A2Uint or
+        ImageFormat.R10G10B10XrBiasA2Unorm or
         ImageFormat.R11G11B10Float or
         ImageFormat.R8G8B8A8Typeless or
         ImageFormat.R8G8B8A8Unorm or
@@ -157,7 +192,7 @@ public static class ImageFormatInfo
 
         ImageFormat.R1Unorm => 1,
 
-        _ => throw new NotSupportedException($"Bits per pixel not defined for format {format}."),
+        _ => 0,
     };
 
     /// <summary>

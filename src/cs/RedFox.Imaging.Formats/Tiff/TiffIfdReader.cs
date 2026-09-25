@@ -1,14 +1,13 @@
 using System;
 using System.Buffers.Binary;
 
-
 namespace RedFox.Imaging.Formats.Tiff;
 
 /// <summary>
 /// Provides methods for parsing TIFF IFD (Image File Directory) structures
 /// and extracting tag values from IFD entries.
 /// </summary>
-public static class TiffIfdReader
+internal static class TiffIfdReader
 {
     /// <summary>
     /// Parses all IFD entries starting at the given byte offset.
@@ -86,7 +85,6 @@ public static class TiffIfdReader
                 };
             }
 
-            // Value is stored at an offset — read the first value from the data
             int offset = (int)entry.ValueOrOffset;
             return entry.Type switch
             {
@@ -122,17 +120,9 @@ public static class TiffIfdReader
                 return [val];
             }
 
-            // For SHORT with count == 2, values are packed inline
             if (entry.Type == TiffConstants.TypeShort && entry.Count == 2)
-            {
-                return
-                [
-                    ReadUInt16Inline(entry.ValueOrOffset, 0, le),
-                    ReadUInt16Inline(entry.ValueOrOffset, 1, le)
-                ];
-            }
+                return [ReadUInt16Inline(entry.ValueOrOffset, 0, le), ReadUInt16Inline(entry.ValueOrOffset, 1, le)];
 
-            // Values stored at offset
             var values = new uint[entry.Count];
             int offset = (int)entry.ValueOrOffset;
 

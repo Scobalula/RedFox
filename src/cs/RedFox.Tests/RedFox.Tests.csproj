@@ -30,5 +30,7 @@
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Formats\RedFox.Graphics3D.Formats.csproj" />
+    <ProjectReference Include="..\RedFox.Imaging.Formats\RedFox.Imaging.Formats.csproj" />
+    <ProjectReference Include="..\RedFox.Imaging.Vulkan\RedFox.Imaging.Vulkan.csproj" />
   </ItemGroup>
 </Project>

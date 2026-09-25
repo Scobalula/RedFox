@@ -6,7 +6,7 @@ using RedFox.Imaging.Primitives;
 
 namespace RedFox.Imaging.Formats.Png;
 
-internal static class PngEncoderHelper
+internal static class PngPixelEncoder
 {
     public static byte[] ExtractRgba8(in ImageSlice slice, ImageFormat format)
     {
@@ -116,12 +116,7 @@ internal static class PngEncoderHelper
             }
         }
 
-        return new PngColorModelInfo(
-            grayscale,
-            opaque,
-            canPalette,
-            palette ?? [],
-            paletteColors ?? []);
+        return new PngColorModelInfo(grayscale, opaque, canPalette, palette ?? [], paletteColors ?? []);
     }
 
     public static PngWriteSelection SelectWriteMode(in PngColorModelInfo info)
@@ -166,24 +161,15 @@ internal static class PngEncoderHelper
                 }
             }
 
-            return new PngWriteSelection(
-                ColorType: 3,
-                BitDepth: bitDepth,
-                Palette: plte,
-                PaletteAlpha: trns,
-                PaletteIndices: info.PaletteLookup);
+            return new PngWriteSelection(ColorType: 3, BitDepth: bitDepth, Palette: plte, PaletteAlpha: trns, PaletteIndices: info.PaletteLookup);
         }
 
         if (info.IsGrayscale)
         {
-            return info.IsOpaque
-                ? new PngWriteSelection(ColorType: 0, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null)
-                : new PngWriteSelection(ColorType: 4, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null);
+            return info.IsOpaque ? new PngWriteSelection(ColorType: 0, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null) : new PngWriteSelection(ColorType: 4, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null);
         }
 
-        return info.IsOpaque
-            ? new PngWriteSelection(ColorType: 2, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null)
-            : new PngWriteSelection(ColorType: 6, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null);
+        return info.IsOpaque ? new PngWriteSelection(ColorType: 2, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null) : new PngWriteSelection(ColorType: 6, BitDepth: 8, Palette: null, PaletteAlpha: null, PaletteIndices: null);
     }
 
     public static byte[] BuildScanlineData(ReadOnlySpan<byte> rgba, int width, int height, in PngWriteSelection selection)

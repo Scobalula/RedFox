@@ -202,7 +202,7 @@ internal static class PngScanlineProcessor
 
     public static byte[] DecodePixels(in PngHeader header, byte[] compressedData, byte[]? palette, byte[]? transparency)
     {
-        var inflated = PngDecompressor.InflateZlib(compressedData);
+        var inflated = PngDecompressor.InflateZlib(compressedData, GetInflatedLength(header));
         var rgba = new byte[header.Width * header.Height * 4];
 
         if (header.InterlaceMethod == 0)
@@ -221,19 +221,7 @@ internal static class PngScanlineProcessor
             int passHeight = PngFormatValidator.ComputePassDimension(header.Height, PngConstants.Adam7StartY[pass], PngConstants.Adam7StepY[pass]);
             if (passWidth == 0 || passHeight == 0)
                 continue;
-            var ctx = new PngDecodePassContext(
-                header,
-                inflated,
-                cursor,
-                passWidth,
-                passHeight,
-                PngConstants.Adam7StartX[pass],
-                PngConstants.Adam7StartY[pass],
-                PngConstants.Adam7StepX[pass],
-                PngConstants.Adam7StepY[pass],
-                rgba,
-                palette,
-                transparency);
+            var ctx = new PngDecodePassContext(header, inflated, cursor, passWidth, passHeight, PngConstants.Adam7StartX[pass], PngConstants.Adam7StartY[pass], PngConstants.Adam7StepX[pass], PngConstants.Adam7StepY[pass], rgba, palette, transparency);
             DecodePass(ctx, out int consumedPassBytes);
             cursor += consumedPassBytes;
         }
@@ -266,6 +254,27 @@ internal static class PngScanlineProcessor
             (prevRow, curRow) = (curRow, prevRow);
         }
         consumedBytes = cursor - ctx.StartOffset;
+    }
+
+    private static long GetInflatedLength(in PngHeader header)
+    {
+        long bitsPerPixel = PngFormatValidator.GetChannelCount(header.ColorType) * header.BitDepth;
+
+        if (header.InterlaceMethod == 0)
+            return header.Height * (1 + (header.Width * bitsPerPixel + 7) / 8);
+
+        long length = 0;
+
+        for (int pass = 0; pass < 7; pass++)
+        {
+            int passWidth = PngFormatValidator.ComputePassDimension(header.Width, PngConstants.Adam7StartX[pass], PngConstants.Adam7StepX[pass]);
+            int passHeight = PngFormatValidator.ComputePassDimension(header.Height, PngConstants.Adam7StartY[pass], PngConstants.Adam7StepY[pass]);
+
+            if (passWidth > 0 && passHeight > 0)
+                length += passHeight * (1 + (passWidth * bitsPerPixel + 7) / 8);
+        }
+
+        return length;
     }
 
     private static void WriteDecodedRow(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int rowIndex)
@@ -338,15 +347,7 @@ internal static class PngScanlineProcessor
             }
         }
 
-        WriteRgba(
-            ctx.Rgba,
-            ctx.Header.Width,
-            dstX,
-            dstY,
-            ScaleSampleToByte(rawRed, bitDepth),
-            ScaleSampleToByte(rawGreen, bitDepth),
-            ScaleSampleToByte(rawBlue, bitDepth),
-            alpha);
+        WriteRgba(ctx.Rgba, ctx.Header.Width, dstX, dstY, ScaleSampleToByte(rawRed, bitDepth), ScaleSampleToByte(rawGreen, bitDepth), ScaleSampleToByte(rawBlue, bitDepth), alpha);
     }
 
     private static void WriteIndexedPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
@@ -365,15 +366,7 @@ internal static class PngScanlineProcessor
             alpha = ctx.Transparency[paletteIndex];
         }
 
-        WriteRgba(
-            ctx.Rgba,
-            ctx.Header.Width,
-            dstX,
-            dstY,
-            ctx.Palette[paletteOffset + 0],
-            ctx.Palette[paletteOffset + 1],
-            ctx.Palette[paletteOffset + 2],
-            alpha);
+        WriteRgba(ctx.Rgba, ctx.Header.Width, dstX, dstY, ctx.Palette[paletteOffset + 0], ctx.Palette[paletteOffset + 1], ctx.Palette[paletteOffset + 2], alpha);
     }
 
     private static void WriteGrayscaleAlphaPixel(in PngDecodePassContext ctx, ReadOnlySpan<byte> row, int pixelIndex, int dstX, int dstY, int bitDepth)
@@ -392,15 +385,7 @@ internal static class PngScanlineProcessor
         int rawBlue = ReadSample(row, pixelIndex, 2, 4, bitDepth);
         int rawAlpha = ReadSample(row, pixelIndex, 3, 4, bitDepth);
 
-        WriteRgba(
-            ctx.Rgba,
-            ctx.Header.Width,
-            dstX,
-            dstY,
-            ScaleSampleToByte(rawRed, bitDepth),
-            ScaleSampleToByte(rawGreen, bitDepth),
-            ScaleSampleToByte(rawBlue, bitDepth),
-            ScaleSampleToByte(rawAlpha, bitDepth));
+        WriteRgba(ctx.Rgba, ctx.Header.Width, dstX, dstY, ScaleSampleToByte(rawRed, bitDepth), ScaleSampleToByte(rawGreen, bitDepth), ScaleSampleToByte(rawBlue, bitDepth), ScaleSampleToByte(rawAlpha, bitDepth));
     }
 
     private static int ReadSample(ReadOnlySpan<byte> row, int pixelIndex, int channelIndex, int channelCount, int bitDepth)

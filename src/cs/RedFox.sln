@@ -85,6 +85,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Imaging", "Imaging", "{7F25
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Imaging.Formats", "RedFox.Imaging.Formats\RedFox.Imaging.Formats.csproj", "{FC41AF69-02EE-4459-9246-E21DB11BA660}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RedFox.Imaging.Vulkan", "RedFox.Imaging.Vulkan\RedFox.Imaging.Vulkan.csproj", "{5B268664-96C0-461E-9023-1F93A9F03755}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -527,6 +529,18 @@ Global
 		{FC41AF69-02EE-4459-9246-E21DB11BA660}.Release|x64.Build.0 = Release|Any CPU
 		{FC41AF69-02EE-4459-9246-E21DB11BA660}.Release|x86.ActiveCfg = Release|Any CPU
 		{FC41AF69-02EE-4459-9246-E21DB11BA660}.Release|x86.Build.0 = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|x64.Build.0 = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Debug|x86.Build.0 = Debug|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|x64.ActiveCfg = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|x64.Build.0 = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|x86.ActiveCfg = Release|Any CPU
+		{5B268664-96C0-461E-9023-1F93A9F03755}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -559,6 +573,7 @@ Global
 		{21CF01A5-DEB2-4019-A14C-7B12208C5256} = {F1CDD528-3A1F-470D-9EF9-B3FB133A6FEE}
 		{14A3376C-2101-4F21-B2C1-A56B09695695} = {7F25BF79-E0F1-4BDA-9207-FFBF01F20CFD}
 		{FC41AF69-02EE-4459-9246-E21DB11BA660} = {7F25BF79-E0F1-4BDA-9207-FFBF01F20CFD}
+		{5B268664-96C0-461E-9023-1F93A9F03755} = {7F25BF79-E0F1-4BDA-9207-FFBF01F20CFD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3738E201-81CE-4763-95EF-6E986D660EFF}

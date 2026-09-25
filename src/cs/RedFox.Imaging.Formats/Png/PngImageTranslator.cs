@@ -6,7 +6,6 @@ using System.IO.Compression;
 using System.Numerics;
 using System.Text;
 using RedFox.Imaging.Codecs;
-using RedFox.Imaging.Formats.Png;
 using RedFox.Imaging.IO;
 using RedFox.Imaging.Primitives;
 
@@ -19,16 +18,6 @@ namespace RedFox.Imaging.Formats.Png;
 /// </summary>
 public sealed class PngImageTranslator : ImageTranslator
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PngImageTranslator"/> class.
-    /// </summary>
-    public PngImageTranslator()
-    {
-    }
-    // PNG constants and tables have been moved to a dedicated helper class `PngConstants`.
-    // This keeps the translator focused on encoding/decoding flow while keeping
-    // large static tables and configuration grouped separately.
-
     /// <inheritdoc/>
     public override string Name => "PNG";
 
@@ -39,7 +28,35 @@ public sealed class PngImageTranslator : ImageTranslator
     public override bool CanWrite => true;
 
     /// <inheritdoc/>
+    public override bool CanReadInfo => true;
+
+    /// <inheritdoc/>
     public override IReadOnlyList<string> Extensions { get; } = [".png"];
+
+    /// <inheritdoc/>
+    public override ImageInfo ReadInfo(Stream stream)
+    {
+        PngFormatValidator.ValidateSignature(stream);
+
+        PngChunk first = PngChunkReader.ReadChunk(stream);
+        if (first.Type != "IHDR")
+            throw new InvalidDataException("PNG must start with an IHDR chunk.");
+
+        PngHeader header = PngFormatValidator.ParseHeader(first.Data);
+        Span<byte> type = stackalloc byte[4];
+
+        while (true)
+        {
+            int length = PngChunkReader.ReadChunkHeader(stream, type);
+
+            if (type.SequenceEqual("sRGB"u8))
+                return new ImageInfo(header.Width, header.Height, ImageFormat.R8G8B8A8UnormSrgb);
+            if (type.SequenceEqual("IDAT"u8) || type.SequenceEqual("IEND"u8))
+                return new ImageInfo(header.Width, header.Height, ImageFormat.R8G8B8A8Unorm);
+
+            PngChunkReader.ReadChunkBody(stream, type, length);
+        }
+    }
 
     /// <inheritdoc/>
     public override Image Read(Stream stream)
@@ -134,6 +151,15 @@ public sealed class PngImageTranslator : ImageTranslator
         WriteCore(stream, image, fastPathCompressionLevel, compressionLevel);
     }
 
+    /// <inheritdoc/>
+    public override bool IsValid(ReadOnlySpan<byte> header, string filePath, string extension)
+    {
+        if (!IsValid(filePath, extension))
+            return false;
+
+        return header.Length >= PngConstants.PngSignature.Length && header[..PngConstants.PngSignature.Length].SequenceEqual(PngConstants.PngSignature);
+    }
+
     private static void WriteCore(Stream stream, Image image, CompressionLevel fastPathCompressionLevel, CompressionLevel adaptiveCompressionLevel)
     {
         ref readonly var slice = ref image.GetSlice(0, 0, 0);
@@ -141,24 +167,23 @@ public sealed class PngImageTranslator : ImageTranslator
         int height = slice.Height;
         int pixelCount = checked(width * height);
 
-        var rgba = PngEncoderHelper.ExtractRgba8(slice, image.Format);
+        var rgba = PngPixelEncoder.ExtractRgba8(slice, image.Format);
 
-        // Large-image fast path prioritizes throughput and mirrors the previous writer behavior.
         if (pixelCount >= PngConstants.FastWriteModeMinPixels)
         {
             stream.Write(PngConstants.PngSignature);
             PngChunkWriter.WriteIHDR(stream, width, height, bitDepth: 8, colorType: 6, interlaceMethod: 0);
 
             if (ImageFormatInfo.IsSrgb(image.Format))
-            PngChunkWriter.WriteSRGB(stream, renderingIntent: 0);
+                PngChunkWriter.WriteSRGB(stream, renderingIntent: 0);
 
             PngChunkWriter.WriteCompressedIdatFilterNoneRgba(stream, rgba, width, height, fastPathCompressionLevel);
             PngChunkWriter.WriteChunk(stream, "IEND", []);
             return;
         }
 
-        var model = PngEncoderHelper.AnalyzeColorModel(rgba, allowPaletteAnalysis: pixelCount <= PngConstants.PaletteAnalysisMaxPixels);
-        var selection = PngEncoderHelper.SelectWriteMode(model);
+        var model = PngPixelEncoder.AnalyzeColorModel(rgba, allowPaletteAnalysis: pixelCount <= PngConstants.PaletteAnalysisMaxPixels);
+        var selection = PngPixelEncoder.SelectWriteMode(model);
 
         stream.Write(PngConstants.PngSignature);
         PngChunkWriter.WriteIHDR(stream, width, height, selection.BitDepth, selection.ColorType, interlaceMethod: 0);
@@ -178,19 +203,10 @@ public sealed class PngImageTranslator : ImageTranslator
             }
         }
 
-        var scanlineData = PngEncoderHelper.BuildScanlineData(rgba, width, height, selection);
+        var scanlineData = PngPixelEncoder.BuildScanlineData(rgba, width, height, selection);
         var filtered = PngScanlineProcessor.ApplyAdaptiveFiltering(scanlineData, width, height, selection.ColorType, selection.BitDepth);
         PngChunkWriter.WriteCompressedIdat(stream, filtered, adaptiveCompressionLevel);
         PngChunkWriter.WriteChunk(stream, "IEND", []);
-    }
-
-    /// <inheritdoc/>
-    public override bool IsValid(ReadOnlySpan<byte> header, string filePath, string extension)
-    {
-        if (!IsValid(filePath, extension))
-            return false;
-
-        return header.Length >= PngConstants.PngSignature.Length && header[..PngConstants.PngSignature.Length].SequenceEqual(PngConstants.PngSignature);
     }
 
     private static CompressionLevel ResolveCompressionLevel(ImageCompressionPreference compressionPreference, CompressionLevel defaultLevel)

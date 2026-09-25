@@ -1,79 +1,82 @@
 using System;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using RedFox.Imaging.Primitives;
 
-namespace RedFox.Imaging.Codecs
+namespace RedFox.Imaging.Codecs;
+
+/// <summary>
+/// Codec for <see cref="ImageFormat.R32G32B32A32Typeless"/>, <see cref="ImageFormat.R32G32B32A32Uint"/>, and <see cref="ImageFormat.R32G32B32A32Sint"/>.
+/// The typeless variant decodes as 32-bit floats; <see cref="ImageFormat.R32G32B32A32Uint"/> decodes to [0, 1] and <see cref="ImageFormat.R32G32B32A32Sint"/> to [-1, 1].
+/// </summary>
+public sealed class R32G32B32A32Codec : IPixelCodec
 {
+    private readonly ComponentKind _kind;
+
+    /// <inheritdoc/>
+    public ImageFormat Format { get; }
+
+    /// <inheritdoc/>
+    public int BytesPerPixel => 16;
+
     /// <summary>
-    /// Codec for <see cref="ImageFormat.R32G32B32A32Typeless"/>, <see cref="ImageFormat.R32G32B32A32Uint"/>, and <see cref="ImageFormat.R32G32B32A32Sint"/>.
-    /// Interprets the 4×32-bit values as floats for conversion purposes.
+    /// Initializes a new instance of the <see cref="R32G32B32A32Codec"/> class for the specified format variant.
     /// </summary>
-    public sealed class R32G32B32A32Codec : IPixelCodec
+    /// <param name="format">The image format this codec handles.</param>
+    public R32G32B32A32Codec(ImageFormat format)
     {
-        /// <inheritdoc/>
-        public ImageFormat Format { get; }
-
-        /// <inheritdoc/>
-        public int BytesPerPixel => 16;
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="R32G32B32A32Codec"/> class for the specified format variant.
-        /// </summary>
-        /// <param name="format">The image format this codec handles.</param>
-        public R32G32B32A32Codec(ImageFormat format)
+        Format = format switch
         {
-            Format = format switch
-            {
-                ImageFormat.R32G32B32A32Typeless => format,
-                ImageFormat.R32G32B32A32Uint => format,
-                ImageFormat.R32G32B32A32Sint => format,
-                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32G32B32A32Codec supports only R32G32B32A32Typeless, R32G32B32A32Uint, and R32G32B32A32Sint."),
-            };
+            ImageFormat.R32G32B32A32Typeless or ImageFormat.R32G32B32A32Uint or ImageFormat.R32G32B32A32Sint => format,
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32G32B32A32Codec supports only R32G32B32A32Typeless, R32G32B32A32Uint, and R32G32B32A32Sint."),
+        };
+
+        _kind = ComponentEncoding.GetKind(format);
+    }
+
+    /// <inheritdoc/>
+    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
+    {
+        int pixelCount = width * height;
+
+        for (int i = 0; i < pixelCount; i++)
+            destination[i] = ReadPixel(source, i);
+    }
+
+    /// <inheritdoc/>
+    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+    {
+        int pixelCount = width * height;
+
+        for (int i = 0; i < pixelCount; i++)
+            WritePixel(source[i], destination, i);
+    }
+
+    /// <inheritdoc/>
+    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
+    {
+        ReadOnlySpan<byte> pixel = source.Slice(pixelIndex * 16, 16);
+        return new Vector4(ComponentEncoding.Decode32(pixel, _kind), ComponentEncoding.Decode32(pixel[4..], _kind), ComponentEncoding.Decode32(pixel[8..], _kind), ComponentEncoding.Decode32(pixel[12..], _kind));
+    }
+
+    /// <inheritdoc/>
+    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
+    {
+        Span<byte> target = destination.Slice(pixelIndex * 16, 16);
+        ComponentEncoding.Encode32(pixel.X, target, _kind);
+        ComponentEncoding.Encode32(pixel.Y, target[4..], _kind);
+        ComponentEncoding.Encode32(pixel.Z, target[8..], _kind);
+        ComponentEncoding.Encode32(pixel.W, target[12..], _kind);
+    }
+
+    /// <inheritdoc/>
+    public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+    {
+        if (sourceCodec is R32G32B32A32Codec other && other._kind == _kind)
+        {
+            source[..(width * height * 16)].CopyTo(destination);
+            return;
         }
 
-        /// <inheritdoc/>
-        public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
-        {
-            var sourceVectors = MemoryMarshal.Cast<byte, Vector4>(source);
-            int pixelCount = width * height;
-            sourceVectors[..pixelCount].CopyTo(destination);
-        }
-
-        /// <inheritdoc/>
-        public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
-        {
-            int pixelCount = width * height;
-            var destVectors = MemoryMarshal.Cast<byte, Vector4>(destination);
-            source[..pixelCount].CopyTo(destVectors);
-        }
-
-        /// <inheritdoc/>
-        public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
-        {
-            var vectors = MemoryMarshal.Cast<byte, Vector4>(source);
-            return vectors[pixelIndex];
-        }
-
-        /// <inheritdoc/>
-        public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
-        {
-            var vectors = MemoryMarshal.Cast<byte, Vector4>(destination);
-            vectors[pixelIndex] = pixel;
-        }
-
-        /// <inheritdoc/>
-        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
-        {
-            if (sourceCodec is R32G32B32A32Codec)
-            {
-                int byteCount = width * height * 16;
-                source[..byteCount].CopyTo(destination);
-                return;
-            }
-
-            var destVectors = MemoryMarshal.Cast<byte, Vector4>(destination);
-            sourceCodec.Decode(source, destVectors[..(width * height)], width, height);
-        }
+        sourceCodec.DecodeTo(source, this, destination, width, height);
     }
 }

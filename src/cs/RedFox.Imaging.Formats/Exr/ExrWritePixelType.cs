@@ -1,23 +1,22 @@
-namespace RedFox.Imaging.Formats.Exr
+namespace RedFox.Imaging.Formats.Exr;
+
+/// <summary>
+/// Identifies the sample type used when writing EXR channels.
+/// </summary>
+public enum ExrWritePixelType
 {
     /// <summary>
-    /// Identifies the sample type used when writing EXR channels.
+    /// Chooses a sensible default based on the source image format.
     /// </summary>
-    public enum ExrWritePixelType
-    {
-        /// <summary>
-        /// Chooses a sensible default based on the source image format.
-        /// </summary>
-        Auto,
+    Auto,
 
-        /// <summary>
-        /// Writes 16-bit HALF channel samples.
-        /// </summary>
-        Half,
+    /// <summary>
+    /// Writes 16-bit HALF channel samples.
+    /// </summary>
+    Half,
 
-        /// <summary>
-        /// Writes 32-bit FLOAT channel samples.
-        /// </summary>
-        Float,
-    }
+    /// <summary>
+    /// Writes 32-bit FLOAT channel samples.
+    /// </summary>
+    Float,
 }

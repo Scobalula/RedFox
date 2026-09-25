@@ -9,7 +9,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// <summary>
 /// Provides pixel format conversion routines for TIFF image reading and writing.
 /// </summary>
-public static class TiffPixelConverter
+internal static class TiffPixelConverter
 {
     /// <summary>
     /// Converts decoded 8-bit TIFF sample data to interleaved RGBA8 output.
@@ -222,7 +222,7 @@ public static class TiffPixelConverter
             return new TiffEncodedPixelData(CopyRgb16FromRgba16(slice.PixelSpan, slice.RowPitch, width, height), TiffConstants.PhotometricRGB, [16, 16, 16], 3, null);
         }
 
-        return new TiffEncodedPixelData(CopyRowsContiguous(slice.PixelSpan, slice.RowPitch, height, width * 8), TiffConstants.PhotometricRGB,[16, 16, 16, 16], 4, 2);
+        return new TiffEncodedPixelData(CopyRowsContiguous(slice.PixelSpan, slice.RowPitch, height, width * 8), TiffConstants.PhotometricRGB, [16, 16, 16, 16], 4, 2);
     }
 
     /// <summary>
@@ -451,7 +451,6 @@ public static class TiffPixelConverter
     /// <param name="height">The image height in pixels.</param>
     /// <param name="sourceRowPitch">The byte stride between successive source rows.</param>
     /// <param name="destinationRowBytes">The byte stride of each destination row.</param>
-    /// <param name="channels">The number of channels to write per destination pixel.</param>
     /// <param name="includeAlpha"><see langword="true"/> to include alpha samples in the output; otherwise RGB only.</param>
     public static void ExtractFromRgba(ReadOnlySpan<byte> source, Span<byte> output, int width, int height, int sourceRowPitch, int destinationRowBytes, bool includeAlpha)
     {

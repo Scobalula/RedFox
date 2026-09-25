@@ -5,7 +5,7 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// <summary>
 /// Represents the mutable state used while decoding TIFF LZW code streams.
 /// </summary>
-public ref struct TiffLzwDecoder
+internal ref struct TiffLzwDecoder
 {
     private readonly ReadOnlySpan<byte> _src;
     private int _bytePos;

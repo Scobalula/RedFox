@@ -6,7 +6,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// Reads individual bits from a JPEG entropy-coded data stream, handling byte-stuffing and marker detection.
 /// </summary>
 /// <param name="stream">The JPEG entropy-coded stream to read.</param>
-public sealed class JpegBitReader(Stream stream)
+internal sealed class JpegBitReader(Stream stream)
 {
     private readonly Stream _stream = stream;
     private int _bitBuffer;
@@ -76,6 +76,13 @@ public sealed class JpegBitReader(Stream stream)
         return true;
     }
 
+    /// <summary>Discards any remaining bits in the buffer, aligning the read position to the next byte boundary.</summary>
+    public void AlignToByte()
+    {
+        _bitsRemaining = 0;
+        _bitBuffer = 0;
+    }
+
     private bool TryReadByteStuffed(out int value)
     {
         value = 0;
@@ -116,12 +123,5 @@ public sealed class JpegBitReader(Stream stream)
         _hitMarker = true;
         _pendingMarker = (JpegMarker)next;
         return false;
-    }
-
-    /// <summary>Discards any remaining bits in the buffer, aligning the read position to the next byte boundary.</summary>
-    public void AlignToByte()
-    {
-        _bitsRemaining = 0;
-        _bitBuffer = 0;
     }
 }

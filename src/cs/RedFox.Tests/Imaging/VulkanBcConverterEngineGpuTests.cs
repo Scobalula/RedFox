@@ -2,7 +2,7 @@ using System.Numerics;
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
 using RedFox.Imaging.Codecs;
-using RedFox.Imaging.BlockCompression.Vulkan;
+using RedFox.Imaging.Vulkan;
 
 namespace RedFox.Tests.Imaging;
 

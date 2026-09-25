@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.IO;
+using RedFox.Imaging.Primitives;
 
 namespace RedFox.Imaging.Formats.Png;
 
@@ -94,6 +95,7 @@ internal static class PngFormatValidator
             throw new NotSupportedException($"Unsupported PNG interlace method {interlaceMethod}.");
         }
         ValidateBitDepthColorType(bitDepth, colorType);
+        new ImageInfo(width, height, ImageFormat.R8G8B8A8Unorm).Validate();
         return new PngHeader(width, height, bitDepth, colorType, interlaceMethod);
     }
 
@@ -118,12 +120,8 @@ internal static class PngFormatValidator
     {
         return header.ColorType switch
         {
-            0 => data.Length == 2
-                ? data.ToArray()
-                : throw new InvalidDataException("tRNS for grayscale PNG must be 2 bytes."),
-            2 => data.Length == 6
-                ? data.ToArray()
-                : throw new InvalidDataException("tRNS for truecolor PNG must be 6 bytes."),
+            0 => data.Length == 2 ? data.ToArray() : throw new InvalidDataException("tRNS for grayscale PNG must be 2 bytes."),
+            2 => data.Length == 6 ? data.ToArray() : throw new InvalidDataException("tRNS for truecolor PNG must be 6 bytes."),
             3 => ParsePaletteTransparency(data, palette),
             _ => throw new InvalidDataException("tRNS is not allowed for this PNG color type."),
         };

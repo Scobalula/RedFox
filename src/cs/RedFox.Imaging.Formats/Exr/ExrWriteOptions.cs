@@ -1,25 +1,17 @@
-namespace RedFox.Imaging.Formats.Exr
+namespace RedFox.Imaging.Formats.Exr;
+
+/// <summary>
+/// Configures how an image is serialized to the OpenEXR scanline format.
+/// </summary>
+public sealed class ExrWriteOptions
 {
     /// <summary>
-    /// Configures how an image is serialized to the OpenEXR scanline format.
+    /// Gets or sets the scanline compression mode.
     /// </summary>
-    public sealed class ExrWriteOptions
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ExrWriteOptions"/> class.
-        /// </summary>
-        public ExrWriteOptions()
-        {
-        }
+    public ExrWriteCompression Compression { get; set; } = ExrWriteCompression.Zip;
 
-        /// <summary>
-        /// Gets or sets the scanline compression mode.
-        /// </summary>
-        public ExrWriteCompression Compression { get; set; } = ExrWriteCompression.Zip;
-
-        /// <summary>
-        /// Gets or sets the EXR channel sample type.
-        /// </summary>
-        public ExrWritePixelType PixelType { get; set; } = ExrWritePixelType.Auto;
-    }
+    /// <summary>
+    /// Gets or sets the EXR channel sample type.
+    /// </summary>
+    public ExrWritePixelType PixelType { get; set; } = ExrWritePixelType.Auto;
 }

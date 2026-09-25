@@ -12,7 +12,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="shaderFormatId">The BC format identifier expected by the shader.</param>
 public readonly struct VulkanBcEncodeStageParameters(uint textureWidth, uint blockCountX, uint totalBlockCount, uint shaderFormatId)
 {
-
     /// <summary>
     /// Gets the source image width in pixels.
     /// </summary>

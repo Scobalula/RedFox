@@ -32,16 +32,13 @@ public sealed class BC2Codec(ImageFormat format) : IPixelCodec
     public int BytesPerPixel => 0;
 
     /// <inheritdoc/>
-    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) =>
-        BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
+    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
-    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height) =>
-        BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlock);
+    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height) => BlockProcessor.EncodeBlocks(source, destination, width, height, BytesPerBlock, EncodeBlock);
 
     /// <inheritdoc/>
-    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) =>
-        throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
+    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex) => throw new NotSupportedException("Block-compressed formats do not support per-pixel reads by flat index.");
 
     /// <inheritdoc/>
     public Vector4 ReadPixel(ReadOnlySpan<byte> source, int x, int y, int width)
@@ -54,25 +51,20 @@ public sealed class BC2Codec(ImageFormat format) : IPixelCodec
     }
 
     /// <inheritdoc/>
-    public void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height) =>
-        BlockProcessor.DecodeRows(source, destination, startRow, rowCount, width, height, BytesPerBlock, DecodeBlock);
+    public void DecodeRows(ReadOnlySpan<byte> source, Span<Vector4> destination, int startRow, int rowCount, int width, int height) => BlockProcessor.DecodeRows(source, destination, startRow, rowCount, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
-    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex) =>
-        throw new NotSupportedException("Block-compressed formats do not support per-pixel writes.");
+    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex) => throw new NotSupportedException("Block-compressed formats do not support per-pixel writes.");
 
     /// <inheritdoc/>
-    public void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height) =>
-        BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
+    public void DecodeTo(ReadOnlySpan<byte> source, IPixelCodec targetCodec, Span<byte> destination, int width, int height) => BlockProcessor.DecodeBlocksTo(source, targetCodec, destination, width, height, BytesPerBlock, DecodeBlock);
 
     /// <inheritdoc/>
     public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
     {
-        // Decode source pixels to Vector4 buffer
         Vector4[] pixels = new Vector4[width * height];
         sourceCodec.Decode(source, pixels, width, height);
 
-        // Encode to BC blocks
         BlockProcessor.EncodeBlocks(pixels, destination, width, height, BytesPerBlock, EncodeBlock);
     }
 

@@ -2,89 +2,108 @@ using System;
 using System.Numerics;
 using RedFox.Imaging.Primitives;
 
-namespace RedFox.Imaging.Codecs
+namespace RedFox.Imaging.Codecs;
+
+/// <summary>
+/// Codec for every 8-bit-per-channel RGBA format: <see cref="ImageFormat.R8G8B8A8Unorm"/>, <see cref="ImageFormat.R8G8B8A8UnormSrgb"/>, <see cref="ImageFormat.R8G8B8A8Typeless"/>, <see cref="ImageFormat.R8G8B8A8Uint"/>, <see cref="ImageFormat.R8G8B8A8Snorm"/>, and <see cref="ImageFormat.R8G8B8A8Sint"/>.
+/// Unsigned variants decode to [0, 1] and signed variants (Snorm, Sint) to [-1, 1]. sRGB values are returned as stored, without linearisation.
+/// </summary>
+public sealed class R8G8B8A8Codec : IPixelCodec
 {
+    private readonly ComponentKind _kind;
+
+    /// <inheritdoc/>
+    public ImageFormat Format { get; }
+
+    /// <inheritdoc/>
+    public int BytesPerPixel => 4;
+
+    internal bool IsUnsigned => _kind == ComponentKind.Unsigned;
+
     /// <summary>
-    /// Codec for <see cref="ImageFormat.R8G8B8A8Unorm"/> and SRGB variants.
+    /// Initializes a new instance of the <see cref="R8G8B8A8Codec"/> class for the specified format variant.
     /// </summary>
-    /// <param name="format">The RGBA pixel format handled by this codec.</param>
-    public sealed class R8G8B8A8Codec(ImageFormat format) : IPixelCodec
+    /// <param name="format">The image format this codec handles.</param>
+    public R8G8B8A8Codec(ImageFormat format)
     {
-        private const float Inv255 = 1.0f / 255.0f;
-
-        /// <inheritdoc/>
-        public ImageFormat Format { get; } = ValidateFormat(format);
-
-        /// <inheritdoc/>
-        public int BytesPerPixel => 4;
-
-        /// <inheritdoc/>
-        public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
+        Format = format switch
         {
-            PixelSimd.DecodeRgba8(source, destination, width * height);
+            ImageFormat.R8G8B8A8Unorm or ImageFormat.R8G8B8A8UnormSrgb or ImageFormat.R8G8B8A8Typeless or ImageFormat.R8G8B8A8Uint => format,
+            ImageFormat.R8G8B8A8Snorm or ImageFormat.R8G8B8A8Sint => format,
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R8G8B8A8Codec supports only the R8G8B8A8 Unorm, UnormSrgb, Typeless, Uint, Snorm, and Sint formats."),
+        };
+
+        _kind = format is ImageFormat.R8G8B8A8Snorm or ImageFormat.R8G8B8A8Sint ? ComponentKind.Signed : ComponentKind.Unsigned;
+    }
+
+    /// <inheritdoc/>
+    public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
+    {
+        int pixelCount = width * height;
+
+        if (IsUnsigned)
+        {
+            PixelSimd.DecodeRgba8(source, destination, pixelCount);
+            return;
         }
 
-        /// <inheritdoc/>
-        public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
-        {
-            PixelSimd.EncodeToRgba8(source, destination, width * height);
-        }
+        for (int i = 0; i < pixelCount; i++)
+            destination[i] = ReadPixel(source, i);
+    }
 
-        /// <inheritdoc/>
-        public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
-        {
-            int offset = pixelIndex * 4;
-            return new Vector4(
-                source[offset + 0] * Inv255,
-                source[offset + 1] * Inv255,
-                source[offset + 2] * Inv255,
-                source[offset + 3] * Inv255);
-        }
+    /// <inheritdoc/>
+    public void Encode(ReadOnlySpan<Vector4> source, Span<byte> destination, int width, int height)
+    {
+        WritePixels(source[..(width * height)], destination, 0);
+    }
 
-        /// <inheritdoc/>
-        public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
-        {
-            int offset = pixelIndex * 4;
-            destination[offset + 0] = (byte)(Math.Clamp(pixel.X, 0f, 1f) * 255f + 0.5f);
-            destination[offset + 1] = (byte)(Math.Clamp(pixel.Y, 0f, 1f) * 255f + 0.5f);
-            destination[offset + 2] = (byte)(Math.Clamp(pixel.Z, 0f, 1f) * 255f + 0.5f);
-            destination[offset + 3] = (byte)(Math.Clamp(pixel.W, 0f, 1f) * 255f + 0.5f);
-        }
+    /// <inheritdoc/>
+    public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
+    {
+        ReadOnlySpan<byte> pixel = source.Slice(pixelIndex * 4, 4);
+        return new Vector4(ComponentEncoding.Decode8(pixel[0], _kind), ComponentEncoding.Decode8(pixel[1], _kind), ComponentEncoding.Decode8(pixel[2], _kind), ComponentEncoding.Decode8(pixel[3], _kind));
+    }
 
-        /// <inheritdoc/>
-        public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
-        {
-            int pixelCount = width * height;
+    /// <inheritdoc/>
+    public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
+    {
+        Span<byte> target = destination.Slice(pixelIndex * 4, 4);
+        target[0] = ComponentEncoding.Encode8(pixel.X, _kind);
+        target[1] = ComponentEncoding.Encode8(pixel.Y, _kind);
+        target[2] = ComponentEncoding.Encode8(pixel.Z, _kind);
+        target[3] = ComponentEncoding.Encode8(pixel.W, _kind);
+    }
 
-            if (sourceCodec is R8G8B8A8Codec)
-            {
-                source[..(pixelCount * 4)].CopyTo(destination);
-                return;
-            }
-
-            if (sourceCodec is B8G8R8A8Codec)
-            {
-                PixelSimd.SwizzleRedBlue(source, destination, pixelCount);
-                return;
-            }
-
-            sourceCodec.DecodeTo(source, this, destination, width, height);
-        }
-
-        /// <inheritdoc/>
-        public void WritePixels(ReadOnlySpan<Vector4> pixels, Span<byte> destination, int startPixelIndex)
+    /// <inheritdoc/>
+    public void WritePixels(ReadOnlySpan<Vector4> pixels, Span<byte> destination, int startPixelIndex)
+    {
+        if (IsUnsigned)
         {
             PixelSimd.EncodeToRgba8(pixels, destination[(startPixelIndex * 4)..], pixels.Length);
+            return;
         }
 
-        private static ImageFormat ValidateFormat(ImageFormat format)
+        for (int i = 0; i < pixels.Length; i++)
+            WritePixel(pixels[i], destination, startPixelIndex + i);
+    }
+
+    /// <inheritdoc/>
+    public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
+    {
+        int pixelCount = width * height;
+
+        if (sourceCodec is R8G8B8A8Codec other && other._kind == _kind)
         {
-            return format switch
-            {
-                ImageFormat.R8G8B8A8Unorm => format,
-                ImageFormat.R8G8B8A8UnormSrgb => format,
-                _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R8G8B8A8Codec supports only R8G8B8A8Unorm and R8G8B8A8UnormSrgb."),
-            };
+            source[..(pixelCount * 4)].CopyTo(destination);
+            return;
         }
+
+        if (sourceCodec is B8G8R8A8Codec && IsUnsigned)
+        {
+            PixelSimd.SwizzleRedBlue(source, destination, pixelCount);
+            return;
+        }
+
+        sourceCodec.DecodeTo(source, this, destination, width, height);
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.IO;
+using RedFox.Imaging.Primitives;
 
 namespace RedFox.Imaging.Formats.Jpeg;
 
@@ -9,7 +10,7 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// and produces a <see cref="DecodedJpegImage"/> containing decoded component planes.
 /// </summary>
 /// <param name="stream">The JPEG bitstream to decode.</param>
-public sealed class JpegDecoder(Stream stream)
+internal sealed class JpegDecoder(Stream stream)
 {
     private readonly Stream _stream = stream;
     private readonly JpegQuantizationTable?[] _quantTables = new JpegQuantizationTable?[4];
@@ -63,7 +64,6 @@ public sealed class JpegDecoder(Stream stream)
                     return BuildResult();
 
                 default:
-                    // Skip unknown/unsupported marker segments
                     if (HasSegmentLength(marker))
                         SkipSegment();
                     break;
@@ -104,7 +104,6 @@ public sealed class JpegDecoder(Stream stream)
         // 0xFF 0x00 is byte stuffing — shouldn't appear here, but skip if it does
         if (b == 0x00)
         {
-            // Recurse to find the real marker
             ReadMarker(out marker);
             return;
         }
@@ -170,6 +169,13 @@ public sealed class JpegDecoder(Stream stream)
         var data = ReadSegment();
         int offset = 0;
 
+        if (_frame is not null)
+            throw new InvalidDataException("JPEG contains multiple frame headers.");
+        if (data.Length < 6 || data[5] is 0 or > 4 || data.Length < 6 + data[5] * 3)
+            throw new InvalidDataException("Invalid JPEG frame header.");
+
+        new ImageInfo((data[3] << 8) | data[4], (data[1] << 8) | data[2], ImageFormat.R8G8B8A8Unorm).Validate();
+
         _frame = new JpegFrame
         {
             Precision = data[offset++],
@@ -190,6 +196,9 @@ public sealed class JpegDecoder(Stream stream)
             int v = samplingByte & 0x0F;
             int qId = data[offset++];
 
+            if (h is < 1 or > 4 || v is < 1 or > 4 || qId > 3)
+                throw new InvalidDataException($"Invalid JPEG component {id} sampling or quantization table.");
+
             _frame.Components[id] = new JpegFrameComponent
             {
                 Id = id,
@@ -207,7 +216,6 @@ public sealed class JpegDecoder(Stream stream)
         _frame.MaxHSample = maxH;
         _frame.MaxVSample = maxV;
 
-        // Calculate MCU dimensions and block counts per component
         int mcuPixelW = maxH * 8;
         int mcuPixelH = maxV * 8;
         _frame.McuWidth = ((_frame.Width + mcuPixelW - 1) / mcuPixelW);
@@ -237,7 +245,6 @@ public sealed class JpegDecoder(Stream stream)
             int tableClass = info >> 4;     // 0 = DC, 1 = AC
             int tableId = info & 0x0F;
 
-            // Read 16 code-length counts
             ReadOnlySpan<byte> counts = data.AsSpan(offset, 16);
             offset += 16;
 
@@ -343,16 +350,13 @@ public sealed class JpegDecoder(Stream stream)
     {
         var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
-        int restartExpected = 0;
 
-        // Reset DC predictors
         foreach (var sc in scan.Components)
             _frame!.Components[sc.ComponentId].PreviousDc = 0;
 
         for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
         {
-            // Handle restart interval
-            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
+            if (!TryHandleRestartMarker(reader, ref mcuCount))
             {
                 return;
             }
@@ -393,11 +397,8 @@ public sealed class JpegDecoder(Stream stream)
         }
     }
 
-    private static bool TryDecodeBlock(JpegBitReader reader, int[] block,
-        JpegHuffmanTable dcTable, JpegHuffmanTable acTable,
-        JpegFrameComponent comp)
+    private static bool TryDecodeBlock(JpegBitReader reader, int[] block, JpegHuffmanTable dcTable, JpegHuffmanTable acTable, JpegFrameComponent comp)
     {
-        // DC coefficient
         if (!dcTable.TryDecode(reader, out int dcCategory))
         {
             return false;
@@ -417,7 +418,6 @@ public sealed class JpegDecoder(Stream stream)
         comp.PreviousDc += dcDiff;
         block[0] = comp.PreviousDc;
 
-        // AC coefficients
         var zigzag = JpegZigZag.Order;
         int k = 1;
         while (k < 64)
@@ -466,7 +466,6 @@ public sealed class JpegDecoder(Stream stream)
         bool isDc = scan.SpectralStart == 0;
         bool isFirstVisit = scan.SuccessiveHigh == 0;
 
-        // Reset DC predictors for first DC scan
         if (isDc && isFirstVisit)
         {
             foreach (var sc in scan.Components)
@@ -483,25 +482,20 @@ public sealed class JpegDecoder(Stream stream)
         }
     }
 
-    private void DecodeProgressiveScanNonInterleaved(
-        JpegScanHeader scan,
-        bool isDc,
-        bool isFirstVisit)
+    private void DecodeProgressiveScanNonInterleaved(JpegScanHeader scan, bool isDc, bool isFirstVisit)
     {
         var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
-        int restartExpected = 0;
 
         var sc = scan.Components[0];
         var comp = _frame!.Components[sc.ComponentId];
         int totalBlocks = comp.BlocksPerRow * comp.BlocksPerColumn;
 
-        var dcTable = isDc ? _dcTables[sc.DcTableId] : null;
-        var acTable = !isDc ? _acTables[sc.AcTableId] : null;
+        var huffmanTable = isDc ? GetDcTable(sc.DcTableId) : GetAcTable(sc.AcTableId);
 
         for (int blockIndex = 0; blockIndex < totalBlocks; blockIndex++)
         {
-            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
+            if (!TryHandleRestartMarker(reader, ref mcuCount))
             {
                 return;
             }
@@ -516,16 +510,7 @@ public sealed class JpegDecoder(Stream stream)
                 }
             }
 
-            var block = comp.Blocks![blockIndex];
-            bool decoded = isDc
-                ? isFirstVisit
-                    ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
-                    : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow)
-                : isFirstVisit
-                    ? TryDecodeProgressiveAcFirst(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow)
-                    : TryDecodeProgressiveAcRefine(reader, block, acTable!, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow);
-
-            if (!decoded)
+            if (!TryDecodeProgressiveBlock(reader, comp.Blocks![blockIndex], huffmanTable, comp, scan, isDc, isFirstVisit))
             {
                 CaptureScanMarker(reader);
                 return;
@@ -535,18 +520,14 @@ public sealed class JpegDecoder(Stream stream)
         }
     }
 
-    private void DecodeProgressiveScanInterleaved(
-        JpegScanHeader scan,
-        bool isDc,
-        bool isFirstVisit)
+    private void DecodeProgressiveScanInterleaved(JpegScanHeader scan, bool isDc, bool isFirstVisit)
     {
         var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
-        int restartExpected = 0;
 
         for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
         {
-            if (!TryHandleRestartMarker(reader, ref mcuCount, ref restartExpected))
+            if (!TryHandleRestartMarker(reader, ref mcuCount))
             {
                 return;
             }
@@ -568,7 +549,7 @@ public sealed class JpegDecoder(Stream stream)
             foreach (var sc in scan.Components)
             {
                 var comp = _frame.Components[sc.ComponentId];
-                var dcTable = _dcTables[sc.DcTableId];
+                var dcTable = GetDcTable(sc.DcTableId);
 
                 for (int v = 0; v < comp.VSample; v++)
                 {
@@ -578,13 +559,7 @@ public sealed class JpegDecoder(Stream stream)
                         int blockCol = mcuCol * comp.HSample + h;
                         int blockIndex = blockRow * comp.BlocksPerRow + blockCol;
 
-                        var block = comp.Blocks![blockIndex];
-
-                        bool decoded = isFirstVisit
-                            ? TryDecodeProgressiveDcFirst(reader, block, dcTable!, comp, scan.SuccessiveLow)
-                            : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow);
-
-                        if (!decoded)
+                        if (!TryDecodeProgressiveBlock(reader, comp.Blocks![blockIndex], dcTable, comp, scan, true, isFirstVisit))
                         {
                             CaptureScanMarker(reader);
                             return;
@@ -597,8 +572,28 @@ public sealed class JpegDecoder(Stream stream)
         }
     }
 
-    private static bool TryDecodeProgressiveDcFirst(JpegBitReader reader, int[] block,
-        JpegHuffmanTable dcTable, JpegFrameComponent comp, int al)
+    private JpegHuffmanTable GetDcTable(int id)
+    {
+        return _dcTables[id] ?? throw new InvalidDataException($"Missing DC Huffman table {id}.");
+    }
+
+    private JpegHuffmanTable GetAcTable(int id)
+    {
+        return _acTables[id] ?? throw new InvalidDataException($"Missing AC Huffman table {id}.");
+    }
+
+    private bool TryDecodeProgressiveBlock(JpegBitReader reader, int[] block, JpegHuffmanTable table, JpegFrameComponent comp, JpegScanHeader scan, bool isDc, bool isFirstVisit)
+    {
+        if (isDc)
+            return isFirstVisit ? TryDecodeProgressiveDcFirst(reader, block, table, comp, scan.SuccessiveLow) : TryDecodeProgressiveDcRefine(reader, block, scan.SuccessiveLow);
+
+        if (isFirstVisit)
+            return TryDecodeProgressiveAcFirst(reader, block, table, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow);
+
+        return TryDecodeProgressiveAcRefine(reader, block, table, scan.SpectralStart, scan.SpectralEnd, scan.SuccessiveLow);
+    }
+
+    private static bool TryDecodeProgressiveDcFirst(JpegBitReader reader, int[] block, JpegHuffmanTable dcTable, JpegFrameComponent comp, int al)
     {
         if (!dcTable.TryDecode(reader, out int category))
         {
@@ -635,8 +630,7 @@ public sealed class JpegDecoder(Stream stream)
     /// <summary>
     /// Decodes the first visit of AC coefficients in progressive mode.
     /// </summary>
-    private bool TryDecodeProgressiveAcFirst(JpegBitReader reader, int[] block,
-        JpegHuffmanTable acTable, int ss, int se, int al)
+    private bool TryDecodeProgressiveAcFirst(JpegBitReader reader, int[] block, JpegHuffmanTable acTable, int ss, int se, int al)
     {
         // If we're in an EOB run from a previous block, skip this block
         if (_eobRun > 0)
@@ -698,8 +692,7 @@ public sealed class JpegDecoder(Stream stream)
         return true;
     }
 
-    private bool TryDecodeProgressiveAcRefine(JpegBitReader reader, int[] block,
-        JpegHuffmanTable acTable, int ss, int se, int al)
+    private bool TryDecodeProgressiveAcRefine(JpegBitReader reader, int[] block, JpegHuffmanTable acTable, int ss, int se, int al)
     {
         var zigzag = JpegZigZag.Order;
         int k = ss;
@@ -808,7 +801,6 @@ public sealed class JpegDecoder(Stream stream)
                 k++;
             }
 
-            // Place the new coefficient
             if (k <= se)
             {
                 int pos = zigzag[k];
@@ -842,10 +834,7 @@ public sealed class JpegDecoder(Stream stream)
     /// resets the bit reader for the next entropy segment. Returns <c>false</c>
     /// when a non-restart marker is encountered (the caller should abort the scan).
     /// </summary>
-    private bool TryHandleRestartMarker(
-        JpegBitReader reader,
-        ref int mcuCount,
-        ref int restartExpected)
+    private bool TryHandleRestartMarker(JpegBitReader reader, ref int mcuCount)
     {
         if (_restartInterval <= 0 || mcuCount != _restartInterval)
         {
@@ -868,15 +857,14 @@ public sealed class JpegDecoder(Stream stream)
         }
         else
         {
-            ReadRestartMarker(restartExpected);
+            ReadRestartMarker();
             reader.Reset();
         }
 
-        restartExpected = (restartExpected + 1) & 7;
         return true;
     }
 
-    private void ReadRestartMarker(int expected)
+    private void ReadRestartMarker()
     {
         int b1 = _stream.ReadByte();
         int b2 = _stream.ReadByte();
@@ -914,8 +902,7 @@ public sealed class JpegDecoder(Stream stream)
         {
             int compId = _frame.ComponentOrder[ci];
             var comp = _frame.Components[compId];
-            var qTable = _quantTables[comp.QuantizationTableId]
-                ?? throw new InvalidDataException($"Missing quantization table {comp.QuantizationTableId}.");
+            var qTable = _quantTables[comp.QuantizationTableId] ?? throw new InvalidDataException($"Missing quantization table {comp.QuantizationTableId}.");
 
             int compPixelW = comp.BlocksPerRow * 8;
             int compPixelH = comp.BlocksPerColumn * 8;
@@ -929,14 +916,11 @@ public sealed class JpegDecoder(Stream stream)
                     int blockIndex = blockRow * comp.BlocksPerRow + blockCol;
                     var coefficients = comp.Blocks![blockIndex];
 
-                    // Dequantize
                     for (int i = 0; i < 64; i++)
                         blockBuf[i] = coefficients[i] * qTable.Values[i];
 
-                    // IDCT
                     JpegIdct.Transform(blockBuf);
 
-                    // Write samples to output plane
                     int px = blockCol * 8;
                     int py = blockRow * 8;
 

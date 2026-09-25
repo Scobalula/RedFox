@@ -1,18 +1,16 @@
 using System;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using RedFox.Imaging.Primitives;
 
 namespace RedFox.Imaging.Codecs;
 
 /// <summary>
-/// Codec for <see cref="ImageFormat.R8G8Typeless"/>, <see cref="ImageFormat.R8G8Unorm"/>,
-/// <see cref="ImageFormat.R8G8Uint"/>, <see cref="ImageFormat.R8G8Snorm"/>, and <see cref="ImageFormat.R8G8Sint"/>.
-/// Interprets values as unsigned normalized [0,1] for conversion purposes.
+/// Codec for <see cref="ImageFormat.R8G8Typeless"/>, <see cref="ImageFormat.R8G8Unorm"/>, <see cref="ImageFormat.R8G8Uint"/>, <see cref="ImageFormat.R8G8Snorm"/>, and <see cref="ImageFormat.R8G8Sint"/>.
+/// Unsigned variants decode to [0, 1] and signed variants (Snorm, Sint) to [-1, 1].
 /// </summary>
 public sealed class R8G8Codec : IPixelCodec
 {
-    private const float Inv255 = 1.0f / 255.0f;
+    private readonly ComponentKind _kind;
 
     /// <inheritdoc/>
     public ImageFormat Format { get; }
@@ -28,13 +26,11 @@ public sealed class R8G8Codec : IPixelCodec
     {
         Format = format switch
         {
-            ImageFormat.R8G8Typeless => format,
-            ImageFormat.R8G8Unorm => format,
-            ImageFormat.R8G8Uint => format,
-            ImageFormat.R8G8Snorm => format,
-            ImageFormat.R8G8Sint => format,
+            ImageFormat.R8G8Typeless or ImageFormat.R8G8Unorm or ImageFormat.R8G8Uint or ImageFormat.R8G8Snorm or ImageFormat.R8G8Sint => format,
             _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R8G8Codec supports only R8G8Typeless, R8G8Unorm, R8G8Uint, R8G8Snorm, and R8G8Sint."),
         };
+
+        _kind = ComponentEncoding.GetKind(format);
     }
 
     /// <inheritdoc/>
@@ -43,10 +39,7 @@ public sealed class R8G8Codec : IPixelCodec
         int pixelCount = width * height;
 
         for (int i = 0; i < pixelCount; i++)
-        {
-            int o = i * 2;
-            destination[i] = new Vector4(source[o] * Inv255, source[o + 1] * Inv255, 0f, 1f);
-        }
+            destination[i] = ReadPixel(source, i);
     }
 
     /// <inheritdoc/>
@@ -55,40 +48,30 @@ public sealed class R8G8Codec : IPixelCodec
         int pixelCount = width * height;
 
         for (int i = 0; i < pixelCount; i++)
-        {
-            var p = source[i];
-            int o = i * 2;
-            destination[o] = (byte)(Math.Clamp(p.X, 0f, 1f) * 255f + 0.5f);
-            destination[o + 1] = (byte)(Math.Clamp(p.Y, 0f, 1f) * 255f + 0.5f);
-        }
+            WritePixel(source[i], destination, i);
     }
 
     /// <inheritdoc/>
     public Vector4 ReadPixel(ReadOnlySpan<byte> source, int pixelIndex)
     {
-        int o = pixelIndex * 2;
-        return new Vector4(
-            source[o] * Inv255,
-            source[o + 1] * Inv255,
-            0f,
-            1f);
+        int offset = pixelIndex * 2;
+        return new Vector4(ComponentEncoding.Decode8(source[offset], _kind), ComponentEncoding.Decode8(source[offset + 1], _kind), 0f, 1f);
     }
 
     /// <inheritdoc/>
     public void WritePixel(Vector4 pixel, Span<byte> destination, int pixelIndex)
     {
-        int o = pixelIndex * 2;
-        destination[o] = (byte)(Math.Clamp(pixel.X, 0f, 1f) * 255f + 0.5f);
-        destination[o + 1] = (byte)(Math.Clamp(pixel.Y, 0f, 1f) * 255f + 0.5f);
+        int offset = pixelIndex * 2;
+        destination[offset] = ComponentEncoding.Encode8(pixel.X, _kind);
+        destination[offset + 1] = ComponentEncoding.Encode8(pixel.Y, _kind);
     }
 
     /// <inheritdoc/>
     public void ConvertFrom(ReadOnlySpan<byte> source, IPixelCodec sourceCodec, Span<byte> destination, int width, int height)
     {
-        if (sourceCodec is R8G8Codec)
+        if (sourceCodec is R8G8Codec other && other._kind == _kind)
         {
-            int byteCount = width * height * 2;
-            source[..byteCount].CopyTo(destination);
+            source[..(width * height * 2)].CopyTo(destination);
             return;
         }
 

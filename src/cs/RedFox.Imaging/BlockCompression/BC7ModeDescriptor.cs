@@ -20,7 +20,6 @@ namespace RedFox.Imaging.BlockCompression;
 /// <param name="secondaryIndexBits">Bit width for secondary interpolation indices, or 0 when unused.</param>
 public readonly struct BC7ModeDescriptor(int numSubsets, int partitionBits, int rotationBits, int indexSelectionBits, int colorBits, int alphaBits, int endpointPBits, int sharedPBits, int indexBits, int secondaryIndexBits)
 {
-
     /// <summary>
     /// Gets the number of subsets encoded by the mode.
     /// </summary>

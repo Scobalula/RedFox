@@ -14,7 +14,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="usage">The image usage flags.</param>
 public readonly struct VulkanBcImageAllocation(Format format, uint width, uint height, ImageUsageFlags usage)
 {
-
     /// <summary>
     /// Gets the image pixel format.
     /// </summary>

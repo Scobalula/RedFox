@@ -15,8 +15,13 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// JPEG image encoder supporting baseline encoding with configurable quality and chroma subsampling.
 /// Writes a complete JFIF-compliant JPEG bitstream to the output stream.
 /// </summary>
-public sealed class JpegEncoder
+internal sealed class JpegEncoder
 {
+    private readonly Stream _stream;
+    private readonly JpegEncoderOptions _options;
+    private readonly int[] _luminanceQuant = new int[64];
+    private readonly int[] _chrominanceQuant = new int[64];
+
     private static ReadOnlySpan<byte> BaseLuminanceQuant =>
     [
         16,  11,  10,  16,  24,  40,  51,  61,
@@ -41,11 +46,6 @@ public sealed class JpegEncoder
         99,  99,  99,  99,  99,  99,  99,  99,
     ];
 
-    private readonly Stream _stream;
-    private readonly JpegEncoderOptions _options;
-    private readonly int[] _luminanceQuant = new int[64];
-    private readonly int[] _chrominanceQuant = new int[64];
-
     /// <summary>Creates a new JPEG encoder that writes to the specified stream.</summary>
     /// <param name="stream">The output stream to write the JPEG data to.</param>
     /// <param name="options">Encoding options controlling quality, subsampling, and color space.</param>
@@ -67,7 +67,6 @@ public sealed class JpegEncoder
 
         var sampling = SamplingFactors.FromSubsampling(_options.Subsampling);
 
-        // Convert RGB to YCbCr planes
         int cbWidth = (width * sampling.CbH + sampling.MaxH - 1) / sampling.MaxH;
         int cbHeight = (height * sampling.CbV + sampling.MaxV - 1) / sampling.MaxV;
 
@@ -77,7 +76,6 @@ public sealed class JpegEncoder
 
         ConvertRgbaToYCbCr(pixels, yPlane, cbPlane, crPlane, width, height, sampling);
 
-        // Write JFIF headers
         WriteSOI();
         WriteAPP0();
         WriteDQT(0, _luminanceQuant);
@@ -89,12 +87,7 @@ public sealed class JpegEncoder
         WriteDHT(1, 1, JpegHuffmanEncoder.ChrominanceAc);
         WriteSOS();
 
-        // Encode scan data
-        EncodeScanData(
-            yPlane, cbPlane, crPlane,
-            width, height,
-            sampling,
-            cbWidth, cbHeight);
+        EncodeScanData(yPlane, cbPlane, crPlane, width, height, sampling, cbWidth, cbHeight);
 
         WriteEOI();
     }
@@ -167,13 +160,12 @@ public sealed class JpegEncoder
 
         return rgba;
     }
+
     private void BuildQuantizationTables(int quality)
     {
         quality = Math.Clamp(quality, 1, 100);
 
-        int scaleFactor = quality < 50
-            ? 5000 / quality
-            : 200 - quality * 2;
+        int scaleFactor = quality < 50 ? 5000 / quality : 200 - quality * 2;
 
         ScaleQuantTable(BaseLuminanceQuant, _luminanceQuant, scaleFactor);
         ScaleQuantTable(BaseChrominanceQuant, _chrominanceQuant, scaleFactor);
@@ -188,14 +180,7 @@ public sealed class JpegEncoder
         }
     }
 
-    private static void ConvertRgbaToYCbCr(
-        ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane,
-        Span<byte> cbPlane,
-        Span<byte> crPlane,
-        int width,
-        int height,
-        SamplingFactors sampling)
+    private static void ConvertRgbaToYCbCr(ReadOnlySpan<byte> rgba, Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane, int width, int height, SamplingFactors sampling)
     {
         int hRatio = sampling.MaxH / sampling.CbH;
         int vRatio = sampling.MaxV / sampling.CbV;
@@ -211,10 +196,7 @@ public sealed class JpegEncoder
         }
     }
 
-    private static void ConvertRgbaToYCbCrDirect(
-        ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane,
-        int pixelCount)
+    private static void ConvertRgbaToYCbCrDirect(ReadOnlySpan<byte> rgba, Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane, int pixelCount)
     {
         int i = 0;
 
@@ -227,22 +209,15 @@ public sealed class JpegEncoder
             i = ConvertRgbaToYCbCrSse2(rgba, yPlane, cbPlane, crPlane, pixelCount);
         }
 
-        // Scalar tail
         for (; i < pixelCount; i++)
         {
             int offset = i * 4;
-            RgbToYCbCrPixel(rgba[offset], rgba[offset + 1], rgba[offset + 2],
-                out yPlane[i], out cbPlane[i], out crPlane[i]);
+            RgbToYCbCrPixel(rgba[offset], rgba[offset + 1], rgba[offset + 2], out yPlane[i], out cbPlane[i], out crPlane[i]);
         }
     }
 
-    private static void ConvertRgbaToYCbCrSubsampled(
-        ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane,
-        int width, int height, int cbWidth,
-        int hRatio, int vRatio)
+    private static void ConvertRgbaToYCbCrSubsampled(ReadOnlySpan<byte> rgba, Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane, int width, int height, int cbWidth, int hRatio, int vRatio)
     {
-        // First pass: compute full-resolution Y
         for (int row = 0; row < height; row++)
         {
             int rowBase = row * width * 4;
@@ -258,7 +233,6 @@ public sealed class JpegEncoder
             }
         }
 
-        // Second pass: downsample chroma by averaging
         int chromaHeight = (height + vRatio - 1) / vRatio;
         int chromaWidth = (width + hRatio - 1) / hRatio;
 
@@ -299,10 +273,7 @@ public sealed class JpegEncoder
     /// <summary>
     /// AVX2 RGBA→YCbCr conversion, 8 pixels at a time.
     /// </summary>
-    private static int ConvertRgbaToYCbCrAvx2(
-        ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane,
-        int pixelCount)
+    private static int ConvertRgbaToYCbCrAvx2(ReadOnlySpan<byte> rgba, Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane, int pixelCount)
     {
         int i = 0;
 
@@ -325,47 +296,18 @@ public sealed class JpegEncoder
         {
             int baseOff = i * 4;
 
-            // Load and deinterleave 8 RGBA pixels
-            var rF = Vector256.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 0),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 4),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 8),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 12),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 16),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 20),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 24),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 28));
+            var rF = Vector256.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 0), (float)Unsafe.Add(ref rgbaRef, baseOff + 4), (float)Unsafe.Add(ref rgbaRef, baseOff + 8), (float)Unsafe.Add(ref rgbaRef, baseOff + 12), (float)Unsafe.Add(ref rgbaRef, baseOff + 16), (float)Unsafe.Add(ref rgbaRef, baseOff + 20), (float)Unsafe.Add(ref rgbaRef, baseOff + 24), (float)Unsafe.Add(ref rgbaRef, baseOff + 28));
 
-            var gF = Vector256.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 1),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 5),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 9),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 13),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 17),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 21),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 25),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 29));
+            var gF = Vector256.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 1), (float)Unsafe.Add(ref rgbaRef, baseOff + 5), (float)Unsafe.Add(ref rgbaRef, baseOff + 9), (float)Unsafe.Add(ref rgbaRef, baseOff + 13), (float)Unsafe.Add(ref rgbaRef, baseOff + 17), (float)Unsafe.Add(ref rgbaRef, baseOff + 21), (float)Unsafe.Add(ref rgbaRef, baseOff + 25), (float)Unsafe.Add(ref rgbaRef, baseOff + 29));
 
-            var bF = Vector256.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 2),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 6),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 10),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 14),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 18),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 22),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 26),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 30));
+            var bF = Vector256.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 2), (float)Unsafe.Add(ref rgbaRef, baseOff + 6), (float)Unsafe.Add(ref rgbaRef, baseOff + 10), (float)Unsafe.Add(ref rgbaRef, baseOff + 14), (float)Unsafe.Add(ref rgbaRef, baseOff + 18), (float)Unsafe.Add(ref rgbaRef, baseOff + 22), (float)Unsafe.Add(ref rgbaRef, baseOff + 26), (float)Unsafe.Add(ref rgbaRef, baseOff + 30));
 
-            // Y  =  0.299·R + 0.587·G + 0.114·B
             var yF = Avx.Add(Avx.Add(Avx.Multiply(vR_Y, rF), Avx.Multiply(vG_Y, gF)), Avx.Multiply(vB_Y, bF));
 
-            // Cb = -0.169·R - 0.331·G + 0.500·B + 128
             var cbF = Avx.Add(Avx.Add(Avx.Add(Avx.Multiply(vR_Cb, rF), Avx.Multiply(vG_Cb, gF)), Avx.Multiply(vB_Cb, bF)), v128);
 
-            // Cr =  0.500·R - 0.419·G - 0.081·B + 128
             var crF = Avx.Add(Avx.Add(Avx.Add(Avx.Multiply(vR_Cr, rF), Avx.Multiply(vG_Cr, gF)), Avx.Multiply(vB_Cr, bF)), v128);
 
-            // Clamp and convert
             yF = Avx.Min(Avx.Max(yF, vZero), v255);
             cbF = Avx.Min(Avx.Max(cbF, vZero), v255);
             crF = Avx.Min(Avx.Max(crF, vZero), v255);
@@ -385,10 +327,7 @@ public sealed class JpegEncoder
         return i;
     }
 
-    private static int ConvertRgbaToYCbCrSse2(
-        ReadOnlySpan<byte> rgba,
-        Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane,
-        int pixelCount)
+    private static int ConvertRgbaToYCbCrSse2(ReadOnlySpan<byte> rgba, Span<byte> yPlane, Span<byte> cbPlane, Span<byte> crPlane, int pixelCount)
     {
         int i = 0;
 
@@ -411,23 +350,11 @@ public sealed class JpegEncoder
         {
             int baseOff = i * 4;
 
-            var rF = Vector128.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 0),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 4),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 8),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 12));
+            var rF = Vector128.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 0), (float)Unsafe.Add(ref rgbaRef, baseOff + 4), (float)Unsafe.Add(ref rgbaRef, baseOff + 8), (float)Unsafe.Add(ref rgbaRef, baseOff + 12));
 
-            var gF = Vector128.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 1),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 5),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 9),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 13));
+            var gF = Vector128.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 1), (float)Unsafe.Add(ref rgbaRef, baseOff + 5), (float)Unsafe.Add(ref rgbaRef, baseOff + 9), (float)Unsafe.Add(ref rgbaRef, baseOff + 13));
 
-            var bF = Vector128.Create(
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 2),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 6),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 10),
-                (float)Unsafe.Add(ref rgbaRef, baseOff + 14));
+            var bF = Vector128.Create((float)Unsafe.Add(ref rgbaRef, baseOff + 2), (float)Unsafe.Add(ref rgbaRef, baseOff + 6), (float)Unsafe.Add(ref rgbaRef, baseOff + 10), (float)Unsafe.Add(ref rgbaRef, baseOff + 14));
 
             var yF = Sse.Add(Sse.Add(Sse.Multiply(vR_Y, rF), Sse.Multiply(vG_Y, gF)), Sse.Multiply(vB_Y, bF));
             var cbF = Sse.Add(Sse.Add(Sse.Add(Sse.Multiply(vR_Cb, rF), Sse.Multiply(vG_Cb, gF)), Sse.Multiply(vB_Cb, bF)), v128);
@@ -463,15 +390,7 @@ public sealed class JpegEncoder
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static byte ClampByte(int value) => (byte)Math.Clamp(value, 0, 255);
 
-    private void EncodeScanData(
-        ReadOnlySpan<byte> yPlane,
-        ReadOnlySpan<byte> cbPlane,
-        ReadOnlySpan<byte> crPlane,
-        int width,
-        int height,
-        SamplingFactors sampling,
-        int cbWidth,
-        int cbHeight)
+    private void EncodeScanData(ReadOnlySpan<byte> yPlane, ReadOnlySpan<byte> cbPlane, ReadOnlySpan<byte> crPlane, int width, int height, SamplingFactors sampling, int cbWidth, int cbHeight)
     {
         var writer = new JpegBitWriter(_stream);
         Span<int> block = stackalloc int[64];
@@ -479,7 +398,6 @@ public sealed class JpegEncoder
 
         int prevDcY = 0, prevDcCb = 0, prevDcCr = 0;
 
-        // MCU dimensions in pixels
         int mcuPixelW = sampling.YH * 8;
         int mcuPixelH = sampling.YV * 8;
         int mcuCountX = (width + mcuPixelW - 1) / mcuPixelW;
@@ -510,33 +428,16 @@ public sealed class JpegEncoder
                     }
                 }
 
-                // Encode Cb block
-                prevDcCb = EncodeChromaBlock(
-                    writer, cbPlane, cbWidth, cbHeight,
-                    mcuX * 8, mcuY * 8,
-                    prevDcCb, block, zigzag);
+                prevDcCb = EncodeChromaBlock(writer, cbPlane, cbWidth, cbHeight, mcuX * 8, mcuY * 8, prevDcCb, block, zigzag);
 
-                // Encode Cr block
-                prevDcCr = EncodeChromaBlock(
-                    writer, crPlane, cbWidth, cbHeight,
-                    mcuX * 8, mcuY * 8,
-                    prevDcCr, block, zigzag);
+                prevDcCr = EncodeChromaBlock(writer, crPlane, cbWidth, cbHeight, mcuX * 8, mcuY * 8, prevDcCr, block, zigzag);
             }
         }
 
         writer.Flush();
     }
 
-    private int EncodeChromaBlock(
-        JpegBitWriter writer,
-        ReadOnlySpan<byte> plane,
-        int planeWidth,
-        int planeHeight,
-        int blockX,
-        int blockY,
-        int prevDc,
-        Span<int> block,
-        Span<int> zigzag)
+    private int EncodeChromaBlock(JpegBitWriter writer, ReadOnlySpan<byte> plane, int planeWidth, int planeHeight, int blockX, int blockY, int prevDc, Span<int> block, Span<int> zigzag)
     {
         ExtractBlock(plane, planeWidth, planeHeight, blockX, blockY, block);
         LevelShift(block);
@@ -581,9 +482,7 @@ public sealed class JpegEncoder
             // Round to nearest (toward zero for negative values)
             int q = quantTable[i];
             int val = block[i];
-            block[i] = val >= 0
-                ? (val + q / 2) / q
-                : -((-val + q / 2) / q);
+            block[i] = val >= 0 ? (val + q / 2) / q : -((-val + q / 2) / q);
         }
     }
 

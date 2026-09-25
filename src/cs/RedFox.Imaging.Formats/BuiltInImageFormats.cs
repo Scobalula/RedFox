@@ -1,25 +1,27 @@
+using System;
 using RedFox.Imaging.Formats.Bmp;
 using RedFox.Imaging.Formats.Dds;
 using RedFox.Imaging.Formats.Exr;
-using RedFox.Imaging.IO;
 using RedFox.Imaging.Formats.Jpeg;
 using RedFox.Imaging.Formats.Ktx;
 using RedFox.Imaging.Formats.Png;
 using RedFox.Imaging.Formats.Tga;
 using RedFox.Imaging.Formats.Tiff;
+using RedFox.Imaging.IO;
 
-namespace RedFox.Samples.Examples;
+namespace RedFox.Imaging.Formats;
 
-internal static class SampleImageTranslatorRegistry
+/// <summary>
+/// Provides the explicit registration entry point for every image translator shipped in this package.
+/// </summary>
+public static class BuiltInImageFormats
 {
-    internal static ImageTranslatorManager CreateDefaultManager()
-    {
-        ImageTranslatorManager manager = new();
-        RegisterDefaults(manager);
-        return manager;
-    }
-
-    internal static void RegisterDefaults(ImageTranslatorManager manager)
+    /// <summary>
+    /// Registers a new instance of every built-in translator (BMP, DDS, EXR, JPEG, KTX, PNG, TGA, and TIFF) with the given manager.
+    /// Existing translators with the same names are replaced.
+    /// </summary>
+    /// <param name="manager">The manager to register the translators with.</param>
+    public static void RegisterAll(ImageTranslatorManager manager)
     {
         ArgumentNullException.ThrowIfNull(manager);
 

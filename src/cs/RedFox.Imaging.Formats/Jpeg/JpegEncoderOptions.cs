@@ -6,13 +6,6 @@ namespace RedFox.Imaging.Formats.Jpeg;
 public sealed class JpegEncoderOptions
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="JpegEncoderOptions"/> class.
-    /// </summary>
-    public JpegEncoderOptions()
-    {
-    }
-
-    /// <summary>
     /// Quality factor from 1 (worst) to 100 (best). Default is 75.
     /// Uses the standard IJG/libjpeg quality scaling formula.
     /// </summary>

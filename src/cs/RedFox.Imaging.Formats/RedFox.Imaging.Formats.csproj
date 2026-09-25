@@ -1,10 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>RedFox.Imaging.Formats</AssemblyName>
+    <RootNamespace>RedFox.Imaging.Formats</RootNamespace>
+    <PackageId>RedFox.Imaging.Formats</PackageId>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RedFox.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Imaging\RedFox.Imaging.csproj" />

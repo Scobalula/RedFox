@@ -30,8 +30,7 @@ internal static class PixelSimd
 
         if (Ssse3.IsSupported)
         {
-            var mask = Vector128.Create(
-                (byte)2, 1, 0, 3, 6, 5, 4, 7, 10, 9, 8, 11, 14, 13, 12, 15);
+            var mask = Vector128.Create((byte)2, 1, 0, 3, 6, 5, 4, 7, 10, 9, 8, 11, 14, 13, 12, 15);
 
             ref byte srcRef = ref MemoryMarshal.GetReference(source);
             ref byte dstRef = ref MemoryMarshal.GetReference(destination);
@@ -60,15 +59,12 @@ internal static class PixelSimd
                 var b = Sse2.And(v, maskB);
                 var a = Sse2.And(v, maskA);
 
-                var result = Sse2.Or(
-                    Sse2.Or(Sse2.ShiftRightLogical(r.AsUInt32(), 16).AsInt32(), g),
-                    Sse2.Or(Sse2.ShiftLeftLogical(b.AsUInt32(), 16).AsInt32(), a));
+                var result = Sse2.Or(Sse2.Or(Sse2.ShiftRightLogical(r.AsUInt32(), 16).AsInt32(), g), Sse2.Or(Sse2.ShiftLeftLogical(b.AsUInt32(), 16).AsInt32(), a));
 
                 result.StoreUnsafe(ref Unsafe.As<byte, int>(ref Unsafe.Add(ref dstRef, i)));
             }
         }
 
-        // Scalar tail
         for (; i < byteCount; i += 4)
         {
             destination[i + 0] = source[i + 2];
@@ -98,11 +94,7 @@ internal static class PixelSimd
         for (; i < pixelCount; i++)
         {
             int o = i * 4;
-            destination[i] = new Vector4(
-                source[o] * (1.0f / 255.0f),
-                source[o + 1] * (1.0f / 255.0f),
-                source[o + 2] * (1.0f / 255.0f),
-                source[o + 3] * (1.0f / 255.0f));
+            destination[i] = new Vector4(source[o] * (1.0f / 255.0f), source[o + 1] * (1.0f / 255.0f), source[o + 2] * (1.0f / 255.0f), source[o + 3] * (1.0f / 255.0f));
         }
     }
 
@@ -138,11 +130,7 @@ internal static class PixelSimd
         for (; i < pixelCount; i++)
         {
             int o = i * 4;
-            destination[i] = new Vector4(
-                source[o + 2] * (1.0f / 255.0f),
-                source[o + 1] * (1.0f / 255.0f),
-                source[o] * (1.0f / 255.0f),
-                source[o + 3] * (1.0f / 255.0f));
+            destination[i] = new Vector4(source[o + 2] * (1.0f / 255.0f), source[o + 1] * (1.0f / 255.0f), source[o] * (1.0f / 255.0f), source[o + 3] * (1.0f / 255.0f));
         }
     }
 
@@ -220,7 +208,6 @@ internal static class PixelSimd
         var px2 = Sse.Multiply(Sse2.ConvertToVector128Single(Sse2.UnpackLow(hi16, Vector128<ushort>.Zero).AsInt32()), inv255);
         var px3 = Sse.Multiply(Sse2.ConvertToVector128Single(Sse2.UnpackHigh(hi16, Vector128<ushort>.Zero).AsInt32()), inv255);
 
-        // Store 4 Vector4s (each is 4 floats = 1 Vector128<float>)
         ref float f = ref Unsafe.As<Vector4, float>(ref Unsafe.Add(ref dstRef, dstIndex));
         px0.StoreUnsafe(ref f);
         px1.StoreUnsafe(ref f, 4);

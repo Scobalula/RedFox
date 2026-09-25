@@ -15,7 +15,6 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="groupCount">The number of dispatch groups.</param>
 public readonly struct VulkanBcEncodePass(VulkanBcComputePipeline pipeline, VulkanBcBuffer inputBuffer, VulkanBcBuffer outputBuffer, VulkanBcEncodeConstants constants, uint groupCount)
 {
-
     /// <summary>
     /// Gets the compute pipeline for a encode pass.
     /// </summary>

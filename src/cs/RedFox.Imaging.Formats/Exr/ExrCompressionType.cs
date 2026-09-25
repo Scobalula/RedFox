@@ -3,7 +3,7 @@ namespace RedFox.Imaging.Formats.Exr;
 /// <summary>
 /// Identifies the EXR scanline compression mode.
 /// </summary>
-public enum ExrCompressionType : byte
+internal enum ExrCompressionType : byte
 {
     /// <summary>
     /// No compression — scanline data is stored uncompressed.

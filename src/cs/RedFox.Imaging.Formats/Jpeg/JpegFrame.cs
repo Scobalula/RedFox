@@ -5,15 +5,8 @@ namespace RedFox.Imaging.Formats.Jpeg;
 /// <summary>
 /// Describes a JPEG frame parsed from a SOF (Start of Frame) marker, including dimensions, sampling factors, and component layout.
 /// </summary>
-public sealed class JpegFrame
+internal sealed class JpegFrame
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="JpegFrame"/> class.
-    /// </summary>
-    public JpegFrame()
-    {
-    }
-
     /// <summary>Sample precision in bits (typically 8).</summary>
     public int Precision { get; set; }
 

@@ -2,7 +2,7 @@ using System;
 
 namespace RedFox.Imaging.Formats.Png;
 
-internal readonly ref struct PngDecodePassContext // TODO: This can be made a record?
+internal readonly ref struct PngDecodePassContext
 {
     public readonly PngHeader Header;
     public readonly ReadOnlySpan<byte> Inflated;
@@ -17,19 +17,7 @@ internal readonly ref struct PngDecodePassContext // TODO: This can be made a re
     public readonly byte[]? Palette;
     public readonly byte[]? Transparency;
 
-    public PngDecodePassContext(
-        in PngHeader header,
-        ReadOnlySpan<byte> inflated,
-        int startOffset,
-        int passWidth,
-        int passHeight,
-        int startX,
-        int startY,
-        int stepX,
-        int stepY,
-        Span<byte> rgba,
-        byte[]? palette,
-        byte[]? transparency)
+    public PngDecodePassContext(in PngHeader header, ReadOnlySpan<byte> inflated, int startOffset, int passWidth, int passHeight, int startX, int startY, int stepX, int stepY, Span<byte> rgba, byte[]? palette, byte[]? transparency)
     {
         Header = header;
         Inflated = inflated;
