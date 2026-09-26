@@ -23,7 +23,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
         var skipExisting = context.ExportConfiguration.GetOption("SkipExistingImages", true);
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", DefaultFormats);
 
-        ExportTexture(texture, imageFormats, manager, Path.Combine(context.OutputDirectory, texture.Name), skipExisting);
+        ExportTexture(texture, imageFormats, manager, context.ResolveOutputPath(texture.Name), skipExisting);
     }
 
     /// <inheritdoc/>
@@ -51,7 +51,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
             return true;
 
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", DefaultFormats);
-        var fullPath = Path.Combine(context.OutputDirectory, asset.Name);
+        string fullPath = context.ResolveAssetPath(asset);
 
         foreach (var format in imageFormats)
         {

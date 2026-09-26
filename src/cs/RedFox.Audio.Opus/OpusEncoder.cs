@@ -202,6 +202,11 @@ public sealed class OpusEncoder : IDisposable
     public int Encode(ReadOnlySpan<short> pcm, int frameSize, Span<byte> output)
     {
         ThrowIfDisposed();
+        if (frameSize <= 0 || frameSize > MaxFrameSize)
+            throw new ArgumentOutOfRangeException(nameof(frameSize));
+        if (frameSize > pcm.Length / Channels)
+            throw new ArgumentException("The input buffer is too small for the requested frame.", nameof(pcm));
+
         var result = OpusInterop.Encode(_state, pcm, frameSize, output, output.Length);
 
         if (result < 0)

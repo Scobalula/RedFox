@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -16,31 +16,39 @@ namespace RedFox.Compression.LZ4
 
         public const int MaxInputSize = 0x7E000000;
 
-        [LibraryImport(Library, EntryPoint = "LZ4_compress_fast", SetLastError = true)]
-        public static partial int Compress(ReadOnlySpan<byte> src, Span<byte> dst, int srcSize, int dstCapacity);
+        [LibraryImport(Library, EntryPoint = "LZ4_compress_default", SetLastError = true)]
+        public static partial int Compress(ReadOnlySpan<byte> source, Span<byte> destination, int sourceSize, int destinationCapacity);
 
         [LibraryImport(Library, EntryPoint = "LZ4_decompress_safe", SetLastError = true)]
-        public static partial int Decompress(ReadOnlySpan<byte> src, Span<byte> dst, int compressedSize, int dstCapacity);
+        public static partial int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, int compressedSize, int destinationCapacity);
 
         [LibraryImport(Library, EntryPoint = "LZ4_compressBound", SetLastError = true)]
-        public static partial int GetMaxCompressedSize(int srcSize);
+        public static partial int GetMaxCompressedSize(int sourceSize);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_compressFrameBound", SetLastError = true)]
+        public static partial nuint FrameGetMaxCompressedSize(nuint sourceSize, ReadOnlySpan<byte> preferences);
+
+        [LibraryImport(Library, EntryPoint = "LZ4F_compressFrame", SetLastError = true)]
+        public static partial nuint FrameCompress(Span<byte> destination, nuint destinationCapacity, ReadOnlySpan<byte> source, nuint sourceSize, ReadOnlySpan<byte> preferences);
 
         [LibraryImport(Library, EntryPoint = "LZ4F_createDecompressionContext", SetLastError = true)]
-        public static partial int FrameCreateDecompressionContext(ref nuint decompressionContextPointer, uint versionNumber);
+        public static partial nuint FrameCreateDecompressionContext(out nint decompressionContextPointer, uint versionNumber);
 
         [LibraryImport(Library, EntryPoint = "LZ4F_decompress", SetLastError = true)]
-        public static partial int FrameDecompress(nuint decompressionContextPointer, Span<byte> dst, ref nuint dstSize, ReadOnlySpan<byte> src, ref nuint srcSize, ReadOnlySpan<byte> opt);
+        public static partial nuint FrameDecompress(nint decompressionContextPointer, Span<byte> destination, ref nuint destinationSize, ReadOnlySpan<byte> source, ref nuint sourceSize, ReadOnlySpan<byte> options);
 
         [LibraryImport(Library, EntryPoint = "LZ4F_freeDecompressionContext", SetLastError = true)]
-        public static partial int FrameFreeDecompressionContext(nuint decompressionContextPointer);
+        public static partial nuint FrameFreeDecompressionContext(nint decompressionContextPointer);
 
         [LibraryImport(Library, EntryPoint = "LZ4F_getVersion", SetLastError = true)]
         public static partial uint FrameGetVersion();
 
         [LibraryImport(Library, EntryPoint = "LZ4F_isError", SetLastError = true)]
-        public static partial uint FrameIsError(int code);
+        public static partial uint FrameIsError(nuint code);
 
-        [LibraryImport(Library, EntryPoint = "LZ4F_getErrorName", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-        public static partial string FrameGetErrorName(int code);
+        [LibraryImport(Library, EntryPoint = "LZ4F_getErrorName", SetLastError = true)]
+        private static partial nint FrameGetErrorNamePointer(nuint code);
+
+        public static string FrameGetErrorName(nuint code) => Marshal.PtrToStringUTF8(FrameGetErrorNamePointer(code)) ?? "Unknown LZ4 error.";
     }
 }

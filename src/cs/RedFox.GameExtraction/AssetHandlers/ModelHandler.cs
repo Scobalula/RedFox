@@ -23,7 +23,8 @@ public abstract class ModelHandler : IAssetHandler
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scenes = result.GetData<Scene[]>();
 
-        var outputDirectory = Path.Combine(context.OutputDirectory, result.Asset.Name);
+        string relativeAssetPath = context.ExportConfiguration.PreserveDirectoryStructure ? AssetManager.NormalizeVirtualPath(result.Asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(result.Asset.Name));
+        string outputDirectory = context.ResolveOutputDirectory(relativeAssetPath);
 
         var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
         var relativeImages = context.ExportConfiguration.GetOption("RelativeModelImages", false);
@@ -38,13 +39,12 @@ public abstract class ModelHandler : IAssetHandler
         {
             foreach (var texture in material.Textures.Select(binding => binding.Texture))
             {
-                var textureDirectory = relativeImages ? Path.Combine(outputDirectory, "_images") : Path.Combine(context.OutputDirectory, Path.GetDirectoryName(texture.Name) ?? string.Empty);
-
-                // We only export relative to material IF we are doing relative images at all
+                string textureRelativePath = relativeImages ? Path.Combine(relativeAssetPath, "_images") : Path.GetDirectoryName(AssetManager.NormalizeVirtualPath(texture.Name)) ?? string.Empty;
                 if (relativeImages && relativeToMaterial)
-                    textureDirectory = Path.Combine(textureDirectory, material.Name);
+                    textureRelativePath = Path.Combine(textureRelativePath, material.Name);
 
-                var texturePath = Path.Combine(textureDirectory, Path.GetFileName(texture.Name).Split('.')[0]);
+                string textureName = Path.GetFileNameWithoutExtension(AssetManager.NormalizeVirtualPath(texture.Name));
+                string texturePath = context.ResolveOutputPath(Path.Combine(textureRelativePath, textureName));
 
                 if (!exportedImages.TryGetValue(texturePath, out var filePath))
                 {
@@ -66,7 +66,8 @@ public abstract class ModelHandler : IAssetHandler
             {
                 // WriteRawVertices will hint to the downstream translator that it should not apply skinning
                 // We are reading and writing raw vertices from game formats so it's not needed.
-                await manager.WriteAsync(Path.Combine(outputDirectory, scene.Name + modelFormat), scene, new() { WriteRawVertices = true }, cancellationToken);
+                string outputPath = context.ResolveOutputPath(Path.Combine(relativeAssetPath, scene.Name + modelFormat));
+                await manager.WriteAsync(outputPath, scene, new() { WriteRawVertices = true }, cancellationToken);
             }
         }
     }
@@ -79,7 +80,8 @@ public abstract class ModelHandler : IAssetHandler
 
         // For now - a basic directory check is best we can do, as we would have no context on lods, formats, images, etc.
         // We could potentially do a wildcard check against let's say asset.Name*.semodel, etc.
-        return !Directory.Exists(Path.Combine(context.OutputDirectory, asset.Name));
+        string relativeAssetPath = context.ExportConfiguration.PreserveDirectoryStructure ? AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(asset.Name));
+        return !Directory.Exists(context.ResolveOutputDirectory(relativeAssetPath));
     }
 
     /// <inheritdoc/>

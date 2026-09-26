@@ -108,9 +108,7 @@ public sealed class PluginManager : IDisposable
 
         string extension = Path.GetExtension(fullPath);
         IPluginHost resolvedHost = host
-            ?? (_hostsByExtension.TryGetValue(extension, out IPluginHost? matched)
-                ? matched
-                : throw new PluginHostNotFoundException(extension));
+            ?? (_hostsByExtension.TryGetValue(extension, out IPluginHost? matched) ? matched : throw new PluginHostNotFoundException(extension));
 
         Plugin plugin = new(pluginName, fullPath, resolvedHost, this);
         _plugins.Add(pluginName, plugin);
@@ -125,7 +123,31 @@ public sealed class PluginManager : IDisposable
             plugin.State = PluginState.Faulted;
             plugin.Error = ex;
             _plugins.Remove(pluginName);
-            throw new PluginException($"Failed to load plugin '{pluginName}' from '{fullPath}'.", ex);
+
+            List<Exception> failures = [ex];
+            plugin.State = PluginState.Unloading;
+            try
+            {
+                plugin.RaiseUnloading();
+            }
+            catch (Exception cleanupException)
+            {
+                failures.Add(cleanupException);
+            }
+
+            try
+            {
+                resolvedHost.Unload(plugin);
+            }
+            catch (Exception cleanupException)
+            {
+                failures.Add(cleanupException);
+            }
+
+            plugin.State = PluginState.Faulted;
+            Exception failure = failures.Count == 1 ? ex : new AggregateException(failures);
+            plugin.Error = failure;
+            throw new PluginException($"Failed to load plugin '{pluginName}' from '{fullPath}'.", failure);
         }
 
         PluginLoaded?.Invoke(this, new PluginEventArgs(plugin));
@@ -162,9 +184,7 @@ public sealed class PluginManager : IDisposable
         }
         catch (Exception ex)
         {
-            captured = captured is null
-                ? ex
-                : new AggregateException(captured, ex);
+            captured = captured is null ? ex : new AggregateException(captured, ex);
         }
 
         if (captured is null)

@@ -78,6 +78,7 @@ public sealed class OpusDecoder : IDisposable
     public int Decode(ReadOnlySpan<byte> data, int frameSize, Span<short> output)
     {
         ThrowIfDisposed();
+        ValidateOutput(frameSize, output);
         var result = OpusInterop.Decode(_state, data, data.Length, output, frameSize, 0);
 
         if (result < 0)
@@ -98,6 +99,7 @@ public sealed class OpusDecoder : IDisposable
     public int DecodePacketLoss(int frameSize, Span<short> output)
     {
         ThrowIfDisposed();
+        ValidateOutput(frameSize, output);
         var result = OpusInterop.Decode(_state, ReadOnlySpan<byte>.Empty, 0, output, frameSize, 0);
 
         if (result < 0)
@@ -121,5 +123,13 @@ public sealed class OpusDecoder : IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_state == IntPtr.Zero, this);
+    }
+
+    private void ValidateOutput(int frameSize, Span<short> output)
+    {
+        if (frameSize <= 0 || frameSize > MaxFrameSize)
+            throw new ArgumentOutOfRangeException(nameof(frameSize));
+        if (frameSize > output.Length / Channels)
+            throw new ArgumentException("The output buffer is too small for the requested frame.", nameof(output));
     }
 }

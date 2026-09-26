@@ -164,15 +164,7 @@ public sealed class SceneRenderer : IDisposable
     /// <param name="fallbackLightIntensity">The fallback light intensity.</param>
     /// <param name="useViewBasedLighting">Whether view-based lighting is enabled.</param>
     /// <param name="skinningMode">The active skinning mode.</param>
-    public SceneRenderer(
-        IGraphicsDevice graphicsDevice,
-        Vector4 clearColor,
-        Vector3 ambientColor,
-        Vector3 fallbackLightDirection,
-        Vector3 fallbackLightColor,
-        float fallbackLightIntensity,
-        bool useViewBasedLighting,
-        SkinningMode skinningMode)
+    public SceneRenderer(IGraphicsDevice graphicsDevice, Vector4 clearColor, Vector3 ambientColor, Vector3 fallbackLightDirection, Vector3 fallbackLightColor, float fallbackLightIntensity, bool useViewBasedLighting, SkinningMode skinningMode)
     {
         _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         _commandList = graphicsDevice.CreateCommandList();
@@ -330,10 +322,7 @@ public sealed class SceneRenderer : IDisposable
             return null;
         }
 
-        if (_antiAliasingRenderTarget is not null
-            && _antiAliasingTargetWidth == _viewportWidth
-            && _antiAliasingTargetHeight == _viewportHeight
-            && _actualAntiAliasingSamples == sampleCount)
+        if (_antiAliasingRenderTarget is not null && _antiAliasingTargetWidth == _viewportWidth && _antiAliasingTargetHeight == _viewportHeight && _actualAntiAliasingSamples == sampleCount)
         {
             return _antiAliasingRenderTarget;
         }
@@ -341,18 +330,8 @@ public sealed class SceneRenderer : IDisposable
         ReleaseAntiAliasingResources();
         try
         {
-            _antiAliasingColorTexture = _graphicsDevice.CreateTexture(
-                _viewportWidth,
-                _viewportHeight,
-                AntiAliasingColorFormat,
-                TextureUsage.RenderTarget,
-                sampleCount);
-            _antiAliasingDepthTexture = _graphicsDevice.CreateTexture(
-                _viewportWidth,
-                _viewportHeight,
-                AntiAliasingDepthFormat,
-                TextureUsage.DepthStencil,
-                sampleCount);
+            _antiAliasingColorTexture = _graphicsDevice.CreateTexture(_viewportWidth, _viewportHeight, AntiAliasingColorFormat, TextureUsage.RenderTarget, sampleCount);
+            _antiAliasingDepthTexture = _graphicsDevice.CreateTexture(_viewportWidth, _viewportHeight, AntiAliasingDepthFormat, TextureUsage.DepthStencil, sampleCount);
             _antiAliasingRenderTarget = _graphicsDevice.CreateRenderTarget(_antiAliasingColorTexture, _antiAliasingDepthTexture);
         }
         catch (NotSupportedException)
@@ -374,14 +353,8 @@ public sealed class SceneRenderer : IDisposable
 
     private int GetSupportedAntiAliasingSampleCount(int requestedSampleCount)
     {
-        int colorSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(
-            AntiAliasingColorFormat,
-            TextureUsage.RenderTarget,
-            requestedSampleCount);
-        int depthSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(
-            AntiAliasingDepthFormat,
-            TextureUsage.DepthStencil,
-            colorSampleCount);
+        int colorSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(AntiAliasingColorFormat, TextureUsage.RenderTarget, requestedSampleCount);
+        int depthSampleCount = _graphicsDevice.GetSupportedTextureSampleCount(AntiAliasingDepthFormat, TextureUsage.DepthStencil, colorSampleCount);
         return Math.Min(colorSampleCount, depthSampleCount);
     }
 
@@ -486,13 +459,7 @@ public sealed class SceneRenderer : IDisposable
         SceneRenderResources.GetOrCreate(skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene)).Update(_commandList);
     }
 
-    private void RenderSkybox(
-        Skybox skybox,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    private void RenderSkybox(Skybox skybox, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)
     {
         IRenderHandle? graphicsHandle = SceneRenderResources.Get(skybox);
         if (!skybox.Enabled || graphicsHandle is null)
@@ -500,23 +467,10 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        graphicsHandle.Render(
-            _commandList,
-            phase,
-            view,
-            projection,
-            Matrix4x4.Identity,
-            cameraPosition,
-            viewportSize);
+        graphicsHandle.Render(_commandList, phase, view, projection, Matrix4x4.Identity, cameraPosition, viewportSize);
     }
 
-    private void RenderGrid(
-        Grid grid,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    private void RenderGrid(Grid grid, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)
     {
         IRenderHandle? graphicsHandle = SceneRenderResources.Get(grid);
         if (!grid.Enabled || graphicsHandle is null)
@@ -524,14 +478,7 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        graphicsHandle.Render(
-            _commandList,
-            phase,
-            view,
-            projection,
-            Matrix4x4.Identity,
-            cameraPosition,
-            viewportSize);
+        graphicsHandle.Render(_commandList, phase, view, projection, Matrix4x4.Identity, cameraPosition, viewportSize);
     }
 
     private static void ReleaseGridResources(Grid grid)
@@ -562,10 +509,7 @@ public sealed class SceneRenderer : IDisposable
 
             while (TryDequeueBackgroundImageLoad(out (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager) pendingBackgroundImageLoad))
             {
-                Image? image = TryLoadImage(
-                    pendingBackgroundImageLoad.ImageLoader,
-                    pendingBackgroundImageLoad.Texture,
-                    pendingBackgroundImageLoad.TranslatorManager);
+                Image? image = TryLoadImage(pendingBackgroundImageLoad.ImageLoader, pendingBackgroundImageLoad.Texture, pendingBackgroundImageLoad.TranslatorManager);
                 if (image is null)
                 {
                     continue;
@@ -647,11 +591,7 @@ public sealed class SceneRenderer : IDisposable
 
         lock (_backgroundImageLoadSync)
         {
-            if (_backgroundImageLoadThreadStopping
-                || _pendingBackgroundImageLoad is not null
-                || _completedBackgroundImageLoad is not null
-                || texture.Data is not null
-                || texture.LoadAttempted)
+            if (_backgroundImageLoadThreadStopping || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoad is not null || texture.Data is not null || texture.LoadAttempted)
             {
                 return false;
             }
@@ -707,6 +647,10 @@ public sealed class SceneRenderer : IDisposable
             return null;
         }
         catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+        catch (Exception)
         {
             return null;
         }

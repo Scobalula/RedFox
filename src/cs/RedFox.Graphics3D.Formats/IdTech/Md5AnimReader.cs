@@ -51,61 +51,87 @@ public sealed class Md5AnimReader
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        var tok = new TextTokenReader(text.AsSpan());
+        var tokenizer = new TextTokenReader(text.AsSpan());
 
-        int numFrames = 0;
-        int numJoints = 0;
+        int jointCount = 0;
         int frameRate = 24;
-        int numAnimatedComponents = 0;
+        int animatedComponentCount = 0;
         Md5AnimJoint[] hierarchy = [];
         (Vector3 Position, Quaternion Orientation)[] baseFrame = [];
         var frames = new List<float[]>();
 
-        while (tok.TryReadToken(out var token))
+        while (tokenizer.TryReadToken(out var token))
         {
             if (token.SequenceEqual("MD5Version"))
             {
-                if (!tok.TryReadInt(out int version) || version != Md5Format.Version)
+                if (!tokenizer.TryReadInt(out int version) || version != Md5Format.Version)
                     throw new InvalidDataException("Unsupported MD5 version: expected 10.");
                 continue;
             }
 
-            if (token.SequenceEqual("commandline")) { tok.SkipRestOfLine(); continue; }
-            if (token.SequenceEqual("numFrames")) { if (tok.TryReadInt(out int v)) numFrames = v; continue; }
-            if (token.SequenceEqual("numJoints")) { if (tok.TryReadInt(out int v)) numJoints = v; continue; }
-            if (token.SequenceEqual("frameRate")) { if (tok.TryReadInt(out int v)) frameRate = v; continue; }
-            if (token.SequenceEqual("numAnimatedComponents")) { if (tok.TryReadInt(out int v)) numAnimatedComponents = v; continue; }
+            if (token.SequenceEqual("commandline"))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+
+            if (token.SequenceEqual("numFrames"))
+            {
+                tokenizer.TryReadInt(out _);
+                continue;
+            }
+
+            if (token.SequenceEqual("numJoints"))
+            {
+                if (tokenizer.TryReadInt(out int parsedJointCount))
+                    jointCount = parsedJointCount;
+                continue;
+            }
+
+            if (token.SequenceEqual("frameRate"))
+            {
+                if (tokenizer.TryReadInt(out int parsedFrameRate))
+                    frameRate = parsedFrameRate;
+                continue;
+            }
+
+            if (token.SequenceEqual("numAnimatedComponents"))
+            {
+                if (tokenizer.TryReadInt(out int parsedComponentCount))
+                    animatedComponentCount = parsedComponentCount;
+                continue;
+            }
 
             if (token.SequenceEqual("hierarchy"))
             {
-                if (!tok.TryExpect('{'))
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after hierarchy keyword.");
-                hierarchy = ParseHierarchy(ref tok, numJoints);
+                hierarchy = ParseHierarchy(ref tokenizer, jointCount);
                 continue;
             }
 
             if (token.SequenceEqual("bounds"))
             {
-                if (!tok.TryExpect('{'))
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after bounds keyword.");
-                SkipBlock(ref tok);
+                SkipBlock(ref tokenizer);
                 continue;
             }
 
             if (token.SequenceEqual("baseframe"))
             {
-                if (!tok.TryExpect('{'))
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after baseframe keyword.");
-                baseFrame = ParseBaseFrame(ref tok, numJoints);
+                baseFrame = ParseBaseFrame(ref tokenizer, jointCount);
                 continue;
             }
 
             if (token.SequenceEqual("frame"))
             {
-                tok.TryReadInt(out _); // frame index, not needed
-                if (!tok.TryExpect('{'))
+                tokenizer.TryReadInt(out _);
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after frame index.");
-                frames.Add(ParseFrame(ref tok, numAnimatedComponents));
+                frames.Add(ParseFrame(ref tokenizer, animatedComponentCount));
             }
         }
 
@@ -132,12 +158,12 @@ public sealed class Md5AnimReader
 
         for (int i = 0; i < hierarchy.Length; i++)
         {
-            int parentIdx = hierarchy[i].ParentIndex;
-            if (parentIdx >= 0 && (uint)parentIdx < (uint)hierarchy.Length)
+            int parentIndex = hierarchy[i].ParentIndex;
+            if (parentIndex >= 0 && (uint)parentIndex < (uint)hierarchy.Length)
             {
-                var invParentRot = Quaternion.Conjugate(worldOrientations[parentIdx]);
-                bones[i].BindTransform.LocalPosition = Vector3.Transform(worldPositions[i] - worldPositions[parentIdx], invParentRot);
-                bones[i].BindTransform.LocalRotation = Quaternion.Normalize(invParentRot * worldOrientations[i]);
+                var inverseParentRotation = Quaternion.Conjugate(worldOrientations[parentIndex]);
+                bones[i].BindTransform.LocalPosition = Vector3.Transform(worldPositions[i] - worldPositions[parentIndex], inverseParentRotation);
+                bones[i].BindTransform.LocalRotation = Quaternion.Normalize(inverseParentRotation * worldOrientations[i]);
             }
             else
             {
@@ -149,11 +175,11 @@ public sealed class Md5AnimReader
             var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         for (int i = 0; i < hierarchy.Length; i++)
         {
-            int parentIdx = hierarchy[i].ParentIndex;
-            if (parentIdx < 0)
+            int parentIndex = hierarchy[i].ParentIndex;
+            if (parentIndex < 0)
                 bones[i].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
-            else if ((uint)parentIdx < (uint)bones.Length)
-                bones[i].MoveTo(bones[parentIdx], ReparentTransformMode.PreserveExisting);
+            else if ((uint)parentIndex < (uint)bones.Length)
+                bones[i].MoveTo(bones[parentIndex], ReparentTransformMode.PreserveExisting);
         }
 
         // Build animation
@@ -186,16 +212,16 @@ public sealed class Md5AnimReader
                 {
                     var frameWorld = ApplyComponentOverrides(j, hierarchy, baseFrame, components);
 
-                    int parentIdx = hierarchy[j].ParentIndex;
+                    int parentIndex = hierarchy[j].ParentIndex;
                     Vector3 localPos;
                     Quaternion localRot;
 
-                    if (parentIdx >= 0 && (uint)parentIdx < (uint)hierarchy.Length)
+                    if (parentIndex >= 0 && (uint)parentIndex < (uint)hierarchy.Length)
                     {
-                        var parentWorld = GetFrameWorldTransform(parentIdx, hierarchy, baseFrame, components);
-                        var invParentOri = Quaternion.Conjugate(parentWorld.Orientation);
-                        localPos = Vector3.Transform(frameWorld.Position - parentWorld.Position, invParentOri);
-                        localRot = Quaternion.Normalize(invParentOri * frameWorld.Orientation);
+                        var parentWorld = GetFrameWorldTransform(parentIndex, hierarchy, baseFrame, components);
+                        var inverseParentOrientation = Quaternion.Conjugate(parentWorld.Orientation);
+                        localPos = Vector3.Transform(frameWorld.Position - parentWorld.Position, inverseParentOrientation);
+                        localRot = Quaternion.Normalize(inverseParentOrientation * frameWorld.Orientation);
                     }
                     else
                     {
@@ -227,23 +253,48 @@ public sealed class Md5AnimReader
     /// <returns>The object-space position and orientation for this joint in this frame.</returns>
     public static (Vector3 Position, Quaternion Orientation) ApplyComponentOverrides(int jointIndex, Md5AnimJoint[] hierarchy, (Vector3 Position, Quaternion Orientation)[] baseFrame, float[] components)
     {
-        var bp = (uint)jointIndex < (uint)baseFrame.Length ? baseFrame[jointIndex].Position : Vector3.Zero;
-        var bo = (uint)jointIndex < (uint)baseFrame.Length ? baseFrame[jointIndex].Orientation : Quaternion.Identity;
+        var basePosition = (uint)jointIndex < (uint)baseFrame.Length ? baseFrame[jointIndex].Position : Vector3.Zero;
+        var baseOrientation = (uint)jointIndex < (uint)baseFrame.Length ? baseFrame[jointIndex].Orientation : Quaternion.Identity;
 
-        float px = bp.X, py = bp.Y, pz = bp.Z;
-        float qx = bo.X, qy = bo.Y, qz = bo.Z;
+        float positionX = basePosition.X;
+        float positionY = basePosition.Y;
+        float positionZ = basePosition.Z;
+        float orientationX = baseOrientation.X;
+        float orientationY = baseOrientation.Y;
+        float orientationZ = baseOrientation.Z;
 
         int flags = hierarchy[jointIndex].Flags;
-        int idx = hierarchy[jointIndex].StartIndex;
+        int componentIndex = hierarchy[jointIndex].StartIndex;
 
-        if ((flags & 1) != 0) { px = SafeGetComponent(components, idx); idx++; }
-        if ((flags & 2) != 0) { py = SafeGetComponent(components, idx); idx++; }
-        if ((flags & 4) != 0) { pz = SafeGetComponent(components, idx); idx++; }
-        if ((flags & 8) != 0) { qx = SafeGetComponent(components, idx); idx++; }
-        if ((flags & 16) != 0) { qy = SafeGetComponent(components, idx); idx++; }
-        if ((flags & 32) != 0) { qz = SafeGetComponent(components, idx); idx++; }
+        if ((flags & 1) != 0)
+        {
+            positionX = SafeGetComponent(components, componentIndex);
+            componentIndex++;
+        }
+        if ((flags & 2) != 0)
+        {
+            positionY = SafeGetComponent(components, componentIndex);
+            componentIndex++;
+        }
+        if ((flags & 4) != 0)
+        {
+            positionZ = SafeGetComponent(components, componentIndex);
+            componentIndex++;
+        }
+        if ((flags & 8) != 0)
+        {
+            orientationX = SafeGetComponent(components, componentIndex);
+            componentIndex++;
+        }
+        if ((flags & 16) != 0)
+        {
+            orientationY = SafeGetComponent(components, componentIndex);
+            componentIndex++;
+        }
+        if ((flags & 32) != 0)
+            orientationZ = SafeGetComponent(components, componentIndex);
 
-        return (new Vector3(px, py, pz), Md5Format.ComputeQuaternion(qx, qy, qz));
+        return (new Vector3(positionX, positionY, positionZ), Md5Format.ComputeQuaternion(orientationX, orientationY, orientationZ));
     }
 
     /// <summary>
@@ -296,30 +347,46 @@ public sealed class Md5AnimReader
     /// <summary>
     /// Parses the <c>hierarchy { }</c> block. The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
     /// <param name="capacity">The expected number of joints.</param>
     /// <returns>An array of parsed <see cref="Md5AnimJoint"/> entries.</returns>
-    public static Md5AnimJoint[] ParseHierarchy(ref TextTokenReader tok, int capacity)
+    public static Md5AnimJoint[] ParseHierarchy(ref TextTokenReader tokenizer, int capacity)
     {
         var result = new Md5AnimJoint[capacity];
         int count = 0;
 
-        while (!tok.IsEmpty)
+        while (!tokenizer.IsEmpty)
         {
-            if (tok.TryExpect('}'))
+            if (tokenizer.TryExpect('}'))
                 break;
 
-            if (!tok.TryReadQuotedString(out var nameSpan)) continue;
+            if (!tokenizer.TryReadQuotedString(out var nameSpan))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
             string name = new(nameSpan);
 
-            if (!tok.TryReadInt(out int parentIdx)) continue;
-            if (!tok.TryReadInt(out int flags)) continue;
-            if (!tok.TryReadInt(out int startIdx)) continue;
+            if (!tokenizer.TryReadInt(out int parentIndex))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadInt(out int flags))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadInt(out int firstComponentIndex))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
 
-            tok.SkipRestOfLine();
+            tokenizer.SkipRestOfLine();
 
             if ((uint)count < (uint)result.Length)
-                result[count] = new Md5AnimJoint(name, parentIdx, flags, startIdx);
+                result[count] = new Md5AnimJoint(name, parentIndex, flags, firstComponentIndex);
             count++;
         }
 
@@ -329,32 +396,72 @@ public sealed class Md5AnimReader
     /// <summary>
     /// Parses the <c>baseframe { }</c> block. The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
     /// <param name="capacity">The expected number of joints.</param>
     /// <returns>An array of per-joint base transforms (position + orientation).</returns>
-    public static (Vector3 Position, Quaternion Orientation)[] ParseBaseFrame(ref TextTokenReader tok, int capacity)
+    public static (Vector3 Position, Quaternion Orientation)[] ParseBaseFrame(ref TextTokenReader tokenizer, int capacity)
     {
         var result = new (Vector3, Quaternion)[capacity];
         int count = 0;
 
-        while (!tok.IsEmpty)
+        while (!tokenizer.IsEmpty)
         {
-            if (tok.TryExpect('}'))
+            if (tokenizer.TryExpect('}'))
                 break;
 
-            if (!tok.TryExpect('(')) continue;
-            if (!tok.TryReadFloat(out float px)) continue;
-            if (!tok.TryReadFloat(out float py)) continue;
-            if (!tok.TryReadFloat(out float pz)) continue;
-            if (!tok.TryExpect(')')) continue;
-            if (!tok.TryExpect('(')) continue;
-            if (!tok.TryReadFloat(out float qx)) continue;
-            if (!tok.TryReadFloat(out float qy)) continue;
-            if (!tok.TryReadFloat(out float qz)) continue;
-            if (!tok.TryExpect(')')) continue;
+            if (!tokenizer.TryExpect('('))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionX))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionY))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionZ))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect(')'))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect('('))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationX))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationY))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationZ))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect(')'))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
 
             if ((uint)count < (uint)result.Length)
-                result[count] = (new Vector3(px, py, pz), Md5Format.ComputeQuaternion(qx, qy, qz));
+                result[count] = (new Vector3(positionX, positionY, positionZ), Md5Format.ComputeQuaternion(orientationX, orientationY, orientationZ));
             count++;
         }
 
@@ -365,23 +472,23 @@ public sealed class Md5AnimReader
     /// Parses one <c>frame N { }</c> block and returns the component values as a flat array.
     /// The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer.</param>
+    /// <param name="tokenizer">The tokenizer.</param>
     /// <param name="expectedComponents">The expected number of animated components.</param>
     /// <returns>The flat array of component values for this frame.</returns>
-    public static float[] ParseFrame(ref TextTokenReader tok, int expectedComponents)
+    public static float[] ParseFrame(ref TextTokenReader tokenizer, int expectedComponents)
     {
         var components = new float[expectedComponents];
         int count = 0;
 
-        while (!tok.IsEmpty)
+        while (!tokenizer.IsEmpty)
         {
-            if (tok.TryExpect('}'))
+            if (tokenizer.TryExpect('}'))
                 break;
 
-            if (tok.TryReadFloat(out float val))
+            if (tokenizer.TryReadFloat(out float componentValue))
             {
                 if ((uint)count < (uint)components.Length)
-                    components[count] = val;
+                    components[count] = componentValue;
                 count++;
             }
         }
@@ -393,15 +500,24 @@ public sealed class Md5AnimReader
     /// Skips a brace-delimited block (e.g., the bounds block).
     /// The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer.</param>
-    public static void SkipBlock(ref TextTokenReader tok)
+    /// <param name="tokenizer">The tokenizer.</param>
+    public static void SkipBlock(ref TextTokenReader tokenizer)
     {
         int depth = 1;
-        while (!tok.IsEmpty && depth > 0)
+        while (!tokenizer.IsEmpty && depth > 0)
         {
-            if (tok.TryExpect('}')) { depth--; continue; }
-            if (tok.TryExpect('{')) { depth++; continue; }
-            if (!tok.TryReadToken(out _)) break;
+            if (tokenizer.TryExpect('}'))
+            {
+                depth--;
+                continue;
+            }
+            if (tokenizer.TryExpect('{'))
+            {
+                depth++;
+                continue;
+            }
+            if (!tokenizer.TryReadToken(out _))
+                break;
         }
     }
 

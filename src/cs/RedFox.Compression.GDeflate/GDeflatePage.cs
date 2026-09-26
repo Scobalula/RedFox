@@ -1,12 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+namespace RedFox.Compression.GDeflate;
 
-namespace RedFox.Compression.GDeflate
+/// <summary>
+/// Holds a pointer and byte count
+/// for one compressed GDeflate tile.
+/// </summary>
+public unsafe struct GDeflatePage
 {
-    public unsafe struct GDeflatePage
-    {
-        public void* Data;
-        public int Bytes;
-    }
+    /// <summary>
+    /// Points to the compressed tile
+    /// data.
+    /// </summary>
+    public void* Data;
+
+    /// <summary>
+    /// Stores the number of bytes
+    /// in the compressed tile.
+    /// </summary>
+    public nuint ByteCount;
 }

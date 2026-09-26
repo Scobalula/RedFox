@@ -58,9 +58,7 @@ public static class PythonResolver
 
     private static string? ProbeViaLauncher()
     {
-        string[] launchers = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? ["py", "python", "python3"]
-            : ["python3", "python"];
+        string[] launchers = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ["py", "python", "python3"] : ["python3", "python"];
 
         foreach (string launcher in launchers)
         {
@@ -121,9 +119,7 @@ public static class PythonResolver
         if (string.IsNullOrEmpty(version))
             return null;
 
-        string soname = RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-            ? $"libpython{version}.dylib"
-            : $"libpython{version}.so.1.0";
+        string soname = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? $"libpython{version}.dylib" : $"libpython{version}.so.1.0";
 
         foreach (string dir in EnumerateUnixLibDirs(basePrefix, libDir))
         {
@@ -169,7 +165,7 @@ public static class PythonResolver
         ];
 
         // Newer versions first.
-        for (int minor = 13; minor >= 8; minor--)
+        for (int minor = 14; minor >= 8; minor--)
         {
             string compact = $"3{minor}";
             string folder = $"Python3{minor}";
@@ -204,12 +200,17 @@ public static class PythonResolver
                 info.ArgumentList.Add(arg);
 
             using Process process = Process.Start(info) ?? throw new InvalidOperationException();
-            stdout = process.StandardOutput.ReadToEnd();
+            Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> stderrTask = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(5000))
             {
                 try { process.Kill(true); } catch { }
+                process.WaitForExit(1000);
                 return false;
             }
+
+            stdout = stdoutTask.GetAwaiter().GetResult();
+            _ = stderrTask.GetAwaiter().GetResult();
             return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(stdout);
         }
         catch

@@ -15,6 +15,9 @@ public sealed class AssetManager
     private readonly Dictionary<IAssetSource, AssetSourceRequest> _sourceRequests = [];
     private readonly List<Asset> _assets = [];
     private readonly Dictionary<Type, ServiceRegistration> _services = [];
+    private readonly object _sourceLock = new();
+    private readonly object _serviceLock = new();
+    private readonly SemaphoreSlim _sourceMutationLock = new(1, 1);
 
     /// <summary>
     /// Occurs after a source has been mounted successfully.
@@ -59,22 +62,50 @@ public sealed class AssetManager
     /// <summary>
     /// Gets the registered source readers in evaluation order.
     /// </summary>
-    public IReadOnlyList<IAssetSourceReader> SourceReaders => _sourceReaders;
+    public IReadOnlyList<IAssetSourceReader> SourceReaders
+    {
+        get
+        {
+            lock (_sourceLock)
+                return _sourceReaders.ToArray();
+        }
+    }
 
     /// <summary>
     /// Gets the registered asset handlers in evaluation order.
     /// </summary>
-    public IReadOnlyList<IAssetHandler> Handlers => _handlers;
+    public IReadOnlyList<IAssetHandler> Handlers
+    {
+        get
+        {
+            lock (_sourceLock)
+                return _handlers.ToArray();
+        }
+    }
 
     /// <summary>
     /// Gets the currently mounted sources.
     /// </summary>
-    public IReadOnlyList<IAssetSource> Sources => _sources;
+    public IReadOnlyList<IAssetSource> Sources
+    {
+        get
+        {
+            lock (_sourceLock)
+                return _sources.ToArray();
+        }
+    }
 
     /// <summary>
     /// Gets all assets from all mounted sources.
     /// </summary>
-    public IReadOnlyList<Asset> Assets => _assets;
+    public IReadOnlyList<Asset> Assets
+    {
+        get
+        {
+            lock (_sourceLock)
+                return _assets.ToArray();
+        }
+    }
 
     /// <summary>
     /// Registers a source reader.
@@ -84,7 +115,8 @@ public sealed class AssetManager
     public void RegisterSourceReader(IAssetSourceReader reader)
     {
         ArgumentNullException.ThrowIfNull(reader);
-        _sourceReaders.Add(reader);
+        lock (_sourceLock)
+            _sourceReaders.Add(reader);
     }
 
     /// <summary>
@@ -94,13 +126,13 @@ public sealed class AssetManager
     public void RegisterHandler(IAssetHandler handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        _handlers.Add(handler);
-
-        foreach (Asset asset in _assets)
+        lock (_sourceLock)
         {
-            if (!asset.TryGetHandler(out _) && handler.CanHandle(asset))
+            _handlers.Add(handler);
+            foreach (Asset asset in _assets)
             {
-                asset.SetHandler(handler);
+                if (!asset.TryGetHandler(out _) && handler.CanHandle(asset))
+                    asset.SetHandler(handler);
             }
         }
     }
@@ -119,7 +151,8 @@ public sealed class AssetManager
     public void RegisterService<T>(T service) where T : class
     {
         ArgumentNullException.ThrowIfNull(service);
-        _services[typeof(T)] = ServiceRegistration.FromInstance(service);
+        lock (_serviceLock)
+            _services[typeof(T)] = ServiceRegistration.FromInstance(service);
     }
 
     /// <summary>
@@ -141,7 +174,8 @@ public sealed class AssetManager
     public void RegisterServiceFactory<T>(Func<AssetManager, T> factory) where T : class
     {
         ArgumentNullException.ThrowIfNull(factory);
-        _services[typeof(T)] = ServiceRegistration.FromFactory(manager => factory(manager));
+        lock (_serviceLock)
+            _services[typeof(T)] = ServiceRegistration.FromFactory(manager => factory(manager));
     }
 
     /// <summary>
@@ -152,9 +186,12 @@ public sealed class AssetManager
     /// <returns><see langword="true"/> when the service is registered; otherwise, <see langword="false"/>.</returns>
     public bool TryGetService<T>([NotNullWhen(true)] out T? service) where T : class
     {
+        ServiceRegistration? registration;
+        lock (_serviceLock)
+            _services.TryGetValue(typeof(T), out registration);
+
         service = null;
-        
-        if (_services.TryGetValue(typeof(T), out ServiceRegistration? registration) && registration.TryResolve(this, out object? resolved) && resolved is T typedService)
+        if (registration is not null && registration.TryResolve(this, out object? resolved) && resolved is T typedService)
         {
             service = typedService;
             return true;
@@ -190,7 +227,11 @@ public sealed class AssetManager
         ArgumentNullException.ThrowIfNull(request);
         request.Header = ReadHeader(request);
 
-        foreach (IAssetSourceReader reader in _sourceReaders)
+        IAssetSourceReader[] readers;
+        lock (_sourceLock)
+            readers = _sourceReaders.ToArray();
+
+        foreach (IAssetSourceReader reader in readers)
         {
             if (reader.CanOpen(request))
             {
@@ -215,7 +256,11 @@ public sealed class AssetManager
             return cachedHandler;
         }
 
-        foreach (IAssetHandler handler in _handlers)
+        IAssetHandler[] handlers;
+        lock (_sourceLock)
+            handlers = _handlers.ToArray();
+
+        foreach (IAssetHandler handler in handlers)
         {
             if (handler.CanHandle(asset))
             {
@@ -236,7 +281,8 @@ public sealed class AssetManager
     public bool TryGetSourceRequest(IAssetSource source, [NotNullWhen(true)] out AssetSourceRequest? request)
     {
         ArgumentNullException.ThrowIfNull(source);
-        return _sourceRequests.TryGetValue(source, out request);
+        lock (_sourceLock)
+            return _sourceRequests.TryGetValue(source, out request);
     }
 
     /// <summary>
@@ -404,37 +450,14 @@ public sealed class AssetManager
     /// <returns>The mounted source.</returns>
     public async Task<IAssetSource> MountAsync(AssetSourceRequest request, IProgress<string>? progress, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        IAssetSourceReader reader = FindSourceReader(request) ?? throw new NotSupportedException($"No registered source reader can open {request.Description}.");
-
-        IAssetSource source;
+        await _sourceMutationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            source = await reader.OpenAsync(request, this, progress, cancellationToken).ConfigureAwait(false);
+            return await MountSourceAsync(request, progress, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        finally
         {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, ex));
-            throw;
-        }
-
-        try
-        {
-            ValidateAssets(source.Assets);
-            RegisterSource(source, request);
-            SourceMounted?.Invoke(this, new SourceEventArgs(source));
-            return source;
-        }
-        catch
-        {
-            await source.DisposeAsync().ConfigureAwait(false);
-            throw;
+            _sourceMutationLock.Release();
         }
     }
 
@@ -453,29 +476,15 @@ public sealed class AssetManager
     /// <returns><see langword="true"/> when the source was unloaded; otherwise, <see langword="false"/>.</returns>
     public async Task<bool> UnloadAsync(IAssetSource source, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(source);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!_sources.Contains(source))
-        {
-            return false;
-        }
-
-        SourceUnloading?.Invoke(this, new SourceEventArgs(source));
-
+        await _sourceMutationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await source.DisposeAsync().ConfigureAwait(false);
+            return await UnloadSourceAsync(source, cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        finally
         {
-            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Unload, ex, source, null, null));
-            throw;
+            _sourceMutationLock.Release();
         }
-
-        UnregisterSource(source);
-        SourceUnloaded?.Invoke(this, new SourceEventArgs(source));
-        return true;
     }
 
     /// <summary>
@@ -890,7 +899,13 @@ public sealed class AssetManager
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
+        if (Path.IsPathRooted(path))
+            throw new ArgumentException("Asset paths must be relative.", nameof(path));
+
         string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Any(part => part is "." or ".."))
+            throw new ArgumentException("Asset paths cannot contain dot segments.", nameof(path));
 
         if (parts.Length == 0)
         {
@@ -913,6 +928,9 @@ public sealed class AssetManager
         }
 
         string[] parts = relativeOutputDirectory.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Any(part => part is "." or ".."))
+            throw new ArgumentException("Output directories cannot contain dot segments.", nameof(relativeOutputDirectory));
 
         return parts.Length == 0 ? string.Empty : Path.Combine(parts);
     }
@@ -945,9 +963,10 @@ public sealed class AssetManager
     {
         IAssetSource source = asset.Source ?? throw new InvalidOperationException($"The asset '{asset.Name}' is not attached to a mounted source.");
 
-        if (_sources.Contains(source))
+        lock (_sourceLock)
         {
-            return source;
+            if (_sources.Contains(source))
+                return source;
         }
 
         throw new InvalidOperationException($"The source for asset '{asset.Name}' is not mounted.");
@@ -968,8 +987,16 @@ public sealed class AssetManager
     /// <param name="source">The mounted source.</param>
     /// <returns>The source request associated with <paramref name="source"/>.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the source has no associated request.</exception>
-    public AssetSourceRequest GetRequiredSourceRequest(IAssetSource source) =>
-        _sourceRequests.TryGetValue(source, out AssetSourceRequest? request) ? request : throw new InvalidOperationException($"No request is associated with the source '{source.Name}'.");
+    public AssetSourceRequest GetRequiredSourceRequest(IAssetSource source)
+    {
+        lock (_sourceLock)
+        {
+            if (_sourceRequests.TryGetValue(source, out AssetSourceRequest? request))
+                return request;
+        }
+
+        throw new InvalidOperationException($"No request is associated with the source '{source.Name}'.");
+    }
 
     private static void ValidateAssets(IReadOnlyList<Asset> assets)
     {
@@ -988,36 +1015,38 @@ public sealed class AssetManager
 
     private void RegisterSource(IAssetSource source, AssetSourceRequest request)
     {
-        _sources.Add(source);
-        _sourceRequests[source] = request;
-
-        foreach (Asset asset in source.Assets)
+        lock (_sourceLock)
         {
-            asset.AttachSource(source);
-            _assets.Add(asset);
+            _sources.Add(source);
+            _sourceRequests[source] = request;
 
-            if (!asset.TryGetHandler(out _))
+            foreach (Asset asset in source.Assets)
             {
-                FindHandler(asset);
+                asset.AttachSource(source);
+                _assets.Add(asset);
+
+                if (!asset.TryGetHandler(out _))
+                    FindHandler(asset);
             }
         }
     }
 
     private void UnregisterSource(IAssetSource source)
     {
-        _sourceRequests.Remove(source);
-        _sources.Remove(source);
-
-        for (int index = _assets.Count - 1; index >= 0; index--)
+        lock (_sourceLock)
         {
-            Asset asset = _assets[index];
-            if (!ReferenceEquals(asset.Source, source))
-            {
-                continue;
-            }
+            _sourceRequests.Remove(source);
+            _sources.Remove(source);
 
-            asset.DetachSource();
-            _assets.RemoveAt(index);
+            for (int index = _assets.Count - 1; index >= 0; index--)
+            {
+                Asset asset = _assets[index];
+                if (!ReferenceEquals(asset.Source, source))
+                    continue;
+
+                asset.DetachSource();
+                _assets.RemoveAt(index);
+            }
         }
     }
 
@@ -1053,5 +1082,74 @@ public sealed class AssetManager
         {
             return [];
         }
+    }
+
+    private async Task<IAssetSource> MountSourceAsync(AssetSourceRequest request, IProgress<string>? progress, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IAssetSourceReader reader = FindSourceReader(request) ?? throw new NotSupportedException($"No registered source reader can open {request.Description}.");
+
+        IAssetSource source;
+        try
+        {
+            source = await reader.OpenAsync(request, this, progress, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, exception));
+            throw;
+        }
+
+        bool sourceRegistrationAttempted = false;
+        try
+        {
+            ValidateAssets(source.Assets);
+            sourceRegistrationAttempted = true;
+            RegisterSource(source, request);
+            SourceMounted?.Invoke(this, new SourceEventArgs(source));
+            return source;
+        }
+        catch
+        {
+            if (sourceRegistrationAttempted)
+                UnregisterSource(source);
+
+            await source.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task<bool> UnloadSourceAsync(IAssetSource source, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sourceLock)
+        {
+            if (!_sources.Contains(source))
+                return false;
+        }
+
+        SourceUnloading?.Invoke(this, new SourceEventArgs(source));
+
+        try
+        {
+            await source.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Unload, exception, source, null, null));
+            throw;
+        }
+
+        UnregisterSource(source);
+        SourceUnloaded?.Invoke(this, new SourceEventArgs(source));
+        return true;
     }
 }

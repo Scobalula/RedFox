@@ -9,15 +9,13 @@ namespace RedFox.GameExtraction.Template;
 public sealed class ZipVirtualFile : VirtualFile
 {
     private readonly ZipArchiveEntry _entry;
+    private readonly SemaphoreSlim _archiveLock;
 
-    /// <summary>
-    /// Initializes a new virtual file wrapper for the supplied ZIP entry.
-    /// </summary>
-    /// <param name="entry">The ZIP entry to expose through the VFS.</param>
-    public ZipVirtualFile(ZipArchiveEntry entry)
+    internal ZipVirtualFile(ZipArchiveEntry entry, SemaphoreSlim archiveLock)
         : base(entry?.Name ?? throw new ArgumentNullException(nameof(entry)), entry.Length)
     {
         _entry = entry;
+        _archiveLock = archiveLock ?? throw new ArgumentNullException(nameof(archiveLock));
     }
 
     /// <summary>
@@ -26,6 +24,15 @@ public sealed class ZipVirtualFile : VirtualFile
     /// <returns>A readable stream for the entry payload.</returns>
     public override Stream Open()
     {
-        return _entry.Open();
+        _archiveLock.Wait();
+        try
+        {
+            return new ZipEntryStream(_entry.Open(), _archiveLock);
+        }
+        catch
+        {
+            _archiveLock.Release();
+            throw;
+        }
     }
 }

@@ -95,9 +95,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         bool requiresPaddedUpload = !initialData.IsEmpty && allocatedSizeBytes != sizeBytes;
         if (initialData.IsEmpty || requiresPaddedUpload)
         {
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer),
-                createBufferContext);
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer), createBufferContext);
         }
         else
         {
@@ -112,9 +110,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                 {
                     PSysMem = initialDataPointer,
                 };
-                D3D11Helpers.ThrowIfFailed(
-                    _context.Device.Get().CreateBuffer(ref desc, ref subresourceData, ref buffer),
-                    createBufferContext);
+                D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateBuffer(ref desc, ref subresourceData, ref buffer), createBufferContext);
             }
         }
 
@@ -151,9 +147,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             if (IsDynamicBuffer(d3dBuffer.Usage))
             {
                 MappedSubresource mappedSubresource = default;
-                D3D11Helpers.ThrowIfFailed(
-                    _context.DeviceContext.Get().Map((ID3D11Resource*)d3dBuffer.Handle, 0, Map.WriteDiscard, 0, ref mappedSubresource),
-                    "ID3D11DeviceContext::Map");
+                D3D11Helpers.ThrowIfFailed(_context.DeviceContext.Get().Map((ID3D11Resource*)d3dBuffer.Handle, 0, Map.WriteDiscard, 0, ref mappedSubresource), "ID3D11DeviceContext::Map");
                 System.Buffer.MemoryCopy(dataPointer, mappedSubresource.PData, d3dBuffer.SizeBytes, data.Length);
                 _context.DeviceContext.Get().Unmap((ID3D11Resource*)d3dBuffer.Handle, 0);
                 return;
@@ -186,21 +180,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
-    public IGpuPipelineState CreatePipelineState(
-        IGpuShader vertexShader,
-        IGpuShader fragmentShader,
-        ReadOnlySpan<VertexAttribute> vertexAttributes,
-        BackendCullMode cullMode,
-        FaceWinding faceWinding,
-        bool wireframe,
-        bool blend,
-        BlendFactor sourceBlendFactor,
-        BlendFactor destinationBlendFactor,
-        BackendBlendOp blendOperation,
-        bool depthTest,
-        bool depthWrite,
-        CompareFunc depthCompareFunc,
-        PrimitiveTopology primitiveTopology)
+    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, BackendCullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BackendBlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
     {
         ThrowIfDisposed();
 
@@ -231,9 +211,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         fixed (byte* vertexBytecodePointer = vertexBytecode)
         {
             ID3D11VertexShader* vertexShaderPointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateVertexShader(vertexBytecodePointer, (nuint)vertexBytecode.Length, (ID3D11ClassLinkage*)null, &vertexShaderPointer),
-                "ID3D11Device::CreateVertexShader");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateVertexShader(vertexBytecodePointer, (nuint)vertexBytecode.Length, (ID3D11ClassLinkage*)null, &vertexShaderPointer), "ID3D11Device::CreateVertexShader");
             d3dVertexShaderHandle = new ComPtr<ID3D11VertexShader>(vertexShaderPointer);
             inputLayout = CreateInputLayout(vertexAttributes, vertexBytecodePointer, vertexBytecode.Length);
         }
@@ -242,9 +220,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         fixed (byte* fragmentBytecodePointer = fragmentBytecode)
         {
             ID3D11PixelShader* pixelShaderPointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreatePixelShader(fragmentBytecodePointer, (nuint)fragmentBytecode.Length, (ID3D11ClassLinkage*)null, &pixelShaderPointer),
-                "ID3D11Device::CreatePixelShader");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreatePixelShader(fragmentBytecodePointer, (nuint)fragmentBytecode.Length, (ID3D11ClassLinkage*)null, &pixelShaderPointer), "ID3D11Device::CreatePixelShader");
             d3dPixelShaderHandle = new ComPtr<ID3D11PixelShader>(pixelShaderPointer);
         }
 
@@ -253,18 +229,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         blendState = CreateBlendState(blend, sourceBlendFactor, destinationBlendFactor, blendOperation);
         depthStencilState = CreateDepthStencilState(depthTest, depthWrite, depthCompareFunc);
 
-        return new D3D11PipelineState(
-            d3dVertexShaderHandle,
-            d3dPixelShaderHandle,
-            inputLayout,
-            counterClockwiseRasterizerState,
-            clockwiseRasterizerState,
-            blendState,
-            depthStencilState,
-            vertexAttributes,
-            CombineConstantBuffers(d3dVertexShader.ConstantBuffers, d3dFragmentShader.ConstantBuffers),
-            CombineResourceBindings(d3dVertexShader.ResourceBindings, d3dFragmentShader.ResourceBindings),
-            primitiveTopology);
+        return new D3D11PipelineState(d3dVertexShaderHandle, d3dPixelShaderHandle, inputLayout, counterClockwiseRasterizerState, clockwiseRasterizerState, blendState, depthStencilState, vertexAttributes, CombineConstantBuffers(d3dVertexShader.ConstantBuffers, d3dFragmentShader.ConstantBuffers), CombineResourceBindings(d3dVertexShader.ResourceBindings, d3dFragmentShader.ResourceBindings), primitiveTopology);
     }
 
     /// <inheritdoc/>
@@ -285,9 +250,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         fixed (byte* computeBytecodePointer = computeBytecode)
         {
             ID3D11ComputeShader* computeShaderPointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateComputeShader(computeBytecodePointer, (nuint)computeBytecode.Length, (ID3D11ClassLinkage*)null, &computeShaderPointer),
-                "ID3D11Device::CreateComputeShader");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateComputeShader(computeBytecodePointer, (nuint)computeBytecode.Length, (ID3D11ClassLinkage*)null, &computeShaderPointer), "ID3D11Device::CreateComputeShader");
             d3dComputeShaderHandle = new ComPtr<ID3D11ComputeShader>(computeShaderPointer);
         }
 
@@ -420,9 +383,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         ComPtr<ID3D11Texture2D> texture = default;
         if (pixels.IsEmpty)
         {
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture),
-                "ID3D11Device::CreateTexture2D");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture), "ID3D11Device::CreateTexture2D");
         }
         else
         {
@@ -434,9 +395,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                     SysMemPitch = (uint)rowPitch,
                     SysMemSlicePitch = (uint)slicePitch,
                 };
-                D3D11Helpers.ThrowIfFailed(
-                    _context.Device.Get().CreateTexture2D(ref desc, ref subresourceData, ref texture),
-                    "ID3D11Device::CreateTexture2D");
+                D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateTexture2D(ref desc, ref subresourceData, ref texture), "ID3D11Device::CreateTexture2D");
             }
         }
 
@@ -469,9 +428,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         ComPtr<ID3D11Texture2D> texture = default;
         if (image.PixelMemory.IsEmpty)
         {
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture),
-                "ID3D11Device::CreateTexture2D");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture), "ID3D11Device::CreateTexture2D");
         }
         else
         {
@@ -493,9 +450,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                     offset += slice.SlicePitch;
                 }
 
-                D3D11Helpers.ThrowIfFailed(
-                    _context.Device.Get().CreateTexture2D(ref desc, subresources, ref texture),
-                    "ID3D11Device::CreateTexture2D");
+                D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateTexture2D(ref desc, subresources, ref texture), "ID3D11Device::CreateTexture2D");
             }
         }
 
@@ -550,17 +505,13 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         ComPtr<ID3D11RenderTargetView> renderTargetView = default;
         ComPtr<ID3D11DepthStencilView> depthStencilView = default;
         ID3D11RenderTargetView* renderTargetViewPointer = null;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateRenderTargetView((ID3D11Resource*)d3dColorTexture.Handle, (RenderTargetViewDesc*)null, &renderTargetViewPointer),
-            "ID3D11Device::CreateRenderTargetView");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateRenderTargetView((ID3D11Resource*)d3dColorTexture.Handle, (RenderTargetViewDesc*)null, &renderTargetViewPointer), "ID3D11Device::CreateRenderTargetView");
         renderTargetView = new ComPtr<ID3D11RenderTargetView>(renderTargetViewPointer);
 
         if (d3dDepthTexture is not null)
         {
             ID3D11DepthStencilView* depthStencilViewPointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateDepthStencilView((ID3D11Resource*)d3dDepthTexture.Handle, (DepthStencilViewDesc*)null, &depthStencilViewPointer),
-                "ID3D11Device::CreateDepthStencilView");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateDepthStencilView((ID3D11Resource*)d3dDepthTexture.Handle, (DepthStencilViewDesc*)null, &depthStencilViewPointer), "ID3D11Device::CreateDepthStencilView");
             depthStencilView = new ComPtr<ID3D11DepthStencilView>(depthStencilViewPointer);
         }
 
@@ -602,9 +553,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         GC.SuppressFinalize(this);
     }
 
-    private static D3D11ShaderConstantBufferLayout[] CombineConstantBuffers(
-        IReadOnlyList<D3D11ShaderConstantBufferLayout> first,
-        IReadOnlyList<D3D11ShaderConstantBufferLayout> second)
+    private static D3D11ShaderConstantBufferLayout[] CombineConstantBuffers(IReadOnlyList<D3D11ShaderConstantBufferLayout> first, IReadOnlyList<D3D11ShaderConstantBufferLayout> second)
     {
         D3D11ShaderConstantBufferLayout[] combined = new D3D11ShaderConstantBufferLayout[first.Count + second.Count];
         int combinedIndex = 0;
@@ -621,9 +570,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return combined;
     }
 
-    private static D3D11ShaderResourceBinding[] CombineResourceBindings(
-        IReadOnlyList<D3D11ShaderResourceBinding> first,
-        IReadOnlyList<D3D11ShaderResourceBinding> second)
+    private static D3D11ShaderResourceBinding[] CombineResourceBindings(IReadOnlyList<D3D11ShaderResourceBinding> first, IReadOnlyList<D3D11ShaderResourceBinding> second)
     {
         List<D3D11ShaderResourceBinding> combined = new(first.Count + second.Count);
         AppendResourceBindings(combined, first);
@@ -644,10 +591,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             }
 
             D3D11ShaderResourceBinding existing = combined[existingIndex];
-            combined[existingIndex] = new D3D11ShaderResourceBinding(
-                existing.Name,
-                existing.Slot,
-                existing.Stage | binding.Stage);
+            combined[existingIndex] = new D3D11ShaderResourceBinding(existing.Name, existing.Slot, existing.Stage | binding.Stage);
         }
     }
 
@@ -727,14 +671,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return flags == 0 ? (uint)BindFlag.VertexBuffer : flags;
     }
 
-    private void CreateBufferViews(
-        ComPtr<ID3D11Buffer> buffer,
-        int sizeBytes,
-        int stride,
-        BufferUsage usage,
-        GpuBufferElementType elementType,
-        out ComPtr<ID3D11ShaderResourceView> shaderResourceView,
-        out ComPtr<ID3D11UnorderedAccessView> unorderedAccessView)
+    private void CreateBufferViews(ComPtr<ID3D11Buffer> buffer, int sizeBytes, int stride, BufferUsage usage, GpuBufferElementType elementType, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11UnorderedAccessView> unorderedAccessView)
     {
         shaderResourceView = default;
         unorderedAccessView = default;
@@ -769,9 +706,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         };
 
         ID3D11ShaderResourceView* shaderResourceViewPointer = null;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateShaderResourceView((ID3D11Resource*)buffer.Handle, ref shaderResourceViewDesc, &shaderResourceViewPointer),
-            "ID3D11Device::CreateShaderResourceView(buffer)");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateShaderResourceView((ID3D11Resource*)buffer.Handle, ref shaderResourceViewDesc, &shaderResourceViewPointer), "ID3D11Device::CreateShaderResourceView(buffer)");
         shaderResourceView = new ComPtr<ID3D11ShaderResourceView>(shaderResourceViewPointer);
 
         UnorderedAccessViewDesc unorderedAccessViewDesc = new()
@@ -787,18 +722,11 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         };
 
         ID3D11UnorderedAccessView* unorderedAccessViewPointer = null;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateUnorderedAccessView((ID3D11Resource*)buffer.Handle, ref unorderedAccessViewDesc, &unorderedAccessViewPointer),
-            "ID3D11Device::CreateUnorderedAccessView(buffer)");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateUnorderedAccessView((ID3D11Resource*)buffer.Handle, ref unorderedAccessViewDesc, &unorderedAccessViewPointer), "ID3D11Device::CreateUnorderedAccessView(buffer)");
         unorderedAccessView = new ComPtr<ID3D11UnorderedAccessView>(unorderedAccessViewPointer);
     }
 
-    private void CreateTypedShaderResourceView(
-        ComPtr<ID3D11Buffer> buffer,
-        int sizeBytes,
-        int stride,
-        GpuBufferElementType elementType,
-        out ComPtr<ID3D11ShaderResourceView> shaderResourceView)
+    private void CreateTypedShaderResourceView(ComPtr<ID3D11Buffer> buffer, int sizeBytes, int stride, GpuBufferElementType elementType, out ComPtr<ID3D11ShaderResourceView> shaderResourceView)
     {
         if (!TryGetSampledBufferFormat(stride, elementType, out Format format))
         {
@@ -823,9 +751,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         };
 
         ID3D11ShaderResourceView* shaderResourceViewPointer = null;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateShaderResourceView((ID3D11Resource*)buffer.Handle, ref shaderResourceViewDesc, &shaderResourceViewPointer),
-            "ID3D11Device::CreateShaderResourceView(typed buffer)");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateShaderResourceView((ID3D11Resource*)buffer.Handle, ref shaderResourceViewDesc, &shaderResourceViewPointer), "ID3D11Device::CreateShaderResourceView(typed buffer)");
         shaderResourceView = new ComPtr<ID3D11ShaderResourceView>(shaderResourceViewPointer);
     }
 
@@ -849,8 +775,10 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         format = (elementType, componentCount) switch
         {
             (GpuBufferElementType.Float16, 1) => Format.FormatR16Float,
+            (GpuBufferElementType.Float16, 2) => Format.FormatR16G16Float,
             (GpuBufferElementType.Float16, 4) => Format.FormatR16G16B16A16Float,
             (GpuBufferElementType.Float32, 1) => Format.FormatR32Float,
+            (GpuBufferElementType.Float32, 2) => Format.FormatR32G32Float,
             (GpuBufferElementType.Float32, 4) => Format.FormatR32G32B32A32Float,
             (GpuBufferElementType.Int8, 1) => Format.FormatR8Sint,
             (GpuBufferElementType.Int8, 4) => Format.FormatR8G8B8A8Sint,
@@ -891,11 +819,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return flags;
     }
 
-    private void CreateSampledTextureViews(
-        ComPtr<ID3D11Texture2D> texture,
-        TextureUsage usage,
-        out ComPtr<ID3D11ShaderResourceView> shaderResourceView,
-        out ComPtr<ID3D11SamplerState> samplerState)
+    private void CreateSampledTextureViews(ComPtr<ID3D11Texture2D> texture, TextureUsage usage, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11SamplerState> samplerState)
     {
         shaderResourceView = default;
         samplerState = default;
@@ -907,9 +831,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         unsafe
         {
             ID3D11ShaderResourceView* shaderResourceViewPointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateShaderResourceView((ID3D11Resource*)texture.Handle, (ShaderResourceViewDesc*)null, &shaderResourceViewPointer),
-                "ID3D11Device::CreateShaderResourceView(texture)");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateShaderResourceView((ID3D11Resource*)texture.Handle, (ShaderResourceViewDesc*)null, &shaderResourceViewPointer), "ID3D11Device::CreateShaderResourceView(texture)");
             shaderResourceView = new ComPtr<ID3D11ShaderResourceView>(shaderResourceViewPointer);
 
             SamplerDesc samplerDesc = new()
@@ -925,9 +847,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                 MaxLOD = float.MaxValue,
             };
             ID3D11SamplerState* samplerStatePointer = null;
-            D3D11Helpers.ThrowIfFailed(
-                _context.Device.Get().CreateSamplerState(ref samplerDesc, &samplerStatePointer),
-                "ID3D11Device::CreateSamplerState");
+            D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateSamplerState(ref samplerDesc, &samplerStatePointer), "ID3D11Device::CreateSamplerState");
             samplerState = new ComPtr<ID3D11SamplerState>(samplerStatePointer);
         }
     }
@@ -944,18 +864,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         fixed (byte* entryPointPointer = entryPointBytes)
         fixed (byte* profilePointer = profileBytes)
         {
-            int result = compiler.Compile(
-                sourcePointer,
-                (nuint)source.Length,
-                (byte*)null,
-                (D3DShaderMacro*)null,
-                (ID3DInclude*)null,
-                entryPointPointer,
-                profilePointer,
-                0,
-                0,
-                &shaderBlob,
-                &errorBlob);
+            int result = compiler.Compile(sourcePointer, (nuint)source.Length, (byte*)null, (D3DShaderMacro*)null, (ID3DInclude*)null, entryPointPointer, profilePointer, 0, 0, &shaderBlob, &errorBlob);
 
             if (result < 0)
             {
@@ -964,9 +873,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
                 {
                     errorBlob->Release();
                 }
-                throw new D3D11Exception(string.IsNullOrWhiteSpace(message)
-                    ? $"HLSL compilation failed with HRESULT 0x{result:X8}."
-                    : message);
+                throw new D3D11Exception(string.IsNullOrWhiteSpace(message) ? $"HLSL compilation failed with HRESULT 0x{result:X8}." : message);
             }
         }
 
@@ -1057,9 +964,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
             ComPtr<ID3D11InputLayout> inputLayout = default;
             fixed (InputElementDesc* inputElementsPointer = inputElements)
             {
-                D3D11Helpers.ThrowIfFailed(
-                    _context.Device.Get().CreateInputLayout(inputElementsPointer, (uint)inputElements.Length, vertexBytecodePointer, (nuint)vertexBytecodeLength, ref inputLayout),
-                    "ID3D11Device::CreateInputLayout");
+                D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateInputLayout(inputElementsPointer, (uint)inputElements.Length, vertexBytecodePointer, (nuint)vertexBytecodeLength, ref inputLayout), "ID3D11Device::CreateInputLayout");
             }
 
             return inputLayout;
@@ -1092,9 +997,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         };
 
         ComPtr<ID3D11RasterizerState> rasterizerState = default;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateRasterizerState(ref desc, ref rasterizerState),
-            "ID3D11Device::CreateRasterizerState");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateRasterizerState(ref desc, ref rasterizerState), "ID3D11Device::CreateRasterizerState");
         return rasterizerState;
     }
 
@@ -1120,9 +1023,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         desc.RenderTarget.Element0 = renderTargetBlendDesc;
 
         ComPtr<ID3D11BlendState> blendState = default;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateBlendState(ref desc, ref blendState),
-            "ID3D11Device::CreateBlendState");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateBlendState(ref desc, ref blendState), "ID3D11Device::CreateBlendState");
         return blendState;
     }
 
@@ -1137,9 +1038,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         };
 
         ComPtr<ID3D11DepthStencilState> depthStencilState = default;
-        D3D11Helpers.ThrowIfFailed(
-            _context.Device.Get().CreateDepthStencilState(ref desc, ref depthStencilState),
-            "ID3D11Device::CreateDepthStencilState");
+        D3D11Helpers.ThrowIfFailed(_context.Device.Get().CreateDepthStencilState(ref desc, ref depthStencilState), "ID3D11Device::CreateDepthStencilState");
         return depthStencilState;
     }
 

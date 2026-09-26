@@ -8,6 +8,8 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class AssetFileSystemService
 {
+    private readonly object _fileSystemLock = new();
+
     /// <summary>
     /// Gets or sets the asset manager responsible for handling asset operations.
     /// </summary>
@@ -19,22 +21,51 @@ public sealed class AssetFileSystemService
     public VirtualFileSystem FileSystem { get; } = new();
 
     /// <summary>
-    /// 
+    /// Creates a shared virtual file system for the supplied asset manager.
     /// </summary>
-    /// <param name="manager"></param>
+    /// <param name="manager">The asset manager whose mounted files to expose.</param>
     public AssetFileSystemService(AssetManager manager)
     {
         Manager = manager;
-        Manager.SourceUnloaded += ManagerSourceMounted;
+        Manager.SourceMounted += ManagerSourceMounted;
+        Manager.SourceUnloaded += ManagerSourceUnloaded;
     }
 
     private void ManagerSourceMounted(object? sender, SourceEventArgs e)
     {
-        foreach (var asset in e.Source.Assets)
+        List<VirtualFile> addedFiles = [];
+
+        lock (_fileSystemLock)
         {
-            if (asset.DataSource is VirtualFile file)
+            try
             {
-                file.MoveTo(null);
+                foreach (Asset asset in e.Source.Assets)
+                {
+                    if (asset.DataSource is not VirtualFile file)
+                        continue;
+
+                    FileSystem.AddFile(AssetManager.NormalizeVirtualPath(asset.Name), file);
+                    addedFiles.Add(file);
+                }
+            }
+            catch
+            {
+                foreach (VirtualFile file in addedFiles)
+                    file.MoveTo(null);
+
+                throw;
+            }
+        }
+    }
+
+    private void ManagerSourceUnloaded(object? sender, SourceEventArgs e)
+    {
+        lock (_fileSystemLock)
+        {
+            foreach (Asset asset in e.Source.Assets)
+            {
+                if (asset.DataSource is VirtualFile file)
+                    file.MoveTo(null);
             }
         }
     }

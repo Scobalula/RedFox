@@ -48,8 +48,10 @@ internal partial class OpusInterop
     [LibraryImport(Library, EntryPoint = "opus_packet_get_nb_samples", SetLastError = true)]
     public static partial int PacketGetNbSamples(ReadOnlySpan<byte> data, int length, int sampleRate);
 
-    [LibraryImport(Library, EntryPoint = "opus_strerror", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
-    public static partial string StrError(int error);
+    [LibraryImport(Library, EntryPoint = "opus_strerror", SetLastError = true)]
+    private static partial nint StrErrorPointer(int error);
+
+    public static string StrError(int error) => Marshal.PtrToStringUTF8(StrErrorPointer(error)) ?? "Unknown Opus error.";
 
     public const int Ok = 0;
 

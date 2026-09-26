@@ -1850,6 +1850,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Path cannot be null or empty.", nameof(path));
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+            throw new SceneNodeNotFoundException($"Node at path '{path}' not found.");
+
         SceneNode? current = this;
         if (!segments[0].Equals(Name, StringComparison.CurrentCultureIgnoreCase))
             throw new SceneNodeNotFoundException($"Path root '{segments[0]}' does not match node '{Name}'.");
@@ -1884,6 +1887,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (string.IsNullOrWhiteSpace(path))
             return false;
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+            return false;
+
         SceneNode? current = this;
         if (!segments[0].Equals(Name, StringComparison.CurrentCultureIgnoreCase))
             return false;
@@ -2181,9 +2187,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The bind world transform matrix.</returns>
     public Matrix4x4 GetBindWorldMatrix()
     {
-        return Parent is not null
-            ? GetBindLocalMatrix() * Parent.GetBindWorldMatrix()
-            : GetBindLocalMatrix();
+        return Parent is not null ? GetBindLocalMatrix() * Parent.GetBindWorldMatrix() : GetBindLocalMatrix();
     }
 
     /// <summary>
@@ -3076,9 +3080,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The active world transform matrix.</returns>
     public Matrix4x4 GetActiveWorldMatrix()
     {
-        return Parent is not null
-            ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix()
-            : GetActiveLocalMatrix();
+        return Parent is not null ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix() : GetActiveLocalMatrix();
     }
 
     /// <summary>

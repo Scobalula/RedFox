@@ -7,8 +7,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
-using System.Buffers;
-using System.Reflection.Metadata.Ecma335;
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace RedFox.Compression.GDeflate
@@ -42,44 +41,72 @@ namespace RedFox.Compression.GDeflate
         /// <inheritdoc/>
         public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
         {
-            var decompressor = GDeflateInterop.CreateDecompressor();
+            if (source.Length < 8)
+                throw new InvalidDataException("The GDeflate header is incomplete.");
+            if (source[0] != 4 || source[1] != 0xFB)
+                throw new NotSupportedException("The GDeflate header is unsupported.");
 
-            if (source[0] != 4)
-                throw new NotSupportedException();
-            if (source[1] != 0xFB)
-                throw new NotSupportedException();
+            int tileCount = BinaryPrimitives.ReadUInt16LittleEndian(source[2..]);
+            if (tileCount == 0)
+                throw new InvalidDataException("The GDeflate stream contains no tiles.");
 
-            var fuck = source[2..];
+            int offsetsLength = checked(tileCount * sizeof(uint));
+            int headerLength = checked(8 + offsetsLength);
+            if (source.Length < headerLength)
+                throw new InvalidDataException("The GDeflate tile offset table is incomplete.");
 
-            var numTiles = MemoryMarshal.Read<ushort>(source[2..]);
-            var packedInfo = MemoryMarshal.Read<uint>(source[4..]);
+            ReadOnlySpan<byte> payload = source[headerLength..];
+            uint compressedLength = BinaryPrimitives.ReadUInt32LittleEndian(source[8..]);
+            if (compressedLength == 0 || compressedLength > payload.Length)
+                throw new InvalidDataException("The GDeflate compressed length is invalid.");
 
-            var tileSizeIdx = packedInfo & 0x3;
-            var lastTileSize = (packedInfo >> 2) & 0x3FFFF;
-            var reserved1 = (packedInfo >> 20) & 0xFFF;
+            var tiles = new GDeflatePage[tileCount];
+            uint previousOffset = 0;
+            for (int tileIndex = 1; tileIndex < tileCount; tileIndex++)
+            {
+                uint tileOffset = BinaryPrimitives.ReadUInt32LittleEndian(source[(8 + tileIndex * sizeof(uint))..]);
+                if (tileOffset <= previousOffset || tileOffset >= compressedLength)
+                    throw new InvalidDataException("The GDeflate tile offsets are invalid.");
 
-            var tileOffsets = MemoryMarshal.Cast<byte, int>(source[8..]);
-            var inDataPointer = source[(8 + numTiles * 4)..];
+                previousOffset = tileOffset;
+            }
 
             unsafe
             {
-                fixed (byte* buffer = &inDataPointer[0])
+                fixed (byte* payloadPointer = payload)
                 {
-                    var tiles = new GDeflatePage[numTiles];
-
-                    for (int tileIndex = 0; tileIndex < numTiles; tileIndex++)
+                    for (int tileIndex = 0; tileIndex < tileCount; tileIndex++)
                     {
-                        int tileOffset = tileIndex > 0 ? tileOffsets[tileIndex] : 0;
+                        uint tileStart = tileIndex == 0 ? 0 : BinaryPrimitives.ReadUInt32LittleEndian(source[(8 + tileIndex * sizeof(uint))..]);
+                        uint tileEnd = tileIndex == tileCount - 1 ? compressedLength : BinaryPrimitives.ReadUInt32LittleEndian(source[(8 + (tileIndex + 1) * sizeof(uint))..]);
 
-                        tiles[tileIndex] = new()
+                        tiles[tileIndex] = new GDeflatePage
                         {
-                            Data = buffer + tileOffset,
-                            Bytes = tileIndex < numTiles - 1 ? tileOffsets[tileIndex + 1] - tileOffset : tileOffsets[0]
+                            Data = payloadPointer + checked((int)tileStart),
+                            ByteCount = (nuint)(tileEnd - tileStart)
                         };
                     }
 
-                    var result = GDeflateInterop.Decompress(decompressor, tiles, tiles.Length, destination, destination.Length, out var returnedValue);
-                    return returnedValue;
+                    nint decompressor = GDeflateInterop.CreateDecompressor();
+                    if (decompressor == 0)
+                        throw new InvalidOperationException("Failed to allocate a GDeflate decompressor.");
+
+                    try
+                    {
+                        nuint pageCount = (nuint)tiles.Length;
+                        nuint destinationCapacity = (nuint)destination.Length;
+                        int result = GDeflateInterop.Decompress(decompressor, tiles, pageCount, destination, destinationCapacity, out nuint returnedValue);
+                        if (result != 0)
+                            throw new InvalidDataException($"GDeflate decompression failed with error code {result}.");
+                        if (returnedValue > (nuint)destination.Length)
+                            throw new InvalidDataException("GDeflate returned an output size larger than the destination.");
+
+                        return checked((int)returnedValue);
+                    }
+                    finally
+                    {
+                        GDeflateInterop.FreeDecompressor(decompressor);
+                    }
                 }
             }
         }

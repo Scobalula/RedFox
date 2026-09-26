@@ -32,23 +32,14 @@ internal static class Program
             {
                 ArgumentNullException.ThrowIfNull(settings);
 
-                string? outputDirectory = settings.Values.TryGetValue("OutputDirectory", out string? configuredOutputDirectory)
-                    ? configuredOutputDirectory
-                    : null;
+                string? outputDirectory = settings.Values.TryGetValue("OutputDirectory", out string? configuredOutputDirectory) ? configuredOutputDirectory : null;
 
                 return new ExportConfiguration
                 {
-                    OutputDirectory = string.IsNullOrWhiteSpace(outputDirectory)
-                        ? GameExtractionSettings.GetDefaultOutputDirectory()
-                        : outputDirectory,
-                    Overwrite = settings.Values.TryGetValue("Overwrite", out string? overwriteValue)
-                        && bool.TryParse(overwriteValue, out bool overwrite)
-                        && overwrite,
-                    ExportReferences = settings.Values.TryGetValue("ExportReferences", out string? exportReferencesValue)
-                        && bool.TryParse(exportReferencesValue, out bool exportReferences)
-                        && exportReferences,
-                    PreserveDirectoryStructure = !settings.Values.TryGetValue("PreserveDirectoryStructure", out string? preserveDirectoryStructureValue)
-                        || (bool.TryParse(preserveDirectoryStructureValue, out bool preserveDirectoryStructure) && preserveDirectoryStructure),
+                    OutputDirectory = string.IsNullOrWhiteSpace(outputDirectory) ? GameExtractionSettings.GetDefaultOutputDirectory() : outputDirectory,
+                    Overwrite = settings.Values.TryGetValue("Overwrite", out string? overwriteValue) && bool.TryParse(overwriteValue, out bool overwrite) && overwrite,
+                    ExportReferences = settings.Values.TryGetValue("ExportReferences", out string? exportReferencesValue) && bool.TryParse(exportReferencesValue, out bool exportReferences) && exportReferences,
+                    PreserveDirectoryStructure = !settings.Values.TryGetValue("PreserveDirectoryStructure", out string? preserveDirectoryStructureValue) || (bool.TryParse(preserveDirectoryStructureValue, out bool preserveDirectoryStructure) && preserveDirectoryStructure),
                 };
             },
             Settings = new GameExtractionSettings
@@ -90,25 +81,10 @@ internal static class Program
                 new GameExtractionSetting
                 {
                     Name = "ExportReferences",
-                    Group = "Fuck",
+                    Group = "Export",
                     Label = "Export referenced assets",
                     Type = GameExtractionSettingType.CheckBox,
                     DefaultValue = false,
-                },
-                new GameExtractionSetting
-                {
-                    Name = "ExportReferences",
-                    Group = "Models",
-                    Label = "Export referenced assets",
-                    Type = GameExtractionSettingType.TextBox,
-                },
-                new GameExtractionSetting
-                {
-                    Name = "PreserveDirectoryStructure",
-                    Group = "Models",
-                    Label = "Export Materials",
-                    Type = GameExtractionSettingType.CheckBox,
-                    DefaultValue = true,
                 },
             ],
             About = new AboutConfig
@@ -126,9 +102,7 @@ internal static class Program
 
                 if (scene is not null)
                 {
-                    if (scene.GetDescendants<Mesh>().Length == 0
-                        && scene.GetDescendants<SkeletonAnimation>().Length > 0
-                        && scenePreviewControl.TryAppendAnimationScene(scene))
+                    if (scene.GetDescendants<Mesh>().Length == 0 && scene.GetDescendants<SkeletonAnimation>().Length > 0 && scenePreviewControl.TryAppendAnimationScene(scene))
                     {
                         return scenePreviewControl;
                     }

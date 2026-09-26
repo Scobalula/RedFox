@@ -118,6 +118,9 @@ public static class NameFile
 
         var flags = (NameFileFlags)reader.ReadUInt64();
         var entryCount = reader.Read7BitEncodedInt();
+        if (entryCount < 0)
+            throw new InvalidDataException("The name file entry count is invalid.");
+
         var hashAlgorithm = reader.ReadString();
 
         var table = new NameTable(hashAlgorithm);
@@ -125,6 +128,8 @@ public static class NameFile
         if (flags.HasFlag(NameFileFlags.Metadata))
         {
             var metadataCount = reader.Read7BitEncodedInt();
+            if (metadataCount < 0)
+                throw new InvalidDataException("The name file metadata count is invalid.");
 
             for (var i = 0; i < metadataCount; i++)
             {
@@ -133,12 +138,20 @@ public static class NameFile
         }
 
         var uncompressedSize = reader.Read7BitEncodedInt();
+        if (uncompressedSize < 0 || uncompressedSize > Array.MaxLength)
+            throw new InvalidDataException("The name file entry data size is invalid.");
+
         var entryData = new byte[uncompressedSize];
 
         if (flags.HasFlag(NameFileFlags.Compressed))
         {
             var compressedSize = reader.Read7BitEncodedInt();
+            if (compressedSize < 0 || compressedSize > Array.MaxLength)
+                throw new InvalidDataException("The name file compressed data size is invalid.");
+
             var compressed = reader.ReadBytes(compressedSize);
+            if (compressed.Length != compressedSize)
+                throw new EndOfStreamException("The name file compressed data is truncated.");
 
             entryData = new byte[uncompressedSize];
 
@@ -155,11 +168,11 @@ public static class NameFile
             Span<byte> expected = stackalloc byte[ChecksumSize];
             Span<byte> checksum = stackalloc byte[ChecksumSize];
 
-            reader.ReadExactly(checksum);
+            reader.ReadExactly(expected);
 
             if (SHA256.HashData(entryData, checksum) != ChecksumSize)
                 throw new InvalidOperationException("Failed to compute name file checksum.");
-            if (expected.SequenceEqual(checksum))
+            if (!expected.SequenceEqual(checksum))
                 throw new InvalidDataException("Name file checksum mismatch.");
         }
 
@@ -171,6 +184,9 @@ public static class NameFile
         for (var i = 0; i < entryCount; i++)
         {
             var keySize = dataReader.Read7BitEncodedInt();
+            if (keySize is < 1 or > 256)
+                throw new InvalidDataException("The name file key size is invalid.");
+
             var span = keyBuf[..keySize];
             dataReader.BaseStream.ReadExactly(span);
             var key = new NameKey(span);

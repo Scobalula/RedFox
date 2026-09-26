@@ -57,12 +57,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (!_assetManager.TryGetService(out PluginsService? plugins))
         {
-            string pluginsDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "RedFox",
-                config.AppName,
-                "plugins");
-            plugins = new PluginsService(pluginsDirectory, new PythonPluginHost());
+            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RedFox", config.AppName, "plugins");
+            plugins = new PluginsService(pluginsDirectory);
+            PythonPluginHost? pythonHost = null;
+            try
+            {
+                pythonHost = new PythonPluginHost();
+                plugins.Manager.RegisterHost(pythonHost);
+            }
+            catch
+            {
+                pythonHost?.Dispose();
+            }
             _assetManager.RegisterService(plugins);
         }
 
@@ -258,9 +264,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the directory exposed as the items source for the directory tree.
     /// </summary>
     public IReadOnlyList<AssetDirectoryNode> RootDirectories =>
-        RootDirectory is null
-            ? Array.Empty<AssetDirectoryNode>()
-            : (IReadOnlyList<AssetDirectoryNode>)new[] { RootDirectory };
+        RootDirectory is null ? Array.Empty<AssetDirectoryNode>() : (IReadOnlyList<AssetDirectoryNode>)new[] { RootDirectory };
 
     /// <summary>
     /// Gets or sets the directory whose direct files are shown in the asset grid.
@@ -421,9 +425,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the manage sources button text.
     /// </summary>
-    public string SourceCountDisplay => SourceCount > 0
-        ? $"Manage Sources ({SourceCount})"
-        : "Manage Sources";
+    public string SourceCountDisplay => SourceCount > 0 ? $"Manage Sources ({SourceCount})" : "Manage Sources";
 
     /// <summary>
     /// Gets or sets the current status text.
@@ -440,9 +442,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the status bar asset count text.
     /// </summary>
-    public string AssetCountDisplay => AssetCount > 0
-        ? $"{AssetCount:N0} assets loaded"
-        : "No assets loaded";
+    public string AssetCountDisplay => AssetCount > 0 ? $"{AssetCount:N0} assets loaded" : "No assets loaded";
 
     /// <summary>
     /// Raised when the settings window should be opened.
@@ -650,6 +650,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         PreviewRequested?.Invoke();
     }
 
+    /// <summary>
+    /// Updates whether the preview window is open.
+    /// </summary>
+    /// <param name="value">Whether the preview window is open.</param>
     public void SetPreviewWindowOpen(bool value)
     {
         if (_isPreviewWindowOpen == value)
@@ -676,8 +680,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
+        Plugins.Dispose();
         _currentCts?.Cancel();
-        _currentCts?.Dispose();
         _currentCts = null;
         CancelPendingPreviewLoad();
     }
@@ -888,9 +892,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IsLoading = true;
-        _currentCts = new CancellationTokenSource();
-        CancellationTokenSource cts = _currentCts;
-        ProgressDialogViewModel progressVm = CreateProgressDialog("Scanning processes...", cts);
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog("Scanning processes...", cancellationSource);
         ProgressDialog = progressVm;
         ShowProgressDialog = true;
         StatusText = "Scanning processes";
@@ -905,49 +909,40 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 }
             });
 
-            if (_assetManager.SourceReaders.Count == 0)
+            return await Task.Run<IReadOnlyList<ProcessCandidateViewModel>>(() =>
             {
-                return [];
-            }
+                if (_assetManager.SourceReaders.Count == 0)
+                    return [];
 
-            List<ProcessCandidateViewModel> candidates = [];
-
-            foreach (Process process in Process.GetProcesses().OrderBy(process => GetProcessName(process), StringComparer.OrdinalIgnoreCase))
-            {
-                using var candidate = process;
-
-                cts.Token.ThrowIfCancellationRequested();
-
-                try
+                List<ProcessCandidateViewModel> candidates = [];
+                foreach (Process process in Process.GetProcesses().OrderBy(process => GetProcessName(process), StringComparer.OrdinalIgnoreCase))
                 {
-                    int processId = process.Id;
-                    var processName = process.ProcessName;
+                    using var candidate = process;
+                    cancellationSource.Token.ThrowIfCancellationRequested();
 
-                    if (processId <= 0)
-                        continue;
+                    try
+                    {
+                        int processId = process.Id;
+                        string processName = process.ProcessName;
 
-                    string windowTitle = GetProcessWindowTitle(process);
-                    progress.Report($"Checking {processName} ({processId})");
+                        if (processId <= 0)
+                            continue;
 
-                    AssetSourceRequest request = AssetSourceRequest.ForProcess(processId, _config.SourceOptions);
-                    List<ProcessReaderViewModel> matchingReaders = [.. FindMatchingProcessReaders(request)];
+                        string windowTitle = GetProcessWindowTitle(process);
+                        progress.Report($"Checking {processName} ({processId})");
+                        AssetSourceRequest request = AssetSourceRequest.ForProcess(processId, _config.SourceOptions);
+                        List<ProcessReaderViewModel> matchingReaders = [.. FindMatchingProcessReaders(request)];
 
-                    if (matchingReaders.Count <= 0)
-                        continue;
-
-                    candidates.Add(new ProcessCandidateViewModel(
-                        request,
-                        processId,
-                        processName,
-                        windowTitle,
-                        matchingReaders));
+                        if (matchingReaders.Count > 0)
+                            candidates.Add(new ProcessCandidateViewModel(request, processId, processName, windowTitle, matchingReaders));
+                    }
+                    catch
+                    {
+                    }
                 }
-                catch
-                {
-                }
-            }
 
-            return candidates;
+                return candidates;
+            }, cancellationSource.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -964,8 +959,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
-            _currentCts?.Dispose();
-            _currentCts = null;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
         }
     }
 
@@ -1014,14 +1010,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task MountSourceAsync(
-        string title,
-        Func<IProgress<string>, CancellationToken, Task<IAssetSource>> mountSourceAsync)
+    private async Task MountSourceAsync(string title, Func<IProgress<string>, CancellationToken, Task<IAssetSource>> mountSourceAsync)
     {
         IsLoading = true;
-        _currentCts = new CancellationTokenSource();
-        CancellationTokenSource cts = _currentCts;
-        ProgressDialogViewModel progressVm = CreateProgressDialog(title, cts);
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog(title, cancellationSource);
         ProgressDialog = progressVm;
         ShowProgressDialog = true;
         StatusText = title.TrimEnd('.');
@@ -1037,8 +1031,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             });
 
             IAssetSource source = await Task.Run(
-                () => mountSourceAsync(progress, cts.Token),
-                cts.Token).ConfigureAwait(true);
+                () => mountSourceAsync(progress, cancellationSource.Token),
+                cancellationSource.Token).ConfigureAwait(true);
 
             AddMountedSource(source);
             StatusText = "Ready";
@@ -1056,8 +1050,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
-            _currentCts?.Dispose();
-            _currentCts = null;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
         }
     }
 
@@ -1102,9 +1097,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IsLoading = true;
-        _currentCts = new CancellationTokenSource();
-        CancellationTokenSource cts = _currentCts;
-        ProgressDialogViewModel progressVm = CreateProgressDialog($"Exporting {rowList.Count:N0} assets...", cts);
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog($"Exporting {rowList.Count:N0} assets...", cancellationSource);
         progressVm.Total = rowList.Count;
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
@@ -1124,8 +1119,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             List<Asset> assets = [.. rowList.Select(row => row.Asset)];
             await Task.Run(
-                () => _assetManager.ExportAsync(assets, configuration, progress, cts.Token),
-                cts.Token).ConfigureAwait(true);
+                () => _assetManager.ExportAsync(assets, configuration, progress, cancellationSource.Token),
+                cancellationSource.Token).ConfigureAwait(true);
 
             StatusText = $"Exported {rowList.Count:N0} assets";
         }
@@ -1142,8 +1137,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
-            _currentCts?.Dispose();
-            _currentCts = null;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
         }
     }
 
@@ -1163,9 +1159,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private bool HasMountedLocation(AssetSourceKind kind, string location)
     {
-        return LoadedSources.Any(source =>
-            source.Request?.Kind == kind &&
-            string.Equals(source.Location, location, StringComparison.OrdinalIgnoreCase));
+        return LoadedSources.Any(source => source.Request?.Kind == kind && string.Equals(source.Location, location, StringComparison.OrdinalIgnoreCase));
     }
 
     private void OpenSourceManager()
@@ -1173,6 +1167,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         SourceManagerRequested?.Invoke();
     }
 
+    /// <summary>
+    /// Loads preview data for the selected assets.
+    /// </summary>
+    /// <param name="selectedAssets">The assets selected in the main window.</param>
     public async Task UpdatePreviewSelectionAsync(IEnumerable<AssetRowViewModel> selectedAssets)
     {
         AssetRowViewModel[] selection = [.. selectedAssets];
@@ -1199,7 +1197,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         int loadVersion = ++_previewLoadVersion;
-        CancellationTokenSource cts = BeginPreviewLoad();
+        CancellationTokenSource cancellationSource = BeginPreviewLoad();
 
         IsPreviewLoading = true;
         HandlerDisplay = ResolveHandlerName(asset.Asset);
@@ -1214,10 +1212,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            AssetReadResult readResult = await _assetManager.ReadAsync(asset.Asset, cts.Token)
+            AssetReadResult readResult = await _assetManager.ReadAsync(asset.Asset, cancellationSource.Token)
                 .ConfigureAwait(true);
 
-            if (loadVersion != _previewLoadVersion || cts.IsCancellationRequested)
+            if (loadVersion != _previewLoadVersion || cancellationSource.IsCancellationRequested)
             {
                 return;
             }
@@ -1230,11 +1228,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PayloadTypeDisplay = payloadType?.Name ?? "Unknown";
             ReferenceCountDisplay = "0";
             ContentTitle = PreviewBytes is not null ? "Hex preview" : PreviewData is null ? "Asset data loaded" : "Asset data captured";
-            ContentText = PreviewBytes is not null
-                ? $"{PreviewBytes.Length:N0} bytes"
-                : PreviewData is null
-                    ? "The asset handler returned a result without a typed payload. Future preview controls can still inspect the read result."
-                    : "No compatible preview control accepted this payload.";
+            ContentText = PreviewBytes is not null ? $"{PreviewBytes.Length:N0} bytes" : PreviewData is null ? "The asset handler returned a result without a typed payload. Future preview controls can still inspect the read result." : "No compatible preview control accepted this payload.";
             Control? previewControl = CreatePreviewControl();
             PreviewControl = previewControl;
             if (previewControl is null && PreviewData is not null)
@@ -1254,7 +1248,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            if (loadVersion != _previewLoadVersion || cts.IsCancellationRequested)
+            if (loadVersion != _previewLoadVersion || cancellationSource.IsCancellationRequested)
             {
                 return;
             }
@@ -1280,7 +1274,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static ProgressDialogViewModel CreateProgressDialog(string title, CancellationTokenSource cts)
+    private static ProgressDialogViewModel CreateProgressDialog(string title, CancellationTokenSource cancellationSource)
     {
         ProgressDialogViewModel progressVm = new(title);
         progressVm.CancelCommand = new RelayCommand(() =>
@@ -1288,7 +1282,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             progressVm.IsCancelling = true;
             progressVm.StatusText = "Cancelling...";
             progressVm.IsIndeterminate = true;
-            cts.Cancel();
+            cancellationSource.Cancel();
         });
         return progressVm;
     }
@@ -1323,9 +1317,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 progressVm.Total = progressVm.Current;
             }
 
-            progressVm.ProgressValue = progressVm.Total > 0
-                ? Math.Min(100, progressVm.Current / (double)progressVm.Total * 100)
-                : 0;
+            progressVm.ProgressValue = progressVm.Total > 0 ? Math.Min(100, progressVm.Current / (double)progressVm.Total * 100) : 0;
         });
     }
 
@@ -1382,9 +1374,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         AssetDirectoryNode root;
         if (_assetManager.TryGetService(out AssetFileSystemService? fileSystemService))
         {
-            root = AssetDirectoryTreeBuilder.BuildFromVirtualFileSystem(
-                fileSystemService.FileSystem,
-                _allAssets);
+            root = AssetDirectoryTreeBuilder.BuildFromVirtualFileSystem(fileSystemService.FileSystem, _allAssets);
         }
         else
         {
@@ -1583,9 +1573,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return null;
         }
 
-        string fullPath = Path.IsPathRooted(path)
-            ? path
-            : Path.Combine(AppContext.BaseDirectory, path);
+        string fullPath = Path.IsPathRooted(path) ? path : Path.Combine(AppContext.BaseDirectory, path);
 
         if (!File.Exists(fullPath))
         {

@@ -11,6 +11,7 @@ public sealed class ZipAssetSource : IAssetSource
 {
     private readonly ZipArchive _archive;
     private readonly Stream _archiveStream;
+    private readonly SemaphoreSlim _archiveLock;
     private readonly Dictionary<string, Asset> _assetsByPath;
     private bool _disposed;
 
@@ -21,21 +22,24 @@ public sealed class ZipAssetSource : IAssetSource
     /// <param name="archiveStream">The underlying archive stream.</param>
     /// <param name="archive">The open ZIP archive.</param>
     /// <param name="assets">The assets discovered in the archive.</param>
-    public ZipAssetSource(
-        string name,
-        Stream archiveStream,
-        ZipArchive archive,
-        IReadOnlyList<Asset> assets)
+    public ZipAssetSource(string name, Stream archiveStream, ZipArchive archive, IReadOnlyList<Asset> assets)
+        : this(name, archiveStream, archive, assets, new SemaphoreSlim(1, 1))
+    {
+    }
+
+    internal ZipAssetSource(string name, Stream archiveStream, ZipArchive archive, IReadOnlyList<Asset> assets, SemaphoreSlim archiveLock)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(archiveStream);
         ArgumentNullException.ThrowIfNull(archive);
         ArgumentNullException.ThrowIfNull(assets);
+        ArgumentNullException.ThrowIfNull(archiveLock);
 
         Name = name;
         Assets = assets.ToArray();
         _archiveStream = archiveStream;
         _archive = archive;
+        _archiveLock = archiveLock;
         _assetsByPath = Assets.ToDictionary(asset => ZipPathUtility.Normalize(asset.Name), StringComparer.OrdinalIgnoreCase);
     }
 
@@ -65,14 +69,20 @@ public sealed class ZipAssetSource : IAssetSource
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
+        _archiveLock.Wait();
+        try
         {
-            return;
-        }
+            if (_disposed)
+                return;
 
-        _disposed = true;
-        _archive.Dispose();
-        _archiveStream.Dispose();
+            _disposed = true;
+            _archive.Dispose();
+            _archiveStream.Dispose();
+        }
+        finally
+        {
+            _archiveLock.Release();
+        }
     }
 
     /// <summary>

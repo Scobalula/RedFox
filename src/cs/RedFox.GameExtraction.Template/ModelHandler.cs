@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using RedFox.GameExtraction;
 using RedFox.Graphics3D;
+using RedFox.Graphics3D.IO;
 using RedFox.IO.FileSystem;
 
 namespace RedFox.GameExtraction.Template;
@@ -86,8 +87,8 @@ public sealed class ModelHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(context);
 
-        byte[] data = result.GetData<byte[]>();
-
+        Scene scene = result.GetData<Scene>();
+        SceneTranslatorManager translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         string outputPath = context.ResolveAssetPath(result.Asset);
 
         if (File.Exists(outputPath) && !context.ExportConfiguration.Overwrite)
@@ -101,7 +102,7 @@ public sealed class ModelHandler : IAssetHandler
             Directory.CreateDirectory(outputDirectory);
         }
 
-        await AtomicFileWriter.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
+        await translator.WriteAsync(outputPath, scene, new(), cancellationToken).ConfigureAwait(false);
     }
 
     private static Stream OpenAssetStream(Asset asset)

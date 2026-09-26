@@ -186,48 +186,58 @@ internal sealed class JpegDecoder(Stream stream)
 
         int componentCount = data[offset++];
 
-        int maxH = 1, maxV = 1;
+        int maxHorizontalSample = 1;
+        int maxVerticalSample = 1;
 
         for (int i = 0; i < componentCount; i++)
         {
             int id = data[offset++];
             int samplingByte = data[offset++];
-            int h = samplingByte >> 4;
-            int v = samplingByte & 0x0F;
-            int qId = data[offset++];
+            int horizontalSample = samplingByte >> 4;
+            int verticalSample = samplingByte & 0x0F;
+            int quantizationTableId = data[offset++];
 
-            if (h is < 1 or > 4 || v is < 1 or > 4 || qId > 3)
+            if (horizontalSample is < 1 or > 4 || verticalSample is < 1 or > 4 || quantizationTableId > 3)
                 throw new InvalidDataException($"Invalid JPEG component {id} sampling or quantization table.");
 
             _frame.Components[id] = new JpegFrameComponent
             {
                 Id = id,
-                HSample = h,
-                VSample = v,
-                QuantizationTableId = qId,
+                HSample = horizontalSample,
+                VSample = verticalSample,
+                QuantizationTableId = quantizationTableId,
             };
 
             _frame.ComponentOrder.Add(id);
 
-            if (h > maxH) maxH = h;
-            if (v > maxV) maxV = v;
+            if (horizontalSample > maxHorizontalSample)
+                maxHorizontalSample = horizontalSample;
+            if (verticalSample > maxVerticalSample)
+                maxVerticalSample = verticalSample;
         }
 
-        _frame.MaxHSample = maxH;
-        _frame.MaxVSample = maxV;
+        _frame.MaxHSample = maxHorizontalSample;
+        _frame.MaxVSample = maxVerticalSample;
 
-        int mcuPixelW = maxH * 8;
-        int mcuPixelH = maxV * 8;
-        _frame.McuWidth = ((_frame.Width + mcuPixelW - 1) / mcuPixelW);
-        _frame.McuHeight = ((_frame.Height + mcuPixelH - 1) / mcuPixelH);
-        _frame.McuCount = _frame.McuWidth * _frame.McuHeight;
+        int mcuPixelWidth = maxHorizontalSample * 8;
+        int mcuPixelHeight = maxVerticalSample * 8;
+        _frame.McuWidth = (_frame.Width + mcuPixelWidth - 1) / mcuPixelWidth;
+        _frame.McuHeight = (_frame.Height + mcuPixelHeight - 1) / mcuPixelHeight;
+        _frame.McuCount = checked(_frame.McuWidth * _frame.McuHeight);
+
+        long totalBlockBytes = 0;
 
         foreach (var comp in _frame.Components.Values)
         {
             comp.BlocksPerRow = _frame.McuWidth * comp.HSample;
             comp.BlocksPerColumn = _frame.McuHeight * comp.VSample;
 
-            int totalBlocks = comp.BlocksPerRow * comp.BlocksPerColumn;
+            long blockCount = checked((long)comp.BlocksPerRow * comp.BlocksPerColumn);
+            totalBlockBytes = checked(totalBlockBytes + blockCount * 64 * sizeof(int));
+            if (totalBlockBytes > Array.MaxLength / 4)
+                throw new InvalidDataException("The JPEG coefficient data exceeds the supported buffer size.");
+
+            int totalBlocks = checked((int)blockCount);
             comp.Blocks = new int[totalBlocks][];
             for (int i = 0; i < totalBlocks; i++)
                 comp.Blocks[i] = new int[64];
@@ -242,7 +252,7 @@ internal sealed class JpegDecoder(Stream stream)
         while (offset < data.Length)
         {
             int info = data[offset++];
-            int tableClass = info >> 4;     // 0 = DC, 1 = AC
+            int tableClass = info >> 4;
             int tableId = info & 0x0F;
 
             ReadOnlySpan<byte> counts = data.AsSpan(offset, 16);
@@ -272,7 +282,7 @@ internal sealed class JpegDecoder(Stream stream)
         while (offset < data.Length)
         {
             int info = data[offset++];
-            int precision = info >> 4;   // 0 = 8-bit, 1 = 16-bit
+            int precision = info >> 4;
             int tableId = info & 0x0F;
 
             var table = new JpegQuantizationTable { Id = tableId };
@@ -312,8 +322,14 @@ internal sealed class JpegDecoder(Stream stream)
         var data = ReadSegment();
         int offset = 0;
 
+        if (data.Length < 1)
+            throw new InvalidDataException("Invalid JPEG scan header.");
+
         int componentCount = data[offset++];
         var scanHeader = new JpegScanHeader();
+        if (componentCount is < 1 or > 4 || data.Length < 1 + componentCount * 2 + 3)
+            throw new InvalidDataException("Invalid JPEG scan header.");
+
         var scanComponents = new JpegScanComponent[componentCount];
 
         for (int i = 0; i < componentCount; i++)

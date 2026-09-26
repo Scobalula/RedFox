@@ -52,53 +52,53 @@ public sealed class Md5MeshReader
         if (string.IsNullOrWhiteSpace(text))
             return;
 
-        var tok = new TextTokenReader(text.AsSpan());
+        var tokenizer = new TextTokenReader(text.AsSpan());
 
-        int numJoints = 0;
-        int numMeshes = 0;
+        int jointCount = 0;
         var joints = Array.Empty<Md5Joint>();
-        var meshDatas = new List<(string Shader, Md5Vertex[] Verts, int[] Tris, Md5Weight[] Weights)>();
+        var meshData = new List<(string Shader, Md5Vertex[] Vertices, int[] Triangles, Md5Weight[] Weights)>();
 
-        while (tok.TryReadToken(out var token))
+        while (tokenizer.TryReadToken(out var token))
         {
             if (token.SequenceEqual("MD5Version"))
             {
-                if (!tok.TryReadInt(out int version) || version != Md5Format.Version)
+                if (!tokenizer.TryReadInt(out int version) || version != Md5Format.Version)
                     throw new InvalidDataException("Unsupported MD5 version: expected 10.");
                 continue;
             }
 
             if (token.SequenceEqual("commandline"))
             {
-                tok.SkipRestOfLine();
+                tokenizer.SkipRestOfLine();
                 continue;
             }
 
             if (token.SequenceEqual("numJoints"))
             {
-                if (tok.TryReadInt(out int nj)) numJoints = nj;
+                if (tokenizer.TryReadInt(out int parsedJointCount))
+                    jointCount = parsedJointCount;
                 continue;
             }
 
             if (token.SequenceEqual("numMeshes"))
             {
-                if (tok.TryReadInt(out int nm)) numMeshes = nm;
+                tokenizer.TryReadInt(out _);
                 continue;
             }
 
             if (token.SequenceEqual("joints"))
             {
-                if (!tok.TryExpect('{'))
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after joints keyword.");
-                joints = ParseJoints(ref tok, numJoints);
+                joints = ParseJoints(ref tokenizer, jointCount);
                 continue;
             }
 
             if (token.SequenceEqual("mesh"))
             {
-                if (!tok.TryExpect('{'))
+                if (!tokenizer.TryExpect('{'))
                     throw new InvalidDataException("Expected '{' after mesh keyword.");
-                meshDatas.Add(ParseMesh(ref tok));
+                meshData.Add(ParseMesh(ref tokenizer));
             }
         }
 
@@ -113,14 +113,14 @@ public sealed class Md5MeshReader
         for (int i = 0; i < joints.Length; i++)
         {
             ref readonly var joint = ref joints[i];
-            int parentIdx = joint.ParentIndex;
+            int parentIndex = joint.ParentIndex;
 
-            if (parentIdx >= 0 && (uint)parentIdx < (uint)joints.Length)
+            if (parentIndex >= 0 && (uint)parentIndex < (uint)joints.Length)
             {
-                ref readonly var parent = ref joints[parentIdx];
-                var invParentRot = Quaternion.Conjugate(parent.Orientation);
-                bones[i].BindTransform.LocalPosition = Vector3.Transform(joint.Position - parent.Position, invParentRot);
-                bones[i].BindTransform.LocalRotation = Quaternion.Normalize(invParentRot * joint.Orientation);
+                ref readonly var parentJoint = ref joints[parentIndex];
+                var inverseParentRotation = Quaternion.Conjugate(parentJoint.Orientation);
+                bones[i].BindTransform.LocalPosition = Vector3.Transform(joint.Position - parentJoint.Position, inverseParentRotation);
+                bones[i].BindTransform.LocalRotation = Quaternion.Normalize(inverseParentRotation * joint.Orientation);
             }
             else
             {
@@ -132,22 +132,22 @@ public sealed class Md5MeshReader
             var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         for (int i = 0; i < joints.Length; i++)
         {
-            int parentIdx = joints[i].ParentIndex;
-            if (parentIdx < 0)
+            int parentIndex = joints[i].ParentIndex;
+            if (parentIndex < 0)
                 bones[i].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
-            else if ((uint)parentIdx < (uint)bones.Length)
-                bones[i].MoveTo(bones[parentIdx], ReparentTransformMode.PreserveExisting);
+            else if ((uint)parentIndex < (uint)bones.Length)
+                bones[i].MoveTo(bones[parentIndex], ReparentTransformMode.PreserveExisting);
         }
 
-        if (meshDatas.Count > 0)
+        if (meshData.Count > 0)
         {
             var model = scene.RootNode.AddNode<MeshGroup>(_name);
 
-            foreach (var (shader, verts, tris, weights) in meshDatas)
+            foreach (var (shader, vertices, triangles, weights) in meshData)
             {
                 string meshName = !string.IsNullOrWhiteSpace(shader) ? shader : "default";
                 var mesh = model.AddNode<Mesh>(meshName);
-                BuildMesh(mesh, verts, tris, weights, joints, bones);
+                BuildMesh(mesh, vertices, triangles, weights, joints, bones);
 
                 if (!string.IsNullOrWhiteSpace(shader))
                 {
@@ -166,38 +166,86 @@ public sealed class Md5MeshReader
     /// Parses the <c>joints { }</c> block from the tokenizer.
     /// The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer, advanced past the consumed content on return.</param>
+    /// <param name="tokenizer">The tokenizer, advanced past the consumed content on return.</param>
     /// <param name="capacity">The expected number of joints.</param>
     /// <returns>An array of parsed <see cref="Md5Joint"/> entries.</returns>
-    public static Md5Joint[] ParseJoints(ref TextTokenReader tok, int capacity)
+    public static Md5Joint[] ParseJoints(ref TextTokenReader tokenizer, int capacity)
     {
         var joints = new Md5Joint[capacity];
         int count = 0;
 
-        while (!tok.IsEmpty)
+        while (!tokenizer.IsEmpty)
         {
-            if (tok.TryExpect('}'))
+            if (tokenizer.TryExpect('}'))
                 break;
 
-            if (!tok.TryReadQuotedString(out var nameSpan)) continue;
+            if (!tokenizer.TryReadQuotedString(out var nameSpan))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
             string name = new(nameSpan);
 
-            if (!tok.TryReadInt(out int parentIdx)) continue;
-            if (!tok.TryExpect('(')) continue;
-            if (!tok.TryReadFloat(out float px)) continue;
-            if (!tok.TryReadFloat(out float py)) continue;
-            if (!tok.TryReadFloat(out float pz)) continue;
-            if (!tok.TryExpect(')')) continue;
-            if (!tok.TryExpect('(')) continue;
-            if (!tok.TryReadFloat(out float qx)) continue;
-            if (!tok.TryReadFloat(out float qy)) continue;
-            if (!tok.TryReadFloat(out float qz)) continue;
-            if (!tok.TryExpect(')')) continue;
+            if (!tokenizer.TryReadInt(out int parentIndex))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect('('))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionX))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionY))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float positionZ))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect(')'))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect('('))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationX))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationY))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryReadFloat(out float orientationZ))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
+            if (!tokenizer.TryExpect(')'))
+            {
+                tokenizer.SkipRestOfLine();
+                continue;
+            }
 
-            tok.SkipRestOfLine();
+            tokenizer.SkipRestOfLine();
 
             if ((uint)count < (uint)joints.Length)
-                joints[count] = new Md5Joint(name, parentIdx, new Vector3(px, py, pz), Md5Format.ComputeQuaternion(qx, qy, qz));
+                joints[count] = new Md5Joint(name, parentIndex, new Vector3(positionX, positionY, positionZ), Md5Format.ComputeQuaternion(orientationX, orientationY, orientationZ));
             count++;
         }
 
@@ -208,92 +256,183 @@ public sealed class Md5MeshReader
     /// Parses a single <c>mesh { }</c> block from the tokenizer.
     /// The opening brace must already have been consumed.
     /// </summary>
-    /// <param name="tok">The tokenizer, advanced past the consumed content on return.</param>
+    /// <param name="tokenizer">The tokenizer, advanced past the consumed content on return.</param>
     /// <returns>A tuple containing the shader name, vertex array, triangle index array, and weight array.</returns>
-    public static (string Shader, Md5Vertex[] Verts, int[] Tris, Md5Weight[] Weights) ParseMesh(ref TextTokenReader tok)
+    public static (string Shader, Md5Vertex[] Vertices, int[] Triangles, Md5Weight[] Weights) ParseMesh(ref TextTokenReader tokenizer)
     {
         string shader = "default";
-        Md5Vertex[] verts = [];
-        int[] tris = [];
+        Md5Vertex[] vertices = [];
+        int[] triangles = [];
         Md5Weight[] weights = [];
 
-        while (!tok.IsEmpty)
+        while (!tokenizer.IsEmpty)
         {
-            if (tok.TryExpect('}'))
+            if (tokenizer.TryExpect('}'))
                 break;
 
-            if (!tok.TryReadToken(out var keyword))
+            if (!tokenizer.TryReadToken(out var keyword))
                 break;
 
             if (keyword.SequenceEqual("shader"))
             {
-                if (tok.TryReadQuotedString(out var s))
+                if (tokenizer.TryReadQuotedString(out var s))
                     shader = new string(s);
                 continue;
             }
 
             if (keyword.SequenceEqual("numverts"))
             {
-                if (tok.TryReadInt(out int nv)) verts = new Md5Vertex[nv];
+                if (tokenizer.TryReadInt(out int vertexCount))
+                    vertices = new Md5Vertex[vertexCount];
                 continue;
             }
 
             if (keyword.SequenceEqual("numtris"))
             {
-                if (tok.TryReadInt(out int nt)) tris = new int[nt * 3];
+                if (tokenizer.TryReadInt(out int triangleCount))
+                    triangles = new int[checked(triangleCount * 3)];
                 continue;
             }
 
             if (keyword.SequenceEqual("numweights"))
             {
-                if (tok.TryReadInt(out int nw)) weights = new Md5Weight[nw];
+                if (tokenizer.TryReadInt(out int weightCount))
+                    weights = new Md5Weight[weightCount];
                 continue;
             }
 
             if (keyword.SequenceEqual("vert"))
             {
-                if (!tok.TryReadInt(out int idx)) continue;
-                if ((uint)idx >= (uint)verts.Length) { tok.SkipRestOfLine(); continue; }
-                if (!tok.TryExpect('(')) continue;
-                if (!tok.TryReadFloat(out float u)) continue;
-                if (!tok.TryReadFloat(out float v)) continue;
-                if (!tok.TryExpect(')')) continue;
-                if (!tok.TryReadInt(out int wIdx)) continue;
-                if (!tok.TryReadInt(out int wCount)) continue;
-                verts[idx] = new Md5Vertex(new Vector2(u, v), wIdx, wCount);
+                if (!tokenizer.TryReadInt(out int vertexIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if ((uint)vertexIndex >= (uint)vertices.Length)
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryExpect('('))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float textureCoordinateU))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float textureCoordinateV))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryExpect(')'))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int firstWeightIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int weightCount))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                vertices[vertexIndex] = new Md5Vertex(new Vector2(textureCoordinateU, textureCoordinateV), firstWeightIndex, weightCount);
                 continue;
             }
 
             if (keyword.SequenceEqual("tri"))
             {
-                if (!tok.TryReadInt(out int triIdx)) continue;
-                int baseIdx = triIdx * 3;
-                if ((uint)(baseIdx + 2) >= (uint)tris.Length) { tok.SkipRestOfLine(); continue; }
-                if (!tok.TryReadInt(out int v0)) continue;
-                if (!tok.TryReadInt(out int v1)) continue;
-                if (!tok.TryReadInt(out int v2)) continue;
-                tris[baseIdx] = v0;
-                tris[baseIdx + 1] = v1;
-                tris[baseIdx + 2] = v2;
+                if (!tokenizer.TryReadInt(out int triangleIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                int triangleBaseIndex = checked(triangleIndex * 3);
+                if ((uint)(triangleBaseIndex + 2) >= (uint)triangles.Length)
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int firstVertexIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int secondVertexIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int thirdVertexIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                triangles[triangleBaseIndex] = firstVertexIndex;
+                triangles[triangleBaseIndex + 1] = secondVertexIndex;
+                triangles[triangleBaseIndex + 2] = thirdVertexIndex;
                 continue;
             }
 
             if (keyword.SequenceEqual("weight"))
             {
-                if (!tok.TryReadInt(out int idx)) continue;
-                if ((uint)idx >= (uint)weights.Length) { tok.SkipRestOfLine(); continue; }
-                if (!tok.TryReadInt(out int jointIdx)) continue;
-                if (!tok.TryReadFloat(out float bias)) continue;
-                if (!tok.TryExpect('(')) continue;
-                if (!tok.TryReadFloat(out float wx)) continue;
-                if (!tok.TryReadFloat(out float wy)) continue;
-                if (!tok.TryReadFloat(out float wz)) continue;
-                if (!tok.TryExpect(')')) continue;
-                weights[idx] = new Md5Weight(jointIdx, bias, new Vector3(wx, wy, wz));
+                if (!tokenizer.TryReadInt(out int weightIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if ((uint)weightIndex >= (uint)weights.Length)
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadInt(out int jointIndex))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float bias))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryExpect('('))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float weightPositionX))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float weightPositionY))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryReadFloat(out float weightPositionZ))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                if (!tokenizer.TryExpect(')'))
+                {
+                    tokenizer.SkipRestOfLine();
+                    continue;
+                }
+                weights[weightIndex] = new Md5Weight(jointIndex, bias, new Vector3(weightPositionX, weightPositionY, weightPositionZ));
             }
         }
 
-        return (shader, verts, tris, weights);
+        return (shader, vertices, triangles, weights);
     }
 
     // ------------------------------------------------------------------
@@ -310,76 +449,78 @@ public sealed class Md5MeshReader
     /// </para>
     /// </summary>
     /// <param name="mesh">The destination mesh node.</param>
-    /// <param name="verts">The parsed MD5 vertices.</param>
-    /// <param name="tris">The parsed triangle indices (3 ints per triangle).</param>
+    /// <param name="vertices">The parsed MD5 vertices.</param>
+    /// <param name="triangles">The parsed triangle indices (3 ints per triangle).</param>
     /// <param name="weights">The parsed weight table.</param>
     /// <param name="joints">The parsed bind-pose joints.</param>
     /// <param name="bones">The skeleton bone array aligned with joints.</param>
-    public static void BuildMesh(Mesh mesh, Md5Vertex[] verts, int[] tris, Md5Weight[] weights, Md5Joint[] joints, SkeletonBone[] bones)
+    public static void BuildMesh(Mesh mesh, Md5Vertex[] vertices, int[] triangles, Md5Weight[] weights, Md5Joint[] joints, SkeletonBone[] bones)
     {
-        int vertCount = verts.Length;
-        int triCount = tris.Length / 3;
-        int indexCount = triCount * 3;
+        int vertexCount = vertices.Length;
+        int triangleCount = triangles.Length / 3;
+        int indexCount = triangleCount * 3;
 
         int maxInfluences = 0;
-        for (int i = 0; i < vertCount; i++)
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
         {
-            if (verts[i].WeightCount > maxInfluences)
-                maxInfluences = verts[i].WeightCount;
+            if (vertices[vertexIndex].WeightCount > maxInfluences)
+                maxInfluences = vertices[vertexIndex].WeightCount;
         }
 
-        var positions = new DataBuffer<float>(vertCount, 1, 3);
-        var uvLayers = new DataBuffer<float>(vertCount, 1, 2);
-        var boneIndices = maxInfluences > 0 ? new DataBuffer<int>(vertCount, maxInfluences, 1) : null;
-        var boneWeights = maxInfluences > 0 ? new DataBuffer<float>(vertCount, maxInfluences, 1) : null;
+        var positions = new DataBuffer<float>(vertexCount, 1, 3);
+        var uvLayers = new DataBuffer<float>(vertexCount, 1, 2);
+        var boneIndices = maxInfluences > 0 ? new DataBuffer<int>(vertexCount, maxInfluences, 1) : null;
+        var boneWeights = maxInfluences > 0 ? new DataBuffer<float>(vertexCount, maxInfluences, 1) : null;
 
-        for (int i = 0; i < vertCount; i++)
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
         {
-            ref readonly var vert = ref verts[i];
-            var finalPos = Vector3.Zero;
+            ref readonly var vertex = ref vertices[vertexIndex];
+            var finalPosition = Vector3.Zero;
 
-            for (int w = 0; w < vert.WeightCount; w++)
+            for (int weightOffset = 0; weightOffset < vertex.WeightCount; weightOffset++)
             {
-                int wIdx = vert.WeightIndex + w;
-                if ((uint)wIdx >= (uint)weights.Length) continue;
+                int weightIndex = vertex.WeightIndex + weightOffset;
+                if ((uint)weightIndex >= (uint)weights.Length)
+                    continue;
 
-                ref readonly var weight = ref weights[wIdx];
-                if ((uint)weight.JointIndex >= (uint)joints.Length) continue;
+                ref readonly var weight = ref weights[weightIndex];
+                if ((uint)weight.JointIndex >= (uint)joints.Length)
+                    continue;
 
                 ref readonly var joint = ref joints[weight.JointIndex];
                 var rotatedPos = Vector3.Transform(weight.Position, joint.Orientation);
-                finalPos += weight.Bias * (joint.Position + rotatedPos);
+                finalPosition += weight.Bias * (joint.Position + rotatedPos);
 
-                if (boneIndices is not null && boneWeights is not null && w < maxInfluences)
+                if (boneIndices is not null && boneWeights is not null && weightOffset < maxInfluences)
                 {
-                    boneIndices.Add(i, w, 0, weight.JointIndex);
-                    boneWeights.Add(i, w, 0, weight.Bias);
+                    boneIndices.Add(vertexIndex, weightOffset, 0, weight.JointIndex);
+                    boneWeights.Add(vertexIndex, weightOffset, 0, weight.Bias);
                 }
             }
 
             if (boneIndices is not null && boneWeights is not null)
             {
-                for (int w = vert.WeightCount; w < maxInfluences; w++)
+                for (int weightOffset = vertex.WeightCount; weightOffset < maxInfluences; weightOffset++)
                 {
-                    boneIndices.Add(i, w, 0, 0);
-                    boneWeights.Add(i, w, 0, 0f);
+                    boneIndices.Add(vertexIndex, weightOffset, 0, 0);
+                    boneWeights.Add(vertexIndex, weightOffset, 0, 0f);
                 }
             }
 
-            positions.Add(i, 0, 0, finalPos.X);
-            positions.Add(i, 0, 1, finalPos.Y);
-            positions.Add(i, 0, 2, finalPos.Z);
+            positions.Add(vertexIndex, 0, 0, finalPosition.X);
+            positions.Add(vertexIndex, 0, 1, finalPosition.Y);
+            positions.Add(vertexIndex, 0, 2, finalPosition.Z);
 
-            uvLayers.Add(i, 0, 0, vert.UV.X);
-            uvLayers.Add(i, 0, 1, vert.UV.Y);
+            uvLayers.Add(vertexIndex, 0, 0, vertex.UV.X);
+            uvLayers.Add(vertexIndex, 0, 1, vertex.UV.Y);
         }
 
         var faceIndices = new DataBuffer<int>(indexCount, 1, 1);
         for (int i = 0; i < indexCount; i++)
-            faceIndices.Add(i, 0, 0, tris[i]);
+            faceIndices.Add(i, 0, 0, triangles[i]);
 
-        var normals = new DataBuffer<float>(vertCount, 1, 3);
-        ComputeNormals(positions, faceIndices, triCount, vertCount, normals);
+        var normals = new DataBuffer<float>(vertexCount, 1, 3);
+        ComputeNormals(positions, faceIndices, triangleCount, vertexCount, normals);
 
         mesh.Positions = positions;
         mesh.Normals = normals;
@@ -395,37 +536,38 @@ public sealed class Md5MeshReader
     /// </summary>
     /// <param name="positions">The vertex position buffer.</param>
     /// <param name="faceIndices">The face index buffer.</param>
-    /// <param name="triCount">The number of triangles.</param>
-    /// <param name="vertCount">The number of vertices.</param>
+    /// <param name="triangleCount">The number of triangles.</param>
+    /// <param name="vertexCount">The number of vertices.</param>
     /// <param name="normals">The output normal buffer to populate.</param>
-    public static void ComputeNormals(DataBuffer<float> positions, DataBuffer<int> faceIndices, int triCount, int vertCount, DataBuffer<float> normals)
+    public static void ComputeNormals(DataBuffer<float> positions, DataBuffer<int> faceIndices, int triangleCount, int vertexCount, DataBuffer<float> normals)
     {
-        Span<Vector3> accumNormals = vertCount <= 4096 ? stackalloc Vector3[vertCount] : new Vector3[vertCount];
-        accumNormals.Clear();
+        Span<Vector3> accumulatedNormals = vertexCount <= 4096 ? stackalloc Vector3[vertexCount] : new Vector3[vertexCount];
+        accumulatedNormals.Clear();
 
-        for (int t = 0; t < triCount; t++)
+        for (int triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++)
         {
-            int i0 = faceIndices.Get<int>(t * 3, 0, 0);
-            int i1 = faceIndices.Get<int>(t * 3 + 1, 0, 0);
-            int i2 = faceIndices.Get<int>(t * 3 + 2, 0, 0);
+            int firstVertexIndex = faceIndices.Get<int>(triangleIndex * 3, 0, 0);
+            int secondVertexIndex = faceIndices.Get<int>(triangleIndex * 3 + 1, 0, 0);
+            int thirdVertexIndex = faceIndices.Get<int>(triangleIndex * 3 + 2, 0, 0);
 
-            var p0 = new Vector3(positions.Get<float>(i0, 0, 0), positions.Get<float>(i0, 0, 1), positions.Get<float>(i0, 0, 2));
-            var p1 = new Vector3(positions.Get<float>(i1, 0, 0), positions.Get<float>(i1, 0, 1), positions.Get<float>(i1, 0, 2));
-            var p2 = new Vector3(positions.Get<float>(i2, 0, 0), positions.Get<float>(i2, 0, 1), positions.Get<float>(i2, 0, 2));
+            var firstPosition = new Vector3(positions.Get<float>(firstVertexIndex, 0, 0), positions.Get<float>(firstVertexIndex, 0, 1), positions.Get<float>(firstVertexIndex, 0, 2));
+            var secondPosition = new Vector3(positions.Get<float>(secondVertexIndex, 0, 0), positions.Get<float>(secondVertexIndex, 0, 1), positions.Get<float>(secondVertexIndex, 0, 2));
+            var thirdPosition = new Vector3(positions.Get<float>(thirdVertexIndex, 0, 0), positions.Get<float>(thirdVertexIndex, 0, 1), positions.Get<float>(thirdVertexIndex, 0, 2));
 
-            var faceNormal = Vector3.Cross(p1 - p0, p2 - p0);
-            accumNormals[i0] += faceNormal;
-            accumNormals[i1] += faceNormal;
-            accumNormals[i2] += faceNormal;
+            var faceNormal = Vector3.Cross(secondPosition - firstPosition, thirdPosition - firstPosition);
+            accumulatedNormals[firstVertexIndex] += faceNormal;
+            accumulatedNormals[secondVertexIndex] += faceNormal;
+            accumulatedNormals[thirdVertexIndex] += faceNormal;
         }
 
-        for (int i = 0; i < vertCount; i++)
+        for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
         {
-            var n = Vector3.Normalize(accumNormals[i]);
-            if (float.IsNaN(n.X)) n = Vector3.UnitY;
-            normals.Add(i, 0, 0, n.X);
-            normals.Add(i, 0, 1, n.Y);
-            normals.Add(i, 0, 2, n.Z);
+            var normal = Vector3.Normalize(accumulatedNormals[vertexIndex]);
+            if (float.IsNaN(normal.X))
+                normal = Vector3.UnitY;
+            normals.Add(vertexIndex, 0, 0, normal.X);
+            normals.Add(vertexIndex, 0, 1, normal.Y);
+            normals.Add(vertexIndex, 0, 2, normal.Z);
         }
     }
 }

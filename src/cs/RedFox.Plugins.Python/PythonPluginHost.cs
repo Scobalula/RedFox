@@ -95,6 +95,7 @@ public sealed class PythonPluginHost : IPluginHost, IDisposable
 
         plugin.Tag = null;
         Exception? captured = null;
+        IntPtr scopeHandle = scope.Handle;
 
         using (Py.GIL())
         {
@@ -111,18 +112,19 @@ public sealed class PythonPluginHost : IPluginHost, IDisposable
                 captured = ex;
             }
 
-            scope.Dispose();
-
             try
             {
                 using PyObject sysModules = Py.Import("sys").GetAttr("modules");
-                if (sysModules.HasAttr("pop"))
+                using PyObject currentModule = sysModules.InvokeMethod("get", plugin.Name.ToPython());
+                if (currentModule.Handle == scopeHandle)
                     sysModules.InvokeMethod("pop", plugin.Name.ToPython(), PyObject.None);
             }
             catch
             {
                 // Removing the module from sys.modules is best-effort; failure does not affect unload semantics.
             }
+
+            scope.Dispose();
 
             try
             {
@@ -166,13 +168,10 @@ public sealed class PythonPluginHost : IPluginHost, IDisposable
             if (PythonEngine.IsInitialized)
                 return;
 
-            string? dll = !string.IsNullOrWhiteSpace(options.PythonDll)
-                ? options.PythonDll
-                : PythonResolver.Resolve();
+            string? dll = !string.IsNullOrWhiteSpace(options.PythonDll) ? options.PythonDll : PythonResolver.Resolve();
 
             if (string.IsNullOrWhiteSpace(dll))
-                throw new PythonPluginException(
-                    "Could not locate a Python runtime DLL. Install Python 3 or set PythonRuntimeOptions.PythonDll / the PYTHONNET_PYDLL environment variable.");
+                throw new PythonPluginException("Could not locate a Python runtime DLL. Install Python 3 or set PythonRuntimeOptions.PythonDll / the PYTHONNET_PYDLL environment variable.");
 
             Runtime.PythonDLL = dll;
 

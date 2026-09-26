@@ -36,33 +36,13 @@ internal unsafe partial class FlacInterop
     /// Initializes a decoder to read FLAC data from a memory buffer.
     /// </summary>
     [LibraryImport(Library, EntryPoint = "FLAC__stream_decoder_init_stream", SetLastError = true)]
-    public static partial int DecoderInitStream(
-        IntPtr decoder,
-        ReadCallback? readCallback,
-        SeekCallback? seekCallback,
-        TellCallback? tellCallback,
-        LengthCallback? lengthCallback,
-        EofCallback? eofCallback,
-        WriteCallback? writeCallback,
-        MetadataCallback? metadataCallback,
-        ErrorCallback? errorCallback,
-        IntPtr clientData);
+    public static partial int DecoderInitStream(IntPtr decoder, ReadCallback? readCallback, SeekCallback? seekCallback, TellCallback? tellCallback, LengthCallback? lengthCallback, EofCallback? eofCallback, WriteCallback? writeCallback, MetadataCallback? metadataCallback, ErrorCallback? errorCallback, IntPtr clientData);
 
     /// <summary>
     /// Initializes a decoder to read FLAC data from Ogg FLAC in a memory buffer.
     /// </summary>
     [LibraryImport(Library, EntryPoint = "FLAC__stream_decoder_init_ogg_stream", SetLastError = true)]
-    public static partial int DecoderInitOggStream(
-        IntPtr decoder,
-        ReadCallback readCallback,
-        SeekCallback seekCallback,
-        TellCallback tellCallback,
-        LengthCallback lengthCallback,
-        EofCallback eofCallback,
-        WriteCallback writeCallback,
-        MetadataCallback metadataCallback,
-        ErrorCallback errorCallback,
-        IntPtr clientData);
+    public static partial int DecoderInitOggStream(IntPtr decoder, ReadCallback readCallback, SeekCallback seekCallback, TellCallback tellCallback, LengthCallback lengthCallback, EofCallback eofCallback, WriteCallback writeCallback, MetadataCallback metadataCallback, ErrorCallback errorCallback, IntPtr clientData);
 
     /// <summary>
     /// Finishes the decoding process and releases encoder resources.
@@ -162,25 +142,13 @@ internal unsafe partial class FlacInterop
     /// Initializes an encoder to write FLAC data using a write callback.
     /// </summary>
     [LibraryImport(Library, EntryPoint = "FLAC__stream_encoder_init_stream", SetLastError = true)]
-    public static partial int EncoderInitStream(
-        IntPtr encoder,
-        EncoderWriteCallback? writeCallback,
-        EncoderSeekCallback? seekCallback,
-        EncoderTellCallback? tellCallback,
-        EncoderMetadataCallback? metadataCallback,
-        IntPtr clientData);
+    public static partial int EncoderInitStream(IntPtr encoder, EncoderWriteCallback? writeCallback, EncoderSeekCallback? seekCallback, EncoderTellCallback? tellCallback, EncoderMetadataCallback? metadataCallback, IntPtr clientData);
 
     /// <summary>
     /// Initializes an Ogg FLAC encoder.
     /// </summary>
     [LibraryImport(Library, EntryPoint = "FLAC__stream_encoder_init_ogg_stream", SetLastError = true)]
-    public static partial int EncoderInitOggStream(
-        IntPtr encoder,
-        EncoderWriteCallback writeCallback,
-        EncoderSeekCallback seekCallback,
-        EncoderTellCallback tellCallback,
-        EncoderMetadataCallback metadataCallback,
-        IntPtr clientData);
+    public static partial int EncoderInitOggStream(IntPtr encoder, EncoderWriteCallback writeCallback, EncoderSeekCallback seekCallback, EncoderTellCallback tellCallback, EncoderMetadataCallback metadataCallback, IntPtr clientData);
 
     /// <summary>
     /// Finishes the encoding process and releases encoder resources.
@@ -201,102 +169,62 @@ internal unsafe partial class FlacInterop
     /// <summary>
     /// Callback for reading encoded data.
     /// </summary>
-    public unsafe delegate ReadCallbackStatus ReadCallback(
-        IntPtr decoder,
-        byte* buffer,
-        int* bytes,
-        IntPtr clientData);
+    public unsafe delegate ReadCallbackStatus ReadCallback(IntPtr decoder, byte* buffer, int* bytes, IntPtr clientData);
 
     /// <summary>
     /// Callback for seeking within the stream.
     /// </summary>
-    public unsafe delegate SeekCallbackStatus SeekCallback(
-        IntPtr decoder,
-        ulong absoluteByteOffset,
-        IntPtr clientData);
+    public unsafe delegate SeekCallbackStatus SeekCallback(IntPtr decoder, ulong absoluteByteOffset, IntPtr clientData);
 
     /// <summary>
     /// Callback for getting the current position.
     /// </summary>
-    public unsafe delegate TellCallbackStatus TellCallback(
-        IntPtr decoder,
-        ulong* absoluteByteOffset,
-        IntPtr clientData);
+    public unsafe delegate TellCallbackStatus TellCallback(IntPtr decoder, ulong* absoluteByteOffset, IntPtr clientData);
 
     /// <summary>
     /// Callback for getting the stream length.
     /// </summary>
-    public unsafe delegate LengthCallbackStatus LengthCallback(
-        IntPtr decoder,
-        ulong* streamLength,
-        IntPtr clientData);
+    public unsafe delegate LengthCallbackStatus LengthCallback(IntPtr decoder, ulong* streamLength, IntPtr clientData);
 
     /// <summary>
     /// Callback for checking end of file.
     /// </summary>
-    public unsafe delegate int EofCallback(
-        IntPtr decoder,
-        IntPtr clientData);
+    public unsafe delegate int EofCallback(IntPtr decoder, IntPtr clientData);
 
     /// <summary>
     /// Callback for writing decoded PCM data.
     /// </summary>
-    public unsafe delegate int WriteCallback(
-        IntPtr decoder,
-        IntPtr* frame,
-        IntPtr buffer,
-        IntPtr clientData);
+    public unsafe delegate int WriteCallback(IntPtr decoder, IntPtr frame, IntPtr buffer, IntPtr clientData);
 
     /// <summary>
     /// Callback for receiving metadata.
     /// </summary>
-    public unsafe delegate void MetadataCallback(
-        IntPtr decoder,
-        IntPtr metadata,
-        IntPtr clientData);
+    public unsafe delegate void MetadataCallback(IntPtr decoder, IntPtr metadata, IntPtr clientData);
 
     /// <summary>
     /// Callback for error reporting.
     /// </summary>
-    public unsafe delegate void ErrorCallback(
-        IntPtr decoder,
-        int status,
-        IntPtr clientData);
+    public unsafe delegate void ErrorCallback(IntPtr decoder, int status, IntPtr clientData);
 
     /// <summary>
     /// Callback for writing encoded data.
     /// </summary>
-    public unsafe delegate EncoderWriteStatus EncoderWriteCallback(
-        IntPtr encoder,
-        byte* buffer,
-        int bytes,
-        int samples,
-        int currentFrame,
-        IntPtr clientData);
+    public unsafe delegate EncoderWriteStatus EncoderWriteCallback(IntPtr encoder, byte* buffer, int bytes, int samples, int currentFrame, IntPtr clientData);
 
     /// <summary>
     /// Callback for seeking in the output stream.
     /// </summary>
-    public unsafe delegate EncoderSeekStatus EncoderSeekCallback(
-        IntPtr encoder,
-        ulong absoluteByteOffset,
-        IntPtr clientData);
+    public unsafe delegate EncoderSeekStatus EncoderSeekCallback(IntPtr encoder, ulong absoluteByteOffset, IntPtr clientData);
 
     /// <summary>
     /// Callback for getting the output position.
     /// </summary>
-    public unsafe delegate EncoderTellStatus EncoderTellCallback(
-        IntPtr encoder,
-        ulong* absoluteByteOffset,
-        IntPtr clientData);
+    public unsafe delegate EncoderTellStatus EncoderTellCallback(IntPtr encoder, ulong* absoluteByteOffset, IntPtr clientData);
 
     /// <summary>
     /// Callback for metadata encoding.
     /// </summary>
-    public unsafe delegate void EncoderMetadataCallback(
-        IntPtr encoder,
-        IntPtr metadata,
-        IntPtr clientData);
+    public unsafe delegate void EncoderMetadataCallback(IntPtr encoder, IntPtr metadata, IntPtr clientData);
 
     #endregion
 
@@ -308,7 +236,8 @@ internal unsafe partial class FlacInterop
     public enum ReadCallbackStatus : int
     {
         ReadContinue = 0,
-        ReadAbort = 1,
+        ReadEndOfStream = 1,
+        ReadAbort = 2,
     }
 
     /// <summary>

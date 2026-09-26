@@ -15,9 +15,12 @@ namespace RedFox.Compression.GDeflate
         private const string Library = "Native\\libgdeflate";
 
         [LibraryImport(Library, EntryPoint = "libdeflate_alloc_gdeflate_decompressor", SetLastError = true)]
-        public static partial nuint CreateDecompressor();
+        public static partial nint CreateDecompressor();
+
+        [LibraryImport(Library, EntryPoint = "libdeflate_free_gdeflate_decompressor")]
+        public static partial void FreeDecompressor(nint decompressor);
 
         [LibraryImport(Library, EntryPoint = "libdeflate_gdeflate_decompress", SetLastError = true)]
-        public static partial int Decompress(nuint decompressor, ReadOnlySpan<GDeflatePage> pages, int numPages, Span<byte> output, int avail, out int ret);
+        public static partial int Decompress(nint decompressor, ReadOnlySpan<GDeflatePage> pages, nuint pageCount, Span<byte> output, nuint availableOutputSize, out nuint returnedSize);
     }
 }

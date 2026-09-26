@@ -186,7 +186,7 @@ public sealed class NameTableManager
     {
         foreach (var table in _tables)
         {
-            if (!string.Equals(table.Name, name, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(table.Name, name, StringComparison.OrdinalIgnoreCase))
             {
                 nameTable = table;
                 return true;

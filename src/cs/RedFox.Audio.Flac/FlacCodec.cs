@@ -7,6 +7,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
+using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 
 namespace RedFox.Audio.Flac;
@@ -20,9 +21,21 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
     private IntPtr _decoder = IntPtr.Zero;
     private IntPtr _encoder = IntPtr.Zero;
 
-    private readonly List<byte> _decodeOutput = new();
+    private readonly FlacInterop.ReadCallback _readCallback;
+    private readonly FlacInterop.WriteCallback _writeCallback;
+    private readonly FlacInterop.MetadataCallback _metadataCallback;
+    private readonly FlacInterop.ErrorCallback _errorCallback;
+    private readonly FlacInterop.EncoderWriteCallback _encoderWriteCallback;
+
     private byte[] _decodeInput = Array.Empty<byte>();
+    private int _decodeLength;
     private int _decodePosition;
+    private short* _decodeDestination;
+    private int _decodeCapacity;
+    private int _decodeWritePosition;
+    private int _decodeExpectedChannels;
+    private Exception? _callbackException;
+    private int _decoderError;
 
     private readonly List<byte> _encodeOutput = new();
 
@@ -63,6 +76,11 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
     /// </summary>
     public FlacCodec()
     {
+        _readCallback = DecoderReadCallback;
+        _writeCallback = DecoderWriteCallback;
+        _metadataCallback = DecoderMetadataCallback;
+        _errorCallback = DecoderErrorCallback;
+        _encoderWriteCallback = EncoderWriteCallback;
         _decoder = FlacInterop.DecoderNew();
         _encoder = FlacInterop.EncoderNew();
     }
@@ -77,41 +95,42 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
             _decodeInput = new byte[source.Length];
 
         source.CopyTo(_decodeInput);
+        _decodeLength = source.Length;
         _decodePosition = 0;
-        _decodeOutput.Clear();
+        _decodeCapacity = destination.Length;
+        _decodeWritePosition = 0;
+        _decodeExpectedChannels = format.Channels;
+        _callbackException = null;
+        _decoderError = 0;
 
-        var readCallback = new FlacInterop.ReadCallback(DecoderReadCallback);
-        var writeCallback = new FlacInterop.WriteCallback(DecoderWriteCallback);
-        var metadataCallback = new FlacInterop.MetadataCallback(DecoderMetadataCallback);
-        var errorCallback = new FlacInterop.ErrorCallback(DecoderErrorCallback);
-
-        var status = FlacInterop.DecoderInitStream(
-            _decoder,
-            readCallback,
-            null,
-            null,
-            null,
-            null,
-            writeCallback,
-            metadataCallback,
-            errorCallback,
-            IntPtr.Zero);
+        var status = FlacInterop.DecoderInitStream(_decoder, _readCallback, null, null, null, null, _writeCallback, _metadataCallback, _errorCallback, IntPtr.Zero);
 
         if (status != 0)
             throw new FlacException($"Failed to initialize FLAC decoder: {status}.");
 
-        FlacInterop.DecoderProcessUntilEndOfStream(_decoder);
-        FlacInterop.DecoderFinish(_decoder);
+        int processResult;
+        int finishResult;
+        fixed (short* destinationPointer = destination)
+        {
+            _decodeDestination = destinationPointer;
+            try
+            {
+                processResult = FlacInterop.DecoderProcessUntilEndOfStream(_decoder);
+            }
+            finally
+            {
+                _decodeDestination = null;
+            }
 
-        var output = _decodeOutput.ToArray();
-        var sampleCount = output.Length / 2;
-        var samples = new short[sampleCount];
+            finishResult = FlacInterop.DecoderFinish(_decoder);
+        }
 
-        Buffer.BlockCopy(output, 0, samples, 0, output.Length);
+        if (_callbackException is not null)
+            throw new FlacException("A FLAC callback failed.", _callbackException);
+        if (_decoderError != 0 || processResult != 1 || finishResult != 1)
+            throw new FlacException("Failed to decode the FLAC stream.");
 
-        new ReadOnlySpan<short>(samples).CopyTo(destination);
-
-        return sampleCount;
+        return _decodeWritePosition;
     }
 
     /// <inheritdoc/>
@@ -123,6 +142,13 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
         _sampleRate = format.SampleRate;
         _channels = format.Channels;
         _bitsPerSample = format.BitsPerSample > 0 ? format.BitsPerSample : 16;
+
+        if (_channels is < 1 or > 8 || _sampleRate <= 0 || _bitsPerSample is < 4 or > 32)
+            throw new FlacException("The FLAC audio format is invalid.");
+        if (CompressionLevel is < 0 or > 8 || BlockSize is < 16 or > 65535)
+            throw new FlacException("The FLAC encoder settings are invalid.");
+        if (source.Length % _channels != 0)
+            throw new FlacException("The interleaved FLAC sample count is invalid.");
 
         if (FlacInterop.EncoderSetVerify(_encoder, Verify ? 1 : 0) != 1)
             throw new FlacException("Failed to set encoder verify flag.");
@@ -151,26 +177,34 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
 
         _encodeOutput.Clear();
 
-        var writeCallback = new FlacInterop.EncoderWriteCallback(EncoderWriteCallback);
+        _callbackException = null;
 
-        var status = FlacInterop.EncoderInitStream(
-            _encoder,
-            writeCallback,
-            null,
-            null,
-            null,
-            IntPtr.Zero);
+        var status = FlacInterop.EncoderInitStream(_encoder, _encoderWriteCallback, null, null, null, IntPtr.Zero);
 
         if (status != 0)
             throw new FlacException($"Failed to initialize FLAC encoder: {status}.");
 
-        fixed (short* pSource = source)
+        int[] encoderSamples = new int[source.Length];
+        int shift = _bitsPerSample - 16;
+        for (int sampleIndex = 0; sampleIndex < source.Length; sampleIndex++)
+            encoderSamples[sampleIndex] = shift > 0 ? source[sampleIndex] << shift : shift < 0 ? source[sampleIndex] >> -shift : source[sampleIndex];
+
+        int processResult;
+        int finishResult;
+        try
         {
-            if (FlacInterop.EncoderProcessInterleaved(_encoder, (IntPtr)pSource, (uint)source.Length) != 1)
-                throw new FlacException("Failed to encode FLAC data.");
+            fixed (int* pSource = encoderSamples)
+                processResult = FlacInterop.EncoderProcessInterleaved(_encoder, (IntPtr)pSource, (uint)(source.Length / _channels));
+        }
+        finally
+        {
+            finishResult = FlacInterop.EncoderFinish(_encoder);
         }
 
-        FlacInterop.EncoderFinish(_encoder);
+        if (_callbackException is not null)
+            throw new FlacException("The FLAC encoder write callback failed.", _callbackException);
+        if (processResult != 1 || finishResult != 1)
+            throw new FlacException("Failed to finish FLAC encoding.");
 
         _encodeOutput.CopyTo(destination);
 
@@ -180,7 +214,51 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
     /// <inheritdoc/>
     public override int GetMaxDecodedSize(int encodedSize, AudioFormat format)
     {
-        return encodedSize * 16;
+        ArgumentOutOfRangeException.ThrowIfNegative(encodedSize);
+        int channels = format.Channels > 0 ? format.Channels : 2;
+        return checked(encodedSize * 16 * channels);
+    }
+
+    /// <inheritdoc/>
+    public override int GetMaxDecodedSize(ReadOnlySpan<byte> encodedData, AudioFormat format)
+    {
+        if (encodedData.Length < 42 || !encodedData[..4].SequenceEqual("fLaC"u8))
+            return GetMaxDecodedSize(encodedData.Length, format);
+
+        int offset = 4;
+        while (offset <= encodedData.Length - 4)
+        {
+            byte blockHeader = encodedData[offset];
+            int blockType = blockHeader & 0x7F;
+            int blockLength = (encodedData[offset + 1] << 16) | (encodedData[offset + 2] << 8) | encodedData[offset + 3];
+            offset += 4;
+            if (blockLength > encodedData.Length - offset)
+                throw new InvalidDataException("The FLAC metadata block is truncated.");
+
+            if (blockType == 0)
+            {
+                if (blockLength != 34)
+                    throw new InvalidDataException("The FLAC STREAMINFO block has an invalid size.");
+
+                ReadOnlySpan<byte> streamInfo = encodedData.Slice(offset, blockLength);
+                int channels = ((streamInfo[12] >> 1) & 0x07) + 1;
+                ulong sampleCount = BinaryPrimitives.ReadUInt64BigEndian(streamInfo[10..]) & 0xFFFFFFFFFUL;
+                if (format.Channels > 0 && channels != format.Channels)
+                    throw new InvalidDataException("The FLAC stream channel count does not match the requested audio format.");
+                if (sampleCount == 0)
+                    return GetMaxDecodedSize(encodedData.Length, format);
+                if (sampleCount > (ulong)(int.MaxValue / channels))
+                    throw new InvalidDataException("The FLAC decoded sample count exceeds the supported buffer size.");
+
+                return checked((int)sampleCount * channels);
+            }
+
+            offset = checked(offset + blockLength);
+            if ((blockHeader & 0x80) != 0)
+                break;
+        }
+
+        throw new InvalidDataException("The FLAC stream does not contain a STREAMINFO block.");
     }
 
     /// <inheritdoc/>
@@ -191,13 +269,15 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
         return sampleCount * 2 * channels;
     }
 
-    private FlacInterop.ReadCallbackStatus DecoderReadCallback(
-        IntPtr decoder,
-        byte* buffer,
-        int* bytes,
-        IntPtr clientData)
+    private FlacInterop.ReadCallbackStatus DecoderReadCallback(IntPtr decoder, byte* buffer, int* bytes, IntPtr clientData)
     {
-        var remaining = _decodeInput.Length - _decodePosition;
+        if (bytes is null || *bytes <= 0)
+        {
+            _callbackException = new FlacException("The FLAC decoder requested an invalid input size.");
+            return FlacInterop.ReadCallbackStatus.ReadAbort;
+        }
+
+        var remaining = _decodeLength - _decodePosition;
         var toRead = Math.Min(*bytes, remaining);
 
         if (toRead > 0)
@@ -207,38 +287,48 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
         }
 
         *bytes = toRead;
-
-        return FlacInterop.ReadCallbackStatus.ReadContinue;
+        return toRead == 0 ? FlacInterop.ReadCallbackStatus.ReadEndOfStream : FlacInterop.ReadCallbackStatus.ReadContinue;
     }
 
-    private int DecoderWriteCallback(
-        IntPtr decoder,
-        IntPtr* frame,
-        IntPtr buffer,
-        IntPtr clientData)
+    private int DecoderWriteCallback(IntPtr decoder, IntPtr frame, IntPtr buffer, IntPtr clientData)
     {
-        var framePtr = frame[0];
-
-        var blockSize = *(int*)(framePtr + 4);
-        var channels = *(int*)(framePtr + 8);
-        var bitsPerSample = *(int*)(framePtr + 12);
-
-        var samplesPerChannel = blockSize;
-        var totalSamples = samplesPerChannel * channels;
-
-        var bufferData = (int**)buffer;
-
-        for (var sample = 0; sample < samplesPerChannel; sample++)
+        try
         {
-            for (var ch = 0; ch < channels; ch++)
+            if (frame == IntPtr.Zero || buffer == IntPtr.Zero)
+                throw new FlacException("The FLAC decoder returned an invalid frame.");
+
+            byte* framePointer = (byte*)frame;
+            int blockSize = checked((int)*(uint*)framePointer);
+            int channels = checked((int)*(uint*)(framePointer + 8));
+            int bitsPerSample = checked((int)*(uint*)(framePointer + 16));
+            if (blockSize <= 0 || channels is < 1 or > 8 || (_decodeExpectedChannels > 0 && channels != _decodeExpectedChannels) || bitsPerSample is < 1 or > 32)
+                throw new FlacException("The FLAC frame contains invalid metadata.");
+
+            int totalSamples = checked(blockSize * channels);
+            if (_decodeDestination is null || totalSamples > _decodeCapacity - _decodeWritePosition)
+                throw new FlacException("The FLAC frame exceeds the output buffer or contains invalid metadata.");
+
+            int** channelData = (int**)buffer;
+            int sampleShift = bitsPerSample - 16;
+            short* output = _decodeDestination + _decodeWritePosition;
+            for (int sample = 0; sample < blockSize; sample++)
             {
-                var value = (short)bufferData[ch][sample];
-
-                _decodeOutput.AddRange(BitConverter.GetBytes(value));
+                for (int channel = 0; channel < channels; channel++)
+                {
+                    int value = channelData[channel][sample];
+                    value = sampleShift > 0 ? value >> sampleShift : sampleShift < 0 ? value << -sampleShift : value;
+                    output[sample * channels + channel] = (short)Math.Clamp(value, short.MinValue, short.MaxValue);
+                }
             }
-        }
 
-        return 1;
+            _decodeWritePosition += totalSamples;
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            _callbackException = exception;
+            return 1;
+        }
     }
 
     private void DecoderMetadataCallback(IntPtr decoder, IntPtr metadata, IntPtr clientData)
@@ -247,20 +337,21 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
 
     private void DecoderErrorCallback(IntPtr decoder, int status, IntPtr clientData)
     {
-        throw new FlacException($"FLAC decoder error: {status}.");
+        _decoderError = status;
     }
 
-    private FlacInterop.EncoderWriteStatus EncoderWriteCallback(
-        IntPtr encoder,
-        byte* buffer,
-        int bytes,
-        int samples,
-        int currentFrame,
-        IntPtr clientData)
+    private FlacInterop.EncoderWriteStatus EncoderWriteCallback(IntPtr encoder, byte* buffer, int bytes, int samples, int currentFrame, IntPtr clientData)
     {
-        _encodeOutput.AddRange(new Span<byte>(buffer, bytes).ToArray());
-
-        return FlacInterop.EncoderWriteStatus.WriteOk;
+        try
+        {
+            _encodeOutput.AddRange(new Span<byte>(buffer, bytes).ToArray());
+            return FlacInterop.EncoderWriteStatus.WriteOk;
+        }
+        catch (Exception exception)
+        {
+            _callbackException = exception;
+            return FlacInterop.EncoderWriteStatus.WriteFatalError;
+        }
     }
 
     /// <inheritdoc/>

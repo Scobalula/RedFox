@@ -23,9 +23,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
             return false;
         }
 
-        if (request.Header.Length >= sizeof(uint) &&
-            MemoryMarshal.Read<uint>(request.HeaderSpan) is uint signature &&
-            (signature == 0x04034B50u || signature == 0x06054B50u || signature == 0x08074B50u))
+        if (request.Header.Length >= sizeof(uint) && MemoryMarshal.Read<uint>(request.HeaderSpan) is uint signature && (signature == 0x04034B50u || signature == 0x06054B50u || signature == 0x08074B50u))
         {
             return true;
         }
@@ -41,11 +39,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
     /// <param name="progress">Optional progress reporter for mount messages.</param>
     /// <param name="cancellationToken">The cancellation token for the mount operation.</param>
     /// <returns>A mounted ZIP-backed asset source.</returns>
-    public Task<IAssetSource> OpenAsync(
-        AssetSourceRequest request,
-        AssetManager assetManager,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken)
+    public Task<IAssetSource> OpenAsync(AssetSourceRequest request, AssetManager assetManager, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(assetManager);
@@ -59,13 +53,13 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
         }
 
         FileStream stream = File.Open(location, FileMode.Open, FileAccess.Read, FileShare.Read);
+        ZipArchive? archive = null;
+        SemaphoreSlim archiveLock = new(1, 1);
 
         try
         {
-            ZipArchive archive = new(stream, ZipArchiveMode.Read, leaveOpen: false);
+            archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
             List<Asset> assets = [];
-            AssetFileSystemService fileSystemService = assetManager.GetRequiredService<AssetFileSystemService>();
-
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -75,30 +69,22 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
                     continue;
                 }
 
-                ZipVirtualFile file = new(entry);
-                Asset asset = new(
-                    entry.FullName,
-                    ZipPathUtility.GetAssetType(entry.Name),
-                    file,
-                    $"{entry.Length:N0} bytes",
-                    new Dictionary<string, object?>
-                    {
-                        ["Size"] = entry.Length,
-                        ["CompressedSize"] = entry.CompressedLength,
-                        ["ArchivePath"] = location,
-                    });
+                string assetPath = ZipPathUtility.Normalize(entry.FullName);
+                ZipVirtualFile file = new(entry, archiveLock);
+                Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["Size"] = entry.Length, ["CompressedSize"] = entry.CompressedLength, ["ArchivePath"] = location, });
 
                 assets.Add(asset);
-                fileSystemService.FileSystem.AddFile(ZipPathUtility.Normalize(entry.FullName), file);
                 progress?.Report($"Mounted {asset.Name}");
             }
 
-            IAssetSource source = new ZipAssetSource(request.DisplayName, stream, archive, assets);
+            IAssetSource source = new ZipAssetSource(request.DisplayName, stream, archive, assets, archiveLock);
             return Task.FromResult(source);
         }
         catch
         {
+            archive?.Dispose();
             stream.Dispose();
+            archiveLock.Dispose();
             throw;
         }
     }

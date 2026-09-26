@@ -14,17 +14,23 @@ internal static class TiffIfdReader
     /// </summary>
     /// <param name="data">The complete TIFF file data.</param>
     /// <param name="offset">Byte offset to the start of the IFD.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>An array of parsed <see cref="TiffIfdEntry"/> values.</returns>
-    public static TiffIfdEntry[] ParseIFD(ReadOnlySpan<byte> data, uint offset, bool le)
+    public static TiffIfdEntry[] ParseIFD(ReadOnlySpan<byte> data, uint offset, bool littleEndian)
     {
-        ushort count = ReadUInt16(data, (int)offset, le);
+        if (data.Length < 2 || offset > int.MaxValue || offset > (uint)(data.Length - 2))
+            throw new InvalidDataException("The TIFF IFD offset is outside the input data.");
+
+        ushort count = ReadUInt16(data, (int)offset, littleEndian);
+        if (2L + count * 12L > data.Length - (long)offset)
+            throw new InvalidDataException("The TIFF IFD entries are truncated.");
+
         var entries = new TiffIfdEntry[count];
 
         for (int i = 0; i < count; i++)
         {
-            int pos = (int)offset + 2 + i * 12;
-            entries[i] = new TiffIfdEntry(ReadUInt16(data, pos, le), ReadUInt16(data, pos + 2, le), ReadUInt32(data, pos + 4, le), ReadUInt32(data, pos + 8, le));
+            int entryOffset = (int)offset + 2 + i * 12;
+            entries[i] = new TiffIfdEntry(ReadUInt16(data, entryOffset, littleEndian), ReadUInt16(data, entryOffset + 2, littleEndian), ReadUInt32(data, entryOffset + 4, littleEndian), ReadUInt32(data, entryOffset + 8, littleEndian));
         }
 
         return entries;
@@ -37,11 +43,11 @@ internal static class TiffIfdReader
     /// <param name="tags">The parsed IFD entries.</param>
     /// <param name="tagId">The tag identifier to search for.</param>
     /// <param name="data">The complete TIFF file data (needed for offset-based values).</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>The first value of the tag, or <c>0</c> if absent.</returns>
-    public static int GetTagInt(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool le)
+    public static int GetTagInt(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool littleEndian)
     {
-        return GetTagInt(tags, tagId, data, le, 0);
+        return GetTagInt(tags, tagId, data, littleEndian, 0);
     }
 
     /// <summary>
@@ -52,10 +58,10 @@ internal static class TiffIfdReader
     /// <param name="tags">The parsed IFD entries.</param>
     /// <param name="tagId">The tag identifier to search for.</param>
     /// <param name="data">The complete TIFF file data (needed for offset-based values).</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <param name="defaultValue">Value returned when the tag is not found.</param>
     /// <returns>The first value of the tag, or <paramref name="defaultValue"/> if absent.</returns>
-    public static int GetTagInt(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool le, int defaultValue)
+    public static int GetTagInt(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool littleEndian, int defaultValue)
     {
         foreach (var entry in tags)
         {
@@ -85,13 +91,16 @@ internal static class TiffIfdReader
                 };
             }
 
+            if (entry.ValueOrOffset > int.MaxValue)
+                throw new InvalidDataException("The TIFF tag offset is outside the supported range.");
+
             int offset = (int)entry.ValueOrOffset;
             return entry.Type switch
             {
-                TiffConstants.TypeShort => ReadUInt16(data, offset, le),
-                TiffConstants.TypeLong => (int)ReadUInt32(data, offset, le),
+                TiffConstants.TypeShort => ReadUInt16(data, offset, littleEndian),
+                TiffConstants.TypeLong => (int)ReadUInt32(data, offset, littleEndian),
                 TiffConstants.TypeByte => data[offset],
-                _ => (int)ReadUInt32(data, offset, le)
+                _ => (int)ReadUInt32(data, offset, littleEndian)
             };
         }
 
@@ -105,9 +114,9 @@ internal static class TiffIfdReader
     /// <param name="tags">The parsed IFD entries.</param>
     /// <param name="tagId">The tag identifier to search for.</param>
     /// <param name="data">The complete TIFF file data.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>An array of values, or an empty array if the tag is absent.</returns>
-    public static uint[] GetTagUintArray(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool le)
+    public static uint[] GetTagUintArray(ReadOnlySpan<TiffIfdEntry> tags, ushort tagId, ReadOnlySpan<byte> data, bool littleEndian)
     {
         foreach (var entry in tags)
         {
@@ -116,19 +125,38 @@ internal static class TiffIfdReader
 
             if (entry.Count == 1)
             {
-                uint val = entry.Type == TiffConstants.TypeShort ? entry.ValueOrOffset & 0xFFFF : entry.ValueOrOffset;
-                return [val];
+                uint value = entry.Type == TiffConstants.TypeShort ? entry.ValueOrOffset & 0xFFFF : entry.ValueOrOffset;
+                return [value];
             }
 
             if (entry.Type == TiffConstants.TypeShort && entry.Count == 2)
-                return [ReadUInt16Inline(entry.ValueOrOffset, 0, le), ReadUInt16Inline(entry.ValueOrOffset, 1, le)];
+                return [ReadUInt16Inline(entry.ValueOrOffset, 0, littleEndian), ReadUInt16Inline(entry.ValueOrOffset, 1, littleEndian)];
 
-            var values = new uint[entry.Count];
+            if (entry.Count > Array.MaxLength || entry.ValueOrOffset > int.MaxValue)
+                throw new InvalidDataException("The TIFF tag array is too large.");
+
+            int elementSize = entry.Type switch
+            {
+                TiffConstants.TypeByte => 1,
+                TiffConstants.TypeShort => 2,
+                TiffConstants.TypeLong => 4,
+                _ => throw new InvalidDataException("The TIFF tag has an unsupported value type.")
+            };
             int offset = (int)entry.ValueOrOffset;
+            long byteCount = (long)entry.Count * elementSize;
+            if (offset < 0 || byteCount > data.Length - (long)offset)
+                throw new InvalidDataException("The TIFF tag values are truncated.");
+
+            var values = new uint[(int)entry.Count];
 
             for (int i = 0; i < entry.Count; i++)
             {
-                values[i] = entry.Type == TiffConstants.TypeShort ? ReadUInt16(data, offset + i * 2, le) : ReadUInt32(data, offset + i * 4, le);
+                values[i] = entry.Type switch
+                {
+                    TiffConstants.TypeByte => data[offset + i],
+                    TiffConstants.TypeShort => ReadUInt16(data, offset + i * 2, littleEndian),
+                    _ => ReadUInt32(data, offset + i * 4, littleEndian)
+                };
             }
 
             return values;
@@ -142,11 +170,14 @@ internal static class TiffIfdReader
     /// </summary>
     /// <param name="data">The source byte data.</param>
     /// <param name="offset">The byte offset to read from.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>The decoded 16-bit value.</returns>
-    public static ushort ReadUInt16(ReadOnlySpan<byte> data, int offset, bool le)
+    public static ushort ReadUInt16(ReadOnlySpan<byte> data, int offset, bool littleEndian)
     {
-        return le ? BinaryPrimitives.ReadUInt16LittleEndian(data[offset..]) : BinaryPrimitives.ReadUInt16BigEndian(data[offset..]);
+        if (offset < 0 || offset > data.Length - 2)
+            throw new InvalidDataException("The TIFF 16-bit value is outside the input data.");
+
+        return littleEndian ? BinaryPrimitives.ReadUInt16LittleEndian(data[offset..]) : BinaryPrimitives.ReadUInt16BigEndian(data[offset..]);
     }
 
     /// <summary>
@@ -154,11 +185,14 @@ internal static class TiffIfdReader
     /// </summary>
     /// <param name="data">The source byte data.</param>
     /// <param name="offset">The byte offset to read from.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>The decoded 32-bit value.</returns>
-    public static uint ReadUInt32(ReadOnlySpan<byte> data, int offset, bool le)
+    public static uint ReadUInt32(ReadOnlySpan<byte> data, int offset, bool littleEndian)
     {
-        return le ? BinaryPrimitives.ReadUInt32LittleEndian(data[offset..]) : BinaryPrimitives.ReadUInt32BigEndian(data[offset..]);
+        if (offset < 0 || offset > data.Length - 4)
+            throw new InvalidDataException("The TIFF 32-bit value is outside the input data.");
+
+        return littleEndian ? BinaryPrimitives.ReadUInt32LittleEndian(data[offset..]) : BinaryPrimitives.ReadUInt32BigEndian(data[offset..]);
     }
 
     /// <summary>
@@ -166,12 +200,12 @@ internal static class TiffIfdReader
     /// </summary>
     /// <param name="valueField">The packed 32-bit IFD value field.</param>
     /// <param name="index">The inline SHORT index to read, either 0 or 1.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order.</param>
     /// <returns>The requested 16-bit value extracted from <paramref name="valueField"/>.</returns>
-    public static ushort ReadUInt16Inline(uint valueField, int index, bool le)
+    public static ushort ReadUInt16Inline(uint valueField, int index, bool littleEndian)
     {
         // Inline SHORTs: In LE, first value is in low 16 bits. In BE, first is in high 16 bits.
-        if (le)
+        if (littleEndian)
             return (ushort)(valueField >> (index * 16));
         else
             return (ushort)(valueField >> ((1 - index) * 16));

@@ -59,6 +59,15 @@ public abstract class AudioCodec
     public abstract int GetMaxDecodedSize(int encodedSize, AudioFormat format);
 
     /// <summary>
+    /// Gets the maximum number of decoded samples
+    /// for the supplied encoded data.
+    /// </summary>
+    /// <param name="encodedData">The compressed audio data.</param>
+    /// <param name="format">The format of the compressed data.</param>
+    /// <returns>The maximum number of decoded samples.</returns>
+    public virtual int GetMaxDecodedSize(ReadOnlySpan<byte> encodedData, AudioFormat format) => GetMaxDecodedSize(encodedData.Length, format);
+
+    /// <summary>
     /// Gets the maximum number of bytes required to encode the specified number of PCM samples.
     /// </summary>
     /// <param name="sampleCount">The number of interleaved PCM samples to encode.</param>
@@ -79,10 +88,7 @@ public abstract class AudioCodec
     /// <returns>The number of samples written to <paramref name="destination"/>.</returns>
     public virtual int Decode(byte[] source, int sourceOffset, int sourceCount, short[] destination, int destinationOffset, AudioFormat format)
     {
-        return Decode(
-            source.AsSpan(sourceOffset, sourceCount),
-            destination.AsSpan(destinationOffset),
-            format);
+        return Decode(source.AsSpan(sourceOffset, sourceCount), destination.AsSpan(destinationOffset), format);
     }
 
     /// <summary>
@@ -98,10 +104,7 @@ public abstract class AudioCodec
     /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public virtual int Encode(short[] source, int sourceOffset, int sourceCount, byte[] destination, int destinationOffset, AudioFormat format)
     {
-        return Encode(
-            source.AsSpan(sourceOffset, sourceCount),
-            destination.AsSpan(destinationOffset),
-            format);
+        return Encode(source.AsSpan(sourceOffset, sourceCount), destination.AsSpan(destinationOffset), format);
     }
 
     /// <summary>
@@ -112,7 +115,7 @@ public abstract class AudioCodec
     /// <returns>An <see cref="AudioBuffer"/> containing the decoded 16-bit PCM samples.</returns>
     public virtual AudioBuffer Decode(ReadOnlySpan<byte> source, AudioFormat format)
     {
-        var maxSamples = GetMaxDecodedSize(source.Length, format);
+        var maxSamples = GetMaxDecodedSize(source, format);
         var samples = GC.AllocateUninitializedArray<short>(maxSamples);
         var count = Decode(source, samples, format);
 

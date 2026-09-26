@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -15,20 +15,22 @@ internal partial class ZStandardInterop
     private const string ZSTDLibrary = "Native\\libzstd";
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_compress", SetLastError = true)]
-    public static partial nuint Compress(Span<byte> dest, nuint destCapacity, ReadOnlySpan<byte> src, nuint srcSize, int compressionLevel);
+    public static partial nuint Compress(Span<byte> destination, nuint destinationCapacity, ReadOnlySpan<byte> source, nuint sourceSize, int compressionLevel);
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_decompress", SetLastError = true)]
-    public static partial nuint Decompress(Span<byte> dest, nuint destCapacity, ReadOnlySpan<byte> src, nuint compressedSize);
+    public static partial nuint Decompress(Span<byte> destination, nuint destinationCapacity, ReadOnlySpan<byte> source, nuint compressedSize);
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_isError", SetLastError = true)]
     public static partial byte IsError(nuint code);
 
-    [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_getErrorName", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    public static partial string GetErrorName(nuint code);
+    [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_getErrorName", SetLastError = true)]
+    private static partial nint GetErrorNamePointer(nuint code);
+
+    public static string GetErrorName(nuint code) => Marshal.PtrToStringUTF8(GetErrorNamePointer(code)) ?? "Unknown Zstandard error.";
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_compressBound", SetLastError = true)]
-    public static partial nuint GetMaxCompressedSize(nuint srcSize);
+    public static partial nuint GetMaxCompressedSize(nuint sourceSize);
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_getFrameContentSize", SetLastError = true)]
-    public static partial nuint GetDecompressedSize(ReadOnlySpan<byte> src, nuint srcSize);
+    public static partial nuint GetDecompressedSize(ReadOnlySpan<byte> source, nuint sourceSize);
 }

@@ -45,11 +45,7 @@ internal static class Program
         try
         {
             Progress<string> progress = new(message => Console.WriteLine(message));
-            source = await manager.MountFileAsync(
-                parsedArguments.ZipPath!,
-                null,
-                progress,
-                cancellationSource.Token).ConfigureAwait(false);
+            source = await manager.MountFileAsync(parsedArguments.ZipPath!, null, progress, cancellationSource.Token).ConfigureAwait(false);
 
             return parsedArguments.Command switch
             {
@@ -103,14 +99,18 @@ internal static class Program
         }
 
         AssetReadResult result = await manager.ReadAsync(asset, cancellationToken).ConfigureAwait(false);
-        byte[] bytes = result.GetData<byte[]>();
         cancellationToken.ThrowIfCancellationRequested();
 
-        byte[] previewBytes = bytes.Take(PreviewByteCount).ToArray();
+        byte[]? bytes = result.Data as byte[];
         Console.WriteLine($"Asset: {asset.Name}");
         Console.WriteLine($"Type: {asset.Type}");
-        Console.WriteLine($"Size: {bytes.Length:N0} bytes");
-        Console.WriteLine($"Preview ({previewBytes.Length} bytes): {Convert.ToHexString(previewBytes)}");
+        Console.WriteLine($"Payload: {result.Data?.GetType().Name ?? "None"}");
+        if (bytes is not null)
+        {
+            byte[] previewBytes = bytes.Take(PreviewByteCount).ToArray();
+            Console.WriteLine($"Size: {bytes.Length:N0} bytes");
+            Console.WriteLine($"Preview ({previewBytes.Length} bytes): {Convert.ToHexString(previewBytes)}");
+        }
         return 0;
     }
 

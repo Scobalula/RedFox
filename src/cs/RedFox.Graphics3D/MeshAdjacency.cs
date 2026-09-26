@@ -242,12 +242,12 @@ public static class MeshAdjacency
             MakeXHeap(xOrder, positions, vertexCount);
 
             float epsilonSq = epsilon * epsilon;
-            uint head = 0, tail = 0;
+            uint head = 0;
+            uint tail = 0;
 
             while (tail < (uint)vertexCount)
             {
-                while (head < (uint)vertexCount &&
-                       (positions.Get<float>((int)xOrder[tail], 0, 0) - positions.Get<float>((int)xOrder[head], 0, 0)) <= epsilon)
+                while (head < (uint)vertexCount && (positions.Get<float>((int)xOrder[tail], 0, 0) - positions.Get<float>((int)xOrder[head], 0, 0)) <= epsilon)
                 {
                     head++;
                 }
@@ -329,8 +329,10 @@ public static class MeshAdjacency
             if (!IsValidTriangle(i0, i1, i2, vertexCount))
                 continue;
 
-            uint v1 = pointRep[i0], v2 = pointRep[i1], v3 = pointRep[i2];
-            if (v1 == v2 || v1 == v3 || v2 == v3)
+            uint firstRepresentative = pointRep[i0];
+            uint secondRepresentative = pointRep[i1];
+            uint thirdRepresentative = pointRep[i2];
+            if (firstRepresentative == secondRepresentative || firstRepresentative == thirdRepresentative || secondRepresentative == thirdRepresentative)
                 continue;
 
             for (int point = 0; point < 3; point++)
@@ -359,8 +361,10 @@ public static class MeshAdjacency
             if (!IsValidTriangle(i0, i1, i2, vertexCount))
                 continue;
 
-            uint rv1 = pointRep[i0], rv2 = pointRep[i1], rv3 = pointRep[i2];
-            if (rv1 == rv2 || rv1 == rv3 || rv2 == rv3)
+            uint firstRepresentative = pointRep[i0];
+            uint secondRepresentative = pointRep[i1];
+            uint thirdRepresentative = pointRep[i2];
+            if (firstRepresentative == secondRepresentative || firstRepresentative == thirdRepresentative || secondRepresentative == thirdRepresentative)
                 continue;
 
             for (int point = 0; point < 3; point++)
@@ -469,8 +473,9 @@ public static class MeshAdjacency
 
         uint limit = (uint)vertexCount;
 
-        for (uint vert = (uint)(vertexCount >> 1); vert-- != uint.MaxValue;)
+        for (uint vert = (uint)(vertexCount >> 1); vert > 0;)
         {
+            vert--;
             uint i = vert;
             uint j = vert + vert + 1;
             uint t = index[i];
@@ -484,7 +489,12 @@ public static class MeshAdjacency
                 {
                     uint  j1Val = index[j + 1];
                     float xJ1  = positions.Get<float>((int)j1Val, 0, 0);
-                    if (xJ1 <= xJ) { j++; jVal = j1Val; xJ = xJ1; }
+                    if (xJ1 <= xJ)
+                    {
+                        j++;
+                        jVal = j1Val;
+                        xJ = xJ1;
+                    }
                 }
 
                 if (positions.Get<float>((int)jVal, 0, 0) > positions.Get<float>((int)t, 0, 0))
@@ -503,29 +513,35 @@ public static class MeshAdjacency
             uint t      = index[limit];
             index[limit] = index[0];
 
-            uint i = 0, j = 1;
+            uint indexPosition = 0;
+            uint childPosition = 1;
 
-            while (j < limit)
+            while (childPosition < limit)
             {
-                uint  jVal = index[j];
-                float xJ   = positions.Get<float>((int)jVal, 0, 0);
+                uint childValue = index[childPosition];
+                float childX = positions.Get<float>((int)childValue, 0, 0);
 
-                if (j + 1 < limit)
+                if (childPosition + 1 < limit)
                 {
-                    uint  j1Val = index[j + 1];
-                    float xJ1  = positions.Get<float>((int)j1Val, 0, 0);
-                    if (xJ1 <= xJ) { j++; jVal = j1Val; xJ = xJ1; }
+                    uint nextChildValue = index[childPosition + 1];
+                    float nextChildX = positions.Get<float>((int)nextChildValue, 0, 0);
+                    if (nextChildX <= childX)
+                    {
+                        childPosition++;
+                        childValue = nextChildValue;
+                        childX = nextChildX;
+                    }
                 }
 
-                if (positions.Get<float>((int)jVal, 0, 0) > positions.Get<float>((int)t, 0, 0))
+                if (positions.Get<float>((int)childValue, 0, 0) > positions.Get<float>((int)t, 0, 0))
                     break;
 
-                index[i] = index[j];
-                i = j;
-                j = i + i + 1;
+                index[indexPosition] = index[childPosition];
+                indexPosition = childPosition;
+                childPosition = indexPosition + indexPosition + 1;
             }
 
-            index[i] = t;
+            index[indexPosition] = t;
         }
     }
 }

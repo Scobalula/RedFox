@@ -46,10 +46,10 @@ public sealed class TiffImageTranslator : ImageTranslator
     public override ImageInfo ReadInfo(Stream stream)
     {
         var data = ReadAllBytes(stream);
-        bool le = ParseByteOrder(data);
-        var tags = TiffIfdReader.ParseIFD(data, TiffIfdReader.ReadUInt32(data, 4, le), le);
+        bool littleEndian = ParseByteOrder(data);
+        var tags = TiffIfdReader.ParseIFD(data, TiffIfdReader.ReadUInt32(data, 4, littleEndian), littleEndian);
 
-        ImageInfo info = new(TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageWidth, data, le), TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageLength, data, le), ImageFormat.R8G8B8A8Unorm);
+        ImageInfo info = new(TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageWidth, data, littleEndian), TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageLength, data, littleEndian), ImageFormat.R8G8B8A8Unorm);
         info.Validate();
         return info;
     }
@@ -58,30 +58,33 @@ public sealed class TiffImageTranslator : ImageTranslator
     public override Image Read(Stream stream)
     {
         var data = ReadAllBytes(stream);
-        bool le = ParseByteOrder(data);
+        bool littleEndian = ParseByteOrder(data);
 
-        uint ifdOffset = TiffIfdReader.ReadUInt32(data, 4, le);
-        var tags = TiffIfdReader.ParseIFD(data, ifdOffset, le);
+        uint ifdOffset = TiffIfdReader.ReadUInt32(data, 4, littleEndian);
+        var tags = TiffIfdReader.ParseIFD(data, ifdOffset, littleEndian);
 
-        int width = TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageWidth, data, le);
-        int height = TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageLength, data, le);
-        int compression = TiffIfdReader.GetTagInt(tags, TiffConstants.TagCompression, data, le, 1);
-        int photometric = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPhotometric, data, le, TiffConstants.PhotometricRGB);
-        int samplesPerPixel = TiffIfdReader.GetTagInt(tags, TiffConstants.TagSamplesPerPixel, data, le, 1);
-        int rowsPerStrip = TiffIfdReader.GetTagInt(tags, TiffConstants.TagRowsPerStrip, data, le, height);
-        int fillOrder = TiffIfdReader.GetTagInt(tags, TiffConstants.TagFillOrder, data, le, 1);
-        int predictor = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPredictor, data, le, (int)TiffPredictor.None);
-        int planarConfiguration = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPlanarConfiguration, data, le, 1);
+        int width = TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageWidth, data, littleEndian);
+        int height = TiffIfdReader.GetTagInt(tags, TiffConstants.TagImageLength, data, littleEndian);
+        int compression = TiffIfdReader.GetTagInt(tags, TiffConstants.TagCompression, data, littleEndian, 1);
+        int photometric = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPhotometric, data, littleEndian, TiffConstants.PhotometricRGB);
+        int samplesPerPixel = TiffIfdReader.GetTagInt(tags, TiffConstants.TagSamplesPerPixel, data, littleEndian, 1);
+        uint[] rowsPerStripValues = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagRowsPerStrip, data, littleEndian);
+        int rowsPerStrip = rowsPerStripValues.Length == 0 || rowsPerStripValues[0] == uint.MaxValue ? height : checked((int)rowsPerStripValues[0]);
+        int fillOrder = TiffIfdReader.GetTagInt(tags, TiffConstants.TagFillOrder, data, littleEndian, 1);
+        int predictor = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPredictor, data, littleEndian, (int)TiffPredictor.None);
+        int planarConfiguration = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPlanarConfiguration, data, littleEndian, 1);
 
         new ImageInfo(width, height, ImageFormat.R8G8B8A8Unorm).Validate();
 
         if (samplesPerPixel is < 1 or > 16)
             throw new NotSupportedException($"Unsupported TIFF samples per pixel: {samplesPerPixel}.");
+        if (rowsPerStrip <= 0)
+            throw new InvalidDataException("TIFF rows per strip must be positive.");
 
         if (planarConfiguration != 1)
             throw new NotSupportedException($"Unsupported TIFF planar configuration: {planarConfiguration}.");
 
-        uint[] bitsPerSampleValues = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagBitsPerSample, data, le);
+        uint[] bitsPerSampleValues = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagBitsPerSample, data, littleEndian);
         int bitsPerSample = bitsPerSampleValues.Length > 0 ? (int)bitsPerSampleValues[0] : 8;
         if (bitsPerSample is not (8 or 16))
             throw new NotSupportedException($"Unsupported TIFF bits per sample: {bitsPerSample}. Only 8 and 16 are supported.");
@@ -101,12 +104,12 @@ public sealed class TiffImageTranslator : ImageTranslator
         if (predictor is not ((int)TiffPredictor.None or (int)TiffPredictor.Horizontal))
             throw new NotSupportedException($"Unsupported TIFF predictor: {predictor}.");
 
-        var stripOffsets = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagStripOffsets, data, le);
-        var stripByteCounts = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagStripByteCounts, data, le);
+        var stripOffsets = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagStripOffsets, data, littleEndian);
+        var stripByteCounts = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagStripByteCounts, data, littleEndian);
 
         if (stripOffsets.Length == 0)
         {
-            uint[] tileOffsets = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagTileOffsets, data, le);
+            uint[] tileOffsets = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagTileOffsets, data, littleEndian);
             if (tileOffsets.Length > 0)
                 throw new NotSupportedException("Tiled TIFF images are not currently supported.");
         }
@@ -125,7 +128,7 @@ public sealed class TiffImageTranslator : ImageTranslator
         for (int i = 0; i < stripOffsets.Length && rowsDecoded < height; i++)
         {
             int stripRows = Math.Min(rowsPerStrip, height - rowsDecoded);
-            int stripRawSize = stripRows * srcRowBytes;
+            int stripRawSize = checked(stripRows * srcRowBytes);
             int stripByteCountIndex = stripByteCounts.Length == 1 ? 0 : i;
             int stripOffset = checked((int)stripOffsets[i]);
             int stripByteCount = checked((int)stripByteCounts[stripByteCountIndex]);
@@ -143,18 +146,18 @@ public sealed class TiffImageTranslator : ImageTranslator
             };
 
             if (predictor == (int)TiffPredictor.Horizontal)
-                TiffPredictorTransform.UndoHorizontalDifferencing(decompressed.AsSpan(), width, stripRows, samplesPerPixel, bitsPerSample, le);
+                TiffPredictorTransform.UndoHorizontalDifferencing(decompressed.AsSpan(), width, stripRows, samplesPerPixel, bitsPerSample, littleEndian);
 
             decompressed.AsSpan(0, Math.Min(decompressed.Length, stripRawSize)).CopyTo(rawPixels.AsSpan(rowsDecoded * srcRowBytes));
             rowsDecoded += stripRows;
         }
 
-        var output = new byte[width * height * 4];
+        var output = new byte[checked(width * height * 4)];
 
         if (bitsPerSample == 8)
             TiffPixelConverter.ConvertToRgba8(rawPixels, output, width * height, samplesPerPixel, photometric);
         else
-            TiffPixelConverter.ConvertToRgba16(rawPixels, output, width * height, samplesPerPixel, photometric, le);
+            TiffPixelConverter.ConvertToRgba16(rawPixels, output, width * height, samplesPerPixel, photometric, littleEndian);
 
         return new Image(width, height, ImageFormat.R8G8B8A8Unorm, output);
     }
@@ -302,33 +305,33 @@ public sealed class TiffImageTranslator : ImageTranslator
 
         var ifd = new byte[ifdSize];
         WriteUInt16(ifd, 0, (ushort)tagCount, littleEndian);
-        int pos = 2;
+        int offset = 2;
 
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagImageWidth, TiffConstants.TypeLong, 1, (uint)width, littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagImageLength, TiffConstants.TypeLong, 1, (uint)height, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagImageWidth, TiffConstants.TypeLong, 1, (uint)width, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagImageLength, TiffConstants.TypeLong, 1, (uint)height, littleEndian);
 
         if (!writeBitsPerSampleArray)
-            pos = WriteIFDEntry(ifd, pos, TiffConstants.TagBitsPerSample, TiffConstants.TypeShort, (uint)encodedPixelData.BitsPerSample.Length, encodedPixelData.BitsPerSample[0], littleEndian);
+            offset = WriteIFDEntry(ifd, offset, TiffConstants.TagBitsPerSample, TiffConstants.TypeShort, (uint)encodedPixelData.BitsPerSample.Length, encodedPixelData.BitsPerSample[0], littleEndian);
         else
-            pos = WriteIFDEntryOffset(ifd, pos, TiffConstants.TagBitsPerSample, TiffConstants.TypeShort, (uint)encodedPixelData.BitsPerSample.Length, (uint)bpsArrayOffset, littleEndian);
+            offset = WriteIFDEntryOffset(ifd, offset, TiffConstants.TagBitsPerSample, TiffConstants.TypeShort, (uint)encodedPixelData.BitsPerSample.Length, (uint)bpsArrayOffset, littleEndian);
 
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagCompression, TiffConstants.TypeShort, 1, compressionCode, littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagPhotometric, TiffConstants.TypeShort, 1, encodedPixelData.Photometric, littleEndian);
-        pos = WriteIFDEntryOffset(ifd, pos, TiffConstants.TagStripOffsets, TiffConstants.TypeLong, 1, (uint)pixelDataOffset, littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagSamplesPerPixel, TiffConstants.TypeShort, 1, encodedPixelData.SamplesPerPixel, littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagRowsPerStrip, TiffConstants.TypeLong, 1, (uint)height, littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagStripByteCounts, TiffConstants.TypeLong, 1, (uint)imageDataSize, littleEndian);
-        pos = WriteIFDEntryOffset(ifd, pos, TiffConstants.TagXResolution, TiffConstants.TypeRational, 1, (uint)rationalsOffset, littleEndian);
-        pos = WriteIFDEntryOffset(ifd, pos, TiffConstants.TagYResolution, TiffConstants.TypeRational, 1, (uint)(rationalsOffset + 8), littleEndian);
-        pos = WriteIFDEntry(ifd, pos, TiffConstants.TagResolutionUnit, TiffConstants.TypeShort, 1, 2, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagCompression, TiffConstants.TypeShort, 1, compressionCode, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagPhotometric, TiffConstants.TypeShort, 1, encodedPixelData.Photometric, littleEndian);
+        offset = WriteIFDEntryOffset(ifd, offset, TiffConstants.TagStripOffsets, TiffConstants.TypeLong, 1, (uint)pixelDataOffset, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagSamplesPerPixel, TiffConstants.TypeShort, 1, encodedPixelData.SamplesPerPixel, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagRowsPerStrip, TiffConstants.TypeLong, 1, (uint)height, littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagStripByteCounts, TiffConstants.TypeLong, 1, (uint)imageDataSize, littleEndian);
+        offset = WriteIFDEntryOffset(ifd, offset, TiffConstants.TagXResolution, TiffConstants.TypeRational, 1, (uint)rationalsOffset, littleEndian);
+        offset = WriteIFDEntryOffset(ifd, offset, TiffConstants.TagYResolution, TiffConstants.TypeRational, 1, (uint)(rationalsOffset + 8), littleEndian);
+        offset = WriteIFDEntry(ifd, offset, TiffConstants.TagResolutionUnit, TiffConstants.TypeShort, 1, 2, littleEndian);
 
         if (usePredictor)
-            pos = WriteIFDEntry(ifd, pos, TiffConstants.TagPredictor, TiffConstants.TypeShort, 1, (ushort)encoderOptions.Predictor, littleEndian);
+            offset = WriteIFDEntry(ifd, offset, TiffConstants.TagPredictor, TiffConstants.TypeShort, 1, (ushort)encoderOptions.Predictor, littleEndian);
 
         if (hasExtraSamples)
-            pos = WriteIFDEntry(ifd, pos, TiffConstants.TagExtraSamples, TiffConstants.TypeShort, 1, encodedPixelData.ExtraSamples!.Value, littleEndian);
+            offset = WriteIFDEntry(ifd, offset, TiffConstants.TagExtraSamples, TiffConstants.TypeShort, 1, encodedPixelData.ExtraSamples!.Value, littleEndian);
 
-        WriteUInt32(ifd, pos, 0, littleEndian);
+        WriteUInt32(ifd, offset, 0, littleEndian);
         stream.Write(ifd);
 
         Span<byte> rationals = stackalloc byte[16];
@@ -439,80 +442,80 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <summary>
     /// Writes a 16-bit unsigned integer using the specified byte order.
     /// </summary>
-    /// <param name="buf">The destination buffer.</param>
+    /// <param name="buffer">The destination buffer.</param>
     /// <param name="offset">The byte offset at which to write the value.</param>
     /// <param name="value">The 16-bit value to write.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
-    private static void WriteUInt16(Span<byte> buf, int offset, ushort value, bool le)
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
+    private static void WriteUInt16(Span<byte> buffer, int offset, ushort value, bool littleEndian)
     {
-        if (le)
-            BinaryPrimitives.WriteUInt16LittleEndian(buf[offset..], value);
+        if (littleEndian)
+            BinaryPrimitives.WriteUInt16LittleEndian(buffer[offset..], value);
         else
-            BinaryPrimitives.WriteUInt16BigEndian(buf[offset..], value);
+            BinaryPrimitives.WriteUInt16BigEndian(buffer[offset..], value);
     }
 
     /// <summary>
     /// Writes a 32-bit unsigned integer using the specified byte order.
     /// </summary>
-    /// <param name="buf">The destination buffer.</param>
+    /// <param name="buffer">The destination buffer.</param>
     /// <param name="offset">The byte offset at which to write the value.</param>
     /// <param name="value">The 32-bit value to write.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
-    private static void WriteUInt32(Span<byte> buf, int offset, uint value, bool le)
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
+    private static void WriteUInt32(Span<byte> buffer, int offset, uint value, bool littleEndian)
     {
-        if (le)
-            BinaryPrimitives.WriteUInt32LittleEndian(buf[offset..], value);
+        if (littleEndian)
+            BinaryPrimitives.WriteUInt32LittleEndian(buffer[offset..], value);
         else
-            BinaryPrimitives.WriteUInt32BigEndian(buf[offset..], value);
+            BinaryPrimitives.WriteUInt32BigEndian(buffer[offset..], value);
     }
 
     /// <summary>
     /// Writes a TIFF IFD entry, storing inline values when the type and count permit it.
     /// </summary>
     /// <param name="ifd">The destination IFD buffer.</param>
-    /// <param name="pos">The byte position at which to write the entry.</param>
+    /// <param name="offset">The byte position at which to write the entry.</param>
     /// <param name="tag">The TIFF tag identifier.</param>
     /// <param name="type">The TIFF field type.</param>
     /// <param name="count">The number of values in the field.</param>
     /// <param name="value">The inline value or offset to write.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
     /// <returns>The byte position immediately following the written entry.</returns>
-    private static int WriteIFDEntry(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint value, bool le)
+    private static int WriteIFDEntry(Span<byte> ifd, int offset, ushort tag, ushort type, uint count, uint value, bool littleEndian)
     {
-        WriteUInt16(ifd, pos, tag, le);
-        WriteUInt16(ifd, pos + 2, type, le);
-        WriteUInt32(ifd, pos + 4, count, le);
+        WriteUInt16(ifd, offset, tag, littleEndian);
+        WriteUInt16(ifd, offset + 2, type, littleEndian);
+        WriteUInt32(ifd, offset + 4, count, littleEndian);
 
         if (type == TiffConstants.TypeShort && count <= 2)
         {
-            WriteUInt16(ifd, pos + 8, (ushort)value, le);
-            WriteUInt16(ifd, pos + 10, count == 2 ? (ushort)value : (ushort)0, le);
+            WriteUInt16(ifd, offset + 8, (ushort)value, littleEndian);
+            WriteUInt16(ifd, offset + 10, count == 2 ? (ushort)value : (ushort)0, littleEndian);
         }
         else
         {
-            WriteUInt32(ifd, pos + 8, value, le);
+            WriteUInt32(ifd, offset + 8, value, littleEndian);
         }
 
-        return pos + 12;
+        return offset + 12;
     }
 
     /// <summary>
     /// Writes a TIFF IFD entry whose value is stored at an external offset.
     /// </summary>
     /// <param name="ifd">The destination IFD buffer.</param>
-    /// <param name="pos">The byte position at which to write the entry.</param>
+    /// <param name="offset">The byte position at which to write the entry.</param>
     /// <param name="tag">The TIFF tag identifier.</param>
     /// <param name="type">The TIFF field type.</param>
     /// <param name="count">The number of values in the field.</param>
-    /// <param name="offset">The external data offset to write into the entry.</param>
-    /// <param name="le"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
+    /// <param name="valueOffset">The external data offset to write into the entry.</param>
+    /// <param name="littleEndian"><see langword="true"/> for little-endian byte order; otherwise big-endian.</param>
     /// <returns>The byte position immediately following the written entry.</returns>
-    private static int WriteIFDEntryOffset(Span<byte> ifd, int pos, ushort tag, ushort type, uint count, uint offset, bool le)
+    private static int WriteIFDEntryOffset(Span<byte> ifd, int offset, ushort tag, ushort type, uint count, uint valueOffset, bool littleEndian)
     {
-        WriteUInt16(ifd, pos, tag, le);
-        WriteUInt16(ifd, pos + 2, type, le);
-        WriteUInt32(ifd, pos + 4, count, le);
-        WriteUInt32(ifd, pos + 8, offset, le);
-        return pos + 12;
+        WriteUInt16(ifd, offset, tag, littleEndian);
+        WriteUInt16(ifd, offset + 2, type, littleEndian);
+        WriteUInt32(ifd, offset + 4, count, littleEndian);
+        WriteUInt32(ifd, offset + 8, valueOffset, littleEndian);
+        return offset + 12;
     }
 }

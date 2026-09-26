@@ -8,6 +8,9 @@ internal static class PngDecompressor
 {
     public static byte[] InflateZlib(byte[] compressed, long expectedLength)
     {
+        ArgumentNullException.ThrowIfNull(compressed);
+        if (expectedLength < 0)
+            throw new InvalidDataException("The PNG decompressed size is negative.");
         if (expectedLength > Array.MaxLength)
             throw new InvalidDataException($"PNG image data would inflate to {expectedLength} bytes, which exceeds the maximum buffer size.");
 
