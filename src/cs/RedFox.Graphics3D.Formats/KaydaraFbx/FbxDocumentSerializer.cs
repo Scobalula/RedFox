@@ -133,15 +133,16 @@ public static class FbxDocumentSerializer
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(document);
 
-        NormalizeRedFoxTopLevelMetadata(document);
+        FbxDocument serializedDocument = CloneDocument(document);
+        NormalizeRedFoxTopLevelMetadata(serializedDocument);
 
         if (format == FbxFormat.Binary)
         {
-            WriteBinary(stream, document);
+            WriteBinary(stream, serializedDocument);
             return;
         }
 
-        WriteAscii(stream, document);
+        WriteAscii(stream, serializedDocument);
     }
 
     /// <summary>
@@ -1827,7 +1828,7 @@ public static class FbxDocumentSerializer
                 return;
             default:
                 writer.Write('"');
-                writer.Write(property.AsString());
+                writer.Write(FormatAsciiString(property.AsString()));
                 writer.Write('"');
                 return;
         }
@@ -2025,7 +2026,40 @@ public static class FbxDocumentSerializer
             value = className + "::" + instanceName;
         }
 
-        return value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+        return value.Replace("&", "&amp;", StringComparison.Ordinal).Replace("\"", "&quot;", StringComparison.Ordinal);
+    }
+
+    private static FbxDocument CloneDocument(FbxDocument document)
+    {
+        FbxDocument clone = new()
+        {
+            Format = document.Format,
+            Version = document.Version,
+        };
+
+        foreach (FbxNode node in document.Nodes)
+        {
+            clone.Nodes.Add(CloneNode(node));
+        }
+
+        return clone;
+    }
+
+    private static FbxNode CloneNode(FbxNode node)
+    {
+        FbxNode clone = new(node.Name);
+        foreach (FbxProperty property in node.Properties)
+        {
+            object value = property.Value is Array array ? array.Clone() : property.Value;
+            clone.Properties.Add(new FbxProperty(property.TypeCode, value));
+        }
+
+        foreach (FbxNode child in node.Children)
+        {
+            clone.Children.Add(CloneNode(child));
+        }
+
+        return clone;
     }
 
 }

@@ -35,8 +35,14 @@ internal static class CastModelTranslator
 
     public static void Write(RootNode root, SceneNode model, SceneTranslationSelection selection, string? targetDirectory)
     {
-        var modelNode = root.AddNode(new ModelNode { Name = model.Name, Position = model.BindTransform.LocalPosition, Rotation = model.BindTransform.LocalRotation, Scale = model.BindTransform.Scale });
-        var bones = selection.GetDescendants<SkeletonBone>();
+        var modelNode = root.AddNode(new ModelNode
+        {
+            Name = model.Name,
+            Position = model.BindTransform.LocalPosition,
+            Rotation = model.BindTransform.LocalRotation,
+            Scale = model.BindTransform.Scale,
+        });
+        SkeletonBone[] bones = model.GetDescendants<SkeletonBone>(selection.Filter);
         var boneTable = new Dictionary<SkeletonBone, int>(bones.Length);
         var materials = new Dictionary<Material, MaterialNode>();
 
@@ -50,7 +56,16 @@ internal static class CastModelTranslator
             {
                 var transform = bones[i].BindTransform;
 
-                boneNodes[bones[i]] = skeletonNode.AddNode(new BoneNode { Name = bones[i].Name, ParentIndex = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes), LocalPosition = transform.LocalPosition, LocalRotation = transform.LocalRotation, WorldPosition = transform.WorldPosition, WorldRotation = transform.WorldRotation, Scale = transform.Scale });
+                boneNodes[bones[i]] = skeletonNode.AddNode(new BoneNode
+                {
+                    Name = bones[i].Name,
+                    ParentIndex = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes),
+                    LocalPosition = transform.LocalPosition,
+                    LocalRotation = transform.LocalRotation,
+                    WorldPosition = transform.WorldPosition,
+                    WorldRotation = transform.WorldRotation,
+                    Scale = transform.Scale,
+                });
                 boneTable[bones[i]] = i;
             }
 

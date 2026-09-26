@@ -98,6 +98,8 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
 
             var pos = worldPositions[i];
             var q = worldOrientations[i];
+            if (q.W > 0f)
+                q = new Quaternion(-q.X, -q.Y, -q.Z, -q.W);
 
             string parentComment = parentIdx >= 0 ? bones[parentIdx].Name : string.Empty;
             writer.Write($"\t\"{bones[i].Name}\"\t{parentIdx} ( {F(pos.X)} {F(pos.Y)} {F(pos.Z)} ) ( {F(q.X)} {F(q.Y)} {F(q.Z)} )");

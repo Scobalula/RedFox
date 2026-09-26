@@ -15,8 +15,8 @@ namespace RedFox.Graphics3D;
 /// <para>
 /// Conventions: <c>System.Numerics</c> row vectors, so a local matrix is composed as
 /// <c>Scale * Rotation * Translation</c> and a world matrix as <c>Local * ParentWorld</c>. World
-/// rotation is <c>ParentWorldRotation * LocalRotation</c>. World position and rotation are a rigid
-/// composition that does not apply ancestor scale; scale is local and only affects matrices.
+/// rotation is <c>ParentWorldRotation * LocalRotation</c>. World position uses the parent world matrix,
+/// including ancestor scale. World rotation remains rigid and does not decompose matrix shear.
 /// Handedness, up axis, and units are whatever the source data uses; see <see cref="Scene.UpAxis"/>.
 /// </para>
 /// </remarks>

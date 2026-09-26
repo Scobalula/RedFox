@@ -169,9 +169,7 @@ public class SeanimTranslator : SceneTranslator
                     maxActionFrame = MathF.Max(maxActionFrame, kf.Frame);
         }
 
-        int frameCount  = (int)MathF.Max(
-            maxTrackFrame > float.MinValue ? maxTrackFrame : 0f,
-            maxActionFrame);
+        int frameCount = (int)MathF.Max(maxTrackFrame > float.MinValue ? maxTrackFrame : 0f, maxActionFrame) + 1;
         int actionCount = data.GetAnimationActionCount();
 
         // Detect per-track transform-type overrides
@@ -342,15 +340,19 @@ public class SeanimTranslator : SceneTranslator
 
     private static string ReadUTF8String(BinaryReader reader)
     {
-        var sb = new StringBuilder(32);
+        List<byte> bytes = [];
 
         while (true)
         {
-            var b = reader.ReadByte();
-            if (b == 0) break;
-            sb.Append((char)b);
+            byte value = reader.ReadByte();
+            if (value == 0)
+            {
+                break;
+            }
+
+            bytes.Add(value);
         }
 
-        return sb.ToString();
+        return Encoding.UTF8.GetString(bytes.ToArray());
     }
 }

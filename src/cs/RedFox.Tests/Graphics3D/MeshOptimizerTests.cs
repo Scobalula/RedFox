@@ -137,6 +137,37 @@ public sealed class MeshOptimizerTests
     }
 
     [Fact]
+    public void OptimizeFacesLRU_ScoresVerticesUsingRemainingFaceCounts()
+    {
+        Mesh mesh = new()
+        {
+            Name = "face-valence",
+        };
+        mesh.Positions = new DataBuffer<float>(new float[7 * 3], 1, 3);
+        mesh.FaceIndices = new DataBuffer<float>([0f, 1f, 2f, 3f, 4f, 5f, 0f, 2f, 6f, 2f, 1f, 6f], 1, 1);
+
+        int[] remap = MeshOptimizer.OptimizeFacesLRU(mesh);
+
+        Assert.Equal(1, remap[0]);
+    }
+
+    [Fact]
+    public void OptimizeFacesLRU_PlacesInvalidFacesAtTheEndOfTheRemap()
+    {
+        Mesh mesh = new()
+        {
+            Name = "invalid-face",
+        };
+        mesh.Positions = new DataBuffer<float>(new float[4 * 3], 1, 3);
+        mesh.FaceIndices = new DataBuffer<float>([0f, 1f, 2f, 0f, 1f, 99f, 1f, 2f, 3f], 1, 1);
+
+        int[] remap = MeshOptimizer.OptimizeFacesLRU(mesh);
+
+        Assert.Equal([0, 2], remap[..2].Order());
+        Assert.Equal(1, remap[^1]);
+    }
+
+    [Fact]
     public void OptimizeFacesLRU_EmptyMesh_ReturnsEmpty()
     {
         Mesh mesh        = new() { Name = "empty" };

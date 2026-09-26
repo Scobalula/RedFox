@@ -1,5 +1,7 @@
 ﻿using System.Diagnostics;
 
+using RedFox.Graphics3D.Skeletal;
+
 namespace RedFox.Graphics3D;
 
 /// <summary>
@@ -182,6 +184,8 @@ public class AnimationPlayer(string name) : SceneNode(name)
     /// <param name="type">How to interpret the time parameter.</param>
     public void Update(float time, AnimationSampleType type)
     {
+        ResetAnimatedTransforms();
+
         foreach (var layer in Layers)
         {
             if (!IsLooping)
@@ -225,8 +229,9 @@ public class AnimationPlayer(string name) : SceneNode(name)
             layer.Update(time, type);
         }
 
+        float solverTime = Layers.Count > 0 ? Layers[0].CurrentTime : time;
         foreach (var solver in Solvers)
-            solver.Solve(time);
+            solver.Solve(solverTime);
     }
 
     /// <summary>
@@ -270,5 +275,17 @@ public class AnimationPlayer(string name) : SceneNode(name)
                 return true;
         }
         return false;
+    }
+
+    private void ResetAnimatedTransforms()
+    {
+        foreach (SkeletonAnimationSampler sampler in Layers.OfType<SkeletonAnimationSampler>())
+        {
+            foreach (var (bone, _) in sampler.Tracks)
+            {
+                if (sampler.Mask is null || sampler.Mask.Contains(bone.Name))
+                    bone.ResetLiveTransform();
+            }
+        }
     }
 }

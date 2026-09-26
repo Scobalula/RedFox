@@ -73,7 +73,7 @@ public abstract class SceneTranslator
 
     /// <summary>
     /// Creates a <see cref="SceneTranslationContext"/> configured for a read operation.
-    /// Sets <see cref="SceneTranslatorOptions.SourceFilePath"/> and <see cref="SceneTranslatorOptions.SourceDirectoryPath"/> on the options.
+    /// Stores the resolved source paths on the returned context.
     /// </summary>
     /// <param name="filePath">The full path to the file being read.</param>
     /// <param name="options">The translation options to associate with the context.</param>
@@ -83,8 +83,6 @@ public abstract class SceneTranslator
         ArgumentNullException.ThrowIfNull(options);
 
         string fullPath = Path.GetFullPath(filePath);
-        options.SourceFilePath = fullPath;
-        options.SourceDirectoryPath = Path.GetDirectoryName(fullPath);
 
         return new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options)
         {

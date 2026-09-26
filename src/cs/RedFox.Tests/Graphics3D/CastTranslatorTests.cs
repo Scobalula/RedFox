@@ -40,13 +40,56 @@ public sealed class CastTranslatorTests
     }
 
     [Fact]
+    public void CastTranslator_ExportsModelSpecificSkeletonsAndSceneUpAxis()
+    {
+        Scene source = new("cast");
+        source.UpAxis = SceneUpAxis.X;
+        MeshGroup firstModel = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "first",
+        });
+        SkeletonBone firstBone = firstModel.AddNode(new SkeletonBone("firstBone"));
+        Mesh firstMesh = firstModel.AddNode(new Mesh
+        {
+            Name = "firstMesh",
+        });
+        MeshGroup secondModel = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "second",
+        });
+        SkeletonBone secondBone = secondModel.AddNode(new SkeletonBone("secondBone"));
+        Mesh secondMesh = secondModel.AddNode(new Mesh
+        {
+            Name = "secondMesh",
+        });
+        firstMesh.Skin = new Skin([firstBone], new DataBuffer<int>([0, 0, 0], 1, 1), new DataBuffer<float>([1f, 1f, 1f], 1, 1));
+        secondMesh.Skin = new Skin([secondBone], new DataBuffer<int>([0, 0, 0], 1, 1), new DataBuffer<float>([1f, 1f, 1f], 1, 1));
+        firstMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        secondMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        firstMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        secondMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+
+        Cast document = Write(source);
+        Scene loaded = RoundTrip(source, "models.cast");
+
+        Assert.Equal("x", document.Roots[0].Metadata!.UpAxis);
+        Assert.Equal(["firstBone", "secondBone"], loaded.GetDescendants<SkeletonBone>().Select(static bone => bone.Name).Order());
+    }
+
+    [Fact]
     public void CastTranslator_RoundTrip_PreservesMeshData()
     {
         Scene source = new("mesh");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         SkeletonBone rootBone = model.AddNode(new SkeletonBone("root"));
         SkeletonBone childBone = rootBone.AddNode(new SkeletonBone("child"));
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
 
         rootBone.BindTransform.Scale = new Vector3(2f);
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
@@ -75,7 +118,10 @@ public sealed class CastTranslatorTests
     public void CastTranslator_RoundTrip_MapsMaterialSlots()
     {
         Scene source = new("material");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         Material material = model.AddNode(new Material("metal"));
         Texture albedo = material.AddNode(new Texture("albedo.png"));
         Texture metallic = material.AddNode(new Texture("metal.png"));
@@ -135,11 +181,31 @@ public sealed class CastTranslatorTests
     public void CastTranslator_Read_MergesAxesWithDifferentKeys()
     {
         RootNode root = new();
-        AnimationNode animation = root.AddNode(new AnimationNode { Framerate = 30f });
+        AnimationNode animation = root.AddNode(new AnimationNode
+        {
+            Framerate = 30f,
+        });
 
-        root.AddNode(new MetadataNode { UpAxis = "z" });
-        animation.AddNode(new CurveNode { NodeName = "bone", KeyPropertyName = "tx", Mode = "relative", KeyFrames = CastArrayProperty.CreateIndices<int>([0, 10]), KeyValues = CastArrayProperty.Create<float>([0f, 10f]) });
-        animation.AddNode(new CurveNode { NodeName = "bone", KeyPropertyName = "ty", Mode = "relative", KeyFrames = CastArrayProperty.CreateIndices<int>([0, 5, 10]), KeyValues = CastArrayProperty.Create<float>([1f, 2f, 3f]) });
+        root.AddNode(new MetadataNode
+        {
+            UpAxis = "z",
+        });
+        animation.AddNode(new CurveNode
+        {
+            NodeName = "bone",
+            KeyPropertyName = "tx",
+            Mode = "relative",
+            KeyFrames = CastArrayProperty.CreateIndices<int>([0, 10]),
+            KeyValues = CastArrayProperty.Create<float>([0f, 10f]),
+        });
+        animation.AddNode(new CurveNode
+        {
+            NodeName = "bone",
+            KeyPropertyName = "ty",
+            Mode = "relative",
+            KeyFrames = CastArrayProperty.CreateIndices<int>([0, 5, 10]),
+            KeyValues = CastArrayProperty.Create<float>([1f, 2f, 3f]),
+        });
 
         Scene loaded = Read(root);
         AnimationCurve translation = Assert.Single(Assert.Single(loaded.GetDescendants<SkeletonAnimation>()).Tracks).TranslationCurve!;
@@ -154,13 +220,42 @@ public sealed class CastTranslatorTests
     {
         RootNode root = new();
         SkeletonNode skeleton = root.AddNode<ModelNode>().AddNode<SkeletonNode>();
-        AnimationNode animation = root.AddNode(new AnimationNode { Framerate = 30f });
+        AnimationNode animation = root.AddNode(new AnimationNode
+        {
+            Framerate = 30f,
+        });
 
-        skeleton.AddNode(new BoneNode { Name = "tag_origin" });
-        skeleton.AddNode(new BoneNode { Name = "j_spine", ParentIndex = 0 });
-        animation.AddNode(new CurveNode { NodeName = "j_spine", KeyPropertyName = "rq", Mode = "relative", KeyFrames = CastArrayProperty.CreateIndices<int>([0]), KeyValues = CastArrayProperty.Create(Quaternion.Identity) });
-        animation.AddNode(new CurveNode { NodeName = "j_spine", KeyPropertyName = "tx", Mode = "relative", KeyFrames = CastArrayProperty.CreateIndices<int>([0]), KeyValues = CastArrayProperty.Create(1f) });
-        animation.AddNode(new CurveModeOverrideNode { NodeName = "tag_origin", Mode = "absolute", OverrideRotationCurves = true });
+        skeleton.AddNode(new BoneNode
+        {
+            Name = "tag_origin",
+        });
+        skeleton.AddNode(new BoneNode
+        {
+            Name = "j_spine",
+            ParentIndex = 0,
+        });
+        animation.AddNode(new CurveNode
+        {
+            NodeName = "j_spine",
+            KeyPropertyName = "rq",
+            Mode = "relative",
+            KeyFrames = CastArrayProperty.CreateIndices<int>([0]),
+            KeyValues = CastArrayProperty.Create(Quaternion.Identity),
+        });
+        animation.AddNode(new CurveNode
+        {
+            NodeName = "j_spine",
+            KeyPropertyName = "tx",
+            Mode = "relative",
+            KeyFrames = CastArrayProperty.CreateIndices<int>([0]),
+            KeyValues = CastArrayProperty.Create(1f),
+        });
+        animation.AddNode(new CurveModeOverrideNode
+        {
+            NodeName = "tag_origin",
+            Mode = "absolute",
+            OverrideRotationCurves = true,
+        });
 
         SkeletonAnimationTrack track = Assert.Single(Assert.Single(Read(root).GetDescendants<SkeletonAnimation>()).Tracks);
 
@@ -172,9 +267,17 @@ public sealed class CastTranslatorTests
     public void CastTranslator_RoundTrip_PreservesHair()
     {
         Scene source = new("hair");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         Material material = model.AddNode(new Material("hair_material"));
-        Hair hair = model.AddNode(new Hair { StrandSegments = [1, 2], Particles = new DataBuffer<float>([0f, 0f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 1f, 0f, 1f, 1f, 0f, 2f], 1, 3), Material = material });
+        Hair hair = model.AddNode(new Hair
+        {
+            StrandSegments = [1, 2],
+            Particles = new DataBuffer<float>([0f, 0f, 0f, 0f, 0f, 1f, 1f, 0f, 0f, 1f, 0f, 1f, 1f, 0f, 2f], 1, 3),
+            Material = material,
+        });
 
         Hair loaded = Assert.Single(RoundTrip(source, "hair.cast").GetDescendants<Hair>());
 
@@ -189,8 +292,20 @@ public sealed class CastTranslatorTests
         RootNode root = new();
         string sceneRoot = Path.Combine(Path.GetTempPath(), "cast_scene");
 
-        root.AddNode(new MetadataNode { SceneRoot = sceneRoot });
-        root.AddNode(new InstanceNode { Name = "crate", Position = new Vector3(1f, 2f, 3f), Rotation = Quaternion.Identity, Scale = new Vector3(2f) }).ReferenceFile = new FileNode { Path = "props/crate.cast" };
+        root.AddNode(new MetadataNode
+        {
+            SceneRoot = sceneRoot,
+        });
+        root.AddNode(new InstanceNode
+        {
+            Name = "crate",
+            Position = new Vector3(1f, 2f, 3f),
+            Rotation = Quaternion.Identity,
+            Scale = new Vector3(2f),
+        }).ReferenceFile = new FileNode
+        {
+            Path = "props/crate.cast",
+        };
 
         SceneReference reference = Assert.Single(Read(root).GetDescendants<SceneReference>());
 
@@ -206,15 +321,63 @@ public sealed class CastTranslatorTests
     {
         RootNode root = new();
         SkeletonNode skeleton = root.AddNode<ModelNode>().AddNode<SkeletonNode>();
-        BoneNode origin = skeleton.AddNode(new BoneNode { Name = "origin", LocalPosition = Vector3.Zero });
-        BoneNode upper = skeleton.AddNode(new BoneNode { Name = "upper", ParentIndex = 0, LocalPosition = new Vector3(0f, 0f, 2f) });
-        BoneNode lower = skeleton.AddNode(new BoneNode { Name = "lower", ParentIndex = 1, LocalPosition = new Vector3(0f, 0f, 2f) });
-        BoneNode target = skeleton.AddNode(new BoneNode { Name = "target", ParentIndex = 0, LocalPosition = new Vector3(3f, 0f, 0f), Scale = new Vector3(2f) });
+        BoneNode origin = skeleton.AddNode(new BoneNode
+        {
+            Name = "origin",
+            LocalPosition = Vector3.Zero,
+        });
+        BoneNode upper = skeleton.AddNode(new BoneNode
+        {
+            Name = "upper",
+            ParentIndex = 0,
+            LocalPosition = new Vector3(0f, 0f, 2f),
+        });
+        BoneNode lower = skeleton.AddNode(new BoneNode
+        {
+            Name = "lower",
+            ParentIndex = 1,
+            LocalPosition = new Vector3(0f, 0f, 2f),
+        });
+        BoneNode target = skeleton.AddNode(new BoneNode
+        {
+            Name = "target",
+            ParentIndex = 0,
+            LocalPosition = new Vector3(3f, 0f, 0f),
+            Scale = new Vector3(2f),
+        });
 
-        skeleton.AddNode(new CastNet.Nodes.IKHandleNode { Name = "arm_ik", StartBone = origin, EndBone = lower, TargetBone = target, PoleVectorBone = upper, TargetOffset = Vector3.UnitY });
-        skeleton.AddNode(new CastNet.Nodes.ConstraintNode { ConstraintType = "pt", ConstraintBone = lower, TargetBone = target, MaintainOffset = true, SkipY = true, Weight = 0.5f });
-        skeleton.AddNode(new CastNet.Nodes.ConstraintNode { ConstraintType = "or", ConstraintBone = lower, TargetBone = target, CustomOffset = Vector4.UnitW });
-        skeleton.AddNode(new CastNet.Nodes.ConstraintNode { ConstraintType = "sc", ConstraintBone = upper, TargetBone = target, MaintainOffset = true });
+        skeleton.AddNode(new CastNet.Nodes.IKHandleNode
+        {
+            Name = "arm_ik",
+            StartBone = origin,
+            EndBone = lower,
+            TargetBone = target,
+            PoleVectorBone = upper,
+            TargetOffset = Vector3.UnitY,
+        });
+        skeleton.AddNode(new CastNet.Nodes.ConstraintNode
+        {
+            ConstraintType = "pt",
+            ConstraintBone = lower,
+            TargetBone = target,
+            MaintainOffset = true,
+            SkipY = true,
+            Weight = 0.5f,
+        });
+        skeleton.AddNode(new CastNet.Nodes.ConstraintNode
+        {
+            ConstraintType = "or",
+            ConstraintBone = lower,
+            TargetBone = target,
+            CustomOffset = Vector4.UnitW,
+        });
+        skeleton.AddNode(new CastNet.Nodes.ConstraintNode
+        {
+            ConstraintType = "sc",
+            ConstraintBone = upper,
+            TargetBone = target,
+            MaintainOffset = true,
+        });
 
         Scene loaded = Read(root);
         RedFox.Graphics3D.IKHandleNode handle = Assert.Single(loaded.GetDescendants<RedFox.Graphics3D.IKHandleNode>());
@@ -235,13 +398,24 @@ public sealed class CastTranslatorTests
     public void CastTranslator_Write_ExportsIKAndSplitsParentConstraints()
     {
         Scene source = new("rig");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         SkeletonBone root = model.AddNode(new SkeletonBone("root"));
         SkeletonBone mid = root.AddNode(new SkeletonBone("mid"));
         SkeletonBone tip = mid.AddNode(new SkeletonBone("tip"));
 
-        model.AddNode(new RedFox.Graphics3D.IKHandleNode("ik", root, tip) { TargetNode = mid, UseTargetRotation = true });
-        model.AddNode(new ParentConstraintNode("parent", tip, root) { TranslationOffset = Vector3.UnitX, Weight = 0.25f });
+        model.AddNode(new RedFox.Graphics3D.IKHandleNode("ik", root, tip)
+        {
+            TargetNode = mid,
+            UseTargetRotation = true,
+        });
+        model.AddNode(new ParentConstraintNode("parent", tip, root)
+        {
+            TranslationOffset = Vector3.UnitX,
+            Weight = 0.25f,
+        });
 
         SkeletonNode skeleton = Write(source).Roots[0].Models[0].Skeleton!;
         CastNet.Nodes.IKHandleNode handle = Assert.Single(skeleton.IKHandles);
@@ -258,14 +432,23 @@ public sealed class CastTranslatorTests
     public void CastTranslator_RoundTrip_PreservesSkinningModeAndBlendWeight()
     {
         Scene source = new("skinning");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         SkeletonBone bone = model.AddNode(new SkeletonBone("bone"));
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         SkeletonAnimation animation = source.RootNode.AddNode(new SkeletonAnimation("additive"));
         SkeletonAnimationTrack track = new("bone");
 
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.Skin = new Skin([bone], new DataBuffer<int>([0], 1, 1), new DataBuffer<float>([1f], 1, 1)) { SkinningMode = SkinningMode.DualQuaternion };
+        mesh.Skin = new Skin([bone], new DataBuffer<int>([0], 1, 1), new DataBuffer<float>([1f], 1, 1))
+        {
+            SkinningMode = SkinningMode.DualQuaternion,
+        };
         track.TranslationCurve = AnimationCurve.CreateVector3(TransformSpace.Local, TransformType.Additive);
         track.TranslationCurve.Add(0f, Vector3.One);
         track.TranslationCurve.BlendWeight = 0.5f;

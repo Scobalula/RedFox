@@ -246,21 +246,32 @@ public sealed class SmdReader
             if (span.IsEmpty || span.StartsWith("//"))
                 continue;
 
-            if (!span.IsEmpty && !char.IsDigit(span[0]) && span[0] != '-')
+            ReadOnlySpan<char> materialSpan = span;
+            if (!TryParseInt(ref span, out int parentBone))
             {
-                currentMaterial = span.ToString();
+                currentMaterial = materialSpan.ToString();
 
                 if (!groups.ContainsKey(currentMaterial))
+                {
                     groups.Add(currentMaterial, []);
+                }
 
                 continue;
             }
 
-            if (!TryParseInt(ref span, out int parentBone))
-                continue;
             SkipWhitespace(ref span);
             if (!TryParseFloat(ref span, out float vx))
+            {
+                currentMaterial = materialSpan.ToString();
+
+                if (!groups.ContainsKey(currentMaterial))
+                {
+                    groups.Add(currentMaterial, []);
+                }
+
                 continue;
+            }
+
             SkipWhitespace(ref span);
             if (!TryParseFloat(ref span, out float vy))
                 continue;
@@ -476,10 +487,21 @@ public sealed class SmdReader
     public static bool TryParseInt(ref ReadOnlySpan<char> span, out int value)
     {
         int end = 0;
-        if (end < span.Length && span[end] == '-') end++;
-        while (end < span.Length && char.IsAsciiDigit(span[end])) end++;
-        if (end == 0 || (end == 1 && span[0] == '-')) { value = 0; return false; }
-        bool ok = int.TryParse(span[..end], out value);
+        if (end < span.Length && span[end] == '-')
+        {
+            end++;
+        }
+        while (end < span.Length && char.IsAsciiDigit(span[end]))
+        {
+            end++;
+        }
+        if (end == 0 || (end == 1 && span[0] == '-'))
+        {
+            value = 0;
+            return false;
+        }
+
+        bool ok = int.TryParse(span[..end], NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
         span = span[end..];
         return ok;
     }

@@ -79,6 +79,12 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
     {
         if (Chain.Count < 2) return;
 
+        Quaternion[] startingRotations = new Quaternion[Chain.Count];
+        for (int i = 0; i < Chain.Count; i++)
+        {
+            startingRotations[i] = Chain[i].GetActiveWorldRotation();
+        }
+
         var target = (TargetNode is not null
             ? TargetNode.GetActiveWorldPosition()
             : TargetPosition) + TargetOffset;
@@ -120,12 +126,24 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
                 if (AngleLimit > 0f)
                     rotation = ClampRotation(rotation, AngleLimit);
 
-                // Apply blended rotation
                 var currentRot = joint.GetActiveWorldRotation();
                 var desired = Quaternion.Normalize(rotation * currentRot);
-                joint.LiveTransform.WorldRotation = Quaternion.Slerp(currentRot, desired, CurrentWeight);
+                joint.LiveTransform.WorldRotation = desired;
                 joint.LiveTransform.LocalRotation = null;
             }
+        }
+
+        Quaternion[] solvedRotations = new Quaternion[tipIndex];
+        for (int i = 0; i < tipIndex; i++)
+        {
+            solvedRotations[i] = Chain[i].GetActiveWorldRotation();
+        }
+
+        for (int i = 0; i < tipIndex; i++)
+        {
+            SceneNode joint = Chain[i];
+            joint.LiveTransform.WorldRotation = Quaternion.Slerp(startingRotations[i], solvedRotations[i], CurrentWeight);
+            joint.LiveTransform.LocalRotation = null;
         }
 
         if (UseTargetRotation && TargetNode is not null)

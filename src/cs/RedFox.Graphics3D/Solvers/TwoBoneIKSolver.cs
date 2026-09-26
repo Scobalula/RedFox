@@ -136,7 +136,7 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
         var midRotDelta = RotationFromTo(currentLower, desiredLower);
 
         var currentMidRot = Mid.GetActiveWorldRotation();
-        var newMidRot = Quaternion.Normalize(midRotDelta * currentMidRot);
+        var newMidRot = Quaternion.Normalize(midRotDelta * rootRotDelta * currentMidRot);
 
         // Blend with weight
         Root.LiveTransform.WorldRotation = Quaternion.Slerp(currentRootRot, newRootRot, CurrentWeight);

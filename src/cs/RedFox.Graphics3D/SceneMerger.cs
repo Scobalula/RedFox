@@ -48,7 +48,7 @@ public static class SceneMerger
         var existing = FindDuplicate(targetParent, incoming, options);
         if (existing is null)
         {
-            Attach(targetParent, incoming);
+            Attach(targetParent, incoming, options.TransformMode);
             return incoming;
         }
 
@@ -59,7 +59,7 @@ public static class SceneMerger
 
             case SceneMergeStrategy.Rename:
                 incoming.Name = MakeUniqueName(targetParent, incoming, options);
-                Attach(targetParent, incoming);
+                Attach(targetParent, incoming, options.TransformMode);
                 return incoming;
 
             case SceneMergeStrategy.Skip:
@@ -70,7 +70,7 @@ public static class SceneMerger
             case SceneMergeStrategy.Replace:
                 RedirectReferences(existing, incoming, targetParent.GetRoot(), stagingRoot);
                 existing.Detach();
-                Attach(targetParent, incoming);
+                Attach(targetParent, incoming, options.TransformMode);
                 return incoming;
 
             case SceneMergeStrategy.Merge:
@@ -86,10 +86,9 @@ public static class SceneMerger
         }
     }
 
-    private static void Attach(SceneNode targetParent, SceneNode incoming)
+    private static void Attach(SceneNode targetParent, SceneNode incoming, ReparentTransformMode transformMode)
     {
-        incoming.Detach();
-        targetParent.AddNode(incoming);
+        incoming.MoveTo(targetParent, transformMode, SceneNodeMatchScope.None, SceneMergeStrategy.Throw);
     }
 
     private static SceneNode? FindDuplicate(SceneNode targetParent, SceneNode incoming, SceneMergeOptions options)

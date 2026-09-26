@@ -67,13 +67,12 @@ public sealed class Md5AnimWriter
 
         SceneNode[] exportedBoneNodes = Array.ConvertAll(allBones, static bone => (SceneNode)bone);
 
-        // Compute world-space bind transforms
-        var worldPositions = new Vector3[allBones.Length];
-        var worldOrientations = new Quaternion[allBones.Length];
+        var localPositions = new Vector3[allBones.Length];
+        var localOrientations = new Quaternion[allBones.Length];
         for (int i = 0; i < allBones.Length; i++)
         {
-            worldPositions[i] = allBones[i].GetBindWorldPosition();
-            worldOrientations[i] = Quaternion.Normalize(allBones[i].GetBindWorldRotation());
+            localPositions[i] = allBones[i].GetBindLocalPosition();
+            localOrientations[i] = Quaternion.Normalize(allBones[i].GetBindLocalRotation());
         }
 
         // Build track lookup
@@ -90,12 +89,6 @@ public sealed class Md5AnimWriter
         var perJointFlags = new int[allBones.Length];
         var perJointStartIndex = new int[allBones.Length];
 
-        // Base frame = world-space bind pose (already computed)
-        // For each frame, compute world-space transforms from local animation data
-
-        // First pass: determine which components are animated (all components for simplicity,
-        // since the animation stores local-space data we need to convert to world-space)
-        // We mark all components as animated for joints that have tracks.
         int totalComponents = 0;
         for (int i = 0; i < allBones.Length; i++)
         {
@@ -127,9 +120,8 @@ public sealed class Md5AnimWriter
         writer.WriteLine();
         WriteBounds(writer, numFrames);
 
-        // Write baseframe (world-space bind pose)
         writer.WriteLine();
-        WriteBaseFrame(writer, worldPositions, worldOrientations);
+        WriteBaseFrame(writer, localPositions, localOrientations);
 
         // Write frames
         for (int f = 0; f < numFrames; f++)
@@ -143,16 +135,61 @@ public sealed class Md5AnimWriter
             for (int j = 0; j < allBones.Length; j++)
             {
                 int flags = perJointFlags[j];
-                if (flags == 0) continue;
+                if (flags == 0)
+                {
+                    continue;
+                }
 
-                ComputeAnimWorldTransform(allBones[j], trackByName, time, out Vector3 worldPos, out Quaternion worldOri);
+                Vector3 localPosition = allBones[j].GetBindLocalPosition();
+                Quaternion localOrientation = Quaternion.Normalize(allBones[j].GetBindLocalRotation());
+                if (trackByName.TryGetValue(allBones[j].Name, out SkeletonAnimationTrack? track))
+                {
+                    if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+                    {
+                        localPosition = translationCurve.SampleVector3(time);
+                    }
 
-                if ((flags & 1) != 0) { sb.Append('\t'); sb.Append(F(worldPos.X)); }
-                if ((flags & 2) != 0) { sb.Append('\t'); sb.Append(F(worldPos.Y)); }
-                if ((flags & 4) != 0) { sb.Append('\t'); sb.Append(F(worldPos.Z)); }
-                if ((flags & 8) != 0) { sb.Append('\t'); sb.Append(F(worldOri.X)); }
-                if ((flags & 16) != 0) { sb.Append('\t'); sb.Append(F(worldOri.Y)); }
-                if ((flags & 32) != 0) { sb.Append('\t'); sb.Append(F(worldOri.Z)); }
+                    if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+                    {
+                        localOrientation = rotationCurve.SampleQuaternion(time);
+                    }
+                }
+
+                if (localOrientation.W > 0f)
+                {
+                    localOrientation = new Quaternion(-localOrientation.X, -localOrientation.Y, -localOrientation.Z, -localOrientation.W);
+                }
+
+                if ((flags & 1) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localPosition.X));
+                }
+                if ((flags & 2) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localPosition.Y));
+                }
+                if ((flags & 4) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localPosition.Z));
+                }
+                if ((flags & 8) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localOrientation.X));
+                }
+                if ((flags & 16) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localOrientation.Y));
+                }
+                if ((flags & 32) != 0)
+                {
+                    sb.Append('\t');
+                    sb.Append(F(localOrientation.Z));
+                }
             }
 
             writer.WriteLine(sb.ToString());
@@ -204,18 +241,22 @@ public sealed class Md5AnimWriter
     }
 
     /// <summary>
-    /// Writes the <c>baseframe { }</c> section with world-space bind-pose transforms.
+    /// Writes the <c>baseframe { }</c> section with parent-local bind-pose transforms.
     /// </summary>
     /// <param name="writer">The output writer.</param>
-    /// <param name="worldPositions">The world-space joint positions.</param>
-    /// <param name="worldOrientations">The world-space joint orientations.</param>
-    public static void WriteBaseFrame(StreamWriter writer, Vector3[] worldPositions, Quaternion[] worldOrientations)
+    /// <param name="localPositions">The parent-local joint positions.</param>
+    /// <param name="localOrientations">The parent-local joint orientations.</param>
+    public static void WriteBaseFrame(StreamWriter writer, Vector3[] localPositions, Quaternion[] localOrientations)
     {
         writer.WriteLine("baseframe {");
-        for (int i = 0; i < worldPositions.Length; i++)
+        for (int i = 0; i < localPositions.Length; i++)
         {
-            var pos = worldPositions[i];
-            var q = worldOrientations[i];
+            var pos = localPositions[i];
+            var q = localOrientations[i];
+            if (q.W > 0f)
+            {
+                q = new Quaternion(-q.X, -q.Y, -q.Z, -q.W);
+            }
             writer.WriteLine($"\t( {F(pos.X)} {F(pos.Y)} {F(pos.Z)} ) ( {F(q.X)} {F(q.Y)} {F(q.Z)} )");
         }
         writer.WriteLine("}");

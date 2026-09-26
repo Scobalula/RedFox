@@ -277,8 +277,7 @@ public class SemodelTranslator : SceneTranslator
         // ---- Bone names ----
         foreach (var bone in bones)
         {
-            writer.Write(Encoding.ASCII.GetBytes(bone.Name));
-            writer.Write((byte)0);
+            writer.WriteNullTerminatedString(bone.Name);
         }
 
         // ---- Bone data ----
@@ -315,7 +314,7 @@ public class SemodelTranslator : SceneTranslator
 
             int vertexCount = mesh.Positions.ElementCount;
             int faceCount   = mesh.FaceIndices.ElementCount / 3;
-            int layerCount  = mesh.UVLayers?.ValueCount ?? 0;
+            int layerCount  = Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1);
             Skin? skin      = mesh.Skin;
             int influences  = skin?.BoneIndices.ValueCount ?? 0;
 
@@ -373,12 +372,14 @@ public class SemodelTranslator : SceneTranslator
             // Colors
             if (mesh.ColorLayers is not null)
             {
+                float colorScale = mesh.ColorLayers is DataBuffer<byte> ? 1f : byte.MaxValue;
                 for (int v = 0; v < vertexCount; v++)
                 {
-                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 0));
-                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 1));
-                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 2));
-                    writer.Write(mesh.ColorLayers.Get<byte>(v, 0, 3));
+                    Vector4 color = Vector4.Clamp(mesh.ColorLayers.GetVector4(v, 0, 1f) * colorScale, Vector4.Zero, new Vector4(byte.MaxValue));
+                    writer.Write((byte)color.X);
+                    writer.Write((byte)color.Y);
+                    writer.Write((byte)color.Z);
+                    writer.Write((byte)color.W);
                 }
             }
             else if (hasColours)
@@ -435,8 +436,7 @@ public class SemodelTranslator : SceneTranslator
         // ---- Materials ----
         foreach (var material in materials)
         {
-            writer.Write(Encoding.ASCII.GetBytes(material.Name));
-            writer.Write((byte)0);
+            writer.WriteNullTerminatedString(material.Name);
 
             string? diffuseMapName  = ResolveMaterialTextureName(material, material.DiffuseMapName,  targetDirectoryPath);
             string? normalMapName   = ResolveMaterialTextureName(material, material.NormalMapName,   targetDirectoryPath);

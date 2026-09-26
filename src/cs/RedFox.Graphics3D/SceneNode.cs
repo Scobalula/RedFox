@@ -178,6 +178,25 @@ public abstract class SceneNode : IUpdatable, IDisposable
     {
         if (newParent is null)
         {
+            foreach (SceneNode descendant in EnumerateDescendants())
+            {
+                descendant.StoreTransformsAsLocal();
+            }
+
+            switch (transformMode)
+            {
+                case ReparentTransformMode.PreserveLocal:
+                    StoreTransformsAsLocal();
+                    break;
+                case ReparentTransformMode.PreserveWorld:
+                    StoreTransformsAsWorld();
+                    break;
+                case ReparentTransformMode.PreserveExisting:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
+            }
+
             Detach();
             return this;
         }
@@ -610,8 +629,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         _children?.Where(x => x.MatchesFilter(filter)) ?? [];
 
     /// <summary>
-    /// Enumerates descendant nodes whose runtime type is exactly <typeparamref name="T"/>.
-    /// Unlike <see cref="EnumerateChildren{T}()"/> and <see cref="EnumerateHierarchy{T}()"/>, derived types are not included.
+    /// Enumerates descendant nodes assignable to <typeparamref name="T"/>.
     /// </summary>
     /// <typeparam name="T">The node type to filter for.</typeparam>
     /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
@@ -619,17 +637,16 @@ public abstract class SceneNode : IUpdatable, IDisposable
         EnumerateDescendants<T>(SceneNodeFlags.None);
 
     /// <summary>
-    /// Enumerates descendant nodes whose runtime type is exactly <typeparamref name="T"/> and that match the provided filter.
+    /// Enumerates descendant nodes assignable to <typeparamref name="T"/> that match the provided filter.
     /// </summary>
     /// <typeparam name="T">The node type to filter for.</typeparam>
     /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
     /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
     public IEnumerable<T> EnumerateDescendants<T>(SceneNodeFlags filter) where T : SceneNode
     {
-        foreach (var descendant in EnumerateDescendants(filter))
+        foreach (T descendant in EnumerateDescendants(filter).OfType<T>())
         {
-            if (descendant.GetType() == typeof(T))
-                yield return (T)descendant;
+            yield return descendant;
         }
     }
 
@@ -1648,9 +1665,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The newly created and added node.</returns>
     public T AddNode<T>(string name) where T : SceneNode, new()
     {
-        var node = AddNode(new T());
+        T node = new();
         node.Name = name;
-        return node;
+        return AddNode(node);
     }
 
     /// <summary>
@@ -1691,10 +1708,10 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The newly created and added node.</returns>
     public T AddNode<T>(string name, object? userData) where T : SceneNode, new()
     {
-        var node = AddNode(new T());
+        T node = new();
         node.Name = name;
         node.UserData = userData;
-        return node;
+        return AddNode(node);
     }
 
     /// <summary>
@@ -2131,14 +2148,19 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (Parent is null)
             return worldPosition;
 
+        Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
+        if (Matrix4x4.Invert(parentWorldMatrix, out Matrix4x4 inverseParentWorldMatrix))
+        {
+            return Vector3.Transform(worldPosition, inverseParentWorldMatrix);
+        }
+
         (Vector3 parentPosition, Quaternion parentRotation) = Parent.GetBindWorldPose();
         return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
     }
 
     /// <summary>
     /// Gets the bind world position. Returns <see cref="Transform.WorldPosition"/> when it is set;
-    /// otherwise composes the local position with the parent's bind world pose.
-    /// The composition is rigid: ancestor scale is not applied, see <see cref="Transform"/>.
+    /// otherwise composes the local position with the parent's bind world matrix.
     /// </summary>
     public Vector3 GetBindWorldPosition() => GetBindWorldPose().Position;
 
@@ -3017,6 +3039,12 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (Parent is null)
             return worldPosition;
 
+        Matrix4x4 parentWorldMatrix = Parent.GetActiveWorldMatrix();
+        if (Matrix4x4.Invert(parentWorldMatrix, out Matrix4x4 inverseParentWorldMatrix))
+        {
+            return Vector3.Transform(worldPosition, inverseParentWorldMatrix);
+        }
+
         (Vector3 parentPosition, Quaternion parentRotation) = Parent.GetActiveWorldPose();
         return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
     }
@@ -3342,9 +3370,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (BindTransform.WorldPosition is { } worldPosition && BindTransform.WorldRotation is { } worldRotation)
             return (worldPosition, worldRotation);
 
-        (Vector3 parentPosition, Quaternion parentRotation) = Parent?.GetBindWorldPose() ?? (Vector3.Zero, Quaternion.Identity);
-
-        Vector3 position = BindTransform.WorldPosition ?? Vector3.Transform(BindTransform.LocalPosition ?? Vector3.Zero, parentRotation) + parentPosition;
+        Matrix4x4 parentWorldMatrix = Parent?.GetBindWorldMatrix() ?? Matrix4x4.Identity;
+        Quaternion parentRotation = Parent?.GetBindWorldPose().Rotation ?? Quaternion.Identity;
+        Vector3 position = BindTransform.WorldPosition ?? Vector3.Transform(BindTransform.LocalPosition ?? Vector3.Zero, parentWorldMatrix);
         Quaternion rotation = BindTransform.WorldRotation ?? parentRotation * (BindTransform.LocalRotation ?? Quaternion.Identity);
 
         return (position, rotation);
@@ -3355,9 +3383,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
             return (worldPosition, worldRotation);
 
-        (Vector3 parentPosition, Quaternion parentRotation) = Parent?.GetActiveWorldPose() ?? (Vector3.Zero, Quaternion.Identity);
-
-        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentRotation) + parentPosition;
+        Matrix4x4 parentWorldMatrix = Parent?.GetActiveWorldMatrix() ?? Matrix4x4.Identity;
+        Quaternion parentRotation = Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
+        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentWorldMatrix);
         Quaternion rotation = LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
 
         return (position, rotation);

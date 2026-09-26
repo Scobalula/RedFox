@@ -16,6 +16,18 @@ internal static class XAnimWriter
         if (animation.Tracks.Count > ushort.MaxValue)
             throw new NotSupportedException("XAnim does not support more than 65535 parts.");
 
+        Dictionary<string, SkeletonBone> bonesByName = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
+        {
+            bonesByName.TryAdd(bone.Name, bone);
+        }
+
+        Dictionary<string, SkeletonAnimationTrack> tracksByName = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SkeletonAnimationTrack track in animation.Tracks)
+        {
+            tracksByName[track.Name] = track;
+        }
+
         SortedSet<int> frames = [];
         foreach (SkeletonAnimationTrack track in animation.Tracks)
         {
@@ -24,7 +36,9 @@ internal static class XAnimWriter
             AddFrames(frames, track.ScaleCurve);
         }
         if (frames.Count == 0)
+        {
             frames.Add(0);
+        }
 
         bool binary = string.Equals(Path.GetExtension(context.TargetFilePath), ".xanim_bin", StringComparison.OrdinalIgnoreCase);
         using XAssetWriter output = new(stream, binary);
@@ -33,20 +47,48 @@ internal static class XAnimWriter
         writer.WriteUShort("VERSION", 3);
         writer.WriteUShort("NUMPARTS", checked((ushort)animation.Tracks.Count));
         for (int i = 0; i < animation.Tracks.Count; i++)
+        {
             writer.WriteUShortString("PART", checked((ushort)i), animation.Tracks[i].Name);
+        }
         writer.WriteUShort("FRAMERATE", checked((ushort)Math.Clamp((int)MathF.Round(animation.Framerate), 0, ushort.MaxValue)));
-        writer.WriteUInt("NUMFRAMES", checked((uint)frames.Count));
+        writer.WriteUInt("NUMFRAMES", checked((uint)(frames.Max + 1)));
 
         foreach (int frame in frames)
         {
             cancellationToken?.ThrowIfCancellationRequested();
             writer.WriteInt("FRAME", frame);
+            Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldPoses = [];
             for (int partIndex = 0; partIndex < animation.Tracks.Count; partIndex++)
             {
                 SkeletonAnimationTrack track = animation.Tracks[partIndex];
-                Vector3 translation = track.TranslationCurve?.SampleVector3(frame) ?? Vector3.Zero;
+                Vector3 translation;
+                Quaternion rotation;
+                if (bonesByName.TryGetValue(track.Name, out SkeletonBone? bone))
+                {
+                    (translation, rotation) = GetWorldPose(bone, animation, tracksByName, frame, worldPoses);
+                }
+                else
+                {
+                    if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+                    {
+                        translation = translationCurve.SampleVector3(frame);
+                    }
+                    else
+                    {
+                        translation = Vector3.Zero;
+                    }
+
+                    if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+                    {
+                        rotation = rotationCurve.SampleQuaternion(frame);
+                    }
+                    else
+                    {
+                        rotation = Quaternion.Identity;
+                    }
+                }
+
                 Vector3 scale = track.ScaleCurve?.SampleVector3(frame) ?? Vector3.One;
-                Quaternion rotation = track.RotationCurve?.SampleQuaternion(frame) ?? Quaternion.Identity;
                 Matrix4x4 matrix = Matrix4x4.CreateFromQuaternion(rotation);
                 writer.WriteUShort("PART", checked((ushort)partIndex));
                 writer.WriteVector3("OFFSET", translation);
@@ -80,8 +122,89 @@ internal static class XAnimWriter
     private static void AddFrames(SortedSet<int> frames, AnimationCurve? curve)
     {
         if (curve is null)
+        {
             return;
+        }
+
         for (int i = 0; i < curve.KeyFrameCount; i++)
+        {
             frames.Add((int)MathF.Round(curve.GetKeyTime(i)));
+        }
     }
+
+    private static (Vector3 Position, Quaternion Rotation) GetWorldPose(SkeletonBone bone, SkeletonAnimation animation, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName, float frame, Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldPoses)
+    {
+        if (worldPoses.TryGetValue(bone, out (Vector3 Position, Quaternion Rotation) worldPose))
+        {
+            return worldPose;
+        }
+
+        Vector3 localPosition = bone.GetBindLocalPosition();
+        Quaternion localRotation = bone.GetBindLocalRotation();
+        Vector3? worldPosition = null;
+        Quaternion? worldRotation = null;
+
+        if (tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
+        {
+            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+            {
+                Vector3 value = translationCurve.SampleVector3(frame);
+                TransformType transformType = translationCurve.TransformType == TransformType.Unknown ? animation.TransformType : translationCurve.TransformType;
+                if (translationCurve.TransformSpace == TransformSpace.World)
+                {
+                    worldPosition = ResolvePosition(value, bone.GetBindWorldPosition(), transformType, translationCurve.BlendWeight);
+                }
+                else
+                {
+                    localPosition = ResolvePosition(value, localPosition, transformType, translationCurve.BlendWeight);
+                }
+            }
+
+            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+            {
+                Quaternion value = rotationCurve.SampleQuaternion(frame);
+                TransformType transformType = rotationCurve.TransformType == TransformType.Unknown ? animation.TransformType : rotationCurve.TransformType;
+                if (rotationCurve.TransformSpace == TransformSpace.World)
+                {
+                    worldRotation = ResolveRotation(value, bone.GetBindWorldRotation(), transformType, rotationCurve.BlendWeight);
+                }
+                else
+                {
+                    localRotation = ResolveRotation(value, localRotation, transformType, rotationCurve.BlendWeight);
+                }
+            }
+        }
+
+        Vector3 parentWorldPosition;
+        Quaternion parentWorldRotation;
+        if (bone.Parent is SkeletonBone parentBone)
+        {
+            (parentWorldPosition, parentWorldRotation) = GetWorldPose(parentBone, animation, tracksByName, frame, worldPoses);
+        }
+        else
+        {
+            parentWorldPosition = bone.Parent?.GetBindWorldPosition() ?? Vector3.Zero;
+            parentWorldRotation = bone.Parent?.GetBindWorldRotation() ?? Quaternion.Identity;
+        }
+
+        Vector3 resolvedWorldPosition = worldPosition ?? parentWorldPosition + Vector3.Transform(localPosition, parentWorldRotation);
+        Quaternion resolvedWorldRotation = Quaternion.Normalize(worldRotation ?? parentWorldRotation * localRotation);
+        worldPose = (resolvedWorldPosition, resolvedWorldRotation);
+        worldPoses[bone] = worldPose;
+        return worldPose;
+    }
+
+    private static Vector3 ResolvePosition(Vector3 value, Vector3 bindPosition, TransformType transformType, float blendWeight) => transformType switch
+    {
+        TransformType.Relative => bindPosition + value,
+        TransformType.Additive => bindPosition + value * blendWeight,
+        _ => value
+    };
+
+    private static Quaternion ResolveRotation(Quaternion value, Quaternion bindRotation, TransformType transformType, float blendWeight) => transformType switch
+    {
+        TransformType.Relative => Quaternion.Normalize(bindRotation * value),
+        TransformType.Additive => Quaternion.Normalize(bindRotation * Quaternion.Slerp(Quaternion.Identity, value, blendWeight)),
+        _ => Quaternion.Normalize(value)
+    };
 }

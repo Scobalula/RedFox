@@ -102,17 +102,15 @@ public sealed class FpsCamera : Camera
             + (input.MoveIntent.Y * up)
             + (input.MoveIntent.Z * forward);
 
-        // Wheel zoom and drag dolly both translate the camera forward at MoveSpeed scale.
         float dolly = (input.ZoomDelta + input.DollyDelta) * ZoomSensitivity;
-        if (dolly != 0.0f)
-        {
-            move += forward * dolly;
-        }
 
-        if (move.LengthSquared() > 1e-8f)
+        if (move.LengthSquared() > 1e-8f || dolly != 0.0f)
         {
             float speed = MoveSpeed;
-            Position += Vector3.Normalize(move) * speed * deltaTime;
+            if (move.LengthSquared() > 1e-8f)
+                Position += Vector3.Normalize(move) * speed * deltaTime;
+
+            Position += forward * dolly * speed * deltaTime;
             Target = Position + forward;
         }
     }

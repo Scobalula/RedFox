@@ -19,9 +19,9 @@ namespace RedFox.Graphics3D
         /// <inheritdoc/>
         public Image? Load(Texture texture, ImageTranslatorManager translatorManager)
         {
-            // Try the path as given first (absolute or already resolved).
-            if (File.Exists(texture.FilePath))
-                return translatorManager.Read(texture.FilePath);
+            string filePath = texture.EffectiveFilePath;
+            if (File.Exists(filePath))
+                return translatorManager.Read(filePath);
 
             return null;
         }

@@ -138,7 +138,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.RotationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetActiveWorldRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
+                TransformType.Additive => bone.GetBindWorldRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
                 TransformType.Relative => bone.GetBindWorldRotation() * value,
                 TransformType.Absolute => value,
                 _ => value
@@ -146,7 +146,7 @@ public class SkeletonAnimationSampler : AnimationSampler
 
             bone.LiveTransform.WorldRotation = BlendMode switch
             {
-                AnimationBlendMode.Additive => Quaternion.Normalize(bone.GetActiveWorldRotation() * Quaternion.Slerp(Quaternion.Identity, value, CurrentWeight)),
+                AnimationBlendMode.Additive => Quaternion.Normalize(bone.GetActiveWorldRotation() * Quaternion.Slerp(Quaternion.Identity, Quaternion.Inverse(bone.GetBindWorldRotation()) * resolved, CurrentWeight)),
                 _ => Quaternion.Slerp(bone.GetActiveWorldRotation(), Quaternion.Normalize(resolved), CurrentWeight), // Override
             };
             bone.LiveTransform.LocalRotation = null;
@@ -155,7 +155,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.RotationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetLiveLocalRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
+                TransformType.Additive => bone.GetBindLocalRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
                 TransformType.Relative => bone.GetBindLocalRotation() * value,
                 TransformType.Absolute => value,
                 _ => value
@@ -163,7 +163,7 @@ public class SkeletonAnimationSampler : AnimationSampler
 
             bone.LiveTransform.LocalRotation = BlendMode switch
             {
-                AnimationBlendMode.Additive => Quaternion.Normalize(bone.GetLiveLocalRotation() * Quaternion.Slerp(Quaternion.Identity, value, CurrentWeight)),
+                AnimationBlendMode.Additive => Quaternion.Normalize(bone.GetLiveLocalRotation() * Quaternion.Slerp(Quaternion.Identity, Quaternion.Inverse(bone.GetBindLocalRotation()) * resolved, CurrentWeight)),
                 _ => Quaternion.Slerp(bone.GetLiveLocalRotation(), Quaternion.Normalize(resolved), CurrentWeight), // Override
             };
             bone.LiveTransform.WorldRotation = null;

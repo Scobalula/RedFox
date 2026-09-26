@@ -757,7 +757,10 @@ public sealed class GltfReader
         }
 
         if (bones.Count > 0 && ReadSkinInfluences(prim) is var (boneIndices, boneWeights))
-            mesh.Skin = new Skin(bones, boneIndices, boneWeights, ibmList) { Name = skin.Name };
+            mesh.Skin = new Skin(bones, boneIndices, boneWeights, ibmList)
+            {
+                Name = skin.Name,
+            };
     }
 
     /// <summary>
@@ -773,10 +776,14 @@ public sealed class GltfReader
             string animName = gltfAnim.Name ?? $"Animation_{animIdx}";
 
             SkeletonBone? targetBone = skeletons.Length > 0 ? skeletons[0] : null;
+            const float frameRate = 30f;
 
-            SkeletonAnimation anim = new(animName);
-            anim.TransformType = TransformType.Absolute;
-            anim.TransformSpace = TransformSpace.Local;
+            SkeletonAnimation anim = new(animName)
+            {
+                Framerate = frameRate,
+                TransformType = TransformType.Absolute,
+                TransformSpace = TransformSpace.Local,
+            };
 
             // Group channels by target node
             Dictionary<int, SkeletonAnimationTrack> tracksByNode = [];
@@ -814,7 +821,7 @@ public sealed class GltfReader
                         {
                             int offset = isCubicSpline ? (k * 9 + 3) : (k * 3);
                             Vector3 translation = new(values[offset], values[offset + 1], values[offset + 2]);
-                            track.AddTranslationFrame(times[k], translation);
+                            track.AddTranslationFrame(times[k] * frameRate, translation);
                         }
                         break;
 
@@ -823,7 +830,7 @@ public sealed class GltfReader
                         {
                             int offset = isCubicSpline ? (k * 12 + 4) : (k * 4);
                             Quaternion rotation = new(values[offset], values[offset + 1], values[offset + 2], values[offset + 3]);
-                            track.AddRotationFrame(times[k], rotation);
+                            track.AddRotationFrame(times[k] * frameRate, rotation);
                         }
                         break;
 
@@ -832,7 +839,7 @@ public sealed class GltfReader
                         {
                             int offset = isCubicSpline ? (k * 9 + 3) : (k * 3);
                             Vector3 scale = new(values[offset], values[offset + 1], values[offset + 2]);
-                            track.AddScaleFrame(times[k], scale);
+                            track.AddScaleFrame(times[k] * frameRate, scale);
                         }
                         break;
                 }

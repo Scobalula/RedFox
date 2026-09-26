@@ -623,6 +623,7 @@ public static class FbxSceneMapper
         Dictionary<long, Light> lightsByModelId = [];
         Dictionary<long, FbxNode> constraintNodes = [];
         Dictionary<Mesh, int[]> perTriangleMaterials = [];
+        Dictionary<Mesh, FbxNode> geometryByMesh = [];
 
         foreach ((long objectId, FbxNode objectNode) in objectsById)
         {
@@ -668,10 +669,15 @@ public static class FbxSceneMapper
         AttachImportedRootNodes(scene.RootNode, modelNodes.Values);
         AttachImportedRootNodes(scene.RootNode, materialsById.Values);
         ClassifyNullContainers(modelNodes, collapseSingleBoneContainers: constraintNodes.Count == 0);
-        AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials);
+        AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials, geometryByMesh);
         AttachMaterials(meshesByModelId, materialsById, connections);
         FbxMorphMapper.ImportMorphs(meshesByModelId, objectsById, connections);
         FbxSkinningMapper.ImportSkinning(meshesByModelId, objectsById, connections, bonesByModelId);
+        foreach ((Mesh mesh, FbxNode geometry) in geometryByMesh)
+        {
+            FbxGeometrySplitter.SplitVertices(mesh, geometry);
+        }
+
         SplitMeshesByMaterial(perTriangleMaterials);
         AttachNullNodeAttributes(modelNodes, objectsById, connections);
         AttachCameraAndLightNodeAttributes(camerasByModelId, lightsByModelId, objectsById, connections);
@@ -708,7 +714,11 @@ public static class FbxSceneMapper
             throw new ArgumentException("The supplied selection does not belong to the provided scene.", nameof(selection));
         }
 
-        FbxDocument document = new() { Format = format, Version = 7700 };
+        FbxDocument document = new()
+        {
+            Format = format,
+            Version = 7700,
+        };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
 
@@ -957,6 +967,9 @@ public static class FbxSceneMapper
     /// <param name="connections">The full FBX connection list.</param>
     /// <param name="perTriangleMaterials">Output dictionary populated with per-triangle material indices.</param>
     public static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials)
+        => AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials, null);
+
+    private static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials, Dictionary<Mesh, FbxNode>? geometryByMesh)
     {
         for (int i = 0; i < connections.Count; i++)
         {
@@ -966,7 +979,8 @@ public static class FbxSceneMapper
                 continue;
             }
 
-            int[] materialIndices = FbxGeometryMapper.ImportGeometry(mesh, geometry);
+            int[] materialIndices = FbxGeometryMapper.ImportControlPointGeometry(mesh, geometry);
+            geometryByMesh?.TryAdd(mesh, geometry);
             if (materialIndices.Length > 0)
             {
                 perTriangleMaterials[mesh] = materialIndices;
@@ -1067,7 +1081,10 @@ public static class FbxSceneMapper
 
             foreach ((int materialIndex, List<int> triangleIndices) in indicesByMaterial)
             {
-                Mesh splitMesh = parent.AddNode(new Mesh { Name = mesh.Name + "_mat" + materialIndex.ToString(CultureInfo.InvariantCulture) });
+                Mesh splitMesh = parent.AddNode(new Mesh
+                {
+                    Name = mesh.Name + "_mat" + materialIndex.ToString(CultureInfo.InvariantCulture),
+                });
                 mesh.BindTransform.CopyTo(splitMesh.BindTransform);
                 mesh.LiveTransform.CopyTo(splitMesh.LiveTransform);
                 splitMesh.Positions = mesh.Positions;
@@ -1151,9 +1168,29 @@ public static class FbxSceneMapper
 
         if (string.Equals(modelType, "Mesh", StringComparison.OrdinalIgnoreCase))
         {
-            Mesh mesh = new() { Name = modelName };
-            ApplyModelTransform(mesh, objectNode);
-            modelNodes[objectId] = mesh;
+            if (!HasGeometricTransform(objectNode))
+            {
+                Mesh directMesh = new()
+                {
+                    Name = modelName,
+                };
+                ApplyModelTransform(directMesh, objectNode);
+                modelNodes[objectId] = directMesh;
+                meshesByModelId[objectId] = directMesh;
+                return;
+            }
+
+            MeshGroup meshModel = new(modelName);
+            ApplyModelTransform(meshModel, objectNode);
+
+            Mesh mesh = new()
+            {
+                Name = modelName,
+            };
+            ApplyGeometricTransform(mesh, objectNode);
+            meshModel.AddNode(mesh);
+
+            modelNodes[objectId] = meshModel;
             meshesByModelId[objectId] = mesh;
             return;
         }
@@ -1273,7 +1310,10 @@ public static class FbxSceneMapper
 
         if (allModelChildren)
         {
-            return new MeshGroup { Name = group.Name };
+            return new MeshGroup
+            {
+                Name = group.Name,
+            };
         }
 
         return group;
@@ -1590,24 +1630,7 @@ public static class FbxSceneMapper
                 continue;
             }
 
-            if (child is SkeletonBone childBone && parent is SkeletonBone parentBone)
-            {
-                childBone.MoveTo(parentBone, ReparentTransformMode.PreserveLocal);
-                continue;
-            }
-
-            bool shouldReparent = (child, parent) switch
-            {
-                (SkeletonBone, MeshGroup or Group) => true,
-                (Mesh or Group or MeshGroup, MeshGroup or Group) => true,
-                (Camera or Light, _) => true,
-                _ => false,
-            };
-
-            if (shouldReparent)
-            {
-                child.MoveTo(parent, ReparentTransformMode.PreserveLocal);
-            }
+            child.MoveTo(parent, ReparentTransformMode.PreserveLocal);
         }
     }
 
@@ -1650,17 +1673,9 @@ public static class FbxSceneMapper
         Vector3 rotationPivot = GetPropertyVector3(properties70, "RotationPivot", Vector3.Zero);
         Vector3 scalingOffset = GetPropertyVector3(properties70, "ScalingOffset", Vector3.Zero);
         Vector3 scalingPivot = GetPropertyVector3(properties70, "ScalingPivot", Vector3.Zero);
-        Vector3 geometricTranslation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
-        Vector3 geometricRotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
-        Vector3 geometricScaling = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
         int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
 
         Matrix4x4 localMatrix = ComposeNodeLocalTransform(localTranslation, localRotation, localScale, preRotation, postRotation, rotationOffset, rotationPivot, scalingOffset, scalingPivot, rotationOrder);
-        if (node is Mesh)
-        {
-            Matrix4x4 geometricMatrix = ComposeGeometricTransform(geometricTranslation, geometricRotation, geometricScaling, rotationOrder);
-            localMatrix *= geometricMatrix;
-        }
 
         if (!Matrix4x4.Decompose(localMatrix, out Vector3 resolvedScale, out Quaternion resolvedRotation, out Vector3 resolvedTranslation))
         {
@@ -1676,6 +1691,46 @@ public static class FbxSceneMapper
         node.BindTransform.LocalPosition = resolvedTranslation;
         node.BindTransform.LocalRotation = Quaternion.Normalize(resolvedRotation);
         node.BindTransform.Scale = resolvedScale;
+    }
+
+    private static void ApplyGeometricTransform(Mesh mesh, FbxNode modelObject)
+    {
+        FbxNode? properties70 = modelObject.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return;
+        }
+
+        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
+        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
+        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
+        int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
+        Matrix4x4 geometricMatrix = ComposeGeometricTransform(translation, rotation, scale, rotationOrder);
+
+        if (!Matrix4x4.Decompose(geometricMatrix, out Vector3 resolvedScale, out Quaternion resolvedRotation, out Vector3 resolvedTranslation))
+        {
+            resolvedScale = scale;
+            resolvedRotation = ComposeEulerRotation(rotation, rotationOrder);
+            resolvedTranslation = translation;
+        }
+
+        mesh.BindTransform.LocalPosition = resolvedTranslation;
+        mesh.BindTransform.LocalRotation = Quaternion.Normalize(resolvedRotation);
+        mesh.BindTransform.Scale = resolvedScale;
+    }
+
+    private static bool HasGeometricTransform(FbxNode modelObject)
+    {
+        FbxNode? properties70 = modelObject.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return false;
+        }
+
+        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
+        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
+        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
+        return translation != Vector3.Zero || rotation != Vector3.Zero || scale != Vector3.One;
     }
 
     /// <summary>
@@ -1765,7 +1820,7 @@ public static class FbxSceneMapper
         AddGlobalProperty(globalProperties, "OriginalUpAxisSign", "int", new FbxProperty('I', 1));
         AddGlobalProperty(globalProperties, "UnitScaleFactor", "double", new FbxProperty('D', 1.0));
         AddGlobalProperty(globalProperties, "OriginalUnitScaleFactor", "double", new FbxProperty('D', 1.0));
-        AddGlobalProperty(globalProperties, "AmbientColor", "ColorRGB", new FbxProperty('D', 0.0));
+        AddVectorProperty(globalProperties, "AmbientColor", "ColorRGB", Vector3.Zero);
         AddStringProperty(globalProperties, "DefaultCamera", "KString", "Producer Perspective");
         AddIntProperty(globalProperties, "TimeMode", "enum", 11);
         AddIntProperty(globalProperties, "TimeProtocol", "enum", 2);
@@ -2140,7 +2195,7 @@ public static class FbxSceneMapper
         AddDoubleProperty(properties, "DiffuseFactor", "Number", 0.8);
         AddDoubleProperty(properties, "TransparencyFactor", "Number", 1.0);
         Vector4 emissive = material.EmissiveColor ?? Vector4.Zero;
-        AddVectorProperty(properties, "Emissive", "Vector3D", new Vector3(emissive.X, emissive.Y, emissive.Z));
+        AddVectorProperty(properties, "EmissiveColor", "Color", new Vector3(emissive.X, emissive.Y, emissive.Z));
         AddVectorProperty(properties, "Ambient", "Vector3D", Vector3.Zero);
         AddVectorProperty(properties, "Diffuse", "Vector3D", new Vector3(diffuse.X * 0.5f, diffuse.Y * 0.5f, diffuse.Z * 0.5f));
         AddDoubleProperty(properties, "Opacity", "double", diffuse.W);

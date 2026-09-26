@@ -1,5 +1,3 @@
-using System.Text;
-
 namespace RedFox.Graphics3D.Formats.KaydaraFbx;
 
 /// <summary>
@@ -288,7 +286,7 @@ public sealed class FbxAsciiTokenizer
     /// <summary>
     /// Reads a quoted FBX string token.
     /// </summary>
-    /// <returns>The unescaped string value.</returns>
+    /// <returns>The decoded FBX string value.</returns>
     public string ReadQuotedString()
     {
         if (!TryConsume('"'))
@@ -297,52 +295,18 @@ public sealed class FbxAsciiTokenizer
         }
 
         int start = _position;
-        while (_position < _end)
+        while (!IsEnd && PeekChar() != '"')
         {
-            char c = _text[_position];
-            if (c == '"' || c == '\\')
-            {
-                break;
-            }
-
             _position++;
         }
 
-        if (_position < _end && _text[_position] == '"')
+        string value = _text[start.._position];
+        if (!IsEnd)
         {
-            string fastResult = _text[start.._position];
             _position++;
-            return fastResult;
         }
 
-        StringBuilder result = new(_position - start + 16);
-        if (_position > start)
-        {
-            result.Append(_text, start, _position - start);
-        }
-
-        while (!IsEnd)
-        {
-            char c = PeekChar();
-            _position++;
-
-            if (c == '"')
-            {
-                break;
-            }
-
-            if (c == '\\' && !IsEnd)
-            {
-                char escaped = PeekChar();
-                _position++;
-                result.Append(escaped);
-                continue;
-            }
-
-            result.Append(c);
-        }
-
-        return result.ToString();
+        return value.Replace("&quot;", "\"", StringComparison.Ordinal).Replace("&amp;", "&", StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -392,12 +356,6 @@ public sealed class FbxAsciiTokenizer
             if (inString)
             {
                 _position++;
-                if (current == '\\' && !IsEnd)
-                {
-                    _position++;
-                    continue;
-                }
-
                 if (current == '"')
                 {
                     inString = false;

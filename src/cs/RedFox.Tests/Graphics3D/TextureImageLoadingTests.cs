@@ -9,7 +9,7 @@ namespace RedFox.Tests.Graphics3D;
 public sealed class TextureImageLoadingTests
 {
     [Fact]
-    public void TryLoad_UsesSceneImageTranslators()
+    public void TryLoad_UsesResolvedPathAndSceneImageTranslators()
     {
         string imagePath = Path.Combine(Path.GetTempPath(), $"redfox-texture-{Guid.NewGuid():N}.png");
 
@@ -22,7 +22,10 @@ public sealed class TextureImageLoadingTests
 
             Scene scene = new();
             scene.ImageTranslators.Register(new PngImageTranslator());
-            Texture texture = scene.RootNode.AddNode(new Texture(imagePath));
+            Texture texture = scene.RootNode.AddNode(new Texture("textures/red.png")
+            {
+                ResolvedFilePath = imagePath,
+            });
 
             bool loaded = texture.TryLoad(scene.ImageTranslators);
 

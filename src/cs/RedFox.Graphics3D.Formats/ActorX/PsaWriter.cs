@@ -102,7 +102,7 @@ public sealed class PsaWriter
         writer.Write(0);           // KeyCompressionStyle
         writer.Write(0);           // KeyQuotum
         writer.Write(0f);          // KeyReduction
-        writer.Write(frameCount / rate); // TrackTime
+        writer.Write(frameCount);
         writer.Write(rate);        // AnimRate
         writer.Write(0);           // StartBone
         writer.Write(0);           // FirstRawFrame

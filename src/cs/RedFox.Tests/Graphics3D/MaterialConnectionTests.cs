@@ -242,6 +242,39 @@ public sealed class MaterialConnectionTests
     }
 
     [Fact]
+    public void NumericSlotKey_CanBeLookedUpReplacedAndDisconnected()
+    {
+        Material material = new("mat");
+        Texture first = new("first.tga");
+        Texture replacement = new("replacement.tga");
+        material.Connect("0", first);
+
+        Assert.True(material.TryGetTexture("0", out Texture? found));
+        Assert.Same(first, found);
+
+        material.Connect("0", replacement);
+
+        Assert.Single(material.Textures);
+        Assert.Same(replacement, material.Textures[0].Texture);
+        material.Disconnect("0");
+
+        Assert.Empty(material.Textures);
+    }
+
+    [Fact]
+    public void NamedSlotKey_SkipsExplicitlyOccupiedNumericSlots()
+    {
+        Material material = new("mat");
+        material.Connect("0", new Texture("zero.tga"));
+        material.Connect("3", new Texture("three.tga"));
+        material.Connect("diffuse", new Texture("diffuse.tga"));
+        material.Connect("normal", new Texture("normal.tga"));
+        material.Connect("roughness", new Texture("roughness.tga"));
+
+        Assert.Equal([0, 3, 1, 2, 4], material.Textures.Select(static binding => binding.Slot));
+    }
+
+    [Fact]
     public void NamedSlotKey_AssignsNextFreeNumericIndex()
     {
         Material material = new("mat");

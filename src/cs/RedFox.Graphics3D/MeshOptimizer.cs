@@ -143,7 +143,10 @@ public static class MeshOptimizer
         var   state    = new LruState(vertexCount, lruCacheSize, faceCount, adjFaces, adjStart);
 
         for (int v = 0; v < vertexCount; v++)
+        {
+            state.ActiveFaceCount[v] = adjStart[v + 1] - adjStart[v];
             state.VertexScore[v] = ComputeVertexScore(int.MaxValue, state.ActiveFaceCount[v], lruCacheSize);
+        }
 
         for (int f = 0; f < faceCount; f++)
         {
@@ -155,8 +158,14 @@ public static class MeshOptimizer
                 if ((uint)v >= (uint)vertexCount) { valid = false; break; }
                 s += state.VertexScore[v];
             }
-            if (!valid) { state.FaceDone[f] = true; state.FaceScore[f] = float.MinValue; }
-            else          state.FaceScore[f] = s;
+            if (!valid)
+            {
+                state.FaceScore[f] = float.MinValue;
+            }
+            else
+            {
+                state.FaceScore[f] = s;
+            }
         }
 
         int[] lruCache = new int[lruCacheSize];
@@ -226,7 +235,13 @@ public static class MeshOptimizer
             if ((uint)bv2 < (uint)vertexCount && state.CachePosition[bv2] == int.MaxValue) UpdateVertex(bv2, faceIndices, state);
         }
 
-        for (int f = 0; f < faceCount; f++) { if (!state.FaceDone[f]) faceRemap[outIdx++] = f; }
+        for (int f = 0; f < faceCount; f++)
+        {
+            if (!state.FaceDone[f])
+            {
+                faceRemap[outIdx++] = f;
+            }
+        }
 
         return faceRemap;
     }
@@ -285,10 +300,6 @@ public static class MeshOptimizer
             }
         }
 
-        // Also populate ActiveFaceCount in state — we reuse the local counts.
-        // (The LruState constructor zero-initialises; caller fills it after this returns.)
-        // Pass the counts back implicitly — BuildAdjacencyStart also returns adjStart so
-        // callers can loop over adjStart[v+1]-adjStart[v] to get activeFaceCount per vertex.
         return adjStart;
     }
 

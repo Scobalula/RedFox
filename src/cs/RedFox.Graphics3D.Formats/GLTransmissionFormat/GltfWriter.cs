@@ -127,13 +127,20 @@ public sealed class GltfWriter
                 sceneNodes.Add(boneNodeIdx);
         }
 
-        _doc.Scenes.Add(new GltfScene { Name = name, Nodes = [.. sceneNodes] });
+        _doc.Scenes.Add(new GltfScene
+        {
+            Name = name,
+            Nodes = [.. sceneNodes],
+        });
 
         // Set up the single buffer
         byte[] binData = _binBuffer.ToArray();
         if (binData.Length > 0)
         {
-            _doc.Buffers.Add(new GltfBuffer { ByteLength = binData.Length });
+            _doc.Buffers.Add(new GltfBuffer
+            {
+                ByteLength = binData.Length,
+            });
         }
 
         // Serialize to GLB
@@ -201,10 +208,17 @@ public sealed class GltfWriter
     public int WriteImageTexture(string imagePath)
     {
         int imageIdx = _doc.Images.Count;
-        _doc.Images.Add(new GltfImage { Uri = imagePath, Name = Path.GetFileNameWithoutExtension(imagePath) });
+        _doc.Images.Add(new GltfImage
+        {
+            Uri = imagePath,
+            Name = Path.GetFileNameWithoutExtension(imagePath),
+        });
 
         int texIdx = _doc.Textures.Count;
-        _doc.Textures.Add(new GltfTexture { Source = imageIdx });
+        _doc.Textures.Add(new GltfTexture
+        {
+            Source = imageIdx,
+        });
 
         return texIdx;
     }
@@ -366,7 +380,12 @@ public sealed class GltfWriter
 
         // Create glTF mesh
         int gltfMeshIdx = _doc.Meshes.Count;
-        GltfMesh gltfMesh = new() { Name = mesh.Name, Weights = mesh.Morph?.Weights.ToArray(), TargetNames = mesh.Morph?.TargetNames.ToArray() };
+        GltfMesh gltfMesh = new()
+        {
+            Name = mesh.Name,
+            Weights = mesh.Morph?.Weights.ToArray(),
+            TargetNames = mesh.Morph?.TargetNames.ToArray(),
+        };
         gltfMesh.Primitives.Add(prim);
         _doc.Meshes.Add(gltfMesh);
 
@@ -522,7 +541,10 @@ public sealed class GltfWriter
         {
             SkeletonBone bone = bones[i];
             int nodeIdx = _doc.Nodes.Count;
-            GltfNode node = new() { Name = bone.Name };
+            GltfNode node = new()
+            {
+                Name = bone.Name,
+            };
             WriteNodeTransform(GetRelativeBindTransform(bone, exportedBoneNodes), node);
             _doc.Nodes.Add(node);
             _boneNodeIndices[bone] = nodeIdx;
@@ -550,7 +572,10 @@ public sealed class GltfWriter
         // Write inverse bind matrices
         float[] ibmData = new float[bones.Length * 16];
         for (int i = 0; i < bones.Length; i++)
-            WriteMatrix4x4(Matrix4x4.Identity, ibmData, i * 16);
+        {
+            Matrix4x4 inverseBindMatrix = Matrix4x4.Invert(bones[i].GetBindWorldMatrix(), out Matrix4x4 inverseBindWorld) ? inverseBindWorld : Matrix4x4.Identity;
+            WriteMatrix4x4(inverseBindMatrix, ibmData, i * 16);
+        }
 
         int ibmAccessor = WriteAccessor(ibmData, GltfConstants.TypeMat4, GltfConstants.ComponentTypeFloat);
 
@@ -699,7 +724,11 @@ public sealed class GltfWriter
     /// <param name="anim">The skeleton animation to write.</param>
     public void WriteAnimation(SkeletonAnimation anim)
     {
-        GltfAnimation gltfAnim = new() { Name = anim.Name };
+        GltfAnimation gltfAnim = new()
+        {
+            Name = anim.Name,
+        };
+        float frameRate = float.IsFinite(anim.Framerate) && anim.Framerate > 0f ? anim.Framerate : 30f;
 
         foreach (SkeletonAnimationTrack track in anim.Tracks)
         {
@@ -719,15 +748,15 @@ public sealed class GltfWriter
 
             // Translation
             if (track.TranslationCurve is { KeyFrameCount: > 0 })
-                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathTranslation, track.TranslationCurve, 3);
+                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathTranslation, track.TranslationCurve, 3, frameRate);
 
             // Rotation
             if (track.RotationCurve is { KeyFrameCount: > 0 })
-                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathRotation, track.RotationCurve, 4);
+                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathRotation, track.RotationCurve, 4, frameRate);
 
             // Scale
             if (track.ScaleCurve is { KeyFrameCount: > 0 })
-                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathScale, track.ScaleCurve, 3);
+                WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathScale, track.ScaleCurve, 3, frameRate);
         }
 
         if (gltfAnim.Channels.Count > 0)
@@ -744,12 +773,17 @@ public sealed class GltfWriter
     /// <param name="componentCount">The number of components per keyframe value (e.g., 3 for vec3, 4 for quaternion).</param>
     public void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount)
     {
+        WriteAnimationChannel(anim, targetNode, path, curve, componentCount, 30f);
+    }
+
+    private void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount, float frameRate)
+    {
         int frameCount = curve.KeyFrameCount;
 
         // Write times
         float[] times = new float[frameCount];
         for (int i = 0; i < frameCount; i++)
-            times[i] = curve.GetKeyTime(i);
+            times[i] = curve.GetKeyTime(i) / frameRate;
 
         float[] minTime = [times.Min()];
         float[] maxTime = [times.Max()];

@@ -24,12 +24,12 @@ namespace RedFox.Graphics3D
         public bool Enabled { get; set; } = true;
 
         /// <summary>
-        /// Gets or sets the local-space position convenience wrapper for the node transform.
+        /// Gets or sets the world-space position of the light.
         /// </summary>
         public Vector3 Position
         {
             get => GetBindWorldPosition();
-            set => BindTransform.SetLocalPosition(value);
+            set => BindTransform.SetWorldPosition(value);
         }
 
         /// <summary>

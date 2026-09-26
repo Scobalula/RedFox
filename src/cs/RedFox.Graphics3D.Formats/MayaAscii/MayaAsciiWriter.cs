@@ -816,11 +816,13 @@ public sealed class MayaAsciiWriter
         foreach (SkeletonAnimationTrack track in animation.Tracks)
         {
             string? targetJointName = null;
+            SkeletonBone? targetBone = null;
             foreach ((SceneNode node, string name) in _nodeNames)
             {
                 if (node is SkeletonBone bone && string.Equals(bone.Name, track.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     targetJointName = name;
+                    targetBone = bone;
                     break;
                 }
             }
@@ -837,7 +839,19 @@ public sealed class MayaAsciiWriter
 
             if (track.RotationCurve is AnimationCurve rotationCurve && rotationCurve.KeyFrameCount > 0)
             {
-                WriteAnimCurveChannels(rotationCurve, targetJointName, MayaNodeTypes.AnimCurveTA, "rotate", rotationCurve.ComponentCount, animation.Framerate);
+                TransformType rotationTransformType = rotationCurve.TransformType;
+                if (rotationTransformType == TransformType.Unknown)
+                {
+                    rotationTransformType = track.TransformType;
+                }
+                if (rotationTransformType == TransformType.Unknown)
+                {
+                    rotationTransformType = animation.TransformType;
+                }
+
+                bool isAbsoluteLocalRotation = rotationTransformType == TransformType.Absolute && rotationCurve.TransformSpace != TransformSpace.World;
+                Quaternion? bindRotation = isAbsoluteLocalRotation ? targetBone?.GetBindLocalRotation() : null;
+                WriteAnimCurveChannels(rotationCurve, targetJointName, MayaNodeTypes.AnimCurveTA, "rotate", rotationCurve.ComponentCount, animation.Framerate, bindRotation);
             }
 
             if (track.ScaleCurve is AnimationCurve scaleCurve && scaleCurve.KeyFrameCount > 0)
@@ -859,6 +873,11 @@ public sealed class MayaAsciiWriter
     /// <param name="framerate">The animation framerate for time conversion.</param>
     public void WriteAnimCurveChannels(AnimationCurve curve, string targetJointName, string curveType, string attributeBase, int componentCount, float framerate)
     {
+        WriteAnimCurveChannels(curve, targetJointName, curveType, attributeBase, componentCount, framerate, null);
+    }
+
+    private void WriteAnimCurveChannels(AnimationCurve curve, string targetJointName, string curveType, string attributeBase, int componentCount, float framerate, Quaternion? bindRotation)
+    {
         string[] channelSuffixes = ["X", "Y", "Z"];
         int channelCount = Math.Min(componentCount, 3);
         bool isQuaternion = componentCount == 4;
@@ -871,11 +890,14 @@ public sealed class MayaAsciiWriter
             WriteCreateNode(curveType, curveName, null);
 
             int keyCount = curve.KeyFrameCount;
+            float sourceFramerate = float.IsFinite(framerate) && framerate > 0f ? framerate : 24f;
+            float mayaFramerate = GetTimeUnitFramerate(_options.TimeUnit);
             _writer.WriteLine($"setAttr -s {keyCount} \".ktv[0:{keyCount - 1}]\"");
 
             for (int k = 0; k < keyCount; k++)
             {
                 float time = curve.Keys!.Get<float>(k, 0, 0);
+                float mayaTime = time * mayaFramerate / sourceFramerate;
 
                 float value;
                 if (isQuaternion)
@@ -885,6 +907,11 @@ public sealed class MayaAsciiWriter
                         curve.Values!.Get<float>(k, 0, 1),
                         curve.Values!.Get<float>(k, 0, 2),
                         curve.Values!.Get<float>(k, 0, 3));
+                    if (bindRotation is Quaternion localBindRotation)
+                    {
+                        q = Quaternion.Normalize(Quaternion.Inverse(localBindRotation) * q);
+                    }
+
                     Vector3 euler = QuaternionToEulerDegrees(q);
                     value = channel switch
                     {
@@ -898,7 +925,7 @@ public sealed class MayaAsciiWriter
                     value = curve.Values!.Get<float>(k, 0, channel);
                 }
 
-                _writer.Write($" {FormatFloat(time)} {FormatFloat(value)}");
+                _writer.Write($" {FormatFloat(mayaTime)} {FormatFloat(value)}");
             }
 
             _writer.WriteLine(";");
@@ -1224,6 +1251,17 @@ public sealed class MayaAsciiWriter
         MayaTimeUnit.NtscField => "ntscf",
         MayaTimeUnit.PalField => "palf",
         _ => "film",
+    };
+
+    private static float GetTimeUnitFramerate(MayaTimeUnit unit) => unit switch
+    {
+        MayaTimeUnit.Game => 15f,
+        MayaTimeUnit.Ntsc => 30_000f / 1_001f,
+        MayaTimeUnit.Pal => 25f,
+        MayaTimeUnit.Show => 48f,
+        MayaTimeUnit.NtscField => 60_000f / 1_001f,
+        MayaTimeUnit.PalField => 50f,
+        _ => 24f,
     };
 
     /// <summary>

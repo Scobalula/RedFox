@@ -80,19 +80,26 @@ public sealed class BvhWriter
         ValidateSupportedNodes(selection);
 
         SkeletonBone[] bones = GetExportBones(selection);
-        SkeletonBone rootBone = GetSingleRootBone(bones);
+        SkeletonBone[] rootBones = GetRootBones(bones);
         SkeletonAnimation? animation = GetSingleAnimation(selection);
         SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
         Dictionary<string, SkeletonAnimationTrack> tracksByName = BuildTrackMap(animation);
         int frameCount = GetFrameCount(animation);
         float frameTime = GetFrameTime(animation);
-        Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = BuildChannelMap(bones, rootBone, exportedBoneNodes, tracksByName);
+        Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = BuildChannelMap(bones, new HashSet<SkeletonBone>(rootBones), exportedBoneNodes, tracksByName);
 
         ValidateTracksAndBindTransforms(bones, tracksByName);
 
         using StreamWriter writer = new(Stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: 4096, leaveOpen: true);
-        WriteHierarchy(writer, rootBone, bones, exportedBoneNodes, channelsByBone, 0, true);
-        WriteMotion(writer, bones, exportedBoneNodes, animation, tracksByName, channelsByBone, frameCount, frameTime);
+        if (rootBones.Length == 1)
+        {
+            WriteHierarchy(writer, rootBones[0], bones, exportedBoneNodes, channelsByBone, 0, true);
+        }
+        else
+        {
+            WriteHierarchy(writer, GetSyntheticRootName(rootBones), rootBones, bones, exportedBoneNodes, channelsByBone);
+        }
+        WriteMotion(writer, bones, exportedBoneNodes, animation, tracksByName, channelsByBone, frameCount, frameTime, rootBones.Length > 1);
         writer.Flush();
     }
 
@@ -160,6 +167,22 @@ public sealed class BvhWriter
     /// <returns>The exportable root bone.</returns>
     public static SkeletonBone GetSingleRootBone(IReadOnlyList<SkeletonBone> bones)
     {
+        SkeletonBone[] rootBones = GetRootBones(bones);
+        if (rootBones.Length > 1)
+        {
+            throw new InvalidOperationException("BVH export supports only one root hierarchy, but the export selection contains multiple root bones.");
+        }
+
+        return rootBones[0];
+    }
+
+    /// <summary>
+    /// Gets the root bones that can be exported from a selection.
+    /// </summary>
+    /// <param name="bones">The exported bones to inspect.</param>
+    /// <returns>The exportable root bones.</returns>
+    public static SkeletonBone[] GetRootBones(IReadOnlyList<SkeletonBone> bones)
+    {
         SceneNode[] exportedBoneNodes = Array.ConvertAll([.. bones], static bone => (SceneNode)bone);
         List<SkeletonBone> rootBones = [];
         for (int i = 0; i < bones.Count; i++)
@@ -173,13 +196,12 @@ public sealed class BvhWriter
             throw new InvalidOperationException("BVH export could not resolve a root bone from the export selection.");
         }
 
-        if (rootBones.Count > 1)
+        foreach (SkeletonBone rootBone in rootBones)
         {
-            throw new InvalidOperationException("BVH export supports only one root hierarchy, but the export selection contains multiple root bones.");
+            ValidateNodeName(rootBone.Name, "root joint");
         }
 
-        ValidateNodeName(rootBones[0].Name, "root joint");
-        return rootBones[0];
+        return [.. rootBones];
     }
 
     /// <summary>
@@ -268,6 +290,12 @@ public sealed class BvhWriter
     /// <returns>A dictionary mapping each bone to its BVH channel sequence.</returns>
     public static Dictionary<SkeletonBone, BvhChannelType[]> BuildChannelMap(IReadOnlyList<SkeletonBone> bones, SkeletonBone rootBone, SceneNode[] exportedBoneNodes, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName)
     {
+        HashSet<SkeletonBone> rootBones = [rootBone];
+        return BuildChannelMap(bones, rootBones, exportedBoneNodes, tracksByName);
+    }
+
+    private static Dictionary<SkeletonBone, BvhChannelType[]> BuildChannelMap(IReadOnlyList<SkeletonBone> bones, IReadOnlySet<SkeletonBone> rootBones, SceneNode[] exportedBoneNodes, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName)
+    {
         Dictionary<SkeletonBone, BvhChannelType[]> channelsByBone = new(bones.Count);
 
         for (int i = 0; i < bones.Count; i++)
@@ -275,7 +303,7 @@ public sealed class BvhWriter
             SkeletonBone bone = bones[i];
             SkeletonAnimationTrack? track = tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? mappedTrack) ? mappedTrack : null;
             bool isReparented = !ReferenceEquals(SceneNode.GetBestParent(bone, exportedBoneNodes), bone.Parent);
-            BvhChannelType[] channels = ResolveChannelSequence(bone == rootBone, track, isReparented);
+            BvhChannelType[] channels = ResolveChannelSequence(rootBones.Contains(bone), track, isReparented);
             channelsByBone.Add(bone, channels);
         }
 
@@ -505,6 +533,43 @@ public sealed class BvhWriter
         writer.WriteLine("}");
     }
 
+    private static void WriteHierarchy(StreamWriter writer, string rootName, IReadOnlyList<SkeletonBone> rootBones, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone)
+    {
+        ValidateNodeName(rootName, "synthetic root joint");
+        writer.WriteLine("HIERARCHY");
+        writer.Write("ROOT ");
+        writer.WriteLine(rootName);
+        writer.WriteLine("{");
+        writer.WriteLine("  OFFSET 0 0 0");
+        writer.Write("  CHANNELS ");
+        writer.Write(BvhFormat.DefaultRootChannelSequence.Count.ToString(CultureInfo.InvariantCulture));
+        foreach (BvhChannelType channel in BvhFormat.DefaultRootChannelSequence)
+        {
+            writer.Write(' ');
+            writer.Write(BvhFormat.GetChannelName(channel));
+        }
+
+        writer.WriteLine();
+
+        foreach (SkeletonBone rootBone in rootBones)
+        {
+            WriteHierarchy(writer, rootBone, bones, exportedBoneNodes, channelsByBone, 1, false);
+        }
+
+        writer.WriteLine("}");
+    }
+
+    private static string GetSyntheticRootName(IReadOnlyList<SkeletonBone> rootBones)
+    {
+        Skeleton? skeleton = rootBones[0].GetAncestors().OfType<Skeleton>().FirstOrDefault();
+        if (skeleton is not null && rootBones.All(rootBone => rootBone.GetAncestors().Contains(skeleton)))
+        {
+            return skeleton.Name;
+        }
+
+        return "SceneRoot";
+    }
+
     /// <summary>
     /// Writes the BVH motion section for the supplied animation data.
     /// </summary>
@@ -517,6 +582,9 @@ public sealed class BvhWriter
     /// <param name="frameCount">The number of frames to write.</param>
     /// <param name="frameTime">The frame time in seconds.</param>
     public static void WriteMotion(StreamWriter writer, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes, SkeletonAnimation? animation, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int frameCount, float frameTime)
+        => WriteMotion(writer, bones, exportedBoneNodes, animation, tracksByName, channelsByBone, frameCount, frameTime, false);
+
+    private static void WriteMotion(StreamWriter writer, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes, SkeletonAnimation? animation, IReadOnlyDictionary<string, SkeletonAnimationTrack> tracksByName, IReadOnlyDictionary<SkeletonBone, BvhChannelType[]> channelsByBone, int frameCount, float frameTime, bool includeSyntheticRootChannels)
     {
         writer.WriteLine("MOTION");
         writer.Write("Frames: ");
@@ -531,6 +599,19 @@ public sealed class BvhWriter
         {
             float sampleTime = frameIndex;
             lineBuilder.Clear();
+
+            if (includeSyntheticRootChannels)
+            {
+                for (int channelIndex = 0; channelIndex < BvhFormat.DefaultRootChannelSequence.Count; channelIndex++)
+                {
+                    if (lineBuilder.Length > 0)
+                    {
+                        lineBuilder.Append(' ');
+                    }
+
+                    lineBuilder.Append('0');
+                }
+            }
 
             for (int boneIndex = 0; boneIndex < bones.Count; boneIndex++)
             {

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Numerics;
 
 namespace RedFox.Graphics3D;
@@ -339,20 +340,20 @@ public class Material(string name) : SceneNode(name)
     {
         ArgumentNullException.ThrowIfNull(slotKey);
         ArgumentNullException.ThrowIfNull(texture);
+        string samplerUniform = NormalizeSamplerUniform(slotKey, out int? numericSlot);
 
         for (int i = 0; i < _connections.Count; i++)
         {
-            if (string.Equals(_connections[i].SamplerUniform, slotKey, StringComparison.Ordinal))
+            if (string.Equals(_connections[i].SamplerUniform, slotKey, StringComparison.Ordinal) || string.Equals(_connections[i].SamplerUniform, samplerUniform, StringComparison.Ordinal))
             {
-                _connections[i] = new MaterialTextureBinding(texture, _connections[i].Slot, slotKey);
+                _connections[i] = new MaterialTextureBinding(texture, _connections[i].Slot, samplerUniform);
                 _version++;
                 return;
             }
         }
 
-        int numericSlot = int.TryParse(slotKey, out int parsed) ? parsed : _connections.Count;
-        string samplerUniform = int.TryParse(slotKey, out _) ? $"Texture{numericSlot}" : slotKey;
-        _connections.Add(new MaterialTextureBinding(texture, numericSlot, samplerUniform));
+        int resolvedSlot = numericSlot ?? GetNextFreeNumericSlot();
+        _connections.Add(new MaterialTextureBinding(texture, resolvedSlot, samplerUniform));
         _version++;
     }
 
@@ -364,10 +365,11 @@ public class Material(string name) : SceneNode(name)
     public void Disconnect(string slotKey)
     {
         ArgumentNullException.ThrowIfNull(slotKey);
+        string samplerUniform = NormalizeSamplerUniform(slotKey, out _);
 
         for (int i = 0; i < _connections.Count; i++)
         {
-            if (string.Equals(_connections[i].SamplerUniform, slotKey, StringComparison.Ordinal))
+            if (string.Equals(_connections[i].SamplerUniform, slotKey, StringComparison.Ordinal) || string.Equals(_connections[i].SamplerUniform, samplerUniform, StringComparison.Ordinal))
             {
                 _connections.RemoveAt(i);
                 _version++;
@@ -402,9 +404,12 @@ public class Material(string name) : SceneNode(name)
     /// <returns><see langword="true"/> when a binding for <paramref name="slotKey"/> exists.</returns>
     public bool TryGetTexture(string slotKey, [NotNullWhen(true)] out Texture? texture)
     {
+        ArgumentNullException.ThrowIfNull(slotKey);
+        string samplerUniform = NormalizeSamplerUniform(slotKey, out _);
+
         foreach (MaterialTextureBinding binding in _connections)
         {
-            if (string.Equals(binding.SamplerUniform, slotKey, StringComparison.Ordinal))
+            if (string.Equals(binding.SamplerUniform, slotKey, StringComparison.Ordinal) || string.Equals(binding.SamplerUniform, samplerUniform, StringComparison.Ordinal))
             {
                 texture = binding.Texture;
                 return true;
@@ -654,6 +659,34 @@ public class Material(string name) : SceneNode(name)
         }
 
         return texture;
+    }
+
+    private int GetNextFreeNumericSlot()
+    {
+        int candidate = 0;
+        while (_connections.Any(binding => binding.Slot == candidate))
+        {
+            if (candidate == int.MaxValue)
+            {
+                throw new InvalidOperationException("No free numeric texture slots are available.");
+            }
+
+            candidate++;
+        }
+
+        return candidate;
+    }
+
+    private static string NormalizeSamplerUniform(string slotKey, out int? numericSlot)
+    {
+        if (int.TryParse(slotKey, NumberStyles.None, CultureInfo.InvariantCulture, out int parsedSlot))
+        {
+            numericSlot = parsedSlot;
+            return $"Texture{parsedSlot}";
+        }
+
+        numericSlot = null;
+        return slotKey;
     }
 
     private static bool NullOut([NotNullWhen(true)] out Texture? texture)

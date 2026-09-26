@@ -49,7 +49,17 @@ public sealed class CastTranslator : SceneTranslator
         var root = new RootNode();
         SceneTranslationSelection selection = context.GetSelection(scene);
 
-        root.AddNode(new MetadataNode { UpAxis = "z", Software = Assembly.GetEntryAssembly()?.GetName().Name });
+        string upAxis = selection.Scene.UpAxis switch
+        {
+            SceneUpAxis.X => "x",
+            SceneUpAxis.Z => "z",
+            _ => "y",
+        };
+        root.AddNode(new MetadataNode
+        {
+            UpAxis = upAxis,
+            Software = Assembly.GetEntryAssembly()?.GetName().Name,
+        });
 
         foreach (var model in GetExportModels(selection))
             CastModelTranslator.Write(root, model, selection, context.TargetDirectoryPath);
@@ -103,7 +113,7 @@ public sealed class CastTranslator : SceneTranslator
     {
         string candidate = name;
 
-        for (int index = 1; parent.TryFindChild(candidate, StringComparison.CurrentCultureIgnoreCase, out _); index++)
+        for (int index = 1; parent.TryFindChild(candidate, StringComparison.OrdinalIgnoreCase, out _); index++)
             candidate = $"{name}_{index}";
 
         return candidate;

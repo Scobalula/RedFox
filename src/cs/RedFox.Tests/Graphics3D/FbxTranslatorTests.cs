@@ -131,7 +131,11 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxSceneMapper_ImportScene_AppliesPostRotationInTransformStack()
     {
-        FbxDocument document = new() { Format = FbxFormat.Binary, Version = 7400 };
+        FbxDocument document = new()
+        {
+            Format = FbxFormat.Binary,
+            Version = 7400,
+        };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
         document.Nodes.Add(objectsNode);
@@ -212,12 +216,18 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
         model.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
         model.BindTransform.LocalRotation = Quaternion.Identity;
         model.BindTransform.Scale = Vector3.One;
 
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
 
         Matrix4x4 desiredBoneWorld = Matrix4x4.CreateTranslation(5f, 0f, 0f);
@@ -263,8 +273,14 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
 
         // Bind pose hint says the bone bind world is at x=5, while imported local is at x=7.
@@ -312,8 +328,14 @@ public sealed class FbxTranslatorTests
         bone.BindTransform.LocalRotation = Quaternion.Identity;
         bone.BindTransform.Scale = Vector3.One;
 
-        MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        MeshGroup model = importedRoot.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
 
         Matrix4x4 bindWorld = Matrix4x4.CreateTranslation(5f, 0f, 0f);
@@ -395,8 +417,14 @@ public sealed class FbxTranslatorTests
         bone.LiveTransform.LocalRotation = Quaternion.Identity;
         bone.LiveTransform.Scale = Vector3.One;
 
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
 
@@ -426,11 +454,20 @@ public sealed class FbxTranslatorTests
         SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("Rig"));
         SkeletonBone bone = skeleton.AddNode(new SkeletonBone("Bone"));
 
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
-        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0, 0, 0 }, 1, 1), new DataBuffer<float>([1f, 1f, 1f], 1, 1)) { Name = "skinCluster1" };
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0, 0, 0 }, 1, 1), new DataBuffer<float>([1f, 1f, 1f], 1, 1))
+        {
+            Name = "skinCluster1",
+        };
 
         SceneTranslatorManager manager = CreateManager();
         Scene roundTrip = ReadScene(manager, WriteScene(manager, scene, "skin_name.fbx"), "skin_name.fbx");
@@ -452,8 +489,14 @@ public sealed class FbxTranslatorTests
         bone.LiveTransform.LocalRotation = Quaternion.Identity;
         bone.LiveTransform.Scale = Vector3.One;
 
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "Mesh",
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
         mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
 
@@ -854,6 +897,196 @@ public sealed class FbxTranslatorTests
         Assert.Equal(["material_0", "material_1"], splitMeshes.Select(static split => Assert.Single(split.Materials!).Name).Order());
     }
 
+    [Fact]
+    public void FbxSceneMapper_ImportScene_SplitsPolygonVertexAttributeSeamsAndPreservesDeformers()
+    {
+        Scene source = CreateSampleScene();
+        Mesh sourceMesh = Assert.Single(source.GetDescendants<Mesh>());
+        float[] morphDeltas = [
+            0.1f, 0f, 0f,
+            0f, 0.2f, 0f,
+            0f, 0f, 0.3f,
+            0f, 0.4f, 0f,
+        ];
+        sourceMesh.Morph = new Morph(["raise"], new DataBuffer<float>(morphDeltas, 1, 3))
+        {
+            Name = "shape",
+        };
+        sourceMesh.Morph.Weights[0] = 1f;
+
+        FbxDocument document = FbxSceneMapper.ExportScene(source, FbxFormat.Binary);
+        FbxNode geometry = Assert.Single(document.EnumerateNodesDepthFirst(), static node => node.Name == "Geometry" && node.Properties.Count > 2 && node.Properties[2].AsString() == "Mesh");
+        FbxNode normalLayer = Assert.Single(geometry.Children, static node => node.Name == "LayerElementNormal");
+        normalLayer.FirstChild("MappingInformationType")!.Properties[0] = new FbxProperty('S', "ByPolygonVertex");
+        double[] normals = [
+            0, 0, 1,
+            0, 0, 1,
+            0, 0, 1,
+            0, 1, 0,
+            0, 0, 1,
+            0, 0, 1,
+        ];
+        normalLayer.FirstChild("Normals")!.Properties[0] = new FbxProperty('d', normals);
+
+        FbxNode uvLayer = geometry.Children.First(static node => node.Name == "LayerElementUV" && node.Properties[0].AsInt64() == 0);
+        uvLayer.FirstChild("MappingInformationType")!.Properties[0] = new FbxProperty('S', "ByPolygonVertex");
+        uvLayer.FirstChild("ReferenceInformationType")!.Properties[0] = new FbxProperty('S', "Direct");
+        double[] uvs = [
+            0, 0,
+            1, 0,
+            1, 1,
+            0.25, 0.25,
+            1, 1,
+            0, 1,
+        ];
+        uvLayer.FirstChild("UV")!.Properties[0] = new FbxProperty('d', uvs);
+
+        Scene imported = FbxSceneMapper.ImportScene(document, "attribute-seams");
+        Mesh mesh = Assert.Single(imported.GetDescendants<Mesh>());
+
+        Assert.Equal(6, mesh.VertexCount);
+        Assert.Equal([0, 1, 2, 3, 4, 5], Enumerable.Range(0, mesh.FaceIndices!.ElementCount).Select(index => mesh.FaceIndices.Get<int>(index, 0, 0)));
+        Assert.Equal(Vector3.UnitZ, mesh.Normals!.GetVector3(0, 0));
+        Assert.Equal(Vector3.UnitY, mesh.Normals.GetVector3(3, 0));
+        Assert.Equal(0f, mesh.UVLayers!.Get<float>(0, 0, 0));
+        Assert.Equal(0.25f, mesh.UVLayers.Get<float>(3, 0, 0));
+        Assert.Equal(mesh.Skin!.BoneIndices.Get<int>(0, 0, 0), mesh.Skin.BoneIndices.Get<int>(3, 0, 0));
+        Assert.Equal(mesh.Skin.BoneWeights.Get<float>(0, 0, 0), mesh.Skin.BoneWeights.Get<float>(3, 0, 0));
+        Assert.Equal(mesh.Morph!.DeltaPositions!.Get<float>(0, 0, 0), mesh.Morph.DeltaPositions.Get<float>(3, 0, 0));
+        Assert.Equal(1f, mesh.Morph.Weights[0]);
+    }
+
+    [Fact]
+    public void FbxSceneMapper_ImportScene_PreservesMeshParentsWithoutInheritingGeometricTransform()
+    {
+        Scene source = new("mesh-hierarchy");
+        MeshGroup model = source.RootNode.AddNode(new MeshGroup
+        {
+            Name = "model",
+        });
+        Mesh parentMesh = model.AddNode(new Mesh
+        {
+            Name = "parentMesh",
+        });
+        parentMesh.BindTransform.LocalPosition = new Vector3(5f, 0f, 0f);
+        parentMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        parentMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        Mesh childMesh = parentMesh.AddNode(new Mesh
+        {
+            Name = "childMesh",
+        });
+        childMesh.BindTransform.LocalPosition = new Vector3(1f, 0f, 0f);
+        childMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        childMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+
+        FbxDocument document = FbxSceneMapper.ExportScene(source, FbxFormat.Binary);
+        FbxNode objects = Assert.Single(document.Nodes, static node => node.Name == "Objects");
+        FbxNode parentModel = Assert.Single(objects.Children, node => node.Name == "Model" && FbxSceneMapper.GetNodeObjectName(node) == "parentMesh");
+        FbxNode properties = Assert.Single(parentModel.Children, static node => node.Name == "Properties70");
+        FbxSceneMapper.AddVectorProperty(properties, "GeometricTranslation", "Vector3D", new Vector3(10f, 0f, 0f));
+
+        Scene imported = FbxSceneMapper.ImportScene(document, "mesh-hierarchy");
+        Mesh importedParent = Assert.Single(imported.GetDescendants<Mesh>(), static mesh => mesh.Name == "parentMesh");
+        Mesh importedChild = Assert.Single(imported.GetDescendants<Mesh>(), static mesh => mesh.Name == "childMesh");
+
+        Assert.Equal(new Vector3(15f, 0f, 0f), importedParent.GetBindWorldPosition());
+        Assert.Same(importedParent.Parent, importedChild.Parent);
+        Assert.Equal(new Vector3(6f, 0f, 0f), importedChild.GetBindWorldPosition());
+    }
+
+    [Fact]
+    public void FbxAsciiStrings_PreserveBackslashesAndQuotedText()
+    {
+        string value = "C:\\Games\\Assets\\the \"quoted\" model.fbx & source";
+        string formatted = FbxDocumentSerializer.FormatAsciiString(value);
+        FbxAsciiTokenizer tokenizer = new($"\"{formatted}\"");
+
+        Assert.Equal(value, tokenizer.ReadQuotedString());
+    }
+
+    [Fact]
+    public void FbxSceneMapper_MaterialEmissiveColor_RoundTripsAsThreeComponents()
+    {
+        Scene source = CreateSampleScene();
+        Vector4 emissiveColor = new(0.15f, 0.25f, 0.35f, 1f);
+        Material sourceMaterial = Assert.Single(source.GetDescendants<Material>());
+        sourceMaterial.EmissiveColor = emissiveColor;
+
+        FbxDocument document = FbxSceneMapper.ExportScene(source, FbxFormat.Binary);
+        FbxNode globalSettings = Assert.Single(document.Nodes, static node => node.Name == "GlobalSettings");
+        FbxNode globalProperties = Assert.Single(globalSettings.Children, static node => node.Name == "Properties70");
+        FbxNode ambientProperty = Assert.Single(globalProperties.Children, static node => node.Name == "P" && node.Properties.Count > 0 && node.Properties[0].AsString() == "AmbientColor");
+        FbxNode objects = Assert.Single(document.Nodes, static node => node.Name == "Objects");
+        FbxNode material = Assert.Single(objects.Children, static node => node.Name == "Material");
+        FbxNode materialProperties = Assert.Single(material.Children, static node => node.Name == "Properties70");
+        FbxNode emissiveProperty = Assert.Single(materialProperties.Children, static node => node.Name == "P" && node.Properties.Count > 0 && node.Properties[0].AsString() == "EmissiveColor");
+
+        Assert.Equal(7, ambientProperty.Properties.Count);
+        Assert.Equal(7, emissiveProperty.Properties.Count);
+        Assert.Equal(emissiveColor.X, (float)emissiveProperty.Properties[4].AsDouble());
+        Assert.Equal(emissiveColor.Y, (float)emissiveProperty.Properties[5].AsDouble());
+        Assert.Equal(emissiveColor.Z, (float)emissiveProperty.Properties[6].AsDouble());
+
+        Material imported = Assert.Single(FbxSceneMapper.ImportScene(document, "emissive").GetDescendants<Material>());
+        Assert.Equal(emissiveColor, imported.EmissiveColor);
+    }
+
+    [Fact]
+    public void FbxDocumentSerializer_AsciiEscapesRawPropertiesWithoutMutatingDocument()
+    {
+        byte[] rawFileId = [1, 2, 3];
+        byte[] rawData = Encoding.UTF8.GetBytes("A\"&B");
+        FbxNode creatorNode = new("Creator");
+        creatorNode.Properties.Add(new FbxProperty('S', FbxDocumentSerializer.Creator));
+        FbxNode fileIdNode = new("FileId");
+        fileIdNode.Properties.Add(new FbxProperty('R', rawFileId));
+        FbxNode rawDataNode = new("RawData");
+        rawDataNode.Properties.Add(new FbxProperty('R', rawData));
+        FbxNode creationTimeNode = new("CreationTime");
+        creationTimeNode.Properties.Add(new FbxProperty('S', "Original time"));
+        FbxDocument document = new()
+        {
+            Format = FbxFormat.Ascii,
+        };
+        document.Nodes.Add(creatorNode);
+        document.Nodes.Add(fileIdNode);
+        document.Nodes.Add(rawDataNode);
+        document.Nodes.Add(creationTimeNode);
+
+        using MemoryStream stream = new();
+        FbxDocumentSerializer.Write(stream, document, FbxFormat.Ascii);
+        string serialized = Encoding.UTF8.GetString(stream.ToArray());
+
+        Assert.Contains("\"A&quot;&amp;B\"", serialized);
+        Assert.Equal(rawFileId, (byte[])fileIdNode.Properties[0].Value);
+        Assert.Equal("Original time", creationTimeNode.Properties[0].AsString());
+    }
+
+    [Fact]
+    public void FbxSceneMapper_ApplyModelHierarchy_PreservesMeshParentRelationships()
+    {
+        Mesh parent = new()
+        {
+            Name = "parent",
+        };
+        Mesh child = new()
+        {
+            Name = "child",
+        };
+        child.BindTransform.LocalPosition = new Vector3(1f, 2f, 3f);
+        Dictionary<long, SceneNode> modelNodes = new()
+        {
+            [1] = parent,
+            [2] = child,
+        };
+        FbxConnection[] connections = [new FbxConnection("OO", 2, 1, string.Empty)];
+
+        FbxSceneMapper.ApplyModelHierarchy(modelNodes, connections);
+
+        Assert.Same(parent, child.Parent);
+        Assert.Equal(new Vector3(1f, 2f, 3f), child.BindTransform.LocalPosition);
+    }
+
     private static SceneTranslatorManager CreateManager()
     {
         SceneTranslatorManager manager = new();
@@ -912,8 +1145,14 @@ public sealed class FbxTranslatorTests
         childBone.BindTransform.LocalRotation = Quaternion.Identity;
         childBone.BindTransform.Scale = Vector3.One;
 
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "mesh_0" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "ModelRoot",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "mesh_0",
+        });
 
         mesh.Positions = new DataBuffer<float>(
         [
@@ -999,7 +1238,10 @@ public sealed class FbxTranslatorTests
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
 
         SceneTranslatorManager manager = CreateManager();
-        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
 
         byte[] data = WriteScene(manager, scene, "filtered_hierarchy.fbx", options);
         Scene reloaded = ReadScene(manager, data, "filtered_hierarchy.fbx");
@@ -1030,7 +1272,10 @@ public sealed class FbxTranslatorTests
             bone.Flags = SceneNodeFlags.Selected;
         }
 
-        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
 
         using MemoryStream stream = new();
         InvalidDataException exception = Assert.Throws<InvalidDataException>(
@@ -1054,7 +1299,10 @@ public sealed class FbxTranslatorTests
         mesh.Flags = SceneNodeFlags.Selected;
         material.Flags = SceneNodeFlags.Selected;
 
-        SceneTranslatorOptions options = new() { Filter = SceneNodeFlags.Selected };
+        SceneTranslatorOptions options = new()
+        {
+            Filter = SceneNodeFlags.Selected,
+        };
 
         using MemoryStream stream = new();
         InvalidDataException exception = Assert.Throws<InvalidDataException>(
@@ -1238,7 +1486,11 @@ public sealed class FbxTranslatorTests
 
     private static FbxDocument CreateImportClassificationDocument()
     {
-        FbxDocument document = new() { Format = FbxFormat.Binary, Version = 7400 };
+        FbxDocument document = new()
+        {
+            Format = FbxFormat.Binary,
+            Version = 7400,
+        };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
         document.Nodes.Add(objectsNode);
@@ -1273,7 +1525,11 @@ public sealed class FbxTranslatorTests
 
     private static FbxDocument CreateImportConstraintDocumentWithOwnerConnection(bool includeOwnerConnection)
     {
-        FbxDocument document = new() { Format = FbxFormat.Binary, Version = 7400 };
+        FbxDocument document = new()
+        {
+            Format = FbxFormat.Binary,
+            Version = 7400,
+        };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
         document.Nodes.Add(objectsNode);
@@ -1308,7 +1564,11 @@ public sealed class FbxTranslatorTests
 
     private static FbxDocument CreateImportOrientConstraintDocument()
     {
-        FbxDocument document = new() { Format = FbxFormat.Binary, Version = 7400 };
+        FbxDocument document = new()
+        {
+            Format = FbxFormat.Binary,
+            Version = 7400,
+        };
         FbxNode objectsNode = new("Objects");
         FbxNode connectionsNode = new("Connections");
         document.Nodes.Add(objectsNode);

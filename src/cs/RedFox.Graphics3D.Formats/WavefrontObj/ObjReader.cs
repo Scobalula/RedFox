@@ -55,7 +55,10 @@ public sealed class ObjReader
         Dictionary<string, Material> materialsByName = [];
         List<string> mtllibPaths = [];
 
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = _name });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = _name,
+        });
         Mesh? currentMesh = null;
         int meshIndex = 0;
 
@@ -192,7 +195,10 @@ public sealed class ObjReader
             meshName = $"{meshName}_{meshIndex}";
         }
 
-        Mesh mesh = model.AddNode(new Mesh { Name = meshName });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = meshName,
+        });
         meshIndex++;
         return mesh;
     }
@@ -239,7 +245,10 @@ public sealed class ObjReader
         int mergedMeshIndex = 0;
         foreach (MeshMergeBucket bucket in buckets.Values)
         {
-            Mesh mergedMesh = model.AddNode(new Mesh { Name = CreateMergedMeshName(bucket, mergedMeshIndex++) });
+            Mesh mergedMesh = model.AddNode(new Mesh
+            {
+                Name = CreateMergedMeshName(bucket, mergedMeshIndex++),
+            });
             mergedMesh.Positions = CreateVector3Buffer(bucket.Positions);
             if (bucket.HasCompleteNormals)
             {
@@ -452,8 +461,7 @@ public sealed class ObjReader
         Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap)
     {
         // Parse all face vertices first, then fan-triangulate if polygon.
-        Span<int> faceVertexIndices = stackalloc int[64];
-        int faceVertexCount = 0;
+        List<int> faceVertexIndices = [];
 
         bool hasTexCoords = globalTexCoords.Count > 0;
         bool hasNormals = globalNormals.Count > 0;
@@ -484,11 +492,11 @@ public sealed class ObjReader
                 hasNormals,
                 out int localIndex);
 
-            faceVertexIndices[faceVertexCount++] = localIndex;
+            faceVertexIndices.Add(localIndex);
         }
 
         // Fan triangulation: vertex 0 is the pivot.
-        for (int i = 1; i < faceVertexCount - 1; i++)
+        for (int i = 1; i < faceVertexIndices.Count - 1; i++)
         {
             meshFaceIndices.Add(faceVertexIndices[0]);
             meshFaceIndices.Add(faceVertexIndices[i]);
@@ -510,8 +518,8 @@ public sealed class ObjReader
         out int localIndex)
     {
         int posIdx = 0;
-        int texIdx = 0;
-        int normalIdx = 0;
+        int texIdx = -1;
+        int normalIdx = -1;
 
         int firstSlash = token.IndexOf('/');
         if (firstSlash < 0)
@@ -557,14 +565,14 @@ public sealed class ObjReader
 
         meshPositions.Add(globalPositions[posIdx]);
 
-        if (hasTexCoords && texIdx >= 0 && texIdx < globalTexCoords.Count)
+        if (hasTexCoords)
         {
-            meshTexCoords.Add(globalTexCoords[texIdx]);
+            meshTexCoords.Add((uint)texIdx < (uint)globalTexCoords.Count ? globalTexCoords[texIdx] : Vector2.Zero);
         }
 
-        if (hasNormals && normalIdx >= 0 && normalIdx < globalNormals.Count)
+        if (hasNormals)
         {
-            meshNormals.Add(globalNormals[normalIdx]);
+            meshNormals.Add((uint)normalIdx < (uint)globalNormals.Count ? globalNormals[normalIdx] : Vector3.Zero);
         }
     }
 
@@ -597,7 +605,10 @@ public sealed class ObjReader
         else
         {
             y = float.Parse(span[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
-            z = float.Parse(span[(i1 + 1)..].TrimStart(), NumberStyles.Float, CultureInfo.InvariantCulture);
+            ReadOnlySpan<char> zAndOptionalColor = span[(i1 + 1)..].TrimStart();
+            int zEnd = zAndOptionalColor.IndexOf(' ');
+            ReadOnlySpan<char> zValue = zEnd < 0 ? zAndOptionalColor : zAndOptionalColor[..zEnd];
+            z = float.Parse(zValue, NumberStyles.Float, CultureInfo.InvariantCulture);
         }
 
         return new Vector3(x, y, z);

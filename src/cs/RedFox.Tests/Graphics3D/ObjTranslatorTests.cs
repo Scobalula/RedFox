@@ -146,8 +146,14 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_PositionsOnly_RoundTrips()
     {
         Scene scene = new("PositionsOnlyScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "pos_only" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "TestModel",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "pos_only",
+        });
         mesh.Positions = new DataBuffer<float>(
         [
             0f, 0f, 0f,
@@ -184,6 +190,52 @@ public sealed class ObjTranslatorTests
         Mesh mesh = loaded.GetDescendants<Mesh>().Single();
         Assert.Equal(4, mesh.VertexCount);
         Assert.Equal(2, mesh.FaceCount);
+    }
+
+    [Fact]
+    public void ObjTranslator_VertexColorsAndFacesOver64Vertices_ParseCorrectly()
+    {
+        StringBuilder objText = new();
+        for (int vertexIndex = 0; vertexIndex < 70; vertexIndex++)
+        {
+            objText.AppendLine($"v {vertexIndex} 0 0 1 0 0");
+        }
+
+        objText.Append("f");
+        for (int vertexIndex = 1; vertexIndex <= 70; vertexIndex++)
+        {
+            objText.Append($" {vertexIndex}");
+        }
+
+        SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+        Scene loaded = ReadSceneFromObj(manager, Encoding.UTF8.GetBytes(objText.ToString()));
+        Mesh mesh = Assert.Single(loaded.GetDescendants<Mesh>());
+
+        Assert.Equal(70, mesh.VertexCount);
+        Assert.Equal(68, mesh.FaceCount);
+        AssertVector3Equal(new Vector3(69f, 0f, 0f), mesh.Positions!.GetVector3(69, 0), 1e-5f);
+    }
+
+    [Fact]
+    public void ObjTranslator_MissingFaceAttributesUseZeroValues()
+    {
+        string objText = """
+            v 0 0 0
+            v 1 0 0
+            v 0 1 0
+            vt 0.25 0.5
+            vt 0.75 1
+            vn 0 0 1
+            f 1/1/1 2 3/2/1
+            """;
+
+        SceneTranslatorManager manager = CreateManagerWithObjTranslator();
+        Scene loaded = ReadSceneFromObj(manager, Encoding.UTF8.GetBytes(objText));
+        Mesh mesh = Assert.Single(loaded.GetDescendants<Mesh>());
+
+        Assert.Equal(3, mesh.VertexCount);
+        Assert.Equal(Vector2.Zero, mesh.UVLayers!.GetVector2(1, 0));
+        Assert.Equal(Vector3.Zero, mesh.Normals!.GetVector3(1, 0));
     }
 
     [Fact]
@@ -446,8 +498,14 @@ public sealed class ObjTranslatorTests
     {
         // Create a mesh with more than ushort.MaxValue vertices to force int indices
         Scene scene = new("LargeScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "LargeModel" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "large_mesh" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "LargeModel",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "large_mesh",
+        });
 
         int vertexCount = ushort.MaxValue + 10;
         float[] posData = new float[vertexCount * 3];
@@ -476,22 +534,38 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_Write_Filter_ExportsSelectedMeshAndMaterial()
     {
         Scene scene = new("FilteredObjScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
 
-        Material selectedMaterial = model.AddNode(new Material("SelectedMaterial") { Flags = SceneNodeFlags.Selected });
-        Mesh selectedMesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
+        Material selectedMaterial = model.AddNode(new Material("SelectedMaterial")
+        {
+            Flags = SceneNodeFlags.Selected,
+        });
+        Mesh selectedMesh = model.AddNode(new Mesh
+        {
+            Name = "SelectedMesh",
+            Flags = SceneNodeFlags.Selected,
+        });
         selectedMesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
         selectedMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
         selectedMesh.Materials = [selectedMaterial];
 
         Material ignoredMaterial = model.AddNode(new Material("IgnoredMaterial"));
-        Mesh ignoredMesh = model.AddNode(new Mesh { Name = "IgnoredMesh" });
+        Mesh ignoredMesh = model.AddNode(new Mesh
+        {
+            Name = "IgnoredMesh",
+        });
         ignoredMesh.Positions = new DataBuffer<float>([0f, 0f, 1f, 1f, 0f, 1f, 0f, 1f, 1f], 1, 3);
         ignoredMesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
         ignoredMesh.Materials = [ignoredMaterial];
 
         SceneTranslatorManager manager = CreateManagerWithObjTranslator();
-        byte[] objData = WriteSceneToObj(manager, scene, new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected });
+        byte[] objData = WriteSceneToObj(manager, scene, new SceneTranslatorOptions
+        {
+            Filter = SceneNodeFlags.Selected,
+        });
         Scene loaded = ReadSceneFromObj(manager, objData);
 
         Mesh loadedMesh = loaded.GetDescendants<Mesh>().Single();
@@ -505,16 +579,26 @@ public sealed class ObjTranslatorTests
     public void ObjTranslator_Write_Filter_ThrowsWhenSelectedMeshReferencesFilteredMaterial()
     {
         Scene scene = new("FilteredObjMaterialScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "Model" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "Model",
+        });
         Material material = model.AddNode(new Material("FilteredMaterial"));
-        Mesh mesh = model.AddNode(new Mesh { Name = "SelectedMesh", Flags = SceneNodeFlags.Selected });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "SelectedMesh",
+            Flags = SceneNodeFlags.Selected,
+        });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
         mesh.Materials = [material];
 
         SceneTranslatorManager manager = CreateManagerWithObjTranslator();
         InvalidDataException ex = Assert.Throws<InvalidDataException>(() =>
-            WriteSceneToObj(manager, scene, new SceneTranslatorOptions { Filter = SceneNodeFlags.Selected }));
+            WriteSceneToObj(manager, scene, new SceneTranslatorOptions
+            {
+                Filter = SceneNodeFlags.Selected,
+            }));
 
         Assert.Contains(mesh.Name, ex.Message);
         Assert.Contains(material.Name, ex.Message);
@@ -525,8 +609,14 @@ public sealed class ObjTranslatorTests
     private static Scene CreateTriangleScene()
     {
         Scene scene = new("TriangleScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
-        Mesh mesh = model.AddNode(new Mesh { Name = "triangle" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "TestModel",
+        });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "triangle",
+        });
 
         mesh.Positions = new DataBuffer<float>(
         [
@@ -556,9 +646,15 @@ public sealed class ObjTranslatorTests
     private static Scene CreateMultiMeshScene()
     {
         Scene scene = new("MultiMeshScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "TestModel",
+        });
 
-        Mesh meshA = model.AddNode(new Mesh { Name = "BoxA" });
+        Mesh meshA = model.AddNode(new Mesh
+        {
+            Name = "BoxA",
+        });
         meshA.Positions = new DataBuffer<float>(
         [
             0f, 0f, 0f,
@@ -573,7 +669,10 @@ public sealed class ObjTranslatorTests
         ], 1, 3);
         meshA.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
 
-        Mesh meshB = model.AddNode(new Mesh { Name = "BoxB" });
+        Mesh meshB = model.AddNode(new Mesh
+        {
+            Name = "BoxB",
+        });
         meshB.Positions = new DataBuffer<float>(
         [
             2f, 0f, 0f,
@@ -594,9 +693,15 @@ public sealed class ObjTranslatorTests
     private static Scene CreateSceneWithMaterials()
     {
         Scene scene = new("MaterialScene");
-        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "TestModel" });
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup
+        {
+            Name = "TestModel",
+        });
 
-        Mesh mesh = model.AddNode(new Mesh { Name = "textured_mesh" });
+        Mesh mesh = model.AddNode(new Mesh
+        {
+            Name = "textured_mesh",
+        });
         mesh.Positions = new DataBuffer<float>(
         [
             0f, 0f, 0f,

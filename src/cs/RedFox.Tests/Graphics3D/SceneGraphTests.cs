@@ -18,6 +18,28 @@ public sealed class SceneGraphTests
     }
 
     [Fact]
+    public void AddNode_NamedOverloadsRejectDuplicateNamesBeforeAttaching()
+    {
+        Group root = new("Root");
+        Group existing = root.AddNode<Group>("Existing");
+
+        Assert.Throws<SceneNodeDuplicateException>(() => root.AddNode<Group>("Existing"));
+        Assert.Throws<SceneNodeDuplicateException>(() => root.AddNode<Group>("Existing", "user-data"));
+        Assert.Same(existing, Assert.Single(root.EnumerateChildren()));
+    }
+
+    [Fact]
+    public void DescendantQueries_IncludeDerivedTypes()
+    {
+        Group root = new("Root");
+        PerspectiveCamera camera = root.AddNode(new PerspectiveCamera("Camera"));
+
+        Assert.Same(camera, Assert.Single(root.EnumerateDescendants<Camera>()));
+        Assert.Same(camera, Assert.Single(root.GetDescendants<Camera>()));
+        Assert.Same(camera, root.FirstOfType<Camera>());
+    }
+
+    [Fact]
     public void AddNode_Ancestor_ThrowsAndLeavesGraphUnchanged()
     {
         Group root = new("Root");
@@ -91,13 +113,35 @@ public sealed class SceneGraphTests
     }
 
     [Fact]
-    public void WorldPosition_IsRigidAndIgnoresAncestorScale()
+    public void WorldPosition_IncludesAncestorScaleAndMatchesWorldMatrix()
     {
         (Group parent, Group child) = CreateChain();
         parent.BindTransform.Scale = new Vector3(10f);
 
-        AssertApproximately(new Vector3(1f, 2f, 2f), child.GetBindWorldPosition());
-        AssertApproximately(new Vector3(1f, 2f, -7f), child.GetBindWorldMatrix().Translation);
+        AssertApproximately(new Vector3(1f, 2f, -7f), child.GetBindWorldPosition());
+        AssertApproximately(child.GetBindWorldPosition(), child.GetBindWorldMatrix().Translation);
+    }
+
+    [Fact]
+    public void LocalPosition_DerivedFromWorldPositionUsesAncestorScale()
+    {
+        (Group parent, Group child) = CreateChain();
+        parent.BindTransform.Scale = new Vector3(2f, 3f, 4f);
+        Vector3 localPosition = new(2f, 1f, -3f);
+        child.BindTransform.LocalPosition = null;
+        child.BindTransform.WorldPosition = Vector3.Transform(localPosition, parent.GetBindWorldMatrix());
+
+        AssertApproximately(localPosition, child.GetBindLocalPosition());
+        AssertApproximately(child.BindTransform.WorldPosition!.Value, child.GetBindWorldMatrix().Translation);
+    }
+
+    [Fact]
+    public void ActiveWorldPosition_IncludesAncestorScaleAndMatchesWorldMatrix()
+    {
+        (Group parent, Group child) = CreateChain();
+        parent.LiveTransform.Scale = new Vector3(2f, 3f, 4f);
+
+        AssertApproximately(child.GetActiveWorldMatrix().Translation, child.GetActiveWorldPosition());
     }
 
     [Fact]
@@ -157,6 +201,41 @@ public sealed class SceneGraphTests
 
         AssertApproximately(local, child.GetBindLocalPosition());
         AssertApproximately(local, child.GetBindWorldPosition());
+    }
+
+    [Fact]
+    public void MoveToNull_PreserveWorld_KeepsSubtreeWorldPose()
+    {
+        Group parent = new("Parent");
+        Group child = parent.AddNode(new Group("Child"));
+        Group grandChild = child.AddNode(new Group("GrandChild"));
+        parent.BindTransform.LocalPosition = new Vector3(4f, 0f, 0f);
+        child.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+        grandChild.BindTransform.LocalPosition = new Vector3(3f, 0f, 0f);
+        Vector3 childWorld = child.GetBindWorldPosition();
+        Vector3 grandChildWorld = grandChild.GetBindWorldPosition();
+
+        child.MoveTo(null);
+
+        Assert.Null(child.Parent);
+        AssertApproximately(childWorld, child.GetBindWorldPosition());
+        AssertApproximately(grandChildWorld, grandChild.GetBindWorldPosition());
+    }
+
+    [Fact]
+    public void MoveToNull_PreserveLocal_KeepsLocalPose()
+    {
+        Group parent = new("Parent");
+        Group child = parent.AddNode(new Group("Child"));
+        parent.BindTransform.LocalPosition = new Vector3(4f, 0f, 0f);
+        child.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+        Vector3 localPosition = child.GetBindLocalPosition();
+
+        child.MoveTo(null, ReparentTransformMode.PreserveLocal);
+
+        Assert.Null(child.Parent);
+        AssertApproximately(localPosition, child.GetBindLocalPosition());
+        AssertApproximately(localPosition, child.GetBindWorldPosition());
     }
 
     [Fact]

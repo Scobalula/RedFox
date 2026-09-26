@@ -64,7 +64,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
                 if ((abs & 0x7FFFFF) != 0) return 0x7FF;
                 return sign != 0 ? 0u : 0x7C0u;
             }
-            if (sign != 0 || abs < 0x35800000) return 0;
+            if (sign != 0 || abs < 0x35000000) return 0;
             if (abs > 0x477E0000U) return 0x7BF;
 
             if (abs < 0x38800000U)
@@ -91,7 +91,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
                 if (abs != 0x7F800000) return 0x3FF;
                 return sign != 0 ? 0u : 0x3E0u;
             }
-            if (sign != 0) return 0;
+            if (sign != 0 || abs < 0x35800000) return 0;
             if (abs > 0x477C0000U) return 0x3DF;
 
             if (abs < 0x38800000U)

@@ -143,36 +143,16 @@ public sealed class Md5AnimReader
         for (int i = 0; i < hierarchy.Length; i++)
             bones[i] = new SkeletonBone(hierarchy[i].Name);
 
-        // Compute local transforms from world-space baseframe
-        var worldPositions = new Vector3[hierarchy.Length];
-        var worldOrientations = new Quaternion[hierarchy.Length];
-
         for (int i = 0; i < hierarchy.Length; i++)
         {
             if ((uint)i < (uint)baseFrame.Length)
             {
-                worldPositions[i] = baseFrame[i].Position;
-                worldOrientations[i] = baseFrame[i].Orientation;
+                bones[i].BindTransform.LocalPosition = baseFrame[i].Position;
+                bones[i].BindTransform.LocalRotation = baseFrame[i].Orientation;
             }
         }
 
-        for (int i = 0; i < hierarchy.Length; i++)
-        {
-            int parentIndex = hierarchy[i].ParentIndex;
-            if (parentIndex >= 0 && (uint)parentIndex < (uint)hierarchy.Length)
-            {
-                var inverseParentRotation = Quaternion.Conjugate(worldOrientations[parentIndex]);
-                bones[i].BindTransform.LocalPosition = Vector3.Transform(worldPositions[i] - worldPositions[parentIndex], inverseParentRotation);
-                bones[i].BindTransform.LocalRotation = Quaternion.Normalize(inverseParentRotation * worldOrientations[i]);
-            }
-            else
-            {
-                bones[i].BindTransform.LocalPosition = worldPositions[i];
-                bones[i].BindTransform.LocalRotation = worldOrientations[i];
-            }
-        }
-
-            var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
+        var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         for (int i = 0; i < hierarchy.Length; i++)
         {
             int parentIndex = hierarchy[i].ParentIndex;
@@ -210,27 +190,9 @@ public sealed class Md5AnimReader
 
                 for (int j = 0; j < hierarchy.Length; j++)
                 {
-                    var frameWorld = ApplyComponentOverrides(j, hierarchy, baseFrame, components);
-
-                    int parentIndex = hierarchy[j].ParentIndex;
-                    Vector3 localPos;
-                    Quaternion localRot;
-
-                    if (parentIndex >= 0 && (uint)parentIndex < (uint)hierarchy.Length)
-                    {
-                        var parentWorld = GetFrameWorldTransform(parentIndex, hierarchy, baseFrame, components);
-                        var inverseParentOrientation = Quaternion.Conjugate(parentWorld.Orientation);
-                        localPos = Vector3.Transform(frameWorld.Position - parentWorld.Position, inverseParentOrientation);
-                        localRot = Quaternion.Normalize(inverseParentOrientation * frameWorld.Orientation);
-                    }
-                    else
-                    {
-                        localPos = frameWorld.Position;
-                        localRot = frameWorld.Orientation;
-                    }
-
-                    tracks[j].AddTranslationFrame(time, localPos);
-                    tracks[j].AddRotationFrame(time, localRot);
+                    var frameLocal = ApplyComponentOverrides(j, hierarchy, baseFrame, components);
+                    tracks[j].AddTranslationFrame(time, frameLocal.Position);
+                    tracks[j].AddRotationFrame(time, frameLocal.Orientation);
                 }
             }
 
@@ -244,13 +206,13 @@ public sealed class Md5AnimReader
 
     /// <summary>
     /// Applies component overrides from the frame data to the base-frame values for the
-    /// specified joint, returning the resulting object-space transform.
+    /// specified joint, returning the resulting parent-local transform.
     /// </summary>
     /// <param name="jointIndex">The joint index.</param>
     /// <param name="hierarchy">The hierarchy definition array.</param>
     /// <param name="baseFrame">The base-frame transform array.</param>
     /// <param name="components">The current frame's component array.</param>
-    /// <returns>The object-space position and orientation for this joint in this frame.</returns>
+    /// <returns>The parent-local position and orientation for this joint in this frame.</returns>
     public static (Vector3 Position, Quaternion Orientation) ApplyComponentOverrides(int jointIndex, Md5AnimJoint[] hierarchy, (Vector3 Position, Quaternion Orientation)[] baseFrame, float[] components)
     {
         var basePosition = (uint)jointIndex < (uint)baseFrame.Length ? baseFrame[jointIndex].Position : Vector3.Zero;

@@ -143,6 +143,16 @@ public class PackedVectorTests
     [Fact] public void Float3PK_Roundtrip_Zero() => AssertRoundtrip<Float3PK>(Vector4.Zero);
     [Fact] public void Float3PK_Roundtrip_Positive() => AssertRoundtrip<Float3PK>(new Vector4(1.0f, 0.5f, 0.25f, 0f));
     [Fact] public void Float3PK_Roundtrip_Small() => AssertRoundtrip<Float3PK>(new Vector4(0.01f, 0.001f, 0.1f, 0f), 0.01f);
+    [Fact] public void Float3PK_PreservesSmallestSubnormalComponents()
+    {
+        Float3PK packed = new(MathF.Pow(2f, -20), MathF.Pow(2f, -20), MathF.Pow(2f, -19));
+        Vector4 unpacked = packed.Unpack();
+
+        Assert.Equal(MathF.Pow(2f, -20), unpacked.X);
+        Assert.Equal(MathF.Pow(2f, -20), unpacked.Y);
+        Assert.Equal(MathF.Pow(2f, -19), unpacked.Z);
+    }
+
     [Fact] public void Float3PK_Negative_ClampsToZero()
     {
         var p = default(Float3PK);
