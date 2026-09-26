@@ -331,6 +331,28 @@ public abstract class DataBuffer
     }
 
     /// <summary>
+    /// Creates a new writable buffer containing the specified elements, in order. Indices may repeat.
+    /// Typed buffers preserve their component type; the base implementation stores components as <see cref="float"/>.
+    /// </summary>
+    /// <param name="elementIndices">The indices of the elements to copy.</param>
+    /// <returns>A new buffer with one element per entry in <paramref name="elementIndices"/>.</returns>
+    public virtual DataBuffer Gather(ReadOnlySpan<int> elementIndices)
+    {
+        DataBuffer<float> result = new(elementIndices.Length, ValueCount, ComponentCount);
+
+        for (int elementIndex = 0; elementIndex < elementIndices.Length; elementIndex++)
+        {
+            for (int valueIndex = 0; valueIndex < ValueCount; valueIndex++)
+            {
+                for (int componentIndex = 0; componentIndex < ComponentCount; componentIndex++)
+                    result.Add(elementIndex, valueIndex, componentIndex, Get<float>(elementIndices[elementIndex], valueIndex, componentIndex));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Creates a writable copy of the specified source buffer using the requested component type.
     /// </summary>
     /// <typeparam name="T">The unmanaged numeric type to store in the writable clone.</typeparam>

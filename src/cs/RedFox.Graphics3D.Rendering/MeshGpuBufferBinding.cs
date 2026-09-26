@@ -168,6 +168,11 @@ public sealed class MeshGpuBufferBinding
             data = NormalizeIndexElementType(data);
         }
 
+        if (Usage.HasFlag(BufferUsage.Index) && data.ElementType is not (GpuBufferElementType.UInt16 or GpuBufferElementType.UInt32))
+        {
+            data = GetRequiredGpuBufferData(new DataBuffer<uint>(sourceData.ToArray<uint>(), sourceData.ValueCount, sourceData.ComponentCount), ShaderName);
+        }
+
         return UpdateCore(graphicsDevice, data);
     }
 

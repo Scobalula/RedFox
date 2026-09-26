@@ -303,6 +303,28 @@ public class Mesh : SceneNode
         MeshTangentFrame.Generate(this);
     }
 
+    /// <summary>
+    /// Reverses the winding order of every triangle by swapping its second and third indices.
+    /// Vertex data, including normals, is left unchanged.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The mesh has no <see cref="FaceIndices"/>.</exception>
+    public void ReverseWinding()
+    {
+        if (FaceIndices is null)
+            throw new InvalidOperationException($"Mesh '{Name}' has no {nameof(FaceIndices)} buffer.");
+
+        DataBuffer faceIndices = FaceIndices.IsReadOnly ? DataBuffer.CloneToWritable<int>(FaceIndices) : FaceIndices;
+
+        for (int index = 0; index + 2 < faceIndices.ElementCount; index += 3)
+        {
+            int second = faceIndices.Get<int>(index + 1, 0, 0);
+            faceIndices.Set(index + 1, 0, 0, faceIndices.Get<int>(index + 2, 0, 0));
+            faceIndices.Set(index + 2, 0, 0, second);
+        }
+
+        FaceIndices = faceIndices;
+    }
+
     /// <inheritdoc/>
     public override bool TryGetSceneBounds(out SceneBounds bounds)
     {

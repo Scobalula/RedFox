@@ -438,8 +438,8 @@ public sealed class SmdWriter
         out Vector3 worldPosition,
         out Quaternion worldRotation)
     {
-        Vector3 localPosition = bone.BindTransform.LocalPosition ?? Vector3.Zero;
-        Quaternion localRotation = Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+        Vector3 localPosition = bone.GetBindLocalPosition();
+        Quaternion localRotation = Quaternion.Normalize(bone.GetBindLocalRotation());
 
         if (trackByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
         {

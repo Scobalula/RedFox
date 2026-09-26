@@ -239,8 +239,8 @@ public sealed class Md5AnimWriter
         ArgumentNullException.ThrowIfNull(bone);
         ArgumentNullException.ThrowIfNull(trackByName);
 
-        Vector3 localPosition = bone.BindTransform.LocalPosition ?? Vector3.Zero;
-        Quaternion localRotation = Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+        Vector3 localPosition = bone.GetBindLocalPosition();
+        Quaternion localRotation = Quaternion.Normalize(bone.GetBindLocalRotation());
 
         if (trackByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
         {

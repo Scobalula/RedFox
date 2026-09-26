@@ -28,15 +28,6 @@ public sealed class XAnimTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".xanim_export", ".xanim_bin"];
 
     /// <summary>
-    /// Determines whether the supplied file metadata identifies an XAnim asset.
-    /// </summary>
-    /// <param name="filePath">The source file path.</param>
-    /// <param name="ext">The normalized file extension.</param>
-    /// <param name="context">The translation context for the operation.</param>
-    /// <returns><see langword="true"/> when the extension is supported; otherwise, <see langword="false"/>.</returns>
-    public override bool IsValid(string filePath, string ext, SceneTranslationContext context) => Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
     /// Reads an XAnim asset from a stream into a scene.
     /// </summary>
     /// <param name="scene">The destination scene.</param>

@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using System.Text;
 
 namespace RedFox.Graphics3D.Skeletal;
 
@@ -119,6 +120,70 @@ public class SkeletonAnimation : Animation
             track.TranslationCurve?.TransformSpace = transformSpace;
             track.RotationCurve?.TransformSpace = transformSpace;
             track.ScaleCurve?.TransformSpace = transformSpace;
+        }
+    }
+
+    /// <summary>
+    /// Validates that every track targets exactly one bone under <paramref name="skeletonRoot"/>
+    /// and that its curves are well formed.
+    /// </summary>
+    /// <param name="skeletonRoot">The node whose bone hierarchy the animation is applied to.</param>
+    /// <returns><see langword="true"/> if no problems were found.</returns>
+    public bool Validate(SceneNode skeletonRoot) => Validate(skeletonRoot, messages: null);
+
+    /// <summary>
+    /// Validates that every track targets exactly one bone under <paramref name="skeletonRoot"/>
+    /// and that its curves are well formed: one value per key, the expected component count, and keys
+    /// in ascending time order. Tracks bind to bones by case-sensitive name, as in <see cref="SkeletonAnimationSampler"/>.
+    /// </summary>
+    /// <param name="skeletonRoot">The node whose bone hierarchy the animation is applied to.</param>
+    /// <param name="messages">When not <see langword="null"/>, receives a human-readable description of every problem found.</param>
+    /// <returns><see langword="true"/> if no problems were found.</returns>
+    public bool Validate(SceneNode skeletonRoot, StringBuilder? messages)
+    {
+        ArgumentNullException.ThrowIfNull(skeletonRoot);
+
+        Dictionary<string, int> boneCounts = skeletonRoot.EnumerateHierarchy<SkeletonBone>().CountBy(bone => bone.Name, StringComparer.Ordinal).ToDictionary(StringComparer.Ordinal);
+        List<string> problems = [];
+
+        foreach (SkeletonAnimationTrack track in Tracks)
+        {
+            int boneCount = boneCounts.GetValueOrDefault(track.Name);
+
+            if (boneCount != 1)
+                problems.Add($"track '{track.Name}' matches {boneCount} bones; exactly one is required.");
+
+            CheckCurve(problems, track.Name, "translation", track.TranslationCurve, 3);
+            CheckCurve(problems, track.Name, "rotation", track.RotationCurve, 4);
+            CheckCurve(problems, track.Name, "scale", track.ScaleCurve, 3);
+        }
+
+        foreach (string problem in problems)
+            messages?.AppendLine($"Animation '{Name}' {problem}");
+
+        return problems.Count == 0;
+    }
+
+    private static void CheckCurve(List<string> problems, string trackName, string curveName, AnimationCurve? curve, int componentCount)
+    {
+        if (curve is null)
+            return;
+
+        int valueCount = curve.Values?.ElementCount ?? 0;
+
+        if (valueCount != curve.KeyFrameCount)
+            problems.Add($"track '{trackName}' {curveName} curve has {curve.KeyFrameCount} keys but {valueCount} values.");
+
+        if (curve.KeyFrameCount > 0 && curve.ComponentCount != componentCount)
+            problems.Add($"track '{trackName}' {curveName} curve has {curve.ComponentCount} components per value but {componentCount} are required.");
+
+        for (int key = 1; key < curve.KeyFrameCount; key++)
+        {
+            if (curve.GetKeyTime(key) < curve.GetKeyTime(key - 1))
+            {
+                problems.Add($"track '{trackName}' {curveName} curve keys are not in ascending time order at key {key}.");
+                return;
+            }
         }
     }
 }

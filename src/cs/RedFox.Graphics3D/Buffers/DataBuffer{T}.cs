@@ -308,6 +308,22 @@ namespace RedFox.Graphics3D.Buffers
             }
         }
 
+        /// <inheritdoc/>
+        public override DataBuffer Gather(ReadOnlySpan<int> elementIndices)
+        {
+            int stride = _valueCount * _componentCount;
+            T[] items = new T[elementIndices.Length * stride];
+            ReadOnlySpan<T> source = AsReadOnlySpan();
+
+            for (int i = 0; i < elementIndices.Length; i++)
+            {
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)elementIndices[i], (uint)_elementCount, nameof(elementIndices));
+                source.Slice(elementIndices[i] * stride, stride).CopyTo(items.AsSpan(i * stride, stride));
+            }
+
+            return new DataBuffer<T>(items, _valueCount, _componentCount);
+        }
+
         /// <summary>
         /// Ensures that the internal storage can accommodate at least the specified number of elements.
         /// </summary>

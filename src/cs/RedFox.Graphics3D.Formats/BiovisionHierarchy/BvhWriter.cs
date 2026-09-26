@@ -428,8 +428,8 @@ public sealed class BvhWriter
         out Vector3 worldPosition,
         out Quaternion worldRotation)
     {
-        Vector3 localPosition = bone.BindTransform.LocalPosition ?? Vector3.Zero;
-        Quaternion localRotation = Quaternion.Normalize(bone.BindTransform.LocalRotation ?? Quaternion.Identity);
+        Vector3 localPosition = bone.GetBindLocalPosition();
+        Quaternion localRotation = Quaternion.Normalize(bone.GetBindLocalRotation());
 
         if (tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
         {

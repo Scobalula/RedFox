@@ -77,7 +77,7 @@ public sealed class GltfTranslator : SceneTranslator
     /// <returns><see langword="true"/> if the file is a valid glTF or GLB file.</returns>
     public override bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile)
     {
-        if (Extensions.Contains(ext))
+        if (IsValid(filePath, ext, context))
             return true;
 
         // Check for GLB magic

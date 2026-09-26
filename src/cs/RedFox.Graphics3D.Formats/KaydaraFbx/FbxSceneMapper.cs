@@ -671,8 +671,8 @@ public static class FbxSceneMapper
         AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials);
         AttachMaterials(meshesByModelId, materialsById, connections);
         FbxMorphMapper.ImportMorphs(meshesByModelId, objectsById, connections);
-        SplitMeshesByMaterial(perTriangleMaterials);
         FbxSkinningMapper.ImportSkinning(meshesByModelId, objectsById, connections, bonesByModelId);
+        SplitMeshesByMaterial(perTriangleMaterials);
         AttachNullNodeAttributes(modelNodes, objectsById, connections);
         AttachCameraAndLightNodeAttributes(camerasByModelId, lightsByModelId, objectsById, connections);
         ImportConstraints(scene.RootNode, modelNodes, constraintNodes, connections);
@@ -1063,6 +1063,8 @@ public static class FbxSceneMapper
                 continue;
             }
 
+            Mesh? firstSplitMesh = null;
+
             foreach ((int materialIndex, List<int> triangleIndices) in indicesByMaterial)
             {
                 Mesh splitMesh = parent.AddNode(new Mesh { Name = mesh.Name + "_mat" + materialIndex.ToString(CultureInfo.InvariantCulture) });
@@ -1078,7 +1080,11 @@ public static class FbxSceneMapper
                 splitMesh.Morph = mesh.Morph?.Clone();
                 splitMesh.Materials = [materials[materialIndex]];
                 splitMesh.FaceIndices = new DataBuffer<int>(triangleIndices.ToArray(), 1, 1);
+                firstSplitMesh ??= splitMesh;
             }
+
+            foreach (SceneNode child in mesh.EnumerateChildren().ToArray())
+                child.MoveTo(firstSplitMesh, ReparentTransformMode.PreserveLocal);
 
             mesh.Detach();
         }

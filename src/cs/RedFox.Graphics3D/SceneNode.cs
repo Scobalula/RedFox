@@ -195,6 +195,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// </summary>
     private SceneNode AttachInto(SceneNode targetParent, SceneNodeMatchScope scope, SceneMergeStrategy strategy, ReparentTransformMode transformMode)
     {
+        ThrowIfInvalidParent(targetParent);
+
         SceneNode? existing = FindDuplicateInScope(targetParent, scope);
 
         if (existing is null || ReferenceEquals(existing, this))
@@ -281,32 +283,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
         Scene? oldScene = Scene;
         Scene? newScene = newParent.Scene;
 
-        oldParent?._children?.Remove(this);
-        if (oldParent is not null)
-        {
-            oldParent.OnChildRemoved(this);
-        }
-
-        Parent = newParent;
-        newParent._children ??= [];
-        newParent._children.Add(this);
-        SetScene(newScene);
-        newParent.OnChildAdded(this);
+        foreach (SceneNode node in EnumerateDescendants())
+            node.StoreTransformsAsLocal();
 
         switch (transformMode)
         {
             case ReparentTransformMode.PreserveLocal:
-                BindTransform.WorldPosition = null;
-                BindTransform.WorldRotation = null;
-                LiveTransform.WorldPosition = null;
-                LiveTransform.WorldRotation = null;
+                StoreTransformsAsLocal();
                 break;
 
             case ReparentTransformMode.PreserveWorld:
-                BindTransform.LocalPosition = null;
-                BindTransform.LocalRotation = null;
-                LiveTransform.LocalPosition = null;
-                LiveTransform.LocalRotation = null;
+                StoreTransformsAsWorld();
                 break;
 
             case ReparentTransformMode.PreserveExisting:
@@ -316,13 +303,14 @@ public abstract class SceneNode : IUpdatable, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
         }
 
-        foreach (SceneNode node in EnumerateDescendants())
-        {
-            node.BindTransform.WorldPosition = null;
-            node.BindTransform.WorldRotation = null;
-            node.LiveTransform.WorldPosition = null;
-            node.LiveTransform.WorldRotation = null;
-        }
+        oldParent?._children?.Remove(this);
+        oldParent?.OnChildRemoved(this);
+
+        Parent = newParent;
+        newParent._children ??= [];
+        newParent._children.Add(this);
+        SetScene(newScene);
+        newParent.OnChildAdded(this);
 
         if (oldScene is not null && !ReferenceEquals(oldScene, newScene))
         {
@@ -452,7 +440,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// resolving a <see cref="SceneMergeStrategy.Merge"/>. The semantics mirror
     /// <see cref="ReparentTransformMode"/> for reparenting.
     /// </summary>
-    private static void ApplyMergeTransform(SceneNode existing, SceneNode incoming, ReparentTransformMode mode)
+    internal static void ApplyMergeTransform(SceneNode existing, SceneNode incoming, ReparentTransformMode mode)
     {
         switch (mode)
         {
@@ -460,21 +448,15 @@ public abstract class SceneNode : IUpdatable, IDisposable
                 break;
 
             case ReparentTransformMode.PreserveLocal:
-                existing.BindTransform.LocalPosition = incoming.BindTransform.LocalPosition;
-                existing.BindTransform.LocalRotation = incoming.BindTransform.LocalRotation;
-                existing.BindTransform.Scale = incoming.BindTransform.Scale;
-                existing.LiveTransform.LocalPosition = incoming.LiveTransform.LocalPosition;
-                existing.LiveTransform.LocalRotation = incoming.LiveTransform.LocalRotation;
-                existing.LiveTransform.Scale = incoming.LiveTransform.Scale;
+                incoming.StoreTransformsAsLocal();
+                incoming.BindTransform.CopyTo(existing.BindTransform);
+                incoming.LiveTransform.CopyTo(existing.LiveTransform);
                 break;
 
             case ReparentTransformMode.PreserveWorld:
-                existing.BindTransform.WorldPosition = incoming.BindTransform.WorldPosition;
-                existing.BindTransform.WorldRotation = incoming.BindTransform.WorldRotation;
-                existing.BindTransform.Scale = incoming.BindTransform.Scale;
-                existing.LiveTransform.WorldPosition = incoming.LiveTransform.WorldPosition;
-                existing.LiveTransform.WorldRotation = incoming.LiveTransform.WorldRotation;
-                existing.LiveTransform.Scale = incoming.LiveTransform.Scale;
+                incoming.StoreTransformsAsWorld();
+                incoming.BindTransform.CopyTo(existing.BindTransform);
+                incoming.LiveTransform.CopyTo(existing.LiveTransform);
                 break;
 
             default:
@@ -628,7 +610,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
         _children?.Where(x => x.MatchesFilter(filter)) ?? [];
 
     /// <summary>
-    /// Enumerates descendant nodes of the specified type.
+    /// Enumerates descendant nodes whose runtime type is exactly <typeparamref name="T"/>.
+    /// Unlike <see cref="EnumerateChildren{T}()"/> and <see cref="EnumerateHierarchy{T}()"/>, derived types are not included.
     /// </summary>
     /// <typeparam name="T">The node type to filter for.</typeparam>
     /// <returns>An <see cref="IEnumerable{T}"/> yielding matching descendant nodes.</returns>
@@ -636,7 +619,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         EnumerateDescendants<T>(SceneNodeFlags.None);
 
     /// <summary>
-    /// Enumerates descendant nodes of the specified type that match the provided filter.
+    /// Enumerates descendant nodes whose runtime type is exactly <typeparamref name="T"/> and that match the provided filter.
     /// </summary>
     /// <typeparam name="T">The node type to filter for.</typeparam>
     /// <param name="filter">The flags descendant nodes must contain to be returned.</param>
@@ -1626,12 +1609,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="node">The node to add as a child. The node must not already have a parent, and its name must be unique among this
     /// node's children.</param>
     /// <returns>The node that was added as a child.</returns>
-    /// <exception cref="SceneNodeParentException">Thrown if the specified node already has a parent.</exception>
+    /// <exception cref="SceneNodeParentException">Thrown if the specified node already has a parent, or adding it would make it its own ancestor.</exception>
     /// <exception cref="SceneNodeDuplicateException">Thrown if a child node with the same name already exists in this node.</exception>
     public T AddNode<T>(T node) where T : SceneNode
     {
+        ArgumentNullException.ThrowIfNull(node);
+
         if (node.Parent != null)
             throw new SceneNodeParentException($"Node '{node.Name}' already has a parent.");
+
+        node.ThrowIfInvalidParent(this);
+
         _children ??= [];
         if (_children.Any(x => x.Name.Equals(node.Name, StringComparison.CurrentCultureIgnoreCase)))
             throw new SceneNodeDuplicateException($"A node with the name: {node.Name} already exists in: {Name}");
@@ -2122,105 +2110,52 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Gets the bind local position.
+    /// Gets the bind local position. Returns <see cref="Transform.LocalPosition"/> when it is set;
+    /// otherwise derives it from <see cref="Transform.WorldPosition"/> and the parent's bind world pose.
+    /// Derived values are computed on demand and never written back to <see cref="BindTransform"/>.
     /// </summary>
     public Vector3 GetBindLocalPosition()
     {
-        if (BindTransform.LocalPosition.HasValue)
-            return BindTransform.LocalPosition.Value;
+        if (BindTransform.LocalPosition is { } localPosition)
+            return localPosition;
 
-        if (!BindTransform.WorldPosition.HasValue)
-        {
-            BindTransform.LocalPosition = Vector3.Zero;
-            return BindTransform.LocalPosition.Value;
-        }
+        if (BindTransform.WorldPosition is not { } worldPosition)
+            return Vector3.Zero;
 
-        if (Parent is not null)
-        {
-            BindTransform.LocalPosition = Vector3.Transform(
-                GetBindWorldPosition() - Parent.GetBindWorldPosition(),
-                Quaternion.Conjugate(Parent.GetBindWorldRotation()));
-        }
-        else
-        {
-            BindTransform.LocalPosition = GetBindWorldPosition();
-        }
+        if (Parent is null)
+            return worldPosition;
 
-        return BindTransform.LocalPosition.Value;
+        (Vector3 parentPosition, Quaternion parentRotation) = Parent.GetBindWorldPose();
+        return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
     }
 
     /// <summary>
-    /// Gets the bind world position.
+    /// Gets the bind world position. Returns <see cref="Transform.WorldPosition"/> when it is set;
+    /// otherwise composes the local position with the parent's bind world pose.
+    /// The composition is rigid: ancestor scale is not applied, see <see cref="Transform"/>.
     /// </summary>
-    public Vector3 GetBindWorldPosition()
-    {
-        if (BindTransform.WorldPosition.HasValue)
-            return BindTransform.WorldPosition.Value;
-
-        if (!BindTransform.LocalPosition.HasValue)
-            BindTransform.LocalPosition = Vector3.Zero;
-
-        if (Parent is not null)
-        {
-            BindTransform.WorldPosition = Vector3.Transform(GetBindLocalPosition(), Parent.GetBindWorldRotation())
-                + Parent.GetBindWorldPosition();
-        }
-        else
-        {
-            BindTransform.WorldPosition = GetBindLocalPosition();
-        }
-
-        return BindTransform.WorldPosition.Value;
-    }
+    public Vector3 GetBindWorldPosition() => GetBindWorldPose().Position;
 
     /// <summary>
-    /// Gets the bind local rotation.
+    /// Gets the bind local rotation. Returns <see cref="Transform.LocalRotation"/> when it is set;
+    /// otherwise derives it from <see cref="Transform.WorldRotation"/> and the parent's bind world rotation.
     /// </summary>
     public Quaternion GetBindLocalRotation()
     {
-        if (BindTransform.LocalRotation.HasValue)
-            return BindTransform.LocalRotation.Value;
+        if (BindTransform.LocalRotation is { } localRotation)
+            return localRotation;
 
-        if (!BindTransform.WorldRotation.HasValue)
-        {
-            BindTransform.LocalRotation = Quaternion.Identity;
-            return BindTransform.LocalRotation.Value;
-        }
+        if (BindTransform.WorldRotation is not { } worldRotation)
+            return Quaternion.Identity;
 
-        if (Parent is not null)
-        {
-            BindTransform.LocalRotation = Quaternion.Conjugate(Parent.GetBindWorldRotation()) * GetBindWorldRotation();
-        }
-        else
-        {
-            BindTransform.LocalRotation = GetBindWorldRotation();
-        }
-
-        return BindTransform.LocalRotation.Value;
+        return Parent is null ? worldRotation : Quaternion.Conjugate(Parent.GetBindWorldPose().Rotation) * worldRotation;
     }
 
     /// <summary>
-    /// Gets the bind world rotation.
+    /// Gets the bind world rotation. Returns <see cref="Transform.WorldRotation"/> when it is set;
+    /// otherwise composes the local rotation with the parent's bind world rotation.
     /// </summary>
-    public Quaternion GetBindWorldRotation()
-    {
-        if (BindTransform.WorldRotation.HasValue)
-            return BindTransform.WorldRotation.Value;
-
-        if (!BindTransform.LocalRotation.HasValue)
-            BindTransform.LocalRotation = Quaternion.Identity;
-
-        if (Parent is not null)
-        {
-            BindTransform.WorldRotation = Parent.GetBindWorldRotation() * GetBindLocalRotation();
-        }
-        else
-        {
-            BindTransform.WorldRotation = GetBindLocalRotation();
-        }
-
-        return BindTransform.WorldRotation.Value;
-    }
+    public Quaternion GetBindWorldRotation() => GetBindWorldPose().Rotation;
 
     /// <summary>
     /// Gets the bind local scale.
@@ -3063,23 +2998,39 @@ public abstract class SceneNode : IUpdatable, IDisposable
     public T[] GetAncestors<T>(string namePattern, SceneNodeFlags filter) where T : SceneNode => [.. EnumerateAncestors<T>(namePattern, filter)];
 
     /// <summary>
-    /// Gets the active local position from <see cref="LiveTransform"/>, falling back
-    /// to <see cref="BindTransform"/> if the live value is not set.
+    /// Gets the active local position: the live local position when set, otherwise the live world
+    /// position expressed relative to the parent's active world pose, otherwise the bind local position.
     /// </summary>
     /// <returns>The current local position vector.</returns>
     public Vector3 GetLiveLocalPosition()
     {
-        return LiveTransform.LocalPosition ?? BindTransform.LocalPosition ?? GetBindLocalPosition();
+        if (LiveTransform.LocalPosition is { } localPosition)
+            return localPosition;
+
+        if (LiveTransform.WorldPosition is not { } worldPosition)
+            return GetBindLocalPosition();
+
+        if (Parent is null)
+            return worldPosition;
+
+        (Vector3 parentPosition, Quaternion parentRotation) = Parent.GetActiveWorldPose();
+        return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
     }
 
     /// <summary>
-    /// Gets the active local rotation from <see cref="LiveTransform"/>, falling back
-    /// to <see cref="BindTransform"/> if the live value is not set.
+    /// Gets the active local rotation: the live local rotation when set, otherwise the live world
+    /// rotation expressed relative to the parent's active world rotation, otherwise the bind local rotation.
     /// </summary>
     /// <returns>The current local rotation quaternion.</returns>
     public Quaternion GetLiveLocalRotation()
     {
-        return LiveTransform.LocalRotation ?? BindTransform.LocalRotation ?? GetBindLocalRotation();
+        if (LiveTransform.LocalRotation is { } localRotation)
+            return localRotation;
+
+        if (LiveTransform.WorldRotation is not { } worldRotation)
+            return GetBindLocalRotation();
+
+        return Parent is null ? worldRotation : Quaternion.Conjugate(Parent.GetActiveWorldPose().Rotation) * worldRotation;
     }
 
     /// <summary>
@@ -3105,36 +3056,18 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Gets the active world position, preferring <see cref="LiveTransform"/> values,
-    /// then <see cref="BindTransform"/>, and computing from the bind hierarchy if neither is set.
+    /// Gets the active world position: the live world position when set, otherwise the active local
+    /// position composed with the parent's active world pose, so nodes follow animated ancestors.
     /// </summary>
     /// <returns>The current world position vector.</returns>
-    public Vector3 GetActiveWorldPosition()
-    {
-        return LiveTransform.WorldPosition ?? LiveTransform.LocalPosition switch
-        {
-            // If we have a live local but no live world, compute world from live local
-            not null when Parent is not null => Vector3.Transform(LiveTransform.LocalPosition.Value, Parent.GetActiveWorldRotation()) + Parent.GetActiveWorldPosition(),
-            not null => LiveTransform.LocalPosition.Value,
-            _ => BindTransform.WorldPosition ?? GetBindWorldPosition()
-        };
-    }
+    public Vector3 GetActiveWorldPosition() => GetActiveWorldPose().Position;
 
     /// <summary>
-    /// Gets the active world rotation, preferring <see cref="LiveTransform"/> values,
-    /// then <see cref="BindTransform"/>, and computing from the bind hierarchy if neither is set.
+    /// Gets the active world rotation: the live world rotation when set, otherwise the active local
+    /// rotation composed with the parent's active world rotation, so nodes follow animated ancestors.
     /// </summary>
     /// <returns>The current world rotation quaternion.</returns>
-    public Quaternion GetActiveWorldRotation()
-    {
-        return LiveTransform.WorldRotation ?? LiveTransform.LocalRotation switch
-        {
-            // If we have a live local but no live world, compute world from live local
-            not null when Parent is not null => Parent.GetActiveWorldRotation() * LiveTransform.LocalRotation.Value,
-            not null => LiveTransform.LocalRotation.Value,
-            _ => BindTransform.WorldRotation ?? GetBindWorldRotation()
-        };
-    }
+    public Quaternion GetActiveWorldRotation() => GetActiveWorldPose().Rotation;
 
     /// <summary>
     /// Gets the active world transform matrix for this node.
@@ -3304,7 +3237,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Disposes this node and all descendant nodes.
+    /// Detaches this node from its parent, then disposes it and all descendant nodes.
     /// </summary>
     public void Dispose()
     {
@@ -3313,23 +3246,119 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return;
         }
 
+        _disposed = true;
+        Detach();
         DisposeCore();
 
         if (_children is not null)
         {
-            for (int i = 0; i < _children.Count; i++)
-            {
-                _children[i].Dispose();
-                _children[i].Parent = null;
-            }
-
-            _children.Clear();
+            foreach (SceneNode child in _children.ToArray())
+                child.Dispose();
         }
 
-        Parent = null;
-        _scene = null;
-        _disposed = true;
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Throws when attaching this node under <paramref name="newParent"/> would make it its own
+    /// ancestor, which would introduce a cycle into the hierarchy.
+    /// </summary>
+    private void ThrowIfInvalidParent(SceneNode newParent)
+    {
+        if (ReferenceEquals(newParent, this))
+            throw new SceneNodeParentException($"Node '{Name}' cannot be parented to itself.");
+
+        if (newParent.IsDescendantOf(this))
+            throw new SceneNodeParentException($"Node '{Name}' cannot be parented to its descendant '{newParent.Name}'.");
+    }
+
+    /// <summary>
+    /// Rewrites any world-space values held by this node's transforms as local values relative to the
+    /// current parent, so the node keeps its pose relative to the parent when the hierarchy changes.
+    /// </summary>
+    private void StoreTransformsAsLocal()
+    {
+        Vector3 bindPosition = GetBindLocalPosition();
+        Quaternion bindRotation = GetBindLocalRotation();
+        Vector3 livePosition = GetLiveLocalPosition();
+        Quaternion liveRotation = GetLiveLocalRotation();
+
+        if (BindTransform.WorldPosition is not null)
+        {
+            BindTransform.LocalPosition = bindPosition;
+            BindTransform.WorldPosition = null;
+        }
+
+        if (BindTransform.WorldRotation is not null)
+        {
+            BindTransform.LocalRotation = bindRotation;
+            BindTransform.WorldRotation = null;
+        }
+
+        if (LiveTransform.WorldPosition is not null)
+        {
+            LiveTransform.LocalPosition = livePosition;
+            LiveTransform.WorldPosition = null;
+        }
+
+        if (LiveTransform.WorldRotation is not null)
+        {
+            LiveTransform.LocalRotation = liveRotation;
+            LiveTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
+    /// Rewrites this node's transforms as world-space values under the current parent, so the node keeps
+    /// its world pose when the hierarchy changes. Live values are only rewritten when they are set.
+    /// </summary>
+    private void StoreTransformsAsWorld()
+    {
+        (Vector3 bindPosition, Quaternion bindRotation) = GetBindWorldPose();
+        (Vector3 livePosition, Quaternion liveRotation) = GetActiveWorldPose();
+
+        BindTransform.WorldPosition = bindPosition;
+        BindTransform.WorldRotation = bindRotation;
+        BindTransform.LocalPosition = null;
+        BindTransform.LocalRotation = null;
+
+        if (LiveTransform.LocalPosition is not null || LiveTransform.WorldPosition is not null)
+        {
+            LiveTransform.WorldPosition = livePosition;
+            LiveTransform.LocalPosition = null;
+        }
+
+        if (LiveTransform.LocalRotation is not null || LiveTransform.WorldRotation is not null)
+        {
+            LiveTransform.WorldRotation = liveRotation;
+            LiveTransform.LocalRotation = null;
+        }
+    }
+
+    private (Vector3 Position, Quaternion Rotation) GetBindWorldPose()
+    {
+        if (BindTransform.WorldPosition is { } worldPosition && BindTransform.WorldRotation is { } worldRotation)
+            return (worldPosition, worldRotation);
+
+        (Vector3 parentPosition, Quaternion parentRotation) = Parent?.GetBindWorldPose() ?? (Vector3.Zero, Quaternion.Identity);
+
+        Vector3 position = BindTransform.WorldPosition ?? Vector3.Transform(BindTransform.LocalPosition ?? Vector3.Zero, parentRotation) + parentPosition;
+        Quaternion rotation = BindTransform.WorldRotation ?? parentRotation * (BindTransform.LocalRotation ?? Quaternion.Identity);
+
+        return (position, rotation);
+    }
+
+    private (Vector3 Position, Quaternion Rotation) GetActiveWorldPose()
+    {
+        if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
+            return (worldPosition, worldRotation);
+
+        (Vector3 parentPosition, Quaternion parentRotation) = Parent?.GetActiveWorldPose() ?? (Vector3.Zero, Quaternion.Identity);
+
+        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentRotation) + parentPosition;
+        Quaternion rotation = LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
+
+        return (position, rotation);
     }
 
     internal void SetScene(Scene? scene)

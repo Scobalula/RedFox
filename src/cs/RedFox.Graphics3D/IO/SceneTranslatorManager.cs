@@ -5,6 +5,18 @@ namespace RedFox.Graphics3D.IO;
 /// <summary>
 /// Manages scene translators and coordinates import/export operations.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Translators are registered explicitly on an instance; there is no global registry or discovery.
+/// </para>
+/// <para>
+/// When reading, a translator must support reading and is chosen by the file extension confirmed by
+/// its signature (<see cref="SceneTranslator.MagicValue"/>). When no translator matches the extension,
+/// a translator whose signature matches the content is used. When writing, the first writable translator
+/// that accepts the extension is used. Setting <see cref="SceneTranslatorOptions.TranslatorName"/> bypasses
+/// detection and uses the named translator.
+/// </para>
+/// </remarks>
 public sealed class SceneTranslatorManager
 {
     private readonly List<SceneTranslator> _translators = [];
@@ -51,86 +63,40 @@ public sealed class SceneTranslatorManager
     }
 
     /// <summary>
-    /// Attempts to find a translator for the given file and options.
+    /// Attempts to find the registered translator with the specified name.
     /// </summary>
-    /// <param name="filePath">Full path to the file.</param>
-    /// <param name="extension">File extension including the leading period.</param>
+    /// <param name="name">The case-insensitive translator name.</param>
+    /// <param name="translator">The matching translator, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if a translator was found; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetTranslator(string name, [NotNullWhen(true)] out SceneTranslator? translator)
+    {
+        translator = _translators.Find(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        return translator is not null;
+    }
+
+    /// <summary>
+    /// Attempts to find a translator that can read the specified file.
+    /// </summary>
+    /// <param name="filePath">The file path, used for its extension.</param>
+    /// <param name="header">Initial bytes from the start of the file.</param>
     /// <param name="options">Translation options that influence selection.</param>
     /// <param name="translator">The matching translator, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> if a translator was found; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetTranslator(string filePath, string extension, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
+    public bool TryGetReader(string filePath, ReadOnlySpan<byte> header, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
     {
-        return TryGetTranslator(
-            filePath,
-            extension,
-            new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options),
-            out translator);
+        return TryGetReader(filePath, header, new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options), out translator);
     }
 
     /// <summary>
-    /// Attempts to find a translator for the given file and translation context.
+    /// Attempts to find a translator that can write the specified file.
     /// </summary>
-    /// <param name="filePath">Full path to the file.</param>
-    /// <param name="extension">File extension including the leading period.</param>
-    /// <param name="context">Translation context.</param>
+    /// <param name="filePath">The file path, used for its extension.</param>
+    /// <param name="options">Translation options that influence selection.</param>
     /// <param name="translator">The matching translator, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> if a translator was found; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetTranslator(string filePath, string extension, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
+    public bool TryGetWriter(string filePath, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
     {
-        foreach (var candidate in _translators)
-        {
-            if (candidate.IsValid(filePath, extension, context))
-            {
-                translator = candidate;
-                return true;
-            }
-        }
-
-        translator = null;
-        return false;
-    }
-
-    /// <summary>
-    /// Attempts to find a translator using file header bytes for magic-value matching.
-    /// </summary>
-    /// <param name="filePath">Full path to the file.</param>
-    /// <param name="extension">File extension including the leading period.</param>
-    /// <param name="header">Initial bytes from the start of the file.</param>
-    /// <param name="options">Translation options.</param>
-    /// <param name="translator">The matching translator, or <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> if a translator was found; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetTranslator(string filePath, string extension, ReadOnlySpan<byte> header, SceneTranslatorOptions options, [NotNullWhen(true)] out SceneTranslator? translator)
-    {
-        return TryGetTranslator(
-            filePath,
-            extension,
-            header,
-            new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options),
-            out translator);
-    }
-
-    /// <summary>
-    /// Attempts to find a translator using file header bytes and translation context.
-    /// </summary>
-    /// <param name="filePath">Full path to the file.</param>
-    /// <param name="extension">File extension including the leading period.</param>
-    /// <param name="header">Initial bytes from the start of the file.</param>
-    /// <param name="context">Translation context.</param>
-    /// <param name="translator">The matching translator, or <see langword="null"/>.</param>
-    /// <returns><see langword="true"/> if a translator was found; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetTranslator(string filePath, string extension, ReadOnlySpan<byte> header, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
-    {
-        foreach (var candidate in _translators)
-        {
-            if (candidate.IsValid(filePath, extension, context, header))
-            {
-                translator = candidate;
-                return true;
-            }
-        }
-
-        translator = null;
-        return false;
+        return TryGetWriter(filePath, new SceneTranslationContext(Path.GetFileNameWithoutExtension(filePath), options), out translator);
     }
 
     /// <summary>
@@ -193,7 +159,7 @@ public sealed class SceneTranslatorManager
     public void Read(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
         if (!File.Exists(filePath))
-            throw new FileNotFoundException($"File not found: {filePath}");
+            throw new FileNotFoundException($"Cannot read scene file '{filePath}' because it does not exist.", filePath);
 
         using var stream = File.OpenRead(filePath);
         Read(stream, filePath, scene, options, token);
@@ -261,31 +227,19 @@ public sealed class SceneTranslatorManager
     /// <param name="scene">The scene to populate.</param>
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
+    /// <exception cref="IOException">The stream is unusable or no translator can read the file.</exception>
     public void Read(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-        ArgumentNullException.ThrowIfNull(options);
+        ValidateReadArguments(stream, scene, options);
 
-        if (!stream.CanRead)
-            throw new IOException("The supplied stream is not readable.");
-        if (!stream.CanSeek)
-            throw new IOException("The supplied stream must support seeking.");
-
-        var extension = Path.GetExtension(filePath);
-        var readStart = stream.Position;
         var context = SceneTranslator.CreateReadContext(filePath, options);
+        var readStart = stream.Position;
 
         Span<byte> header = stackalloc byte[DefaultHeaderSize];
-        var headerSize = stream.Read(header);
-
-        if (!TryGetTranslator(filePath, extension, header[..headerSize], context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
-
+        var headerSize = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
         stream.Position = readStart;
 
-        var readContext = new SceneReadContext(scene, options.Merge);
-        translator.Read(readContext.Staging, stream, context, token);
-        readContext.Commit();
+        ReadStaged(GetReader(filePath, header[..headerSize], context), stream, scene, context, token);
     }
 
     /// <summary>
@@ -336,16 +290,9 @@ public sealed class SceneTranslatorManager
     public async Task ReadAsync(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
         if (!File.Exists(filePath))
-            throw new FileNotFoundException($"File not found: {filePath}");
+            throw new FileNotFoundException($"Cannot read scene file '{filePath}' because it does not exist.", filePath);
 
-        await using var stream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            4096,
-            FileOptions.Asynchronous);
-
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
         await ReadAsync(stream, filePath, scene, options, token).ConfigureAwait(false);
     }
 
@@ -398,31 +345,19 @@ public sealed class SceneTranslatorManager
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="IOException">The stream is unusable or no translator can read the file.</exception>
     public async Task ReadAsync(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        ArgumentNullException.ThrowIfNull(scene);
-        ArgumentNullException.ThrowIfNull(options);
+        ValidateReadArguments(stream, scene, options);
 
-        if (!stream.CanRead)
-            throw new IOException("The supplied stream is not readable.");
-        if (!stream.CanSeek)
-            throw new IOException("The supplied stream must support seeking.");
-
-        var extension = Path.GetExtension(filePath);
-        var readStart = stream.Position;
         var context = SceneTranslator.CreateReadContext(filePath, options);
+        var readStart = stream.Position;
 
-        Memory<byte> header = new byte[DefaultHeaderSize];
-        var headerSize = await stream.ReadAsync(header, token).ConfigureAwait(false);
-
-        if (!TryGetTranslator(filePath, extension, header.Span[..headerSize], context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
-
+        byte[] header = new byte[DefaultHeaderSize];
+        var headerSize = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, token).ConfigureAwait(false);
         stream.Position = readStart;
 
-        var readContext = new SceneReadContext(scene, options.Merge);
-        translator.Read(readContext.Staging, stream, context, token);
-        readContext.Commit();
+        ReadStaged(GetReader(filePath, header.AsSpan(0, headerSize), context), stream, scene, context, token);
     }
 
     /// <summary>
@@ -455,14 +390,11 @@ public sealed class SceneTranslatorManager
     /// <param name="scene">The scene to write.</param>
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
+    /// <exception cref="IOException">No translator can write the file.</exception>
     public void Write(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var extension = Path.GetExtension(filePath);
-        var context = SceneTranslator.CreateWriteContext(filePath, options);
-        context.GetSelection(scene);
-
-        if (!TryGetTranslator(filePath, extension, context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
+        var context = CreateWriteContext(filePath, scene, options);
+        var translator = GetWriter(filePath, context);
 
         using var stream = File.Create(filePath);
         translator.Write(scene, stream, context, token);
@@ -501,16 +433,11 @@ public sealed class SceneTranslatorManager
     /// <param name="scene">The scene to write.</param>
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
+    /// <exception cref="IOException">No translator can write the file.</exception>
     public void Write(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var extension = Path.GetExtension(filePath);
-        var context = SceneTranslator.CreateWriteContext(filePath, options);
-        context.GetSelection(scene);
-
-        if (!TryGetTranslator(filePath, extension, context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
-
-        translator.Write(scene, stream, context, token);
+        var context = CreateWriteContext(filePath, scene, options);
+        GetWriter(filePath, context).Write(scene, stream, context, token);
     }
 
     /// <summary>
@@ -533,23 +460,13 @@ public sealed class SceneTranslatorManager
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="IOException">No translator can write the file.</exception>
     public async Task WriteAsync(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var extension = Path.GetExtension(filePath);
-        var context = SceneTranslator.CreateWriteContext(filePath, options);
-        context.GetSelection(scene);
+        var context = CreateWriteContext(filePath, scene, options);
+        var translator = GetWriter(filePath, context);
 
-        if (!TryGetTranslator(filePath, extension, context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
-
-        await using var stream = new FileStream(
-            filePath,
-            FileMode.Create,
-            FileAccess.ReadWrite,
-            FileShare.ReadWrite,
-            4096,
-            FileOptions.Asynchronous);
-
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.Asynchronous);
         translator.Write(scene, stream, context, token);
     }
 
@@ -575,15 +492,117 @@ public sealed class SceneTranslatorManager
     /// <param name="options">Translation options.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
-    public async Task WriteAsync(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
+    /// <exception cref="IOException">No translator can write the file.</exception>
+    public Task WriteAsync(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var extension = Path.GetExtension(filePath);
+        Write(stream, filePath, scene, options, token);
+        return Task.CompletedTask;
+    }
+
+    private bool TryGetReader(string filePath, ReadOnlySpan<byte> header, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
+    {
+        if (context.Options.TranslatorName is { } name)
+            return TryGetTranslator(name, out translator) && translator.CanRead;
+
+        string extension = Path.GetExtension(filePath);
+
+        foreach (var candidate in _translators)
+        {
+            if (candidate.CanRead && candidate.IsValid(filePath, extension, context, header))
+            {
+                translator = candidate;
+                return true;
+            }
+        }
+
+        foreach (var candidate in _translators)
+        {
+            if (candidate.CanRead && !candidate.MagicValue.IsEmpty && header.StartsWith(candidate.MagicValue))
+            {
+                translator = candidate;
+                return true;
+            }
+        }
+
+        translator = null;
+        return false;
+    }
+
+    private bool TryGetWriter(string filePath, SceneTranslationContext context, [NotNullWhen(true)] out SceneTranslator? translator)
+    {
+        if (context.Options.TranslatorName is { } name)
+            return TryGetTranslator(name, out translator) && translator.CanWrite;
+
+        string extension = Path.GetExtension(filePath);
+        translator = _translators.Find(candidate => candidate.CanWrite && candidate.IsValid(filePath, extension, context));
+        return translator is not null;
+    }
+
+    private SceneTranslator GetReader(string filePath, ReadOnlySpan<byte> header, SceneTranslationContext context)
+    {
+        if (TryGetReader(filePath, header, context, out var translator))
+            return translator;
+
+        throw new IOException(DescribeMissingTranslator("read", filePath, context, static translator => translator.CanRead));
+    }
+
+    private SceneTranslator GetWriter(string filePath, SceneTranslationContext context)
+    {
+        if (TryGetWriter(filePath, context, out var translator))
+            return translator;
+
+        throw new IOException(DescribeMissingTranslator("write", filePath, context, static translator => translator.CanWrite));
+    }
+
+    private string DescribeMissingTranslator(string operation, string filePath, SceneTranslationContext context, Func<SceneTranslator, bool> supportsOperation)
+    {
+        if (context.Options.TranslatorName is { } name)
+        {
+            return TryGetTranslator(name, out var named)
+                ? $"Cannot {operation} '{filePath}': translator '{named.Name}' does not support {operation}ing."
+                : $"Cannot {operation} '{filePath}': no translator named '{name}' is registered.";
+        }
+
+        string extension = Path.GetExtension(filePath);
+        List<SceneTranslator> claimants = _translators.FindAll(translator => translator.IsValid(filePath, extension, context));
+
+        if (claimants.Count == 0)
+            return $"Cannot {operation} '{filePath}': no registered translator handles '{extension}' files.";
+
+        List<SceneTranslator> capable = claimants.FindAll(translator => supportsOperation(translator));
+
+        if (capable.Count == 0)
+            return $"Cannot {operation} '{filePath}': '{extension}' files are handled by {string.Join(", ", claimants.Select(translator => translator.Name))}, which cannot {operation} them.";
+
+        return $"Cannot {operation} '{filePath}': the content does not match the signature expected by {string.Join(", ", capable.Select(translator => translator.Name))}.";
+    }
+
+    private static void ValidateReadArguments(Stream stream, Scene scene, SceneTranslatorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (!stream.CanRead)
+            throw new IOException("The supplied stream is not readable.");
+
+        if (!stream.CanSeek)
+            throw new IOException("The supplied stream must support seeking.");
+    }
+
+    private static void ReadStaged(SceneTranslator translator, Stream stream, Scene scene, SceneTranslationContext context, CancellationToken token)
+    {
+        var readContext = new SceneReadContext(scene, context.Options.Merge);
+        translator.Read(readContext.Staging, stream, context, token);
+        readContext.Commit();
+    }
+
+    private static SceneTranslationContext CreateWriteContext(string filePath, Scene scene, SceneTranslatorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
         var context = SceneTranslator.CreateWriteContext(filePath, options);
         context.GetSelection(scene);
-
-        if (!TryGetTranslator(filePath, extension, context, out var translator))
-            throw new IOException($"No suitable translator found for file: {filePath}");
-
-        translator.Write(scene, stream, context, token);
+        return context;
     }
 }

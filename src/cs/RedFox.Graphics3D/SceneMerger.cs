@@ -74,7 +74,7 @@ public static class SceneMerger
                 return incoming;
 
             case SceneMergeStrategy.Merge:
-                ApplyTransform(existing, incoming, options.TransformMode);
+                SceneNode.ApplyMergeTransform(existing, incoming, options.TransformMode);
                 foreach (var child in incoming.EnumerateChildren().ToArray())
                     MergeNode(existing, child, options, stagingRoot);
                 RedirectReferences(incoming, existing, targetParent.GetRoot(), stagingRoot);
@@ -150,33 +150,6 @@ public static class SceneMerger
         {
             foreach (var node in stagingRoot.EnumerateHierarchy())
                 node.Swap(oldNode, newNode);
-        }
-    }
-
-    private static void ApplyTransform(SceneNode existing, SceneNode incoming, ReparentTransformMode mode)
-    {
-        switch (mode)
-        {
-            case ReparentTransformMode.PreserveExisting:
-                break;
-
-            case ReparentTransformMode.PreserveLocal:
-                existing.BindTransform.LocalPosition = incoming.BindTransform.LocalPosition;
-                existing.BindTransform.LocalRotation = incoming.BindTransform.LocalRotation;
-                existing.BindTransform.Scale = incoming.BindTransform.Scale;
-                existing.LiveTransform.LocalPosition = incoming.LiveTransform.LocalPosition;
-                existing.LiveTransform.LocalRotation = incoming.LiveTransform.LocalRotation;
-                existing.LiveTransform.Scale = incoming.LiveTransform.Scale;
-                break;
-
-            case ReparentTransformMode.PreserveWorld:
-                existing.BindTransform.WorldPosition = incoming.BindTransform.WorldPosition;
-                existing.BindTransform.WorldRotation = incoming.BindTransform.WorldRotation;
-                existing.BindTransform.Scale = incoming.BindTransform.Scale;
-                existing.LiveTransform.WorldPosition = incoming.LiveTransform.WorldPosition;
-                existing.LiveTransform.WorldRotation = incoming.LiveTransform.WorldRotation;
-                existing.LiveTransform.Scale = incoming.LiveTransform.Scale;
-                break;
         }
     }
 }

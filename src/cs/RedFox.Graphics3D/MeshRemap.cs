@@ -14,7 +14,7 @@ namespace RedFox.Graphics3D;
 ///   <item><see cref="RemapVertices"/> applies a vertex remap (from <see cref="MeshOptimizer.OptimizeVertexOrder(Mesh)"/>)
 ///   to translate every index in the buffer to the new compact vertex numbering.</item>
 /// </list>
-/// Both methods replace <see cref="Mesh.FaceIndices"/> with a new <see cref="DataBuffer{T}"/> and leave
+/// Both methods replace <see cref="Mesh.FaceIndices"/> with a new 32-bit <see cref="DataBuffer{T}"/> and leave
 /// vertex attribute buffers unchanged; callers are responsible for reordering vertex data to match.
 /// </remarks>
 public static class MeshRemap
@@ -48,18 +48,18 @@ public static class MeshRemap
                 $"faceRemap length ({faceRemap.Length}) must equal the face count ({faceCount}).",
                 nameof(faceRemap));
 
-        float[] output = GC.AllocateUninitializedArray<float>(faceCount * 3);
+        int[] output = GC.AllocateUninitializedArray<int>(faceCount * 3);
 
         for (int newFace = 0; newFace < faceCount; newFace++)
         {
             int srcBase = faceRemap[newFace] * 3;
             int dstBase = newFace * 3;
-            output[dstBase]     = faceIndices.Get<float>(srcBase,     0, 0);
-            output[dstBase + 1] = faceIndices.Get<float>(srcBase + 1, 0, 0);
-            output[dstBase + 2] = faceIndices.Get<float>(srcBase + 2, 0, 0);
+            output[dstBase]     = faceIndices.Get<int>(srcBase,     0, 0);
+            output[dstBase + 1] = faceIndices.Get<int>(srcBase + 1, 0, 0);
+            output[dstBase + 2] = faceIndices.Get<int>(srcBase + 2, 0, 0);
         }
 
-        mesh.FaceIndices = new DataBuffer<float>(output, valueCount, compCount);
+        mesh.FaceIndices = new DataBuffer<int>(output, valueCount, compCount);
     }
 
     /// <summary>
@@ -96,7 +96,7 @@ public static class MeshRemap
                 inverse[orig] = newIdx;
         }
 
-        float[] output = GC.AllocateUninitializedArray<float>(indexCount);
+        int[] output = GC.AllocateUninitializedArray<int>(indexCount);
         for (int j = 0; j < indexCount; j++)
         {
             int orig = faceIndices.Get<int>(j, 0, 0);
@@ -106,6 +106,6 @@ public static class MeshRemap
                 output[j] = orig; // preserve unmapped (e.g. sentinel -1) values
         }
 
-        mesh.FaceIndices = new DataBuffer<float>(output, valueCount, compCount);
+        mesh.FaceIndices = new DataBuffer<int>(output, valueCount, compCount);
     }
 }

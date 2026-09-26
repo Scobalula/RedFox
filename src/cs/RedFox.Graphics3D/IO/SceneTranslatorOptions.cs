@@ -31,6 +31,12 @@ public class SceneTranslatorOptions
     public SceneMergeOptions Merge { get; set; } = SceneMergeOptions.Strict;
 
     /// <summary>
+    /// Gets or sets the name of the translator to use, bypassing extension and content detection.
+    /// Leave <see langword="null"/> to let <see cref="SceneTranslatorManager"/> choose a translator.
+    /// </summary>
+    public string? TranslatorName { get; set; }
+
+    /// <summary>
     /// Gets the full source file path for the current read operation.
     /// Set internally by the translation manager.
     /// </summary>

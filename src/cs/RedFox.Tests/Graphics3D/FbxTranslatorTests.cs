@@ -833,6 +833,27 @@ public sealed class FbxTranslatorTests
         Assert.True(dot > 0.999f, $"Expected FBX Euler round-trip to preserve rotation. Dot={dot}");
     }
 
+    [Fact]
+    public void FbxSceneMapper_ImportScene_MeshSplitByMaterialKeepsSkin()
+    {
+        Scene source = CreateSampleScene();
+        MeshGroup model = Assert.Single(source.GetDescendants<MeshGroup>());
+        Mesh mesh = Assert.Single(source.GetDescendants<Mesh>());
+        mesh.Materials = [mesh.Materials![0], model.AddNode(new Material("material_1"))];
+
+        FbxDocument document = FbxSceneMapper.ExportScene(source, FbxFormat.Binary);
+        FbxNode materialLayer = Assert.Single(document.EnumerateNodesDepthFirst(), static node => node.Name == "LayerElementMaterial");
+        materialLayer.FirstChild("MappingInformationType")!.Properties[0] = new FbxProperty('S', "ByPolygon");
+        materialLayer.FirstChild("Materials")!.Properties[0] = new FbxProperty('i', new[] { 0, 1 });
+
+        Scene imported = FbxSceneMapper.ImportScene(document, "split-skin");
+
+        Mesh[] splitMeshes = imported.GetDescendants<Mesh>();
+        Assert.Equal(2, splitMeshes.Length);
+        Assert.All(splitMeshes, static split => Assert.Equal(2, split.Skin?.Bones.Count));
+        Assert.Equal(["material_0", "material_1"], splitMeshes.Select(static split => Assert.Single(split.Materials!).Name).Order());
+    }
+
     private static SceneTranslatorManager CreateManager()
     {
         SceneTranslatorManager manager = new();

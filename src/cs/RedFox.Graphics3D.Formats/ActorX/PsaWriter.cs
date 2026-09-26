@@ -78,9 +78,9 @@ public sealed class PsaWriter
             writer.Write(childCounts[i]);
             writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
 
-            Quaternion stored = ActorXBinary.ToStoredRotation(bone.BindTransform.LocalRotation ?? Quaternion.Identity, i);
+            Quaternion stored = ActorXBinary.ToStoredRotation(bone.GetBindLocalRotation(), i);
             ActorXBinary.Write(writer, stored);
-            ActorXBinary.Write(writer, bone.BindTransform.LocalPosition ?? Vector3.Zero);
+            ActorXBinary.Write(writer, bone.GetBindLocalPosition());
 
             writer.Write(0f);
             writer.Write(0f);
@@ -122,8 +122,8 @@ public sealed class PsaWriter
             for (int b = 0; b < bones.Length; b++)
             {
                 var bone = bones[b];
-                Vector3 position = bone.BindTransform.LocalPosition ?? Vector3.Zero;
-                Quaternion rotation = bone.BindTransform.LocalRotation ?? Quaternion.Identity;
+                Vector3 position = bone.GetBindLocalPosition();
+                Quaternion rotation = bone.GetBindLocalRotation();
 
                 if (trackByName.TryGetValue(bone.Name, out var track))
                 {

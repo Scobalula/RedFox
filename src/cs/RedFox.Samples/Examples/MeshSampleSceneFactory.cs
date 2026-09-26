@@ -263,7 +263,9 @@ internal static class MeshSampleSceneFactory
 
     internal static SceneTranslatorManager CreateTranslatorManager()
     {
-        return BuiltInFormats.CreateDefaultManager();
+        SceneTranslatorManager manager = new();
+        BuiltInSceneFormats.RegisterAll(manager);
+        return manager;
     }
 
     private static Scene CreateFallbackScene(string fallbackSceneName)

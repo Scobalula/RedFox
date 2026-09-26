@@ -264,6 +264,21 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             _items[index] = packed;
         }
 
+        /// <inheritdoc/>
+        public override DataBuffer Gather(ReadOnlySpan<int> elementIndices)
+        {
+            TPacked[] items = new TPacked[elementIndices.Length * _valueCount];
+            ReadOnlySpan<TPacked> source = AsReadOnlySpan();
+
+            for (int i = 0; i < elementIndices.Length; i++)
+            {
+                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)elementIndices[i], (uint)_elementCount, nameof(elementIndices));
+                source.Slice(elementIndices[i] * _valueCount, _valueCount).CopyTo(items.AsSpan(i * _valueCount, _valueCount));
+            }
+
+            return new PackedBuffer<TPacked>(items, _valueCount, _scale, _offset);
+        }
+
         /// <summary>
         /// Ensures that the internal storage can accommodate at least the specified number of packed elements.
         /// </summary>

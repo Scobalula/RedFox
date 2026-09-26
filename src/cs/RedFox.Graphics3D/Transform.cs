@@ -1,16 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RedFox.Graphics3D;
 
 /// <summary>
-/// Represents a 3D transformation, including local and world position, rotation, and scale, for an object in
-/// three-dimensional space.
+/// Holds the authored translation, rotation, and scale of a <see cref="SceneNode"/>.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Each value is optional. A set value is authoritative; an unset value is derived on demand by
+/// <see cref="SceneNode"/> from the other space and the parent's pose, and is never written back.
+/// When both the local and world value of a component are set, local-space queries use the local
+/// value and world-space queries use the world value.
+/// </para>
+/// <para>
+/// Conventions: <c>System.Numerics</c> row vectors, so a local matrix is composed as
+/// <c>Scale * Rotation * Translation</c> and a world matrix as <c>Local * ParentWorld</c>. World
+/// rotation is <c>ParentWorldRotation * LocalRotation</c>. World position and rotation are a rigid
+/// composition that does not apply ancestor scale; scale is local and only affects matrices.
+/// Handedness, up axis, and units are whatever the source data uses; see <see cref="Scene.UpAxis"/>.
+/// </para>
+/// </remarks>
 public class Transform
 {
     /// <summary>
@@ -67,7 +76,7 @@ public class Transform
     /// </summary>
     /// <remarks>Updating the local position resets the world position to <see langword="null"/>,
     /// indicating that the world position will be recalculated based on the new local position.</remarks>
-    /// <param name="value">The new local position represented as a <see langword="Vector3"/> structure.</param>
+    /// <param name="value">The new local position.</param>
     public void SetLocalPosition(Vector3 value)
     {
         LocalPosition = value;
@@ -79,7 +88,7 @@ public class Transform
     /// </summary>
     /// <remarks>Updating the local rotation resets the world rotation to <see langword="null"/>,
     /// indicating that the world rotation will be recalculated based on the new local rotation.</remarks>
-    /// <param name="value">The new local rotation represented as a <see langword="Vector3"/> structure.</param>
+    /// <param name="value">The new local rotation.</param>
     public void SetLocalRotation(Quaternion value)
     {
         LocalRotation = value;
@@ -91,7 +100,7 @@ public class Transform
     /// </summary>
     /// <remarks>Updating the world position resets the local position to <see langword="null"/>,
     /// indicating that the local position will be recalculated based on the new world position.</remarks>
-    /// <param name="value">The new world position represented as a <see langword="Vector3"/> structure.</param>
+    /// <param name="value">The new world position.</param>
     public void SetWorldPosition(Vector3 value)
     {
         LocalPosition = null;
@@ -101,9 +110,9 @@ public class Transform
     /// <summary>
     /// Sets the world rotation of the object in 3D space.
     /// </summary>
-    /// <remarks>Updating the world rotation resets the world rotation to <see langword="null"/>,
-    /// indicating that the world rotation will be recalculated based on the new world rotation.</remarks>
-    /// <param name="value">The new world rotation represented as a <see langword="Vector3"/> structure.</param>
+    /// <remarks>Updating the world rotation resets the local rotation to <see langword="null"/>,
+    /// indicating that the local rotation will be derived from the new world rotation.</remarks>
+    /// <param name="value">The new world rotation.</param>
     public void SetWorldRotation(Quaternion value)
     {
         LocalRotation = null;

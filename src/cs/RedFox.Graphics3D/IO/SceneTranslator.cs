@@ -56,10 +56,12 @@ public abstract class SceneTranslator
     /// <param name="context">The translation context.</param>
     /// <returns><see langword="true"/> if this translator supports the file; otherwise, <see langword="false"/>.</returns>
     public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context) =>
-        Extensions.Contains(ext);
+        Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Determines whether the specified file can be handled by this translator based on extension and header magic.
+    /// The default implementation requires the extension to match and, when <see cref="MagicValue"/> is not empty,
+    /// the file to start with it.
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
     /// <param name="ext">The file extension, including the leading period.</param>
@@ -67,7 +69,7 @@ public abstract class SceneTranslator
     /// <param name="startOfFile">Initial bytes from the start of the file.</param>
     /// <returns><see langword="true"/> if this translator supports the file; otherwise, <see langword="false"/>.</returns>
     public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
-        IsValid(filePath, ext, context);
+        IsValid(filePath, ext, context) && (MagicValue.IsEmpty || startOfFile.StartsWith(MagicValue));
 
     /// <summary>
     /// Creates a <see cref="SceneTranslationContext"/> configured for a read operation.

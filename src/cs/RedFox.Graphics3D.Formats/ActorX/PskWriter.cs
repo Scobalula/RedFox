@@ -257,9 +257,9 @@ public sealed class PskWriter
             writer.Write(childCounts[i]);             // NumChildren
             writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
 
-            Quaternion stored = ActorXBinary.ToStoredRotation(bone.BindTransform.LocalRotation ?? Quaternion.Identity, i);
+            Quaternion stored = ActorXBinary.ToStoredRotation(bone.GetBindLocalRotation(), i);
             ActorXBinary.Write(writer, stored);
-            ActorXBinary.Write(writer, bone.BindTransform.LocalPosition ?? Vector3.Zero);
+            ActorXBinary.Write(writer, bone.GetBindLocalPosition());
 
             writer.Write(0f); // Length
             writer.Write(0f); // XSize

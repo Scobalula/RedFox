@@ -1,4 +1,5 @@
 using RedFox.Graphics3D.Buffers;
+using System.Numerics;
 using System.Text;
 
 namespace RedFox.Graphics3D;
@@ -205,5 +206,179 @@ public static class MeshValidation
         }
 
         return valid;
+    }
+
+    /// <summary>
+    /// Validates the structure of the mesh: vertex buffer sizes, index ranges, skin references and weights,
+    /// and morph sizes.
+    /// </summary>
+    /// <param name="mesh">The target mesh.</param>
+    /// <returns><see langword="true"/> if no problems were found.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
+    public static bool ValidateStructure(Mesh mesh) => ValidateStructure(mesh, messages: null);
+
+    /// <summary>
+    /// Validates the structure of the mesh: vertex buffer sizes, index ranges, skin references and weights,
+    /// and morph sizes. Intended for use at import and export boundaries.
+    /// </summary>
+    /// <param name="mesh">The target mesh.</param>
+    /// <param name="messages">When not <see langword="null"/>, receives a human-readable description of every problem found.</param>
+    /// <returns><see langword="true"/> if no problems were found.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
+    public static bool ValidateStructure(Mesh mesh, StringBuilder? messages)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+
+        List<string> problems = [];
+        int vertexCount = mesh.VertexCount;
+
+        if (mesh.Positions is null)
+            problems.Add("has no Positions buffer.");
+
+        CheckVertexBuffer(problems, nameof(Mesh.Positions), mesh.Positions, vertexCount, 3);
+        CheckVertexBuffer(problems, nameof(Mesh.Normals), mesh.Normals, vertexCount, 3);
+        CheckVertexBuffer(problems, nameof(Mesh.Tangents), mesh.Tangents, vertexCount, 3);
+        CheckVertexBuffer(problems, nameof(Mesh.BiTangents), mesh.BiTangents, vertexCount, 3);
+        CheckVertexBuffer(problems, nameof(Mesh.ColorLayers), mesh.ColorLayers, vertexCount, 3);
+        CheckVertexBuffer(problems, nameof(Mesh.UVLayers), mesh.UVLayers, vertexCount, 2);
+        CheckFaceIndices(problems, mesh.FaceIndices, vertexCount);
+
+        if (mesh.Skin is { } skin)
+            CheckSkin(problems, mesh, skin, vertexCount);
+
+        if (mesh.Morph is { } morph && morph.VertexCount != vertexCount)
+            problems.Add($"has a morph covering {morph.VertexCount} vertices but the mesh has {vertexCount}.");
+
+        foreach (string problem in problems)
+            messages?.AppendLine($"Mesh '{mesh.Name}' {problem}");
+
+        return problems.Count == 0;
+    }
+
+    private static void CheckVertexBuffer(List<string> problems, string name, DataBuffer? buffer, int vertexCount, int minimumComponents)
+    {
+        if (buffer is null)
+            return;
+
+        if (buffer.ElementCount != vertexCount)
+            problems.Add($"{name} has {buffer.ElementCount} elements but the mesh has {vertexCount} vertices.");
+
+        if (buffer.ComponentCount < minimumComponents)
+            problems.Add($"{name} has {buffer.ComponentCount} components per value but at least {minimumComponents} are required.");
+
+        for (int vertex = 0; vertex < buffer.ElementCount; vertex++)
+        {
+            for (int value = 0; value < buffer.ValueCount; value++)
+            {
+                for (int component = 0; component < buffer.ComponentCount; component++)
+                {
+                    if (!float.IsFinite(buffer.Get<float>(vertex, value, component)))
+                    {
+                        problems.Add($"{name} contains a non-finite value at vertex {vertex}.");
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void CheckFaceIndices(List<string> problems, DataBuffer? faceIndices, int vertexCount)
+    {
+        if (faceIndices is null)
+            return;
+
+        if (faceIndices.ValueCount != 1 || faceIndices.ComponentCount != 1)
+            problems.Add($"FaceIndices must store one index per element but stores {faceIndices.ValueCount}x{faceIndices.ComponentCount}.");
+
+        if (faceIndices.ElementCount % 3 != 0)
+            problems.Add($"FaceIndices has {faceIndices.ElementCount} indices, which is not a multiple of 3.");
+
+        int invalidCount = 0;
+        long firstInvalid = 0;
+
+        for (int i = 0; i < faceIndices.ElementCount; i++)
+        {
+            long index = faceIndices.Get<long>(i, 0, 0);
+
+            if (index >= 0 && index < vertexCount)
+                continue;
+
+            if (invalidCount++ == 0)
+                firstInvalid = index;
+        }
+
+        if (invalidCount > 0)
+            problems.Add($"FaceIndices has {invalidCount} indices outside [0, {vertexCount}), first value {firstInvalid}.");
+    }
+
+    private static void CheckSkin(List<string> problems, Mesh mesh, Skin skin, int vertexCount)
+    {
+        DataBuffer boneIndices = skin.BoneIndices;
+        DataBuffer boneWeights = skin.BoneWeights;
+
+        if (boneIndices.ElementCount != vertexCount || boneWeights.ElementCount != vertexCount)
+            problems.Add($"has skin buffers covering {boneIndices.ElementCount} indices and {boneWeights.ElementCount} weights but the mesh has {vertexCount} vertices.");
+
+        if (boneIndices.ValueCount != boneWeights.ValueCount)
+            problems.Add($"has {boneIndices.ValueCount} bone indices but {boneWeights.ValueCount} bone weights per vertex.");
+
+        SceneNode meshRoot = mesh.GetRoot();
+        HashSet<string> boneNames = new(StringComparer.Ordinal);
+
+        for (int i = 0; i < skin.Bones.Count; i++)
+        {
+            SkeletonBone bone = skin.Bones[i];
+
+            if (!ReferenceEquals(bone.GetRoot(), meshRoot))
+                problems.Add($"is skinned to bone '{bone.Name}', which is not in the mesh's hierarchy.");
+
+            if (!boneNames.Add(bone.Name))
+                problems.Add($"is skinned to more than one bone named '{bone.Name}'.");
+
+            if (skin.InverseBindMatrices is { } inverseBindMatrices && !Matrix4x4.Invert(inverseBindMatrices[i], out _))
+                problems.Add($"has a non-invertible inverse bind matrix for bone '{bone.Name}'.");
+        }
+
+        CheckSkinWeights(problems, skin, Math.Min(vertexCount, Math.Min(boneIndices.ElementCount, boneWeights.ElementCount)));
+    }
+
+    private static void CheckSkinWeights(List<string> problems, Skin skin, int vertexCount)
+    {
+        int invalidIndexCount = 0;
+        int invalidWeightCount = 0;
+        int unnormalizedCount = 0;
+
+        for (int vertex = 0; vertex < vertexCount; vertex++)
+        {
+            float totalWeight = 0f;
+
+            for (int influence = 0; influence < skin.InfluenceCount; influence++)
+            {
+                float weight = skin.BoneWeights.Get<float>(vertex, influence, 0);
+
+                if (!float.IsFinite(weight) || weight < 0f)
+                {
+                    invalidWeightCount++;
+                    continue;
+                }
+
+                if (weight > 0f && (uint)skin.BoneIndices.Get<int>(vertex, influence, 0) >= (uint)skin.Bones.Count)
+                    invalidIndexCount++;
+
+                totalWeight += weight;
+            }
+
+            if (MathF.Abs(totalWeight - 1f) > 1e-3f)
+                unnormalizedCount++;
+        }
+
+        if (invalidIndexCount > 0)
+            problems.Add($"has {invalidIndexCount} weighted influences that reference a bone index outside the skin's {skin.Bones.Count} bones.");
+
+        if (invalidWeightCount > 0)
+            problems.Add($"has {invalidWeightCount} negative or non-finite bone weights.");
+
+        if (unnormalizedCount > 0)
+            problems.Add($"has {unnormalizedCount} vertices whose bone weights do not sum to 1.");
     }
 }

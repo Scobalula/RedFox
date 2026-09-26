@@ -32,12 +32,12 @@ public sealed class CastTranslator : SceneTranslator
 
         foreach (var modelNode in root.EnumerateChildrenOfType<ModelNode>())
         {
-            CastModelTranslator.Read(scene, modelNode, context.Name, context.SourceDirectoryPath);
+            CastModelTranslator.Read(scene, modelNode, GetUniqueRootName(scene, context.Name), context.SourceDirectoryPath);
         }
 
         foreach (var animationNode in root.EnumerateChildrenOfType<AnimationNode>())
         {
-            CastAnimationTranslator.Read(scene, animationNode, context.Name);
+            CastAnimationTranslator.Read(scene, animationNode, GetUniqueRootName(scene, context.Name));
         }
     }
 
@@ -100,5 +100,15 @@ public sealed class CastTranslator : SceneTranslator
         var materialModels = selection.GetDescendants<Material>().Select(material => material.EnumerateAncestors<MeshGroup>().FirstOrDefault());
 
         return [.. selection.GetDescendants<MeshGroup>().Concat(meshModels).Concat(materialModels).OfType<MeshGroup>().Distinct()];
+    }
+
+    private static string GetUniqueRootName(Scene scene, string name)
+    {
+        string candidate = name;
+
+        for (int index = 1; scene.RootNode.TryFindChild(candidate, StringComparison.CurrentCultureIgnoreCase, out _); index++)
+            candidate = $"{name}_{index}";
+
+        return candidate;
     }
 }
