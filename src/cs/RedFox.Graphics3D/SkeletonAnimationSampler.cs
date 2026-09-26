@@ -91,7 +91,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.TranslationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetActiveWorldPosition() + value,
+                TransformType.Additive => bone.GetActiveWorldPosition() + value * track.TranslationCurve.BlendWeight,
                 TransformType.Relative => bone.GetBindWorldPosition() + value,
                 TransformType.Absolute => value,
                 _ => value
@@ -108,7 +108,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.TranslationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetLiveLocalPosition() + value,
+                TransformType.Additive => bone.GetLiveLocalPosition() + value * track.TranslationCurve.BlendWeight,
                 TransformType.Relative => bone.GetBindLocalPosition() + value,
                 TransformType.Absolute => value,
                 _ => value
@@ -138,7 +138,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.RotationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetActiveWorldRotation() * value,
+                TransformType.Additive => bone.GetActiveWorldRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
                 TransformType.Relative => bone.GetBindWorldRotation() * value,
                 TransformType.Absolute => value,
                 _ => value
@@ -155,7 +155,7 @@ public class SkeletonAnimationSampler : AnimationSampler
         {
             var resolved = track.RotationCurve.TransformType switch
             {
-                TransformType.Additive => bone.GetLiveLocalRotation() * value,
+                TransformType.Additive => bone.GetLiveLocalRotation() * Quaternion.Slerp(Quaternion.Identity, value, track.RotationCurve.BlendWeight),
                 TransformType.Relative => bone.GetBindLocalRotation() * value,
                 TransformType.Absolute => value,
                 _ => value

@@ -85,6 +85,11 @@ public interface ICommandList
     void SetSkinningMode(SkinningMode skinningMode);
 
     /// <summary>
+    /// Gets the skinning mode set for the current frame.
+    /// </summary>
+    SkinningMode SkinningMode { get; }
+
+    /// <summary>
     /// Resets the staged light collection for the current frame and defines the fallback light.
     /// </summary>
     /// <param name="fallbackDirection">The fallback light direction.</param>

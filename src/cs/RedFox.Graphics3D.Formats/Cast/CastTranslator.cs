@@ -1,5 +1,5 @@
-using Cast.NET;
-using Cast.NET.Nodes;
+using CastNet;
+using CastNet.Nodes;
 using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
@@ -27,44 +27,41 @@ public sealed class CastTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var cast = CastReader.Load(stream);
-        var root = cast.RootNodes[0];
-
-        foreach (var modelNode in root.EnumerateChildrenOfType<ModelNode>())
+        foreach (var root in CastReader.Load(stream).Roots)
         {
-            CastModelTranslator.Read(scene, modelNode, GetUniqueRootName(scene, context.Name), context.SourceDirectoryPath);
-        }
+            if (root.Metadata?.UpAxis is string upAxis)
+                scene.UpAxis = upAxis switch { "x" => SceneUpAxis.X, "z" => SceneUpAxis.Z, _ => SceneUpAxis.Y };
 
-        foreach (var animationNode in root.EnumerateChildrenOfType<AnimationNode>())
-        {
-            CastAnimationTranslator.Read(scene, animationNode, GetUniqueRootName(scene, context.Name));
+            foreach (var modelNode in root.EnumerateModels())
+                CastModelTranslator.Read(scene, modelNode, GetUniqueName(scene.RootNode, context.Name), context.SourceDirectoryPath);
+
+            foreach (var animationNode in root.EnumerateAnimations())
+                CastAnimationTranslator.Read(scene, animationNode, GetUniqueName(scene.RootNode, context.Name));
+
+            foreach (var instanceNode in root.EnumerateInstances())
+                CastInstanceTranslator.Read(scene, instanceNode, root.Metadata?.SceneRoot ?? context.SourceDirectoryPath);
         }
     }
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var root = new CastNode(CastNodeIdentifier.Root);
+        var root = new RootNode();
         SceneTranslationSelection selection = context.GetSelection(scene);
 
-        var metaDataNode = root.AddNode<MetadataNode>();
-        metaDataNode.AddString("up", "z");
-        metaDataNode.AddString("s", Assembly.GetEntryAssembly()?.GetName().Name ?? string.Empty);
+        root.AddNode(new MetadataNode { UpAxis = "z", Software = Assembly.GetEntryAssembly()?.GetName().Name });
 
         foreach (var model in GetExportModels(selection))
-        {
             CastModelTranslator.Write(root, model, selection, context.TargetDirectoryPath);
-        }
 
         foreach (var animation in selection.GetDescendants<SkeletonAnimation>())
-        {
             CastAnimationTranslator.Write(root, animation);
-        }
 
         foreach (var animation in selection.GetDescendants<MorphAnimation>())
-        {
             CastAnimationTranslator.Write(root, animation);
-        }
+
+        foreach (var reference in selection.GetDescendants<SceneReference>())
+            CastInstanceTranslator.Write(root, reference, context.TargetDirectoryPath);
 
         CastWriter.Save(stream, root);
     }
@@ -102,11 +99,11 @@ public sealed class CastTranslator : SceneTranslator
         return [.. selection.GetDescendants<MeshGroup>().Concat(meshModels).Concat(materialModels).OfType<MeshGroup>().Distinct()];
     }
 
-    private static string GetUniqueRootName(Scene scene, string name)
+    internal static string GetUniqueName(SceneNode parent, string name)
     {
         string candidate = name;
 
-        for (int index = 1; scene.RootNode.TryFindChild(candidate, StringComparison.CurrentCultureIgnoreCase, out _); index++)
+        for (int index = 1; parent.TryFindChild(candidate, StringComparison.CurrentCultureIgnoreCase, out _); index++)
             candidate = $"{name}_{index}";
 
         return candidate;

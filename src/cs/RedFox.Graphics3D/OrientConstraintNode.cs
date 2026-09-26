@@ -14,6 +14,21 @@ public sealed class OrientConstraintNode(string name, SceneNode constrainedNode,
     public Quaternion RotationOffset { get; set; } = Quaternion.Identity;
 
     /// <summary>
+    /// Gets or sets whether rotation about the local X axis is left unconstrained.
+    /// </summary>
+    public bool SkipX { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether rotation about the local Y axis is left unconstrained.
+    /// </summary>
+    public bool SkipY { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether rotation about the local Z axis is left unconstrained.
+    /// </summary>
+    public bool SkipZ { get; set; }
+
+    /// <summary>
     /// Creates the runtime solver equivalent for this orient constraint node.
     /// </summary>
     /// <returns>The runtime orient-constraint solver.</returns>
@@ -22,5 +37,8 @@ public sealed class OrientConstraintNode(string name, SceneNode constrainedNode,
         {
             CurrentWeight = Weight,
             RotationOffset = RotationOffset,
+            SkipX = SkipX,
+            SkipY = SkipY,
+            SkipZ = SkipZ,
         };
 }

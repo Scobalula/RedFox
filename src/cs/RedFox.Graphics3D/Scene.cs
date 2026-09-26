@@ -133,6 +133,7 @@ namespace RedFox.Graphics3D
         /// Rebuilds <see cref="AnimationPlayers"/> by creating one player per discovered
         /// <see cref="SkeletonAnimation"/> and <see cref="MorphAnimation"/> in the scene. Skeletal animations are bound
         /// to bone hierarchies and morph animations to mesh morph targets, both matched by name (case-sensitive).
+        /// Skeletal players also solve the <see cref="IKHandleNode"/> and <see cref="ConstraintNode"/> instances that drive their bones.
         /// </summary>
         /// <returns>The rebuilt animation player list.</returns>
         public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers()
@@ -182,6 +183,19 @@ namespace RedFox.Graphics3D
                 };
 
                 player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+
+                foreach (IKHandleNode handle in EnumerateDescendants<IKHandleNode>())
+                {
+                    if (handle.EndNode.EnumerateAncestors().Prepend(handle.EndNode).Contains(boneRoot))
+                        player.AddSolver(handle.CreateSolver());
+                }
+
+                foreach (ConstraintNode constraint in EnumerateHierarchy<ConstraintNode>(SceneNodeFlags.None))
+                {
+                    if (constraint.ConstrainedNode.EnumerateAncestors().Prepend(constraint.ConstrainedNode).Contains(boneRoot))
+                        player.AddSolver(constraint.CreateSolver());
+                }
+
                 AnimationPlayers.Add(player);
                 playerIndex++;
             }

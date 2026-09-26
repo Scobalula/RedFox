@@ -65,6 +65,14 @@ public sealed class SceneTranslationSelection(Scene scene, SceneNodeFlags filter
         Scene.EnumerateDescendants<T>(SceneNodeFlags.None).Where(Includes);
 
     /// <summary>
+    /// Enumerates nodes of the specified type, or of a type derived from it, included by this selection.
+    /// </summary>
+    /// <typeparam name="T">The node type to retrieve.</typeparam>
+    /// <returns>An enumerable of matching nodes.</returns>
+    public IEnumerable<T> EnumerateHierarchy<T>() where T : SceneNode =>
+        Scene.EnumerateHierarchy<T>(SceneNodeFlags.None).Where(Includes);
+
+    /// <summary>
     /// Attempts to get the first node of the specified type included by this selection.
     /// </summary>
     /// <typeparam name="T">The node type to retrieve.</typeparam>

@@ -97,6 +97,16 @@ public static class MayaNodeTypes
     public const string OrientConstraint = "orientConstraint";
 
     /// <summary>
+    /// The Maya <c>pointConstraint</c> node type, constraining only translation to a target.
+    /// </summary>
+    public const string PointConstraint = "pointConstraint";
+
+    /// <summary>
+    /// The Maya <c>scaleConstraint</c> node type, constraining only scale to a target.
+    /// </summary>
+    public const string ScaleConstraint = "scaleConstraint";
+
+    /// <summary>
     /// The Maya <c>tweak</c> node type, used as an intermediate deformer in the skin cluster pipeline for vertex edits.
     /// </summary>
     public const string Tweak = "tweak";

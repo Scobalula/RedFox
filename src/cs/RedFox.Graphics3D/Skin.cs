@@ -27,6 +27,11 @@ public class Skin(IReadOnlyList<SkeletonBone> bones, DataBuffer boneIndices, Dat
     public string? Name { get; set; }
 
     /// <summary>
+    /// Gets or sets the method used to blend bone transforms.
+    /// </summary>
+    public SkinningMode SkinningMode { get; set; }
+
+    /// <summary>
     /// Gets the bones referenced by <see cref="BoneIndices"/>.
     /// </summary>
     public IReadOnlyList<SkeletonBone> Bones => _bones;
@@ -273,7 +278,7 @@ public class Skin(IReadOnlyList<SkeletonBone> bones, DataBuffer boneIndices, Dat
     /// Creates a copy of this skin that shares its buffers.
     /// </summary>
     /// <returns>The copied skin.</returns>
-    public Skin Clone() => new(_bones, BoneIndices, BoneWeights) { Name = Name, InverseBindMatrices = _inverseBindMatrices };
+    public Skin Clone() => new(_bones, BoneIndices, BoneWeights) { Name = Name, SkinningMode = SkinningMode, InverseBindMatrices = _inverseBindMatrices };
 
     internal SceneBounds[] GetBindSpaceBounds(DataBuffer positions, Matrix4x4 meshBindWorld)
     {

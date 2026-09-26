@@ -40,6 +40,16 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
     public Vector3 TargetPosition { get; set; }
 
     /// <summary>
+    /// Gets or sets the world space offset added to the target.
+    /// </summary>
+    public Vector3 TargetOffset { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the end of the chain takes the world rotation of <see cref="TargetNode"/>.
+    /// </summary>
+    public bool UseTargetRotation { get; set; }
+
+    /// <summary>
     /// Gets or sets a pole-vector node whose position defines the bend
     /// plane. Overrides <see cref="PoleVector"/> when not <see langword="null"/>.
     /// </summary>
@@ -63,9 +73,9 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
         var midPos  = Mid.GetActiveWorldPosition();
         var tipPos  = Tip.GetActiveWorldPosition();
 
-        var target = TargetNode is not null
+        var target = (TargetNode is not null
             ? TargetNode.GetActiveWorldPosition()
-            : TargetPosition;
+            : TargetPosition) + TargetOffset;
 
         var pole = PoleNode is not null
             ? PoleNode.GetActiveWorldPosition()
@@ -134,6 +144,12 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
 
         Mid.LiveTransform.WorldRotation = Quaternion.Slerp(currentMidRot, newMidRot, CurrentWeight);
         Mid.LiveTransform.LocalRotation = null;
+
+        if (UseTargetRotation && TargetNode is not null)
+        {
+            Tip.LiveTransform.WorldRotation = Quaternion.Slerp(Tip.GetActiveWorldRotation(), TargetNode.GetActiveWorldRotation(), CurrentWeight);
+            Tip.LiveTransform.LocalRotation = null;
+        }
     }
 
     /// <summary>

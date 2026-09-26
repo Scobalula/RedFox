@@ -40,6 +40,16 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
     public Vector3 TargetPosition { get; set; }
 
     /// <summary>
+    /// Gets or sets the world space offset added to the target.
+    /// </summary>
+    public Vector3 TargetOffset { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the end of the chain takes the world rotation of <see cref="TargetNode"/>.
+    /// </summary>
+    public bool UseTargetRotation { get; set; }
+
+    /// <summary>
     /// Gets or sets the maximum number of full CCD iterations (tip-to-root sweeps).
     /// Higher values improve accuracy at the cost of performance.
     /// Default: <c>10</c>.
@@ -69,9 +79,9 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
     {
         if (Chain.Count < 2) return;
 
-        var target = TargetNode is not null
+        var target = (TargetNode is not null
             ? TargetNode.GetActiveWorldPosition()
-            : TargetPosition;
+            : TargetPosition) + TargetOffset;
 
         int tipIndex = Chain.Count - 1;
         float toleranceSq = Tolerance * Tolerance;
@@ -116,6 +126,12 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
                 joint.LiveTransform.WorldRotation = Quaternion.Slerp(currentRot, desired, CurrentWeight);
                 joint.LiveTransform.LocalRotation = null;
             }
+        }
+
+        if (UseTargetRotation && TargetNode is not null)
+        {
+            Chain[^1].LiveTransform.WorldRotation = Quaternion.Slerp(Chain[^1].GetActiveWorldRotation(), TargetNode.GetActiveWorldRotation(), CurrentWeight);
+            Chain[^1].LiveTransform.LocalRotation = null;
         }
     }
 

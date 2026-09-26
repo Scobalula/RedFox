@@ -222,7 +222,7 @@ public static class MeshCombiner
             vertexOffset += mesh.VertexCount;
         }
 
-        return new Skin(bones, boneIndices, boneWeights, inverseBindMatrices) { Name = meshes[0].Skin!.Name };
+        return new Skin(bones, boneIndices, boneWeights, inverseBindMatrices) { Name = meshes[0].Skin!.Name, SkinningMode = meshes[0].Skin!.SkinningMode };
     }
 
     private static int GetOrAddBone(List<SkeletonBone> bones, List<Matrix4x4> inverseBindMatrices, SkeletonBone bone, Matrix4x4 inverseBindMatrix)

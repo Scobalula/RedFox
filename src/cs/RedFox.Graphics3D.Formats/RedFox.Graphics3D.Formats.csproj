@@ -14,6 +14,6 @@
     <ProjectReference Include="..\..\..\..\CallOfFile\src\CallOfFile\CallOfFile.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Cast.NET" Version="2.0.0-alpha" />
+    <PackageReference Include="Cast.NET" Version="2026.9.26.1" />
   </ItemGroup>
 </Project>

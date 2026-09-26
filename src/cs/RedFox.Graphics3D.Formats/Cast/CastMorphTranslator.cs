@@ -1,7 +1,8 @@
-using Cast.NET;
-using Cast.NET.Nodes;
+using CastNet;
+using CastNet.Nodes;
 using RedFox.Graphics3D.Buffers;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace RedFox.Graphics3D.Formats.Cast;
 
@@ -9,33 +10,28 @@ internal static class CastMorphTranslator
 {
     public static void Read(ModelNode modelNode, Dictionary<MeshNode, Mesh> meshes)
     {
-        foreach (var group in modelNode.BlendShapes.GroupBy(blendShape => blendShape.GetFirstValue<ulong>("b", 0)))
+        foreach (var group in modelNode.EnumerateBlendShapes().GroupBy(blendShape => blendShape.BaseShape))
         {
-            if (!modelNode.TryGetChild<MeshNode>(group.Key, out var baseNode) || !meshes.TryGetValue(baseNode, out var mesh) || mesh.Positions is null)
+            if (group.Key is not MeshNode baseNode || !meshes.TryGetValue(baseNode, out var mesh) || mesh.Positions is null)
                 continue;
 
             var targets = group.ToArray();
-            int vertexCount = mesh.Positions.ElementCount;
+            var vertexCount = mesh.Positions.ElementCount;
             var deltas = new float[vertexCount * targets.Length * 3];
 
-            for (int t = 0; t < targets.Length; t++)
+            for (var target = 0; target < targets.Length; target++)
             {
-                var indices = ReadIndices(targets[t].GetProperty("vi"));
-                var positions = targets[t].GetProperty<CastArrayProperty<Vector3>>("vp").Values;
+                var indices = targets[target].VertexIndices?.ToArray<int>() ?? [];
+                var positions = targets[target].VertexPositions is { Type: CastPropertyType.Vector3 } vertexPositions ? vertexPositions.AsSpan<Vector3>() : [];
 
-                for (int i = 0; i < indices.Length && i < positions.Count; i++)
+                for (var i = 0; i < indices.Length && i < positions.Length; i++)
                 {
-                    int vertexIndex = indices[i];
-
-                    if ((uint)vertexIndex >= (uint)vertexCount)
-                        continue;
-
-                    var delta = positions[i] - mesh.Positions.GetVector3(vertexIndex, 0);
-                    delta.CopyTo(deltas, ((vertexIndex * targets.Length) + t) * 3);
+                    if ((uint)indices[i] < (uint)vertexCount)
+                        (positions[i] - mesh.Positions.GetVector3(indices[i], 0)).CopyTo(deltas, (indices[i] * targets.Length + target) * 3);
                 }
             }
 
-            mesh.Morph = new Morph([.. targets.Select(target => target.GetStringValue("n", string.Empty))], new DataBuffer<float>(deltas, targets.Length, 3));
+            mesh.Morph = new Morph([.. targets.Select(target => target.Name)], new DataBuffer<float>(deltas, targets.Length, 3));
         }
     }
 
@@ -44,38 +40,23 @@ internal static class CastMorphTranslator
         if (mesh.Morph is not { TargetCount: > 0, DeltaPositions: { } deltaPositions } morph || mesh.Positions is null)
             return;
 
-        meshNode.Hash = CastHasher.Compute($"{mesh.Name}_{modelNode.Children.Count}");
-
-        for (int t = 0; t < morph.TargetCount; t++)
+        for (var target = 0; target < morph.TargetCount; target++)
         {
-            var indices = new List<uint>();
+            var indices = new List<int>();
             var positions = new List<Vector3>();
 
-            for (int v = 0; v < deltaPositions.ElementCount; v++)
+            for (var vertex = 0; vertex < deltaPositions.ElementCount; vertex++)
             {
-                var delta = deltaPositions.GetVector3(v, t);
+                var delta = deltaPositions.GetVector3(vertex, target);
 
                 if (delta == Vector3.Zero)
                     continue;
 
-                indices.Add((uint)v);
-                positions.Add(mesh.Positions.GetVector3(v, 0) + delta);
+                indices.Add(vertex);
+                positions.Add(mesh.Positions.GetVector3(vertex, 0) + delta);
             }
 
-            var blendShapeNode = modelNode.AddNode<BlendShapeNode>();
-            blendShapeNode.AddString("n", morph.TargetNames[t]);
-            blendShapeNode.AddValue("b", meshNode.Hash);
-            blendShapeNode.AddArray("vi", indices);
-            blendShapeNode.AddArray("vp", positions);
+            modelNode.AddNode(new BlendShapeNode { Name = morph.TargetNames[target], BaseShape = meshNode, VertexIndices = CastArrayProperty.CreateIndices<int>(CollectionsMarshal.AsSpan(indices)), VertexPositions = CastArrayProperty.Create<Vector3>(CollectionsMarshal.AsSpan(positions)) });
         }
     }
-
-    private static int[] ReadIndices(CastProperty property) => property switch
-    {
-        CastArrayProperty<byte> bytes => [.. bytes.Values.Select(value => (int)value)],
-        CastArrayProperty<ushort> shorts => [.. shorts.Values.Select(value => (int)value)],
-        CastArrayProperty<uint> ints => [.. ints.Values.Select(value => (int)value)],
-        CastArrayProperty<int> ints => [.. ints.Values],
-        _ => [],
-    };
 }

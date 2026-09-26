@@ -84,9 +84,9 @@ public sealed class MayaAsciiWriter
         Group[] groups = selection.GetDescendants<Group>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
         Mesh[] meshes = selection.GetDescendants<Mesh>();
-        Camera[] cameras = selection.GetDescendants<Camera>();
+        Camera[] cameras = [.. selection.EnumerateHierarchy<Camera>()];
         Light[] lights = selection.GetDescendants<Light>();
-        ConstraintNode[] constraints = selection.GetDescendants<ConstraintNode>();
+        ConstraintNode[] constraints = [.. selection.EnumerateHierarchy<ConstraintNode>()];
         SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
 
         Dictionary<Material, string> materialNodeNames = [];
@@ -1228,7 +1228,7 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes a <see cref="ConstraintNode"/> as the appropriate Maya constraint node type.
-    /// Supports <see cref="ParentConstraintNode"/> and <see cref="OrientConstraintNode"/>.
+    /// Supports <see cref="ParentConstraintNode"/>, <see cref="OrientConstraintNode"/>, <see cref="PointConstraintNode"/> and <see cref="ScaleConstraintNode"/>.
     /// The constraint is parented under its constrained node in the Maya DAG.
     /// </summary>
     /// <param name="constraint">The constraint node to export.</param>
@@ -1304,12 +1304,12 @@ public sealed class MayaAsciiWriter
                 _writer.WriteLine($"setAttr \".tg[0].tor\" -type \"double3\" {FormatFloat(euler.X)} {FormatFloat(euler.Y)} {FormatFloat(euler.Z)};");
             }
 
-            if (constrainedName is not null)
-            {
+            if (!orientConstraint.SkipX)
                 _connections.Add(new MayaConnection(constraintName + ".crx", constrainedName + ".rx", false));
+            if (!orientConstraint.SkipY)
                 _connections.Add(new MayaConnection(constraintName + ".cry", constrainedName + ".ry", false));
+            if (!orientConstraint.SkipZ)
                 _connections.Add(new MayaConnection(constraintName + ".crz", constrainedName + ".rz", false));
-            }
 
             if (!_nodeNames.TryGetValue(orientConstraint.SourceNode, out string? sourceName))
             {
@@ -1319,6 +1319,64 @@ public sealed class MayaAsciiWriter
 
             _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
             _connections.Add(new MayaConnection(sourceName + ".ro", constraintName + ".tg[0].tro", false));
+        }
+        else if (constraint is PointConstraintNode pointConstraint)
+        {
+            WriteCreateNode(MayaNodeTypes.PointConstraint, constraintName, constrainedParent);
+
+            _writer.WriteLine($"setAttr -s 1 \".tg\";");
+            _writer.WriteLine($"setAttr \".tg[0].tw\" {FormatFloat(pointConstraint.Weight)};");
+
+            Vector3 offset = pointConstraint.TranslationOffset;
+            if (offset != Vector3.Zero)
+            {
+                _writer.WriteLine($"setAttr \".o\" -type \"double3\" {FormatFloat(offset.X)} {FormatFloat(offset.Y)} {FormatFloat(offset.Z)};");
+            }
+
+            if (!pointConstraint.SkipX)
+                _connections.Add(new MayaConnection(constraintName + ".ctx", constrainedName + ".tx", false));
+            if (!pointConstraint.SkipY)
+                _connections.Add(new MayaConnection(constraintName + ".cty", constrainedName + ".ty", false));
+            if (!pointConstraint.SkipZ)
+                _connections.Add(new MayaConnection(constraintName + ".ctz", constrainedName + ".tz", false));
+
+            if (!_nodeNames.TryGetValue(pointConstraint.SourceNode, out string? sourceName))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{pointConstraint.SourceNode.Name}' that is not included in the export selection.");
+            }
+
+            _connections.Add(new MayaConnection(sourceName + ".t", constraintName + ".tg[0].tt", false));
+            _connections.Add(new MayaConnection(sourceName + ".pm", constraintName + ".tg[0].tpm", false));
+        }
+        else if (constraint is ScaleConstraintNode scaleConstraint)
+        {
+            WriteCreateNode(MayaNodeTypes.ScaleConstraint, constraintName, constrainedParent);
+
+            _writer.WriteLine($"setAttr -s 1 \".tg\";");
+            _writer.WriteLine($"setAttr \".tg[0].tw\" {FormatFloat(scaleConstraint.Weight)};");
+
+            Vector3 offset = scaleConstraint.ScaleOffset;
+            if (offset != Vector3.One)
+            {
+                _writer.WriteLine($"setAttr \".o\" -type \"double3\" {FormatFloat(offset.X)} {FormatFloat(offset.Y)} {FormatFloat(offset.Z)};");
+            }
+
+            if (!scaleConstraint.SkipX)
+                _connections.Add(new MayaConnection(constraintName + ".csx", constrainedName + ".sx", false));
+            if (!scaleConstraint.SkipY)
+                _connections.Add(new MayaConnection(constraintName + ".csy", constrainedName + ".sy", false));
+            if (!scaleConstraint.SkipZ)
+                _connections.Add(new MayaConnection(constraintName + ".csz", constrainedName + ".sz", false));
+
+            if (!_nodeNames.TryGetValue(scaleConstraint.SourceNode, out string? sourceName))
+            {
+                throw new InvalidDataException(
+                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{scaleConstraint.SourceNode.Name}' that is not included in the export selection.");
+            }
+
+            _connections.Add(new MayaConnection(sourceName + ".s", constraintName + ".tg[0].ts", false));
+            _connections.Add(new MayaConnection(sourceName + ".pm", constraintName + ".tg[0].tpm", false));
         }
     }
 }

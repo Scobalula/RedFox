@@ -1,4 +1,4 @@
-using Cast.NET.Nodes;
+using CastNet.Nodes;
 using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.Formats.Cast;
@@ -7,32 +7,21 @@ internal static class CastSkeletonTranslator
 {
     public static SkeletonBone[] Read(SceneNode parent, SkeletonNode skeletonNode, string name)
     {
-        var boneNodes = skeletonNode.GetChildrenOfType<BoneNode>();
-        var bones = new SkeletonBone[boneNodes.Length];
+        var boneNodes = skeletonNode.Bones;
+        var bones = Array.ConvertAll(boneNodes, boneNode => new SkeletonBone(boneNode.Name));
 
-        // First pass — create all bones
-        for (int i = 0; i < boneNodes.Length; i++)
+        for (var i = 0; i < boneNodes.Length; i++)
         {
-            bones[i] = new SkeletonBone(boneNodes[i].Name);
-        }
+            var parentIndex = boneNodes[i].ParentIndex;
+            var transform = bones[i].BindTransform;
 
-        // Second pass — set up hierarchy and transforms
-        for (int i = 0; i < boneNodes.Length; i++)
-        {
-            var boneNode = boneNodes[i];
-            var bone = bones[i];
-            int parentIndex = boneNode.ParentIndex;
+            bones[i].MoveTo((uint)parentIndex < (uint)bones.Length ? bones[parentIndex] : parent, ReparentTransformMode.PreserveExisting);
 
-            bone.MoveTo(parentIndex >= 0 && parentIndex < bones.Length ? bones[parentIndex] : parent, ReparentTransformMode.PreserveExisting);
-
-            if (boneNode.TryGetLocalPosition(out var localPosition))
-                bone.BindTransform.LocalPosition = localPosition;
-            if (boneNode.TryGetLocalRotation(out var localRotation))
-                bone.BindTransform.LocalRotation = localRotation;
-            if (boneNode.TryGetWorldPosition(out var worldPosition))
-                bone.BindTransform.WorldPosition = worldPosition;
-            if (boneNode.TryGetWorldRotation(out var worldRotation))
-                bone.BindTransform.WorldRotation = worldRotation;
+            transform.LocalPosition = boneNodes[i].LocalPosition;
+            transform.LocalRotation = boneNodes[i].LocalRotation;
+            transform.WorldPosition = boneNodes[i].WorldPosition;
+            transform.WorldRotation = boneNodes[i].WorldRotation;
+            transform.Scale = boneNodes[i].Scale;
         }
 
         return bones;

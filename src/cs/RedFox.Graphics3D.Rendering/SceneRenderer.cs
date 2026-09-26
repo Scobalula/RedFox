@@ -92,7 +92,8 @@ public sealed class SceneRenderer : IDisposable
     public bool UseViewBasedLighting { get; set; }
 
     /// <summary>
-    /// Gets or sets the skinning mode used during rendering.
+    /// Gets or sets the skinning mode used during rendering. Meshes whose <see cref="Skin.SkinningMode"/> is
+    /// <see cref="SkinningMode.DualQuaternion"/> always render with dual quaternion skinning.
     /// </summary>
     public SkinningMode SkinningMode { get; set; }
 

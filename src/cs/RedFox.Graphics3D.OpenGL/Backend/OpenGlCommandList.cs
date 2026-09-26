@@ -189,6 +189,9 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public SkinningMode SkinningMode => _skinningMode;
+
+    /// <inheritdoc/>
     public void SetSkinningMode(SkinningMode skinningMode)
     {
         ThrowIfDisposed();

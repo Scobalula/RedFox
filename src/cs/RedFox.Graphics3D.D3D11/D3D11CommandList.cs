@@ -251,9 +251,13 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public SkinningMode SkinningMode { get; private set; }
+
+    /// <inheritdoc/>
     public void SetSkinningMode(SkinningMode skinningMode)
     {
         ThrowIfDisposed();
+        SkinningMode = skinningMode;
         SetUniformInt("SkinningMode", (int)skinningMode);
     }
 

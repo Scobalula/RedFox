@@ -49,6 +49,11 @@ public class AnimationCurve
     public TransformType TransformType { get; set; }
 
     /// <summary>
+    /// Gets or sets how strongly <see cref="TransformType.Additive"/> values are applied, where 1 applies them fully.
+    /// </summary>
+    public float BlendWeight { get; set; } = 1.0f;
+
+    /// <summary>
     /// Gets the number of keyframes stored in this curve.
     /// </summary>
     public int KeyFrameCount => Keys?.ElementCount ?? 0;

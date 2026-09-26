@@ -1,7 +1,9 @@
-using Cast.NET;
-using Cast.NET.Nodes;
+using CastNet;
+using CastNet.Nodes;
+using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.Skeletal;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace RedFox.Graphics3D.Formats.Cast;
 
@@ -11,83 +13,74 @@ internal static class CastAnimationTranslator
 
     private const string BlendShapeKeyProperty = "bs";
 
-    private static readonly string[] TransformKeyProperties = ["rq", "tx", "ty", "tz", "sx", "sy", "sz"];
-
     public static void Read(Scene scene, AnimationNode animationNode, string name)
     {
-        var skeletalAnimation = new SkeletonAnimation(name)
+        var skeletalAnimation = new SkeletonAnimation(name) { TransformType = TransformType.Relative, Framerate = animationNode.Framerate };
+        MorphAnimation? morphAnimation = null;
+
+        foreach (var nodeCurves in animationNode.EnumerateCurves().GroupBy(curve => curve.NodeName))
         {
-            TransformType = TransformType.Relative,
-            Framerate = animationNode.Framerate,
-        };
+            var track = new SkeletonAnimationTrack(nodeCurves.Key) { TransformSpace = TransformSpace.Local };
+            var translation = new CurveNode?[3];
+            var scale = new CurveNode?[3];
 
-        var curveNodes = Array.FindAll(animationNode.Curves, x => x.KeyPropertyName != BlendShapeKeyProperty);
-        var morphAnimation = ReadMorphAnimation(animationNode, name);
-
-        foreach (var curveName in curveNodes.Select(x => x.NodeName).Distinct())
-        {
-            var nodeCurves = Array.FindAll(curveNodes, x => x.NodeName == curveName);
-            var rq = Array.Find(nodeCurves, x => x.KeyPropertyName == "rq");
-            var tx = Array.Find(nodeCurves, x => x.KeyPropertyName == "tx");
-            var ty = Array.Find(nodeCurves, x => x.KeyPropertyName == "ty");
-            var tz = Array.Find(nodeCurves, x => x.KeyPropertyName == "tz");
-            var sx = Array.Find(nodeCurves, x => x.KeyPropertyName == "sx");
-            var sy = Array.Find(nodeCurves, x => x.KeyPropertyName == "sy");
-            var sz = Array.Find(nodeCurves, x => x.KeyPropertyName == "sz");
-
-            var track = new SkeletonAnimationTrack(curveName)
+            foreach (var curveNode in nodeCurves)
             {
-                TransformSpace = TransformSpace.Local,
-            };
-
-            // Rotation
-            if (rq is not null)
-            {
-                track.TransformType = CastTranslator.ConvertToTransformType(rq.Mode);
-
-                var rqKeyFrames = rq.EnumerateKeyFrames().ToArray();
-                var rqKeyValues = rq.EnumerateKeyValues<Vector4>().ToArray();
-
-                for (int i = 0; i < rqKeyFrames.Length && i < rqKeyValues.Length; i++)
+                switch (curveNode.KeyPropertyName)
                 {
-                    var v = rqKeyValues[i];
-                    track.AddRotationFrame((float)rqKeyFrames[i], new Quaternion(v.X, v.Y, v.Z, v.W));
+                    case BlendShapeKeyProperty:
+                        morphAnimation ??= new MorphAnimation($"{name}_Morph") { Framerate = animationNode.Framerate };
+                        morphAnimation.GetOrCreateTrack(nodeCurves.Key).WeightCurve = CreateCurve(curveNode, 1);
+                        break;
+                    case "rq":
+                        track.RotationCurve = CreateCurve(curveNode, 4);
+                        break;
+                    case "tx" or "ty" or "tz":
+                        translation[curveNode.KeyPropertyName[1] - 'x'] = curveNode;
+                        break;
+                    case "sx" or "sy" or "sz":
+                        scale[curveNode.KeyPropertyName[1] - 'x'] = curveNode;
+                        break;
+                    default:
+                        if (CreateCurve(curveNode, 1) is AnimationCurve customCurve)
+                            (track.CustomCurves ??= [])[curveNode.KeyPropertyName == "vb" ? VisibilityCurveName : curveNode.KeyPropertyName] = customCurve;
+                        break;
                 }
             }
 
-            // Translation and scale — Cast stores each axis as a separate curve, we need to combine
-            if (tx is not null || ty is not null || tz is not null)
-            {
-                track.TransformType = CastTranslator.ConvertToTransformType((tx ?? ty ?? tz)!.Mode);
-                ReadVector3Curve(tx, ty, tz, 0.0f, track.AddTranslationFrame);
-            }
+            track.TranslationCurve = CombineAxes(translation, 0.0f);
+            track.ScaleCurve = CombineAxes(scale, 1.0f);
+            track.TransformType = (track.TranslationCurve ?? track.RotationCurve ?? track.ScaleCurve)?.TransformType ?? TransformType.Relative;
 
-            if (sx is not null || sy is not null || sz is not null)
-                ReadVector3Curve(sx, sy, sz, 1.0f, track.AddScaleFrame);
-
-            // Anything else is a single value curve, visibility being the only one Cast standardizes
-            foreach (var customCurve in nodeCurves.Where(x => !TransformKeyProperties.Contains(x.KeyPropertyName)))
-            {
-                var curve = track.GetOrCreateCustomCurve(customCurve.KeyPropertyName == "vb" ? VisibilityCurveName : customCurve.KeyPropertyName, 1);
-                var keyFrames = customCurve.EnumerateKeyFrames().ToArray();
-                var keyValues = customCurve.KeyPropertyName == "vb" ? [.. customCurve.EnumerateKeyValues<byte>().Select(x => (float)x)] : customCurve.EnumerateKeyValues<float>().ToArray();
-
-                for (int i = 0; i < keyFrames.Length && i < keyValues.Length; i++)
-                    curve.Add((float)keyFrames[i], keyValues[i]);
-            }
-
-            skeletalAnimation.Tracks.Add(track);
+            if (track.CurveCount > 0)
+                skeletalAnimation.Tracks.Add(track);
         }
 
-        // Notification tracks → Actions
-        foreach (var noteTrack in animationNode.EnumerateNotificationTracks())
+        foreach (var curveModeOverride in animationNode.EnumerateCurveModeOverrides())
         {
-            var action = skeletalAnimation.CreateAction(noteTrack.Name);
+            var transformType = CastTranslator.ConvertToTransformType(curveModeOverride.Mode);
+            var nodeNames = new HashSet<string> { curveModeOverride.NodeName };
 
-            foreach (var frame in noteTrack.EnumerateKeyFrames())
+            if (scene.RootNode.TryFindDescendant<SkeletonBone>(curveModeOverride.NodeName, out var bone))
+                nodeNames.UnionWith(bone.EnumerateDescendants<SkeletonBone>().Select(descendant => descendant.Name));
+
+            foreach (var track in skeletalAnimation.Tracks.Where(track => nodeNames.Contains(track.Name)))
             {
-                action.KeyFrames.Add(new((float)frame, null));
+                if (curveModeOverride.OverrideTranslationCurves && track.TranslationCurve is AnimationCurve translationCurve)
+                    translationCurve.TransformType = transformType;
+                if (curveModeOverride.OverrideRotationCurves && track.RotationCurve is AnimationCurve rotationCurve)
+                    rotationCurve.TransformType = transformType;
+                if (curveModeOverride.OverrideScaleCurves && track.ScaleCurve is AnimationCurve scaleCurve)
+                    scaleCurve.TransformType = transformType;
             }
+        }
+
+        foreach (var notificationTrack in animationNode.EnumerateNotificationTracks())
+        {
+            var action = skeletalAnimation.CreateAction(notificationTrack.Name);
+
+            foreach (var frame in notificationTrack.KeyFrames?.ToArray<float>() ?? [])
+                action.KeyFrames.Add(new(frame, null));
         }
 
         if (skeletalAnimation.Tracks.Count > 0 || skeletalAnimation.Actions is { Count: > 0 } || morphAnimation is null)
@@ -97,187 +90,151 @@ internal static class CastAnimationTranslator
             scene.RootNode.AddNode(morphAnimation);
     }
 
-    public static void Write(CastNode root, MorphAnimation animation)
+    public static void Write(RootNode root, SkeletonAnimation animation)
     {
-        var animationNode = root.AddNode<AnimationNode>();
+        var animationNode = root.AddNode(new AnimationNode { Name = animation.Name, Framerate = animation.Framerate });
 
-        animationNode.AddValue("fr", animation.Framerate);
-        animationNode.AddValue("lo", (byte)0);
+        foreach (var track in animation.Tracks)
+        {
+            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
+            {
+                var rotations = new Quaternion[rotationCurve.KeyFrameCount];
+
+                for (var i = 0; i < rotations.Length; i++)
+                    rotations[i] = rotationCurve.GetQuaternion(i);
+
+                var rotationNode = animationNode.AddNode(new CurveNode { NodeName = track.Name, KeyPropertyName = "rq", Mode = CastTranslator.ConvertFromTransformType(GetMode(animation, rotationCurve)), KeyFrames = CreateKeyFrames(rotationCurve), KeyValues = CastArrayProperty.Create<Quaternion>(rotations) });
+
+                if (rotationCurve.BlendWeight != 1.0f)
+                    rotationNode.AdditiveBlendWeight = rotationCurve.BlendWeight;
+            }
+
+            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
+                WriteVector3Curve(animationNode, track.Name, translationCurve, GetMode(animation, translationCurve), "tx", "ty", "tz");
+            if (track.ScaleCurve is { KeyFrameCount: > 0 } scaleCurve)
+                WriteVector3Curve(animationNode, track.Name, scaleCurve, GetMode(animation, scaleCurve), "sx", "sy", "sz");
+
+            foreach (var (curveName, customCurve) in track.CustomCurves?.Where(entry => entry.Value is { KeyFrameCount: > 0, ComponentCount: 1 }) ?? [])
+            {
+                var isVisibility = curveName == VisibilityCurveName;
+                var values = new CastArrayProperty(isVisibility ? CastPropertyType.Byte : CastPropertyType.Float, customCurve.KeyFrameCount);
+
+                for (var i = 0; i < customCurve.KeyFrameCount; i++)
+                {
+                    if (isVisibility)
+                        values.Add(customCurve.GetScalar(i) >= 1.0f ? (byte)1 : (byte)0);
+                    else
+                        values.Add(customCurve.GetScalar(i));
+                }
+
+                animationNode.AddNode(new CurveNode { NodeName = track.Name, KeyPropertyName = isVisibility ? "vb" : curveName, Mode = "absolute", KeyFrames = CreateKeyFrames(customCurve), KeyValues = values });
+            }
+        }
+
+        foreach (var action in animation.Actions ?? [])
+            animationNode.AddNode(new NotificationTrackNode { Name = action.Name, KeyFrames = CastArrayProperty.CreateIndices<int>([.. action.KeyFrames.Select(keyFrame => ToFrame(keyFrame.Frame))]) });
+    }
+
+    public static void Write(RootNode root, MorphAnimation animation)
+    {
+        var animationNode = root.AddNode(new AnimationNode { Name = animation.Name, Framerate = animation.Framerate });
 
         foreach (var track in animation.Tracks)
         {
             if (track.WeightCurve is not { KeyFrameCount: > 0 } weightCurve)
                 continue;
 
-            var curveNode = animationNode.AddNode<CurveNode>();
+            var weights = new float[weightCurve.KeyFrameCount];
 
-            curveNode.Mode = CastTranslator.ConvertFromTransformType(TransformType.Absolute);
-            curveNode.NodeName = track.Name;
-            curveNode.KeyPropertyName = BlendShapeKeyProperty;
+            for (var i = 0; i < weights.Length; i++)
+                weights[i] = weightCurve.GetScalar(i);
 
-            var keyValues = curveNode.AddArray<float>("kv", weightCurve.KeyFrameCount);
-            var keyFrames = curveNode.AddArray<uint>("kb", weightCurve.KeyFrameCount);
-
-            for (int i = 0; i < weightCurve.KeyFrameCount; i++)
-            {
-                keyValues.Add(weightCurve.GetScalar(i));
-                keyFrames.Add((uint)weightCurve.GetKeyTime(i));
-            }
+            animationNode.AddNode(new CurveNode { NodeName = track.Name, KeyPropertyName = BlendShapeKeyProperty, Mode = "absolute", KeyFrames = CreateKeyFrames(weightCurve), KeyValues = CastArrayProperty.Create<float>(weights) });
         }
     }
 
-    private static MorphAnimation? ReadMorphAnimation(AnimationNode animationNode, string name)
+    private static AnimationCurve? CreateCurve(CurveNode curveNode, int componentCount)
     {
-        var curveNodes = Array.FindAll(animationNode.Curves, x => x.KeyPropertyName == BlendShapeKeyProperty);
-
-        if (curveNodes.Length == 0)
+        if (curveNode.KeyFrames is not CastArrayProperty keyFrames || curveNode.KeyValues is not CastArrayProperty keyValues)
+            return null;
+        if (componentCount == 4 && keyValues.Type != CastPropertyType.Vector4)
+            return null;
+        if (componentCount == 1 && keyValues.Type is CastPropertyType.Vector2 or CastPropertyType.Vector3 or CastPropertyType.Vector4)
             return null;
 
-        var morphAnimation = new MorphAnimation($"{name}_Morph") { Framerate = animationNode.Framerate };
+        var count = Math.Min(keyFrames.Count, keyValues.Count);
 
-        foreach (var curveNode in curveNodes)
-        {
-            var track = morphAnimation.GetOrCreateTrack(curveNode.NodeName);
-            var keyFrames = curveNode.EnumerateKeyFrames().ToArray();
-            var keyValues = curveNode.EnumerateKeyValues<float>().ToArray();
+        if (count == 0)
+            return null;
 
-            for (int i = 0; i < keyFrames.Length && i < keyValues.Length; i++)
-                track.AddWeightFrame((float)keyFrames[i], keyValues[i]);
-        }
+        var frames = keyFrames.ToArray<float>()[..count];
+        var values = componentCount == 4 ? MemoryMarshal.Cast<byte, float>(keyValues.AsBytes())[..(count * 4)].ToArray() : keyValues.ToArray<float>()[..count];
 
-        return morphAnimation;
+        return new AnimationCurve(TransformSpace.Local, CastTranslator.ConvertToTransformType(curveNode.Mode)) { Keys = new DataBuffer<float>(frames, 1, 1), Values = new DataBuffer<float>(values, 1, componentCount), BlendWeight = curveNode.AdditiveBlendWeight };
     }
 
-    public static void Write(CastNode root, SkeletonAnimation animation)
+    private static AnimationCurve? CombineAxes(CurveNode?[] axes, float fallback)
     {
-        var animationNode = root.AddNode<AnimationNode>();
+        var curves = Array.ConvertAll(axes, axis => axis is null ? null : CreateCurve(axis, 1));
 
-        animationNode.AddValue("fr", animation.Framerate);
-        animationNode.AddValue("lo", (byte)0);
+        if (Array.Find(curves, curve => curve is not null) is not AnimationCurve first)
+            return null;
 
-        foreach (var track in animation.Tracks)
+        var keys = Array.ConvertAll(curves, curve => curve?.Keys is DataBuffer<float> buffer ? buffer.AsSpan().ToArray() : null);
+        var values = Array.ConvertAll(curves, curve => curve?.Values is DataBuffer<float> buffer ? buffer.AsSpan().ToArray() : null);
+        var times = Array.TrueForAll(keys, axisKeys => axisKeys is not null && axisKeys.AsSpan().SequenceEqual(keys[0])) ? keys[0]! : [.. keys.SelectMany(axisKeys => axisKeys ?? []).Distinct().Order()];
+        var combined = new float[times.Length * 3];
+        var cursors = new int[3];
+
+        for (var i = 0; i < times.Length; i++)
         {
-            // Rotation curve → single "rq" curve
-            if (track.RotationCurve is { KeyFrameCount: > 0 } rotCurve)
-            {
-                var rCurve = animationNode.AddNode<CurveNode>();
-
-                rCurve.Mode = CastTranslator.ConvertFromTransformType(GetMode(animation, rotCurve));
-                rCurve.NodeName = track.Name;
-                rCurve.KeyPropertyName = "rq";
-
-                var rKeyValueBuffer = rCurve.AddArray<Vector4>("kv", rotCurve.KeyFrameCount);
-                var rKeyFrameBuffer = rCurve.AddArray<uint>("kb", rotCurve.KeyFrameCount);
-
-                for (int i = 0; i < rotCurve.KeyFrameCount; i++)
-                {
-                    rKeyValueBuffer.Add(CastHelpers.CreateVector4FromQuaternion(rotCurve.GetQuaternion(i)));
-                    rKeyFrameBuffer.Add((uint)rotCurve.GetKeyTime(i));
-                }
-            }
-
-            // Translation and scale curves → separate curves per axis
-            if (track.TranslationCurve is { KeyFrameCount: > 0 } transCurve)
-                WriteVector3Curve(animationNode, track.Name, transCurve, GetMode(animation, transCurve), "tx", "ty", "tz");
-            if (track.ScaleCurve is { KeyFrameCount: > 0 } scaleCurve)
-                WriteVector3Curve(animationNode, track.Name, scaleCurve, GetMode(animation, scaleCurve), "sx", "sy", "sz");
-
-            // Custom curves → single value curves keyed by their name, visibility maps to Cast's "vb" curve
-            if (track.CustomCurves is not null)
-            {
-                foreach (var (curveName, customCurve) in track.CustomCurves.Where(x => x.Value is { KeyFrameCount: > 0, ComponentCount: 1 }))
-                    WriteCustomCurve(animationNode, track.Name, curveName, customCurve);
-            }
+            for (var axis = 0; axis < 3; axis++)
+                combined[i * 3 + axis] = keys[axis] is float[] axisKeys ? SampleAxis(axisKeys, values[axis]!, times[i], ref cursors[axis]) : fallback;
         }
 
-        // Actions → notification tracks
-        if (animation.Actions is not null)
-        {
-            foreach (var action in animation.Actions)
-            {
-                var notetrackNode = animationNode.AddNode<NotificationTrackNode>();
-                var keyFrameBuffer = new CastArrayProperty<uint>();
-
-                foreach (var keyFrame in action.KeyFrames)
-                {
-                    keyFrameBuffer.Add((uint)keyFrame.Frame);
-                }
-
-                notetrackNode.Name = action.Name;
-                notetrackNode.KeyFrameBuffer = keyFrameBuffer;
-            }
-        }
+        return new AnimationCurve(TransformSpace.Local, first.TransformType) { Keys = new DataBuffer<float>(times, 1, 1), Values = new DataBuffer<float>(combined, 1, 3), BlendWeight = first.BlendWeight };
     }
 
-    private static void ReadVector3Curve(CurveNode? x, CurveNode? y, CurveNode? z, float fallback, Action<float, Vector3> addFrame)
+    private static float SampleAxis(float[] keys, float[] values, float time, ref int cursor)
     {
-        var xFrames = x?.EnumerateKeyFrames().Select(f => (float)f).ToArray();
-        var yFrames = y?.EnumerateKeyFrames().Select(f => (float)f).ToArray();
-        var zFrames = z?.EnumerateKeyFrames().Select(f => (float)f).ToArray();
+        while (cursor + 1 < keys.Length && keys[cursor + 1] <= time)
+            cursor++;
 
-        var xValues = x?.EnumerateKeyValues<float>().ToArray();
-        var yValues = y?.EnumerateKeyValues<float>().ToArray();
-        var zValues = z?.EnumerateKeyValues<float>().ToArray();
+        if (time <= keys[0] || cursor + 1 >= keys.Length)
+            return values[time <= keys[0] ? 0 : cursor];
 
-        // Collect all unique frame times
-        var allFrameTimes = new SortedSet<float>((xFrames ?? []).Concat(yFrames ?? []).Concat(zFrames ?? []));
-
-        foreach (var time in allFrameTimes)
-            addFrame(time, new Vector3(SampleChannel(xFrames, xValues, time, fallback), SampleChannel(yFrames, yValues, time, fallback), SampleChannel(zFrames, zValues, time, fallback)));
+        return float.Lerp(values[cursor], values[cursor + 1], (time - keys[cursor]) / (keys[cursor + 1] - keys[cursor]));
     }
 
     private static void WriteVector3Curve(AnimationNode animationNode, string nodeName, AnimationCurve curve, TransformType mode, string xProperty, string yProperty, string zProperty)
     {
         string[] properties = [xProperty, yProperty, zProperty];
 
-        for (int axis = 0; axis < properties.Length; axis++)
+        for (var axis = 0; axis < properties.Length; axis++)
         {
-            var axisCurve = animationNode.AddNode<CurveNode>();
+            var values = new float[curve.KeyFrameCount];
 
-            axisCurve.Mode = CastTranslator.ConvertFromTransformType(mode);
-            axisCurve.NodeName = nodeName;
-            axisCurve.KeyPropertyName = properties[axis];
+            for (var i = 0; i < values.Length; i++)
+                values[i] = curve.Values!.Get<float>(i, 0, axis);
 
-            var keyValues = axisCurve.AddArray<float>("kv", curve.KeyFrameCount);
-            var keyFrames = axisCurve.AddArray<uint>("kb", curve.KeyFrameCount);
+            var axisNode = animationNode.AddNode(new CurveNode { NodeName = nodeName, KeyPropertyName = properties[axis], Mode = CastTranslator.ConvertFromTransformType(mode), KeyFrames = CreateKeyFrames(curve), KeyValues = CastArrayProperty.Create<float>(values) });
 
-            for (int i = 0; i < curve.KeyFrameCount; i++)
-            {
-                keyValues.Add(curve.Values!.Get<float>(i, 0, axis));
-                keyFrames.Add((uint)curve.GetKeyTime(i));
-            }
+            if (curve.BlendWeight != 1.0f)
+                axisNode.AdditiveBlendWeight = curve.BlendWeight;
         }
     }
 
-    private static void WriteCustomCurve(AnimationNode animationNode, string nodeName, string curveName, AnimationCurve curve)
+    private static CastArrayProperty CreateKeyFrames(AnimationCurve curve)
     {
-        var customCurve = animationNode.AddNode<CurveNode>();
-        var isVisibility = curveName == VisibilityCurveName;
+        var frames = new int[curve.KeyFrameCount];
 
-        customCurve.Mode = CastTranslator.ConvertFromTransformType(TransformType.Absolute);
-        customCurve.NodeName = nodeName;
-        customCurve.KeyPropertyName = isVisibility ? "vb" : curveName;
+        for (var i = 0; i < frames.Length; i++)
+            frames[i] = ToFrame(curve.GetKeyTime(i));
 
-        var keyFrames = customCurve.AddArray<uint>("kb", curve.KeyFrameCount);
-
-        if (isVisibility)
-        {
-            var keyValues = customCurve.AddArray<byte>("kv", curve.KeyFrameCount);
-
-            for (int i = 0; i < curve.KeyFrameCount; i++)
-                keyValues.Add(curve.GetScalar(i) >= 1.0f ? (byte)1 : (byte)0);
-        }
-        else
-        {
-            var keyValues = customCurve.AddArray<float>("kv", curve.KeyFrameCount);
-
-            for (int i = 0; i < curve.KeyFrameCount; i++)
-                keyValues.Add(curve.GetScalar(i));
-        }
-
-        for (int i = 0; i < curve.KeyFrameCount; i++)
-            keyFrames.Add((uint)curve.GetKeyTime(i));
+        return CastArrayProperty.CreateIndices<int>(frames);
     }
+
+    private static int ToFrame(float time) => Math.Max(0, (int)MathF.Round(time));
 
     private static TransformType GetMode(SkeletonAnimation animation, AnimationCurve curve)
     {
@@ -285,28 +242,5 @@ internal static class CastAnimationTranslator
             return curve.TransformType;
 
         return animation.TransformType;
-    }
-
-    private static float SampleChannel(float[]? frames, float[]? values, float time, float fallback)
-    {
-        if (frames is null || values is null || frames.Length == 0)
-            return fallback;
-        if (frames.Length == 1)
-            return values[0];
-        if (time <= frames[0])
-            return values[0];
-        if (time >= frames[^1])
-            return values[^1];
-
-        for (int i = 1; i < frames.Length; i++)
-        {
-            if (time <= frames[i])
-            {
-                float t = (time - frames[i - 1]) / (frames[i] - frames[i - 1]);
-                return float.Lerp(values[i - 1], values[i], t);
-            }
-        }
-
-        return values[^1];
     }
 }

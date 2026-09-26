@@ -147,7 +147,7 @@ public static class MeshWelder
         mesh.UVLayers = mesh.UVLayers?.Gather(kept);
 
         if (mesh.Skin is { } skin)
-            mesh.Skin = new Skin(skin.Bones, skin.BoneIndices.Gather(kept), skin.BoneWeights.Gather(kept)) { Name = skin.Name, InverseBindMatrices = skin.InverseBindMatrices };
+            mesh.Skin = new Skin(skin.Bones, skin.BoneIndices.Gather(kept), skin.BoneWeights.Gather(kept)) { Name = skin.Name, SkinningMode = skin.SkinningMode, InverseBindMatrices = skin.InverseBindMatrices };
 
         if (mesh.Morph is { } morph)
         {
