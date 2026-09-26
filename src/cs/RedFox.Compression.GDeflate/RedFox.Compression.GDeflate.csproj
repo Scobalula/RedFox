@@ -21,4 +21,9 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\..\licenses\GDeflate-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+    <None Include="..\..\..\licenses\LibDeflate-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+  </ItemGroup>
+
 </Project>

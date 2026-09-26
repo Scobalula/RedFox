@@ -18,4 +18,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\..\licenses\ZStd-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+  </ItemGroup>
+
 </Project>

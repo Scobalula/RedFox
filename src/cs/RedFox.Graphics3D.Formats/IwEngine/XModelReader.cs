@@ -62,7 +62,7 @@ internal static class XModelReader
             bones[boneIndex].BindTransform.Scale = scale;
         }
 
-        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone($"{context.Name}_Skeleton"));
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
         for (int i = 0; i < bones.Length; i++)
         {
             if (bones[i] is null)
@@ -79,13 +79,13 @@ internal static class XModelReader
             }
         }
 
-        int vertexCount = tokens.MoveToEither("NUMVERTS", "NUMVERTS32").GetInt32();
+        int vertexCount = tokens.MoveTo("NUMVERTS", "NUMVERTS32").GetInt32();
         Vector3[] sourcePositions = new Vector3[vertexCount];
         List<(int BoneIndex, float Weight)>[] sourceWeights = new List<(int BoneIndex, float Weight)>[vertexCount];
         for (int i = 0; i < vertexCount; i++)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            int vertexIndex = tokens.ExpectEither("VERT", "VERT32").GetInt32();
+            int vertexIndex = tokens.Expect("VERT", "VERT32").GetInt32();
             ValidateIndex(vertexIndex, vertexCount, "vertex");
             sourcePositions[vertexIndex] = tokens.Expect("OFFSET").GetVector3();
             int influenceCount = tokens.Expect("BONES").GetInt32();
@@ -105,7 +105,7 @@ internal static class XModelReader
         for (int faceIndex = 0; faceIndex < faceCount; faceIndex++)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            if (tokens.ExpectEither("TRI", "TRI16") is not TokenDataTri triangle)
+            if (tokens.Expect("TRI", "TRI16") is not TokenDataTri triangle)
                 throw new InvalidDataException("Expected an XModel triangle.");
             (int ObjectIndex, int MaterialIndex) key = (triangle.ObjectIndex, triangle.MaterialIndex);
             if (!groups.TryGetValue(key, out var group))
@@ -116,14 +116,14 @@ internal static class XModelReader
 
             for (int corner = 0; corner < 3; corner++)
             {
-                int sourceVertexIndex = tokens.ExpectEither("VERT", "VERT32").GetInt32();
+                int sourceVertexIndex = tokens.Expect("VERT", "VERT32").GetInt32();
                 ValidateIndex(sourceVertexIndex, vertexCount, "face vertex");
                 group.Positions.Add(sourcePositions[sourceVertexIndex]);
                 group.Normals.Add(tokens.Expect("NORMAL").GetVector3());
                 group.Colors.Add(tokens.Expect("COLOR").GetVector4());
                 if (tokens.Expect("UV") is not TokenDataUVSet uv)
                     throw new InvalidDataException("Expected an XModel UV set.");
-                group.UVs.Add([.. uv.UVs]);
+                group.UVs.Add(uv.UVs);
                 group.Weights.Add(sourceWeights[sourceVertexIndex] ?? []);
             }
         }
@@ -145,7 +145,7 @@ internal static class XModelReader
         {
             if (tokens.Expect("MATERIAL") is not TokenDataUIntStringX3 definition)
                 throw new InvalidDataException("Expected an XModel material definition.");
-            int materialIndex = definition.IntegerValue;
+            int materialIndex = checked((int)definition.IntegerValue);
             ValidateIndex(materialIndex, materialCount, "material");
             Material material = new(definition.StringValue1);
             string textureName = definition.StringValue3;

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RedFox;
+namespace RedFox.Patterns;
 
 /// <summary>
 /// A class to provide methods for interacting with a byte <see cref="Pattern{T}"/>.

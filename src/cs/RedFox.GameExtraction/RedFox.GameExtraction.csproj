@@ -22,7 +22,6 @@
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
-    <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Formats\RedFox.Graphics3D.Formats.csproj" />
     <ProjectReference Include="..\RedFox.Imaging.Formats\RedFox.Imaging.Formats.csproj" />
   </ItemGroup>

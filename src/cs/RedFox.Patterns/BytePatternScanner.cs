@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
-namespace RedFox;
+namespace RedFox.Patterns;
 
 /// <summary>
 /// Provides high-performance byte-pattern scanning over chunked data sources.

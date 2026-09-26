@@ -2,6 +2,7 @@
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="" Visible="false" />
     <None Include="$(MSBuildThisFileDirectory)RuntimeFiles.targets" Pack="true" PackagePath="buildTransitive/$(PackageId).targets" Visible="false" />
   </ItemGroup>
 

@@ -1,4 +1,4 @@
-namespace RedFox;
+namespace RedFox.Patterns;
 
 internal readonly ref struct BytePatternScanWindow(ReadOnlySpan<byte> bytes, long baseOffset)
 {

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <PackageDescription>Core RedFox utilities including byte pattern scanning and string readers.</PackageDescription>
+    <PackageDescription>Byte pattern parsing and fast pattern scanning for RedFox.</PackageDescription>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>

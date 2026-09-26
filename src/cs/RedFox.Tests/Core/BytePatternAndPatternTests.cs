@@ -6,7 +6,8 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using RedFox;
+using RedFox;
+using RedFox.Patterns;
 
 namespace RedFox.Tests.Core;
 

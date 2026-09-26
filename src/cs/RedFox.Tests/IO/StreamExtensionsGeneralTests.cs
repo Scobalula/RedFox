@@ -7,7 +7,8 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 using RedFox;
-using RedFox.IO;
+using RedFox.IO;
+using RedFox.Patterns;
 
 namespace RedFox.Tests.IO;
 

@@ -74,24 +74,24 @@ internal static class XModelWriter
         using XAssetWriter output = new(stream, binary);
         TokenWriter writer = output.Writer;
 
-        writer.WriteSection("MODEL", 0x46C8);
-        writer.WriteUShort("VERSION", 0x24D1, 6);
-        writer.WriteUShort("NUMBONES", 0x76BA, checked((ushort)Math.Max(bones.Length, 1)));
+        writer.WriteSection("MODEL");
+        writer.WriteUShort("VERSION", 6);
+        writer.WriteUShort("NUMBONES", checked((ushort)Math.Max(bones.Length, 1)));
 
         if (bones.Length == 0)
-            writer.WriteBoneInfo("BONE", 0xF099, 0, -1, "tag_origin");
+            writer.WriteBoneInfo("BONE", 0, -1, "tag_origin");
         else
             for (int i = 0; i < bones.Length; i++)
-                writer.WriteBoneInfo("BONE", 0xF099, i, FindParentIndex(bones[i], boneIndices), bones[i].Name);
+                writer.WriteBoneInfo("BONE", i, FindParentIndex(bones[i], boneIndices), bones[i].Name);
 
         if (bones.Length == 0)
         {
-            writer.WriteUShort("BONE", 0xDD9A, 0);
-            writer.WriteVector3("OFFSET", 0x9383, Vector3.Zero);
-            writer.WriteVector3("SCALE", 0x1C56, Vector3.One);
-            writer.WriteVector316Bit("X", 0xDCFD, Vector3.UnitX);
-            writer.WriteVector316Bit("Y", 0xCCDC, Vector3.UnitY);
-            writer.WriteVector316Bit("Z", 0xFCBF, Vector3.UnitZ);
+            writer.WriteUShort("BONE", 0);
+            writer.WriteVector3("OFFSET", Vector3.Zero);
+            writer.WriteVector3("SCALE", Vector3.One);
+            writer.WriteVector316Bit("X", Vector3.UnitX);
+            writer.WriteVector316Bit("Y", Vector3.UnitY);
+            writer.WriteVector316Bit("Z", Vector3.UnitZ);
         }
 
         for (int i = 0; i < bones.Length; i++)
@@ -101,20 +101,20 @@ internal static class XModelWriter
             Matrix4x4 rotation = Matrix4x4.CreateFromQuaternion(bones[i].GetActiveWorldRotation());
             Vector3 scale = bones[i].BindTransform.Scale ?? Vector3.One;
 
-            writer.WriteUShort("BONE", 0xDD9A, checked((ushort)i));
-            writer.WriteVector3("OFFSET", 0x9383, bones[i].GetActiveWorldPosition());
-            writer.WriteVector3("SCALE", 0x1C56, scale);
-            writer.WriteVector316Bit("X", 0xDCFD, new Vector3(rotation.M11, rotation.M12, rotation.M13));
-            writer.WriteVector316Bit("Y", 0xCCDC, new Vector3(rotation.M21, rotation.M22, rotation.M23));
-            writer.WriteVector316Bit("Z", 0xFCBF, new Vector3(rotation.M31, rotation.M32, rotation.M33));
+            writer.WriteUShort("BONE", checked((ushort)i));
+            writer.WriteVector3("OFFSET", bones[i].GetActiveWorldPosition());
+            writer.WriteVector3("SCALE", scale);
+            writer.WriteVector316Bit("X", new Vector3(rotation.M11, rotation.M12, rotation.M13));
+            writer.WriteVector316Bit("Y", new Vector3(rotation.M21, rotation.M22, rotation.M23));
+            writer.WriteVector316Bit("Z", new Vector3(rotation.M31, rotation.M32, rotation.M33));
         }
 
         bool wideVertices = vertexCount > ushort.MaxValue;
 
         if (wideVertices)
-            writer.WriteUInt("NUMVERTS32", 0x2AEC, checked((uint)vertexCount));
+            writer.WriteUInt("NUMVERTS32", checked((uint)vertexCount));
         else
-            writer.WriteUShort("NUMVERTS", 0x950D, checked((ushort)vertexCount));
+            writer.WriteUShort("NUMVERTS", checked((ushort)vertexCount));
 
         foreach ((Mesh mesh, int baseVertex) in meshVertices)
         {
@@ -125,73 +125,72 @@ internal static class XModelWriter
                 cancellationToken?.ThrowIfCancellationRequested();
 
                 WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
-                writer.WriteVector3("OFFSET", 0x9383, mesh.GetVertexPosition(vertexIndex, context.Options.WriteRawVertices));
+                writer.WriteVector3("OFFSET", mesh.GetVertexPosition(vertexIndex, context.Options.WriteRawVertices));
                 List<(int BoneIndex, float Weight)> weights = GetVertexWeights(mesh, skinBoneIndices, vertexIndex);
-                writer.WriteUShort("BONES", 0xEA46, checked((ushort)weights.Count));
+                writer.WriteUShort("BONES", checked((ushort)weights.Count));
 
                 foreach ((int boneIndex, float weight) in weights)
-                    writer.WriteBoneWeight("BONE", 0xF1AB, boneIndex, weight);
+                    writer.WriteBoneWeight("BONE", boneIndex, weight);
             }
         }
 
-        writer.WriteUInt("NUMFACES", 0xBE92, checked((uint)faceCount));
+        writer.WriteUInt("NUMFACES", checked((uint)faceCount));
         for (int objectIndex = 0; objectIndex < meshVertices.Count; objectIndex++)
         {
             (Mesh mesh, int baseVertex) = meshVertices[objectIndex];
             int materialIndex = mesh.Materials is { Count: > 0 } && materialIndices.TryGetValue(mesh.Materials[0], out int mappedMaterialIndex) ? mappedMaterialIndex : 0;
+            Vector2[] uvValues = new Vector2[Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1)];
             for (int faceIndex = 0; faceIndex < mesh.FaceIndices!.ElementCount; faceIndex += 3)
             {
                 if (objectIndex <= byte.MaxValue && materialIndex <= byte.MaxValue)
-                    writer.WriteTri("TRI", 0x562F, objectIndex, materialIndex);
+                    writer.WriteTri("TRI", objectIndex, materialIndex);
                 else
-                    writer.WriteTri16("TRI16", 0x6711, objectIndex, materialIndex);
+                    writer.WriteTri16("TRI16", objectIndex, materialIndex);
                 for (int corner = 0; corner < 3; corner++)
                 {
                     int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex + ClockwiseCorners[corner], 0, 0);
                     if ((uint)vertexIndex >= (uint)mesh.Positions!.ElementCount)
                         throw new InvalidDataException($"Mesh '{mesh.Name}' face index {vertexIndex} is outside its vertex range.");
                     WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
-                    writer.WriteVector316Bit("NORMAL", 0x89EC, mesh.Normals is null ? Vector3.UnitZ : mesh.GetVertexNormal(vertexIndex, context.Options.WriteRawVertices));
-                    writer.WriteVector48Bit("COLOR", 0x6DD8, mesh.ColorLayers is null ? Vector4.One : mesh.ColorLayers.GetVector4(vertexIndex, 0));
-                    int uvLayerCount = mesh.UVLayers?.ValueCount ?? 0;
-                    List<Vector2> uvValues = new(Math.Max(uvLayerCount, 1));
-                    for (int layer = 0; layer < Math.Max(uvLayerCount, 1); layer++)
-                        uvValues.Add(mesh.UVLayers is null ? Vector2.Zero : mesh.UVLayers.GetVector2(vertexIndex, layer));
-                    writer.WriteUVSet("UV", 0x1AD4, uvLayerCount, uvValues);
+                    writer.WriteVector316Bit("NORMAL", mesh.Normals is null ? Vector3.UnitZ : mesh.GetVertexNormal(vertexIndex, context.Options.WriteRawVertices));
+                    writer.WriteVector48Bit("COLOR", mesh.ColorLayers is null ? Vector4.One : mesh.ColorLayers.GetVector4(vertexIndex, 0));
+                    for (int layer = 0; layer < uvValues.Length; layer++)
+                        uvValues[layer] = mesh.UVLayers is null ? Vector2.Zero : mesh.UVLayers.GetVector2(vertexIndex, layer);
+                    writer.WriteUVSet("UV", uvValues);
                 }
             }
         }
 
-        writer.WriteUShort("NUMOBJECTS", 0x62AF, checked((ushort)meshes.Length));
+        writer.WriteUShort("NUMOBJECTS", checked((ushort)meshes.Length));
         for (int i = 0; i < meshes.Length; i++)
-            writer.WriteUShortString("OBJECT", 0x87D4, checked((ushort)i), meshes[i].Name);
+            writer.WriteUShortString("OBJECT", checked((ushort)i), meshes[i].Name);
 
-        writer.WriteUShort("NUMMATERIALS", 0xA1B2, checked((ushort)materialList.Count));
+        writer.WriteUShort("NUMMATERIALS", checked((ushort)materialList.Count));
         for (int i = 0; i < materialList.Count; i++)
         {
             Material material = materialList[i];
-            writer.WriteUShortStringX3("MATERIAL", 0xA700, checked((ushort)i), material.Name, "Lambert", GetDiffuseTextureName(material));
-            writer.WriteVector48Bit("COLOR", 0x6DD8, material.DiffuseColor ?? Vector4.One);
-            writer.WriteVector4("TRANSPARENCY", 0x6DAB, Vector4.Zero);
-            writer.WriteVector4("AMBIENTCOLOR", 0x37FF, Vector4.Zero);
-            writer.WriteVector4("INCANDESCENCE", 0x4265, material.EmissiveColor ?? Vector4.Zero);
-            writer.WriteVector2("COEFFS", 0xC835, new Vector2(0.8f, 0f));
-            writer.WriteVector2("GLOW", 0xFE0C, Vector2.Zero);
-            writer.WriteVector2("REFRACTIVE", 0x7E24, new Vector2(6f, 1f));
-            writer.WriteVector4("SPECULARCOLOR", 0x317C, material.SpecularColor ?? Vector4.Zero);
-            writer.WriteVector4("REFLECTIVECOLOR", 0xE593, Vector4.Zero);
-            writer.WriteVector2("REFLECTIVE", 0x7D76, Vector2.Zero);
-            writer.WriteVector2("BLINN", 0x83C7, Vector2.Zero);
-            writer.WriteFloat("PHONG", 0x5CD2, material.Shininess ?? 0f);
+            writer.WriteUShortStringX3("MATERIAL", checked((ushort)i), material.Name, "Lambert", GetDiffuseTextureName(material));
+            writer.WriteVector48Bit("COLOR", material.DiffuseColor ?? Vector4.One);
+            writer.WriteVector4("TRANSPARENCY", Vector4.Zero);
+            writer.WriteVector4("AMBIENTCOLOR", Vector4.Zero);
+            writer.WriteVector4("INCANDESCENCE", material.EmissiveColor ?? Vector4.Zero);
+            writer.WriteVector2("COEFFS", new Vector2(0.8f, 0f));
+            writer.WriteVector2("GLOW", Vector2.Zero);
+            writer.WriteVector2("REFRACTIVE", new Vector2(6f, 1f));
+            writer.WriteVector4("SPECULARCOLOR", material.SpecularColor ?? Vector4.Zero);
+            writer.WriteVector4("REFLECTIVECOLOR", Vector4.Zero);
+            writer.WriteVector2("REFLECTIVE", Vector2.Zero);
+            writer.WriteVector2("BLINN", Vector2.Zero);
+            writer.WriteFloat("PHONG", material.Shininess ?? 0f);
         }
     }
 
     private static void WriteVertexIndex(TokenWriter writer, bool wide, int index)
     {
         if (wide)
-            writer.WriteUInt("VERT32", 0xB097, checked((uint)index));
+            writer.WriteUInt("VERT32", checked((uint)index));
         else
-            writer.WriteUShort("VERT", 0x8F03, checked((ushort)index));
+            writer.WriteUShort("VERT", checked((ushort)index));
     }
 
     private static int FindParentIndex(SkeletonBone bone, IReadOnlyDictionary<SkeletonBone, int> boneIndices)

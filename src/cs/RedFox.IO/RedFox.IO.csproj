@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RedFox\RedFox.csproj" />
+    <ProjectReference Include="..\RedFox.Patterns\RedFox.Patterns.csproj" />
   </ItemGroup>
 
 </Project>

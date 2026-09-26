@@ -8,7 +8,8 @@
 // --------------------------------------------------------------------------------------
 using System.Diagnostics;
 using RedFox;
-using RedFox.IO.ProcessMemory;
+using RedFox.IO.ProcessMemory;
+using RedFox.Patterns;
 
 namespace RedFox.Tests.ProcessMemory;
 

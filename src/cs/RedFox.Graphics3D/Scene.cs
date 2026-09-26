@@ -140,22 +140,20 @@ namespace RedFox.Graphics3D
         {
             AnimationPlayers.Clear();
 
-            // Find all bone root nodes (SkeletonBone with no SkeletonBone parent).
-            List<SkeletonBone> boneRoots = [];
+            // Find all skeleton roots.
+            List<SceneNode> boneRoots = [.. EnumerateDescendants<Skeleton>()];
             foreach (SkeletonBone bone in EnumerateDescendants<SkeletonBone>())
             {
-                if (bone.Parent is SkeletonBone)
+                if (bone.Parent is not SkeletonBone and not Skeleton)
                 {
-                    continue;
+                    boneRoots.Add(bone);
                 }
-
-                boneRoots.Add(bone);
             }
 
             int playerIndex = 0;
             foreach (SkeletonAnimation animation in EnumerateDescendants<SkeletonAnimation>())
             {
-                SkeletonBone? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots);
+                SceneNode? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots);
                 if (boneRoot is null)
                 {
                     continue;
@@ -219,7 +217,7 @@ namespace RedFox.Graphics3D
             return AnimationPlayers;
         }
 
-        private static SkeletonBone? ResolveSkeletonBoneRoot(SkeletonAnimation animation, IReadOnlyList<SkeletonBone> boneRoots)
+        private static SceneNode? ResolveSkeletonBoneRoot(SkeletonAnimation animation, IReadOnlyList<SceneNode> boneRoots)
         {
             if (boneRoots.Count == 0)
             {
@@ -231,10 +229,10 @@ namespace RedFox.Graphics3D
                 return boneRoots[0];
             }
 
-            SkeletonBone? bestRoot = null;
+            SceneNode? bestRoot = null;
             int bestMatchCount = 0;
 
-            foreach (SkeletonBone root in boneRoots)
+            foreach (SceneNode root in boneRoots)
             {
                 int matchCount = 0;
                 foreach (SkeletonAnimationTrack track in animation.Tracks)

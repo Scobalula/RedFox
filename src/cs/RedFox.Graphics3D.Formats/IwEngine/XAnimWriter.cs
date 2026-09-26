@@ -29,18 +29,18 @@ internal static class XAnimWriter
         bool binary = string.Equals(Path.GetExtension(context.TargetFilePath), ".xanim_bin", StringComparison.OrdinalIgnoreCase);
         using XAssetWriter output = new(stream, binary);
         TokenWriter writer = output.Writer;
-        writer.WriteSection("ANIMATION", 0x7AAC);
-        writer.WriteUShort("VERSION", 0x24D1, 3);
-        writer.WriteUShort("NUMPARTS", 0x9279, checked((ushort)animation.Tracks.Count));
+        writer.WriteSection("ANIMATION");
+        writer.WriteUShort("VERSION", 3);
+        writer.WriteUShort("NUMPARTS", checked((ushort)animation.Tracks.Count));
         for (int i = 0; i < animation.Tracks.Count; i++)
-            writer.WriteUShortString("PART", 0x360B, checked((ushort)i), animation.Tracks[i].Name);
-        writer.WriteUShort("FRAMERATE", 0x92D3, checked((ushort)Math.Clamp((int)MathF.Round(animation.Framerate), 0, ushort.MaxValue)));
-        writer.WriteUInt("NUMFRAMES", 0xB917, checked((uint)frames.Count));
+            writer.WriteUShortString("PART", checked((ushort)i), animation.Tracks[i].Name);
+        writer.WriteUShort("FRAMERATE", checked((ushort)Math.Clamp((int)MathF.Round(animation.Framerate), 0, ushort.MaxValue)));
+        writer.WriteUInt("NUMFRAMES", checked((uint)frames.Count));
 
         foreach (int frame in frames)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            writer.WriteUInt("FRAME", 0xC723, checked((uint)frame));
+            writer.WriteInt("FRAME", frame);
             for (int partIndex = 0; partIndex < animation.Tracks.Count; partIndex++)
             {
                 SkeletonAnimationTrack track = animation.Tracks[partIndex];
@@ -48,31 +48,31 @@ internal static class XAnimWriter
                 Vector3 scale = track.ScaleCurve?.SampleVector3(frame) ?? Vector3.One;
                 Quaternion rotation = track.RotationCurve?.SampleQuaternion(frame) ?? Quaternion.Identity;
                 Matrix4x4 matrix = Matrix4x4.CreateFromQuaternion(rotation);
-                writer.WriteUShort("PART", 0x745A, checked((ushort)partIndex));
-                writer.WriteVector3("OFFSET", 0x9383, translation);
-                writer.WriteVector3("SCALE", 0x1C56, scale);
-                writer.WriteVector316Bit("X", 0xDCFD, new Vector3(matrix.M11, matrix.M12, matrix.M13));
-                writer.WriteVector316Bit("Y", 0xCCDC, new Vector3(matrix.M21, matrix.M22, matrix.M23));
-                writer.WriteVector316Bit("Z", 0xFCBF, new Vector3(matrix.M31, matrix.M32, matrix.M33));
+                writer.WriteUShort("PART", checked((ushort)partIndex));
+                writer.WriteVector3("OFFSET", translation);
+                writer.WriteVector3("SCALE", scale);
+                writer.WriteVector316Bit("X", new Vector3(matrix.M11, matrix.M12, matrix.M13));
+                writer.WriteVector316Bit("Y", new Vector3(matrix.M21, matrix.M22, matrix.M23));
+                writer.WriteVector316Bit("Z", new Vector3(matrix.M31, matrix.M32, matrix.M33));
             }
         }
 
-        writer.WriteSection("NOTETRACKS", 0xC7F3);
+        writer.WriteSection("NOTETRACKS");
         int actionKeyCount = animation.GetAnimationActionCount();
         for (int partIndex = 0; partIndex < animation.Tracks.Count; partIndex++)
         {
-            writer.WriteUShort("PART", 0x745A, checked((ushort)partIndex));
-            writer.WriteUShort("NUMTRACKS", 0x9016, checked((ushort)(partIndex == 0 && actionKeyCount > 0 ? 1 : 0)));
+            writer.WriteUShort("PART", checked((ushort)partIndex));
+            writer.WriteUShort("NUMTRACKS", checked((ushort)(partIndex == 0 && actionKeyCount > 0 ? 1 : 0)));
             if (partIndex != 0 || actionKeyCount == 0)
                 continue;
-            writer.WriteUShort("NOTETRACK", 0x4643, 0);
-            writer.WriteUShort("NUMKEYS", 0x7A6C, checked((ushort)actionKeyCount));
+            writer.WriteUShort("NOTETRACK", 0);
+            writer.WriteUShort("NUMKEYS", checked((ushort)actionKeyCount));
             if (animation.Actions is null)
                 continue;
             foreach (AnimationAction action in animation.Actions)
             {
                 foreach (AnimationKeyFrame<float, Action<Scene>?> keyFrame in action.KeyFrames)
-                    writer.WriteIntString("FRAME", 0x1675, (int)MathF.Round(keyFrame.Frame), action.Name);
+                    writer.WriteIntString("FRAME", checked((uint)MathF.Round(keyFrame.Frame)), action.Name);
             }
         }
     }

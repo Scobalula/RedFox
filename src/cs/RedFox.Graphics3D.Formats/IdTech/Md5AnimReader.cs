@@ -146,7 +146,7 @@ public sealed class Md5AnimReader
             }
         }
 
-            var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{_name}_Skeleton"));
+            var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         for (int i = 0; i < hierarchy.Length; i++)
         {
             int parentIdx = hierarchy[i].ParentIndex;

@@ -10,7 +10,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using RedFox;
+using RedFox.Patterns;
 using RedFox.IO.ProcessMemory.Internal;
 
 namespace RedFox.IO.ProcessMemory

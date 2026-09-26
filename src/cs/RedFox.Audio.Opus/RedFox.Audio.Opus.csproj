@@ -12,4 +12,11 @@
     <ProjectReference Include="..\RedFox.Audio\RedFox.Audio.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\..\licenses\Opus-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+    <None Update="Native\opus.dll" Pack="true" PackagePath="runtimeFiles">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

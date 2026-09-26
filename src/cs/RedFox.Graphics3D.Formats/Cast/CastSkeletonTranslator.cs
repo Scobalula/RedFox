@@ -7,6 +7,7 @@ internal static class CastSkeletonTranslator
 {
     public static SkeletonBone[] Read(SceneNode parent, SkeletonNode skeletonNode, string name)
     {
+        var skeleton = parent.AddNode(new Skeleton(name));
         var boneNodes = skeletonNode.Bones;
         var bones = Array.ConvertAll(boneNodes, boneNode => new SkeletonBone(boneNode.Name));
 
@@ -15,7 +16,7 @@ internal static class CastSkeletonTranslator
             var parentIndex = boneNodes[i].ParentIndex;
             var transform = bones[i].BindTransform;
 
-            bones[i].MoveTo((uint)parentIndex < (uint)bones.Length ? bones[parentIndex] : parent, ReparentTransformMode.PreserveExisting);
+            bones[i].MoveTo((uint)parentIndex < (uint)bones.Length ? bones[parentIndex] : skeleton,ReparentTransformMode.PreserveExisting);
 
             transform.LocalPosition = boneNodes[i].LocalPosition;
             transform.LocalRotation = boneNodes[i].LocalRotation;

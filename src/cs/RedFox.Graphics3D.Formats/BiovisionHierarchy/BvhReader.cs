@@ -73,7 +73,7 @@ public sealed class BvhReader
         string rootJointName = ReadRequiredToken(ref tokenReader, "root joint name");
         ValidateNodeName(rootJointName, "root joint");
 
-        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone($"{Name}_Skeleton"));
+        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton($"{Name}_Skeleton"));
         HashSet<string> jointNames = new(StringComparer.OrdinalIgnoreCase);
         List<SkeletonBone> joints = [];
         List<BvhChannelType[]> channelsByJoint = [];

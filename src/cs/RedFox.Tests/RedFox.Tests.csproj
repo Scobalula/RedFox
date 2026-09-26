@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -26,7 +27,7 @@
     <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.OpenGL\RedFox.Graphics3D.OpenGL.csproj" />
-    <ProjectReference Include="..\RedFox\RedFox.csproj" />
+    <ProjectReference Include="..\RedFox.Patterns\RedFox.Patterns.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Formats\RedFox.Graphics3D.Formats.csproj" />

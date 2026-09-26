@@ -129,7 +129,7 @@ public sealed class Md5MeshReader
             }
         }
 
-            var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{_name}_Skeleton"));
+            var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         for (int i = 0; i < joints.Length; i++)
         {
             int parentIdx = joints[i].ParentIndex;

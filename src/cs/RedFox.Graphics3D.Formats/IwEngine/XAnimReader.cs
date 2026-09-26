@@ -36,17 +36,17 @@ internal static class XAnimReader
 
         animation.Framerate = tokens.MoveTo("FRAMERATE").GetSingle();
         tokens.MoveTo("NUMFRAMES");
-        while (tokens.Peek() is { } token && token.Token.Name != "NOTETRACKS")
+        while (tokens.Peek() is { } token)
         {
             cancellationToken?.ThrowIfCancellationRequested();
-            if (token.Token.Name != "FRAME" || token is not TokenDataUInt frameToken)
-            {
-                tokens.Read();
+            tokens.Read();
+
+            if (token is TokenDataUIntString note && note.Token.Name == "FRAME")
+                animation.CreateAction(note.StringValue).KeyFrames.Add(new(note.IntegerValue, null));
+            if (token is not TokenDataInt frameToken || frameToken.Token.Name != "FRAME")
                 continue;
-            }
 
             float frame = frameToken.Value;
-            tokens.Read();
             while (tokens.Peek() is { } partToken && partToken.Token.Name is not "FRAME" and not "NOTETRACKS")
             {
                 if (partToken.Token.Name != "PART" || partToken is not TokenDataUInt part)
@@ -90,15 +90,6 @@ internal static class XAnimReader
                 if (scale.HasValue)
                     track.AddScaleFrame(frame, scale.Value);
             }
-        }
-
-        if (tokens.Peek()?.Token.Name == "NOTETRACKS")
-            tokens.Read();
-        while (tokens.Peek() is { })
-        {
-            TokenData note = tokens.Read();
-            if (note.Token.Name == "FRAME" && note is TokenDataUIntString frame)
-                animation.CreateAction(frame.StringValue).KeyFrames.Add(new(frame.IntegerValue, null));
         }
 
         scene.RootNode.AddNode(animation);

@@ -1,0 +1,56 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Audio/">
+    <Project Path="RedFox.Audio.ADPCM/RedFox.Audio.ADPCM.csproj" />
+    <Project Path="RedFox.Audio.Flac/RedFox.Audio.Flac.csproj" />
+    <Project Path="RedFox.Audio.Opus/RedFox.Audio.Opus.csproj" />
+    <Project Path="RedFox.Audio/RedFox.Audio.csproj" />
+  </Folder>
+  <Folder Name="/Compression/">
+    <Project Path="RedFox.Compression.Deflate/RedFox.Compression.Deflate.csproj" />
+    <Project Path="RedFox.Compression.FastLZ/RedFox.Compression.FastLZ.csproj" />
+    <Project Path="RedFox.Compression.GDeflate/RedFox.Compression.GDeflate.csproj" />
+    <Project Path="RedFox.Compression.LZ4/RedFox.Compression.LZ4.csproj" />
+    <Project Path="RedFox.Compression.LZO/RedFox.Compression.LZO.csproj" />
+    <Project Path="RedFox.Compression.Oodle/RedFox.Compression.Oodle.csproj" />
+    <Project Path="RedFox.Compression.ZStandard/RedFox.Compression.ZStandard.csproj" />
+    <Project Path="RedFox.Compression/RedFox.Compression.csproj" />
+  </Folder>
+  <Folder Name="/GameExtraction/">
+    <Project Path="RedFox.GameExtraction.HashBuilder/RedFox.GameExtraction.HashBuilder.csproj" />
+    <Project Path="RedFox.GameExtraction.Hashing/RedFox.GameExtraction.Hashing.csproj" />
+    <Project Path="RedFox.GameExtraction.Template.Avalonia/RedFox.GameExtraction.Template.Avalonia.csproj" />
+    <Project Path="RedFox.GameExtraction.Template.Cli/RedFox.GameExtraction.Template.Cli.csproj" />
+    <Project Path="RedFox.GameExtraction.Template/RedFox.GameExtraction.Template.csproj" />
+    <Project Path="RedFox.GameExtraction.Tests/RedFox.GameExtraction.Tests.csproj" />
+    <Project Path="RedFox.GameExtraction.UI/RedFox.GameExtraction.UI.csproj" />
+    <Project Path="RedFox.GameExtraction/RedFox.GameExtraction.csproj" />
+  </Folder>
+  <Folder Name="/Graphics3D/">
+    <Project Path="RedFox.Graphics3D.Avalonia/RedFox.Graphics3D.Avalonia.csproj" />
+    <Project Path="RedFox.Graphics3D.D3D11/RedFox.Graphics3D.D3D11.csproj" />
+    <Project Path="RedFox.Graphics3D.Formats/RedFox.Graphics3D.Formats.csproj" />
+    <Project Path="RedFox.Graphics3D.OpenGL/RedFox.Graphics3D.OpenGL.csproj" />
+    <Project Path="RedFox.Graphics3D.Rendering/RedFox.Graphics3D.Rendering.csproj" />
+    <Project Path="RedFox.Graphics3D.Silk/RedFox.Graphics3D.Silk.csproj" />
+    <Project Path="RedFox.Graphics3D/RedFox.Graphics3D.csproj" />
+  </Folder>
+  <Folder Name="/Imaging/">
+    <Project Path="RedFox.Imaging.Formats/RedFox.Imaging.Formats.csproj" />
+    <Project Path="RedFox.Imaging.Vulkan/RedFox.Imaging.Vulkan.csproj" />
+    <Project Path="RedFox.Imaging/RedFox.Imaging.csproj" />
+  </Folder>
+  <Project Path="RedFox.Avalonia.Themes/RedFox.Avalonia.Themes.csproj" />
+  <Project Path="RedFox.Cryptography.MurMur3/RedFox.Cryptography.MurMur3.csproj" />
+  <Project Path="RedFox.IO.ProcessMemory/RedFox.IO.ProcessMemory.csproj" />
+  <Project Path="RedFox.IO/RedFox.IO.csproj" />
+  <Project Path="RedFox.Patterns/RedFox.Patterns.csproj" />
+  <Project Path="RedFox.Plugins.Python/RedFox.Plugins.Python.csproj" />
+  <Project Path="RedFox.Plugins/RedFox.Plugins.csproj" />
+  <Project Path="RedFox.Samples/RedFox.Samples.csproj" />
+  <Project Path="RedFox.Tests/RedFox.Tests.csproj" />
+</Solution>

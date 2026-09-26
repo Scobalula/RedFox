@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace RedFox;
+namespace RedFox.IO;
 
 /// <summary>
 /// Provides helpers for reading null-terminated byte and string data from chunked sources.

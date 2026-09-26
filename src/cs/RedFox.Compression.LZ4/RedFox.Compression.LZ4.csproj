@@ -18,4 +18,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\..\..\licenses\LZ4-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+  </ItemGroup>
+
 </Project>

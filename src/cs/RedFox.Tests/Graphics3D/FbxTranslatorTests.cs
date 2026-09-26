@@ -667,7 +667,7 @@ public sealed class FbxTranslatorTests
 
         Scene scene = FbxSceneMapper.ImportScene(document, "constraint-owner-test");
         ParentConstraintNode constraint = Assert.Single(scene.GetDescendants<ParentConstraintNode>());
-        SkeletonBone rigRoot = Assert.Single(scene.EnumerateChildren().OfType<SkeletonBone>(), static bone => bone.Name == "RigRoot");
+        Skeleton rigRoot = Assert.Single(scene.EnumerateChildren().OfType<Skeleton>(), static skeleton => skeleton.Name == "RigRoot");
 
         Assert.Same(rigRoot, constraint.Parent);
     }

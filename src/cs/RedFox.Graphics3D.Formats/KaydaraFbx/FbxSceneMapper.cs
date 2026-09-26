@@ -720,7 +720,7 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
         MeshGroup[] models = selection.GetDescendants<MeshGroup>();
-        Group[] groups = selection.GetDescendants<Group>();
+        SceneNode[] groups = [.. selection.GetDescendants<Group>(), .. selection.GetDescendants<Skeleton>()];
         Mesh[] meshes = selection.GetDescendants<Mesh>();
         Material[] materials = selection.GetDescendants<Material>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
@@ -750,7 +750,7 @@ public static class FbxSceneMapper
 
         for (int i = 0; i < groups.Length; i++)
         {
-            Group group = groups[i];
+            SceneNode group = groups[i];
             long id = nextId++;
             modelIds[group] = id;
             SceneNode? exportedParent = SceneNode.GetBestParent(group, exportedModelNodes);
@@ -1268,7 +1268,7 @@ public static class FbxSceneMapper
 
         if (allSkeletonChildren)
         {
-            return new SkeletonBone(group.Name);
+            return new Skeleton(group.Name);
         }
 
         if (allModelChildren)

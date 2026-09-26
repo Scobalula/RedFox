@@ -9,11 +9,10 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Graphics3D\RedFox.Graphics3D.csproj" />
-    <ProjectReference Include="..\RedFox\RedFox.csproj" />
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
-    <ProjectReference Include="..\..\..\..\CallOfFile\src\CallOfFile\CallOfFile.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CallOfFile" Version="2026.9.26.2" />
     <PackageReference Include="Cast.NET" Version="2026.9.26.1" />
   </ItemGroup>
 </Project>

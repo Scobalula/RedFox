@@ -1,12 +1,21 @@
 <Project>
 
   <PropertyGroup>
-    <Version>$([System.DateTime]::UtcNow.ToString("yyyy.M.d"))</Version>
+    <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <Version>$([System.DateTime]::UtcNow.ToString("yyyy.M.d")).$(BuildNumber)</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>Scobalula</Company>
     <Authors>Scobalula</Authors>
     <Copyright>Copyright © $([System.DateTime]::UtcNow.ToString("yyyy")) Scobalula</Copyright>
     <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Scobalula/RedFox</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Scobalula/RedFox</RepositoryUrl>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
   </PropertyGroup>
 
 </Project>

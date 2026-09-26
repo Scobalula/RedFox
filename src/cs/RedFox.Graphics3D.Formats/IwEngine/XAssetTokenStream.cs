@@ -4,19 +4,21 @@ namespace RedFox.Graphics3D.Formats.IwEngine;
 
 internal sealed class XAssetTokenStream : IDisposable
 {
-    private static readonly byte[] Magic = "*LZ4*"u8.ToArray();
     private readonly TokenReader reader;
+
     private TokenData? buffered;
 
     public XAssetTokenStream(Stream stream)
     {
         if (!stream.CanSeek)
             throw new ArgumentException("XAsset input streams must support seeking.", nameof(stream));
+
         long position = stream.Position;
-        Span<byte> magic = stackalloc byte[Magic.Length];
-        bool binary = stream.Read(magic) == Magic.Length && magic.SequenceEqual(Magic);
+        Span<byte> magic = stackalloc byte[5];
+        bool binary = stream.ReadAtLeast(magic, magic.Length, throwOnEndOfStream: false) == magic.Length && magic.SequenceEqual("*LZ4*"u8);
         stream.Position = position;
-        reader = binary ? new BinaryTokenReader(stream) : new ExportTokenReader(stream);
+
+        reader = binary ? new BinaryTokenReader(stream) : new ExportTokenReader(new StreamReader(stream, leaveOpen: true));
     }
 
     public TokenData? Peek()
@@ -27,49 +29,32 @@ internal sealed class XAssetTokenStream : IDisposable
 
     public TokenData Read()
     {
-        TokenData? result = Peek();
-        if (result is null)
-            throw new EndOfStreamException("Unexpected end of XAsset token stream.");
+        TokenData result = Peek() ?? throw new EndOfStreamException("Unexpected end of XAsset token stream.");
         buffered = null;
         return result;
     }
 
-    public TokenData Expect(string name)
+    public TokenData Expect(params ReadOnlySpan<string> names)
     {
         TokenData result = Read();
-        if (result.Token.Name != name)
-            throw new InvalidDataException($"Expected XAsset token '{name}', found '{result.Token.Name}'.");
+
+        if (!names.Contains(result.Token.Name))
+            throw new InvalidDataException($"Expected XAsset token '{string.Join("' or '", names)}', found '{result.Token.Name}'.");
+
         return result;
     }
 
-    public TokenData ExpectEither(string first, string second)
-    {
-        TokenData result = Read();
-        if (result.Token.Name != first && result.Token.Name != second)
-            throw new InvalidDataException($"Expected XAsset token '{first}' or '{second}', found '{result.Token.Name}'.");
-        return result;
-    }
-
-    public TokenData MoveTo(string name)
+    public TokenData MoveTo(params ReadOnlySpan<string> names)
     {
         while (Peek() is { } token)
         {
-            if (token.Token.Name == name)
-                return Read();
             Read();
-        }
-        throw new InvalidDataException($"The XAsset does not contain a '{name}' token.");
-    }
 
-    public TokenData MoveToEither(string first, string second)
-    {
-        while (Peek() is { } token)
-        {
-            if (token.Token.Name == first || token.Token.Name == second)
-                return Read();
-            Read();
+            if (names.Contains(token.Token.Name))
+                return token;
         }
-        throw new InvalidDataException($"The XAsset does not contain a '{first}' or '{second}' token.");
+
+        throw new InvalidDataException($"The XAsset does not contain a '{string.Join("' or '", names)}' token.");
     }
 
     public void Dispose() => reader.Dispose();
@@ -77,11 +62,13 @@ internal sealed class XAssetTokenStream : IDisposable
     private TokenData? ReadMeaningful()
     {
         TokenData? token;
+
         do
         {
-            token = reader.RequestNextToken();
+            token = reader.ReadToken();
         }
-        while (token?.Token.Name is ";" or "//");
+        while (token?.Token.DataType == TokenDataType.Comment);
+
         return token;
     }
 }

@@ -6,6 +6,8 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
+using RedFox.Patterns;
+
 namespace RedFox.Samples.Examples;
 
 /// <summary>

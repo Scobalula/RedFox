@@ -33,7 +33,7 @@ public sealed class XAssetTranslatorTests
             output.Position = 0;
             Scene roundTripped = manager.Read(output, $"roundtrip{extension}", new SceneTranslatorOptions());
             Assert.Equal(sourceMeshes.Sum(static mesh => mesh.FaceCount), roundTripped.GetDescendants<Mesh>().Sum(static mesh => mesh.FaceCount));
-            Assert.Equal(sourceBones.Length, roundTripped.GetDescendants<SkeletonBone>().Length - 1);
+            Assert.Equal(sourceBones.Length, roundTripped.GetDescendants<SkeletonBone>().Length);
         }
     }
 

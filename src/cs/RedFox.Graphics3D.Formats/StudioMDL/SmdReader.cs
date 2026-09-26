@@ -99,7 +99,7 @@ public sealed class SmdReader
         }
 
         // ---- Build skeleton hierarchy ----
-        var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{_name}_Skeleton"));
+        var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         foreach (var (idx, _, parentIdx) in boneInfos)
         {
             if (parentIdx < 0)

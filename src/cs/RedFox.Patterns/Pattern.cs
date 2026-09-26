@@ -7,7 +7,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RedFox;
+namespace RedFox.Patterns;
 
 /// <summary>
 /// Represents a Pattern with a Needle and a Mask for use in pattern matching and search/find methods

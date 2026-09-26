@@ -1,4 +1,4 @@
-namespace RedFox;
+namespace RedFox.Patterns;
 
 internal readonly struct BytePatternScanBounds(long start, long end)
 {

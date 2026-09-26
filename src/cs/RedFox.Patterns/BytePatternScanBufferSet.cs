@@ -1,6 +1,6 @@
 using System.Buffers;
 
-namespace RedFox;
+namespace RedFox.Patterns;
 
 internal sealed class BytePatternScanBufferSet : IDisposable
 {

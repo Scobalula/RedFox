@@ -100,7 +100,7 @@ public class SemodelTranslator : SceneTranslator
             bones[i] = bone;
         }
 
-        var skeleton = scene.RootNode.AddNode(new SkeletonBone($"{context.Name}_Skeleton"));
+        var skeleton = scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
 
         for (int i = 0; i < bones.Length; i++)
         {

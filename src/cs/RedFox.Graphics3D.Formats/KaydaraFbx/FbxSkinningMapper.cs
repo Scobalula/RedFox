@@ -382,6 +382,11 @@ public static class FbxSkinningMapper
         SceneNode? current = bone.Parent;
         while (current is not null)
         {
+            if (current is Skeleton skeleton)
+            {
+                return FbxSceneMapper.GetExportBindWorldMatrix(skeleton);
+            }
+
             if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
             {
                 return FbxSceneMapper.GetExportBindWorldMatrix(rootBone);

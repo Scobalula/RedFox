@@ -111,7 +111,7 @@ public sealed class BvhWriter
     {
         foreach (SceneNode node in selection.Scene.RootNode.EnumerateDescendants(selection.Filter))
         {
-            if (node is SkeletonBone or SkeletonAnimation)
+            if (node is Skeleton or SkeletonBone or SkeletonAnimation)
             {
                 continue;
             }

@@ -384,8 +384,7 @@ public sealed class GltfWriter
         // Skinning reference
         if (mesh.Skin is { Bones.Count: > 0 } skin)
         {
-            string? skeletonName = GetOwningSkeletonName(skin.Bones[0]);
-            if (skeletonName is not null && skinIndices.TryGetValue(skeletonName, out int skinIndex))
+            if (skinIndices.TryGetValue(GetOwningSkeletonName(skin.Bones[0]), out int skinIndex))
                 node.Skin = skinIndex;
             else
                 throw new InvalidDataException(
@@ -580,13 +579,11 @@ public sealed class GltfWriter
 
     private static IReadOnlyList<(string Name, SkeletonBone[] Bones)> GetSelectedSkeletons(SceneTranslationSelection selection)
     {
-        Dictionary<SkeletonBone, List<SkeletonBone>> bonesBySkeleton = [];
+        Dictionary<SceneNode, List<SkeletonBone>> bonesBySkeleton = [];
 
         foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
         {
-            SkeletonBone? skeleton = GetExactSkeletonParent(bone);
-            if (skeleton is null)
-                continue;
+            SceneNode skeleton = GetSkeletonRoot(bone);
 
             if (!bonesBySkeleton.TryGetValue(skeleton, out List<SkeletonBone>? bones))
             {
@@ -598,24 +595,29 @@ public sealed class GltfWriter
         }
 
         List<(string Name, SkeletonBone[] Bones)> result = [];
-        foreach ((SkeletonBone skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
-            result.Add((skeleton?.Name ?? "", [.. bones]));
+        foreach ((SceneNode skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
+            result.Add((skeleton.Name, [.. bones]));
 
         return result;
     }
 
-    private static SkeletonBone? GetExactSkeletonParent(SceneNode node)
+    private static SceneNode GetSkeletonRoot(SkeletonBone bone)
     {
-        for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
+        SceneNode root = bone;
+
+        for (SceneNode? current = bone.Parent; current is not null; current = current.Parent)
         {
-                if (current is SkeletonBone skeletonBone)
-                    return skeletonBone;
+            if (current is Skeleton)
+                return current;
+
+            if (current is SkeletonBone)
+                root = current;
         }
 
-        return null;
+        return root;
     }
 
-    private static string? GetOwningSkeletonName(SkeletonBone bone) => GetExactSkeletonParent(bone)?.Name;
+    private static string GetOwningSkeletonName(SkeletonBone bone) => GetSkeletonRoot(bone).Name;
 
     private int[] BuildExportJointIndexTable(Mesh mesh)
     {

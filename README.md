@@ -4,11 +4,24 @@ RedFox is my collection of utilities, libraries, and classes I share across all 
 
 RedFox is, at it's core, a personal project that is also used for experimenting and leanring. You'll likely find a lot of code in here with weird design choices, mixed quality, and wheels re-invented. A lot of the classes are publicly exposed due to its intended use case.
 
+## Installing
+
+Every library is published to NuGet as its own package, so you only install what you need, and dependencies between them are installed for you. For example:
+
+```
+dotnet add package RedFox.Compression.ZStandard
+dotnet add package RedFox.Graphics3D.Formats
+```
+
+All packages share one version per release, dated `yyyy.M.d.build`. Keep every RedFox package you use on the same version.
+
+Packages that wrap native libraries currently ship Windows x64 binaries only.
+
 ## Namespace Overview
 
-### RedFox
+### RedFox.Patterns
 
-Core utilities covering math, etc. or misc. code that does not fit into any particular project at the moment.
+Byte pattern parsing and fast pattern scanning over spans, streams, and process memory.
 
 ### RedFox.Compression
 
@@ -66,7 +79,12 @@ Please keep in mind some of these libraries aren't directly used in the project,
 | [miniz](https://github.com/richgel999/miniz) | ZLIB/Deflate compression (native) | MIT |
 | [LZ4](https://github.com/lz4/lz4) | Extremely fast compression (native, bundled via submodule) | BSD 2-Clause |
 | [libzstd](https://github.com/facebook/zstd) | ZStandard compression (native) | BSD 3-Clause |
-| [Cast.NET](https://github.com/Scobalula/Cast.NET) | Cast container format reader/writer (bundled via submodule) | MIT |
+| [libFLAC](https://github.com/xiph/flac) | FLAC audio codec (native) | BSD 3-Clause |
+| [Opus](https://github.com/xiph/opus) | Opus audio codec (native) | BSD 3-Clause |
+| [GDeflate](https://github.com/microsoft/DirectStorage) | GDeflate decompression (native, built on libdeflate) | MIT |
+| [libdeflate](https://github.com/ebiggers/libdeflate) | Deflate implementation underlying GDeflate | MIT |
+| [Cast.NET](https://github.com/Scobalula/Cast.NET) | Cast container format reader/writer | MIT |
+| [CallOfFile](https://github.com/Scobalula/CallOfFile) | Call of Duty export/bin format reader/writer | MIT |
 | [DirectXTex](https://github.com/Microsoft/DirectXTex) | Served as inspiration for Graphics2D | MIT |
 | [DirectXMath](https://github.com/Microsoft/DirectXMath) | Packed vector utilities ported into Graphics3D | MIT |
 | [DirectXMesh](https://github.com/Microsoft/DirectXMesh) | Mesh tools/optimizers ported into Graphics3D | MIT |

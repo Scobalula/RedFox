@@ -7,7 +7,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
-namespace RedFox;
+namespace RedFox.Patterns;
 
 internal readonly struct BytePatternPlan
 {
