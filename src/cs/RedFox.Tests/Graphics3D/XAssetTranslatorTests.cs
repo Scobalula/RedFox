@@ -71,9 +71,7 @@ public sealed class XAssetTranslatorTests
         Scene scene = manager.Read(path, new SceneTranslatorOptions());
         foreach (Mesh mesh in scene.GetDescendants<Mesh>())
         {
-            mesh.BoneIndices = null;
-            mesh.BoneWeights = null;
-            mesh.SkinnedBones = null;
+            mesh.Skin = null;
         }
         foreach (SkeletonBone bone in (scene.RootNode.Children ?? []).OfType<SkeletonBone>().ToArray())
             scene.RootNode.RemoveNode(bone);
@@ -86,10 +84,9 @@ public sealed class XAssetTranslatorTests
         Assert.Single(bones, static bone => bone.Name == "tag_origin");
         Assert.All(roundTripped.GetDescendants<Mesh>(), static mesh =>
         {
-            DataBuffer boneIndices = Assert.IsAssignableFrom<DataBuffer>(mesh.BoneIndices);
-            DataBuffer boneWeights = Assert.IsAssignableFrom<DataBuffer>(mesh.BoneWeights);
-            Assert.Equal(0, boneIndices.Get<int>(0, 0, 0));
-            Assert.Equal(1f, boneWeights.Get<float>(0, 0, 0));
+            Skin skin = Assert.IsType<Skin>(mesh.Skin);
+            Assert.Equal(0, skin.BoneIndices.Get<int>(0, 0, 0));
+            Assert.Equal(1f, skin.BoneWeights.Get<float>(0, 0, 0));
         });
     }
 
@@ -120,6 +117,33 @@ public sealed class XAssetTranslatorTests
             Assert.Equal(animation.Framerate, result.Framerate);
             Assert.Equal(animation.GetAnimationFrameRange(), result.GetAnimationFrameRange());
         }
+    }
+
+    [Fact]
+    public void XModelWrite_EmitsClockwiseTrianglesAndReadsBackCounterClockwise()
+    {
+        Scene scene = new("winding");
+        Mesh mesh = scene.RootNode.AddNode(new Mesh { Name = "Triangle" });
+        mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        mesh.Normals = new DataBuffer<float>([0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f], 1, 3);
+        mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+
+        SceneTranslatorManager manager = new();
+        manager.Register(new XModelTranslator());
+
+        using MemoryStream output = new();
+        manager.Write(output, "winding.xmodel_export", scene, new SceneTranslatorOptions());
+
+        string[] lines = System.Text.Encoding.UTF8.GetString(output.ToArray()).Split('\n', StringSplitOptions.TrimEntries);
+        string[] triangleVertices = [.. lines.SkipWhile(static line => !line.StartsWith("TRI ", StringComparison.Ordinal)).Where(static line => line.StartsWith("VERT ", StringComparison.Ordinal)).Take(3)];
+
+        Assert.Equal(["VERT 0", "VERT 2", "VERT 1"], triangleVertices);
+
+        output.Position = 0;
+        Mesh roundTripped = Assert.Single(manager.Read(output, "winding.xmodel_export", new SceneTranslatorOptions()).GetDescendants<Mesh>());
+
+        for (int corner = 0; corner < 3; corner++)
+            Assert.Equal(mesh.Positions.GetVector3(corner, 0), roundTripped.Positions!.GetVector3(roundTripped.FaceIndices!.Get<int>(corner, 0, 0), 0));
     }
 
     private static string GetReferencePath(string fileName)

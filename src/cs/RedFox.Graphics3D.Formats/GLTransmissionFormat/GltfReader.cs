@@ -264,11 +264,11 @@ public sealed class GltfReader
 
                 // Read morph targets
                 if (prim.Targets is { Count: > 0 })
-                    ReadMorphTargets(prim.Targets, mesh);
+                    ReadMorph(gltfMesh, prim.Targets, mesh);
 
                 // Set up skinning
                 if (skin is not null && skinIdx >= 0 && skinIdx < skeletons.Length)
-                    SetupSkinning(skin, skeletons[skinIdx], mesh);
+                    SetupSkinning(skin, prim, mesh);
             }
         }
 
@@ -313,9 +313,6 @@ public sealed class GltfReader
 
         // Color Layers
         ReadColorLayers(prim, mesh);
-
-        // Joint indices and weights (skinning)
-        ReadSkinInfluences(prim, mesh);
     }
 
     /// <summary>
@@ -402,8 +399,8 @@ public sealed class GltfReader
     /// multiple sets into single DataBuffers.
     /// </summary>
     /// <param name="prim">The glTF mesh primitive containing joint and weight accessor references.</param>
-    /// <param name="mesh">The target mesh to populate with skin influence data.</param>
-    public void ReadSkinInfluences(GltfMeshPrimitive prim, Mesh mesh)
+    /// <returns>The combined bone index and weight buffers, or <see langword="null"/> when the primitive has no skin influences.</returns>
+    public (DataBuffer BoneIndices, DataBuffer BoneWeights)? ReadSkinInfluences(GltfMeshPrimitive prim)
     {
         List<int[]> jointSets = [];
         List<float[]> weightSets = [];
@@ -420,7 +417,7 @@ public sealed class GltfReader
             weightSets.Add(_doc.ReadAccessorAsFloats(wAccessor));
         }
 
-        if (jointSets.Count == 0) return;
+        if (jointSets.Count == 0) return null;
 
         int vertexCount = jointSets[0].Length / 4;
         int influenceCount = jointSets.Count * 4;
@@ -438,7 +435,6 @@ public sealed class GltfReader
                 }
             }
         }
-        mesh.BoneIndices = new DataBuffer<int>(allJoints, influenceCount, 1);
 
         // Bone weights
         float[] allWeights = new float[vertexCount * influenceCount];
@@ -453,7 +449,7 @@ public sealed class GltfReader
                 }
             }
         }
-        mesh.BoneWeights = new DataBuffer<float>(allWeights, influenceCount, 1);
+        return (new DataBuffer<int>(allJoints, influenceCount, 1), new DataBuffer<float>(allWeights, influenceCount, 1));
     }
 
     /// <summary>
@@ -468,92 +464,50 @@ public sealed class GltfReader
     }
 
     /// <summary>
-    /// Reads morph targets from a list of target attribute dictionaries.
+    /// Reads morph targets into a <see cref="Morph"/> on the mesh.
     /// Each target may contain POSITION, NORMAL, and/or TANGENT deltas.
     /// </summary>
+    /// <param name="gltfMesh">The glTF mesh that holds the default target weights and names.</param>
     /// <param name="targets">The list of morph target dictionaries mapping attribute names to accessor indices.</param>
-    /// <param name="mesh">The target mesh to populate with morph target delta data.</param>
-    public void ReadMorphTargets(List<Dictionary<string, int>> targets, Mesh mesh)
+    /// <param name="mesh">The target mesh to receive the morph.</param>
+    public void ReadMorph(GltfMesh gltfMesh, List<Dictionary<string, int>> targets, Mesh mesh)
     {
+        string[] targetNames = new string[targets.Count];
+
+        for (int t = 0; t < targetNames.Length; t++)
+            targetNames[t] = gltfMesh.TargetNames is { } names && t < names.Length ? names[t] : $"Target_{t}";
+
+        mesh.Morph = new Morph(targetNames, ReadMorphDeltas(targets, "POSITION", mesh.VertexCount), ReadMorphDeltas(targets, "NORMAL", mesh.VertexCount), ReadMorphDeltas(targets, "TANGENT", mesh.VertexCount));
+        gltfMesh.Weights?.AsSpan(0, Math.Min(gltfMesh.Weights.Length, targetNames.Length)).CopyTo(mesh.Morph.Weights);
+    }
+
+    /// <summary>
+    /// Reads one delta attribute across all morph targets into a single buffer whose value index is the target index.
+    /// </summary>
+    /// <param name="targets">The list of morph target dictionaries mapping attribute names to accessor indices.</param>
+    /// <param name="attribute">The attribute name, such as POSITION.</param>
+    /// <param name="vertexCount">The number of vertices in the mesh.</param>
+    /// <returns>The delta buffer, or <see langword="null"/> when no target contains the attribute.</returns>
+    public DataBuffer? ReadMorphDeltas(List<Dictionary<string, int>> targets, string attribute, int vertexCount)
+    {
+        if (!targets.Exists(target => target.ContainsKey(attribute)))
+            return null;
+
         int targetCount = targets.Count;
-        if (targetCount == 0) return;
+        float[] deltas = new float[vertexCount * targetCount * 3];
 
-        int vertexCount = mesh.VertexCount;
-
-        // Collect delta positions across all targets
-        bool hasPositions = false;
-        bool hasNormals = false;
-        bool hasTangents = false;
-
-        foreach (Dictionary<string, int> target in targets)
+        for (int t = 0; t < targetCount; t++)
         {
-            if (target.ContainsKey("POSITION")) hasPositions = true;
-            if (target.ContainsKey("NORMAL")) hasNormals = true;
-            if (target.ContainsKey("TANGENT")) hasTangents = true;
+            if (!targets[t].TryGetValue(attribute, out int accessorIndex))
+                continue;
+
+            float[] data = _doc.ReadAccessorAsFloats(accessorIndex);
+
+            for (int v = 0; v < vertexCount; v++)
+                data.AsSpan(v * 3, 3).CopyTo(deltas.AsSpan((v * targetCount + t) * 3));
         }
 
-        if (hasPositions)
-        {
-            float[] deltaPos = new float[vertexCount * targetCount * 3];
-            for (int t = 0; t < targetCount; t++)
-            {
-                if (targets[t].TryGetValue("POSITION", out int accIdx))
-                {
-                    float[] data = _doc.ReadAccessorAsFloats(accIdx);
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        int dstBase = (v * targetCount + t) * 3;
-                        int srcBase = v * 3;
-                        deltaPos[dstBase] = data[srcBase];
-                        deltaPos[dstBase + 1] = data[srcBase + 1];
-                        deltaPos[dstBase + 2] = data[srcBase + 2];
-                    }
-                }
-            }
-            mesh.DeltaPositions = new DataBuffer<float>(deltaPos, targetCount, 3);
-        }
-
-        if (hasNormals)
-        {
-            float[] deltaNorm = new float[vertexCount * targetCount * 3];
-            for (int t = 0; t < targetCount; t++)
-            {
-                if (targets[t].TryGetValue("NORMAL", out int accIdx))
-                {
-                    float[] data = _doc.ReadAccessorAsFloats(accIdx);
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        int dstBase = (v * targetCount + t) * 3;
-                        int srcBase = v * 3;
-                        deltaNorm[dstBase] = data[srcBase];
-                        deltaNorm[dstBase + 1] = data[srcBase + 1];
-                        deltaNorm[dstBase + 2] = data[srcBase + 2];
-                    }
-                }
-            }
-            mesh.DeltaNormals = new DataBuffer<float>(deltaNorm, targetCount, 3);
-        }
-
-        if (hasTangents)
-        {
-            float[] deltaTan = new float[vertexCount * targetCount * 3];
-            for (int t = 0; t < targetCount; t++)
-            {
-                if (targets[t].TryGetValue("TANGENT", out int accIdx))
-                {
-                    float[] data = _doc.ReadAccessorAsFloats(accIdx);
-                    for (int v = 0; v < vertexCount; v++)
-                    {
-                        int dstBase = (v * targetCount + t) * 3;
-                        int srcBase = v * 3;
-                        deltaTan[dstBase] = data[srcBase];
-                        deltaTan[dstBase + 1] = data[srcBase + 1];
-                        deltaTan[dstBase + 2] = data[srcBase + 2];
-                    }
-                }
-            }
-            mesh.DeltaTangents = new DataBuffer<float>(deltaTan, targetCount, 3);
-        }
+        return new DataBuffer<float>(deltas, targetCount, 3);
     }
 
     /// <summary>
@@ -775,9 +729,9 @@ public sealed class GltfReader
     /// Sets up skinning on a mesh by linking it to the skeleton bones.
     /// </summary>
     /// <param name="skin">The glTF skin definition containing joint references and inverse bind matrices.</param>
-    /// <param name="skeleton">The skeleton to bind the mesh to.</param>
+    /// <param name="prim">The glTF mesh primitive containing joint and weight accessor references.</param>
     /// <param name="mesh">The mesh to apply skinning to.</param>
-    public void SetupSkinning(GltfSkin skin, SkeletonBone skeleton, Mesh mesh)
+    public void SetupSkinning(GltfSkin skin, GltfMeshPrimitive prim, Mesh mesh)
     {
         List<SkeletonBone> bones = [];
         List<Matrix4x4> ibmList = [];
@@ -802,11 +756,8 @@ public sealed class GltfReader
             }
         }
 
-        if (bones.Count > 0)
-        {
-            mesh.SetSkinBinding(bones, ibmList);
-            mesh.SkinBindingName = skeleton.Name;
-        }
+        if (bones.Count > 0 && ReadSkinInfluences(prim) is var (boneIndices, boneWeights))
+            mesh.Skin = new Skin(bones, boneIndices, boneWeights, ibmList) { Name = skin.Name };
     }
 
     /// <summary>

@@ -15,7 +15,7 @@ internal static class CastModelTranslator
 
         // Skeleton
         SkeletonBone[]? bones = null;
-        if (modelNode.Skeleton is SkeletonNode skeletonNode)
+        if (modelNode.EnumerateChildrenOfType<SkeletonNode>().FirstOrDefault() is { } skeletonNode)
         {
             bones = CastSkeletonTranslator.Read(model, skeletonNode, $"{name}_Skeleton");
         }
@@ -51,10 +51,14 @@ internal static class CastModelTranslator
         }
 
         // Meshes
+        var meshes = new Dictionary<MeshNode, Mesh>();
         foreach (var meshNode in modelNode.Meshes)
         {
-            CastMeshTranslator.Read(model, meshNode, materialLookup, bones);
+            meshes[meshNode] = CastMeshTranslator.Read(model, meshNode, materialLookup, bones);
         }
+
+        // Blend shapes
+        CastMorphTranslator.Read(modelNode, meshes);
     }
 
     public static void Write(CastNode root, SceneNode model, SceneTranslationSelection selection, string? targetDirectory)
@@ -105,7 +109,8 @@ internal static class CastModelTranslator
 
         foreach (Mesh mesh in model.GetDescendants<Mesh>(selection.Filter))
         {
-            CastMeshTranslator.Write(modelNode, mesh, boneTable, selection);
+            if (CastMeshTranslator.Write(modelNode, mesh, boneTable, selection) is { } meshNode)
+                CastMorphTranslator.Write(modelNode, meshNode, mesh);
         }
 
         // Materials

@@ -11,7 +11,7 @@ namespace RedFox.Graphics3D.Formats.Cast;
 
 internal static class CastMeshTranslator
 {
-    public static void Read(MeshGroup model, MeshNode meshNode, Dictionary<ulong, Material> materials, SkeletonBone[]? bones)
+    public static Mesh Read(MeshGroup model, MeshNode meshNode, Dictionary<ulong, Material> materials, SkeletonBone[]? bones)
     {
         var mesh = model.AddNode<Mesh>();
         var posBuffer = meshNode.VertexPositionBuffer;
@@ -72,9 +72,7 @@ internal static class CastMeshTranslator
                 idx++;
             }
 
-            mesh.BoneIndices = new DataBuffer<int>(boneIdxData, influences, 1);
-            mesh.BoneWeights = new DataBuffer<float>(boneWtData, influences, 1);
-            mesh.SetSkinBinding(bones);
+            mesh.Skin = new Skin(bones, new DataBuffer<int>(boneIdxData, influences, 1), new DataBuffer<float>(boneWtData, influences, 1));
         }
 
         // Face indices
@@ -92,12 +90,14 @@ internal static class CastMeshTranslator
         {
             mesh.Materials = [material];
         }
+
+        return mesh;
     }
 
-    public static void Write(ModelNode modelNode, Mesh mesh, Dictionary<SkeletonBone, int> boneTable, SceneTranslationSelection selection)
+    public static MeshNode? Write(ModelNode modelNode, Mesh mesh, Dictionary<SkeletonBone, int> boneTable, SceneTranslationSelection selection)
     {
         if (mesh.Positions is null)
-            return;
+            return null;
 
         var meshNode = modelNode.AddNode<MeshNode>();
         int vertexCount = mesh.Positions.ElementCount;
@@ -138,20 +138,20 @@ internal static class CastMeshTranslator
         }
 
         // Bone weights
-        if (mesh.BoneIndices is not null && mesh.BoneWeights is not null && mesh.SkinnedBones is not null)
+        if (mesh.Skin is { } skin)
         {
-            int influenceCount = mesh.BoneIndices.ValueCount;
+            int influenceCount = skin.BoneIndices.ValueCount;
             meshNode.AddValue<byte>("mi", (byte)influenceCount);
 
             int[] globalBoneIndices;
             try
             {
-                globalBoneIndices = mesh.GetBoneIndices(boneTable);
+                globalBoneIndices = skin.GetBoneTableIndices(boneTable);
             }
             catch (KeyNotFoundException)
             {
                 List<string> missingBones = [];
-                foreach (SkeletonBone bone in mesh.SkinnedBones)
+                foreach (SkeletonBone bone in skin.Bones)
                 {
                     if (!boneTable.ContainsKey(bone))
                         missingBones.Add(bone.Name);
@@ -168,9 +168,9 @@ internal static class CastMeshTranslator
             {
                 for (int j = 0; j < influenceCount; j++)
                 {
-                    int localIdx = mesh.BoneIndices.Get<int>(v, j, 0);
+                    int localIdx = skin.BoneIndices.Get<int>(v, j, 0);
                     boneIndexArray.Add((uint)globalBoneIndices[localIdx]);
-                    boneWeightArray.Add(mesh.BoneWeights.Get<float>(v, j, 0));
+                    boneWeightArray.Add(skin.BoneWeights.Get<float>(v, j, 0));
                 }
             }
         }
@@ -194,6 +194,8 @@ internal static class CastMeshTranslator
 
             meshNode.AddValue("m", CastHasher.Compute(firstMaterial.Name));
         }
+
+        return meshNode;
     }
 
     private static DataBuffer<float> CreateDataBufferFromVector3Array(List<Vector3> values)

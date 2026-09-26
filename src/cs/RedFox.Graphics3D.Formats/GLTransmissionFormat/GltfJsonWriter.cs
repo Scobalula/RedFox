@@ -177,6 +177,18 @@ public static class GltfJsonWriter
             if (mesh.Weights is { Length: > 0 })
                 WriteFloatArray(w, "weights", mesh.Weights);
 
+            if (mesh.TargetNames is { Length: > 0 })
+            {
+                w.WriteStartObject("extras");
+                w.WriteStartArray("targetNames");
+
+                foreach (string targetName in mesh.TargetNames)
+                    w.WriteStringValue(targetName);
+
+                w.WriteEndArray();
+                w.WriteEndObject();
+            }
+
             w.WriteEndObject();
         }
         w.WriteEndArray();

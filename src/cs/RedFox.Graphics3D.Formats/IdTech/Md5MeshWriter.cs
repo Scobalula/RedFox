@@ -127,7 +127,8 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
 
         int vertCount = mesh.Positions.ElementCount;
         int triCount = mesh.FaceIndices.ElementCount / 3;
-        int influences = mesh.BoneIndices?.ValueCount ?? 0;
+        Skin? skin = mesh.Skin;
+        int influences = skin?.BoneIndices.ValueCount ?? 0;
         int[] globalBoneTable = BuildGlobalBoneIndexTable(mesh, allBones, boneIndexMap);
 
         // Build weights list — for each vertex, decompose position back to joint-local space
@@ -143,13 +144,13 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
                 mesh.Positions.Get<float>(v, 0, 2));
 
             int addedWeights = 0;
-            if (influences > 0 && mesh.BoneWeights is not null && mesh.BoneIndices is not null)
+            if (skin is not null)
             {
                 for (int j = 0; j < influences; j++)
                 {
-                    float weight = mesh.BoneWeights.Get<float>(v, j, 0);
+                    float weight = skin.BoneWeights.Get<float>(v, j, 0);
                     if (weight <= 0f) continue;
-                    int localIdx = mesh.BoneIndices.Get<int>(v, j, 0);
+                    int localIdx = skin.BoneIndices.Get<int>(v, j, 0);
                     if ((uint)localIdx >= (uint)globalBoneTable.Length)
                     {
                         throw new InvalidDataException(
@@ -243,7 +244,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// <returns>A local index to global index mapping array.</returns>
     public static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap)
     {
-        var skinnedBones = mesh.SkinnedBones;
+        var skinnedBones = mesh.Skin?.Bones;
         if (skinnedBones is null || skinnedBones.Count == 0)
             return [];
 

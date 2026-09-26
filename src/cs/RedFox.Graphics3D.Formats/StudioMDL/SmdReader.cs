@@ -410,11 +410,7 @@ public sealed class SmdReader
         mesh.FaceIndices = faceIndices;
 
         if (boneIndices is not null && boneWeights is not null)
-        {
-            mesh.BoneIndices = boneIndices;
-            mesh.BoneWeights = boneWeights;
-            mesh.SkinnedBones = allBones;
-        }
+            mesh.Skin = new Skin(allBones, boneIndices, boneWeights);
     }
 
     /// <summary>

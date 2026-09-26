@@ -53,7 +53,6 @@ public sealed class SceneReadContext
         {
             Target.Name = Staging.Name;
             Target.UpAxis = Staging.UpAxis;
-            Target.FaceWinding = Staging.FaceWinding;
         }
 
         SceneMerger.MergeChildren(Target.RootNode, Staging.RootNode, Merge);

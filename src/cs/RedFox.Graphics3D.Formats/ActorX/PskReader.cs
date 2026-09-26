@@ -278,11 +278,7 @@ public sealed class PskReader
             mesh.Materials = [material];
 
             if (boneIndices is not null && boneWeights is not null)
-            {
-                mesh.BoneIndices = new DataBuffer<int>(boneIndices, maxInfluences, 1);
-                mesh.BoneWeights = new DataBuffer<float>(boneWeights, maxInfluences, 1);
-                mesh.SetSkinBinding(bones);
-            }
+                mesh.Skin = new Skin(bones, new DataBuffer<int>(boneIndices, maxInfluences, 1), new DataBuffer<float>(boneWeights, maxInfluences, 1));
         }
     }
 

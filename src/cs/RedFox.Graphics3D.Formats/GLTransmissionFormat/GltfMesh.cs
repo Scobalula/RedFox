@@ -20,4 +20,9 @@ public sealed class GltfMesh
     /// Gets or sets the morph target weights for this mesh.
     /// </summary>
     public float[]? Weights { get; set; }
+
+    /// <summary>
+    /// Gets or sets the morph target names stored in the mesh's <c>extras.targetNames</c>.
+    /// </summary>
+    public string[]? TargetNames { get; set; }
 }

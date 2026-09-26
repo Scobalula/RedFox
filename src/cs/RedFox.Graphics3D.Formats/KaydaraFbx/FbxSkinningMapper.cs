@@ -168,9 +168,7 @@ public static class FbxSkinningMapper
                 }
             }
 
-            mesh.BoneIndices = new DataBuffer<ushort>(boneIndices, maxInfluenceCount, 1);
-            mesh.BoneWeights = new DataBuffer<float>(boneWeights, maxInfluenceCount, 1);
-            mesh.SetSkinBinding(palette, inverseBindMatrices);
+            mesh.Skin = new Skin(palette, new DataBuffer<ushort>(boneIndices, maxInfluenceCount, 1), new DataBuffer<float>(boneWeights, maxInfluenceCount, 1), inverseBindMatrices) { Name = FbxSceneMapper.GetNodeObjectName(objectsById[skinId]) };
         }
     }
 
@@ -185,7 +183,7 @@ public static class FbxSkinningMapper
     /// <param name="nextId">The mutable object id counter.</param>
     public static void ExportSkinning(FbxNode objectsNode, FbxNode connectionsNode, Mesh mesh, long geometryId, Dictionary<SkeletonBone, long> boneIds, ref long nextId)
     {
-        if (mesh.BoneIndices is null || mesh.BoneWeights is null || mesh.SkinnedBones is null)
+        if (mesh.Skin is not { } meshSkin)
         {
             return;
         }
@@ -193,7 +191,7 @@ public static class FbxSkinningMapper
         long skinId = nextId++;
         FbxNode skin = new("Deformer");
         skin.Properties.Add(new FbxProperty('L', skinId));
-        skin.Properties.Add(new FbxProperty('S', mesh.Name + "_Skin\0\u0001Deformer"));
+        skin.Properties.Add(new FbxProperty('S', (meshSkin.Name ?? mesh.Name + "_Skin") + "\0\u0001Deformer"));
         skin.Properties.Add(new FbxProperty('S', "Skin"));
         skin.Children.Add(new FbxNode("Version") { Properties = { new FbxProperty('I', 101) } });
         skin.Children.Add(new FbxNode("Link_DeformAcuracy") { Properties = { new FbxProperty('D', 50.0) } });
@@ -201,8 +199,8 @@ public static class FbxSkinningMapper
 
         FbxSceneMapper.AddConnection(connectionsNode, "OO", skinId, geometryId);
 
-        int skinnedVertexCount = Math.Min(mesh.VertexCount, Math.Min(mesh.BoneIndices.ElementCount, mesh.BoneWeights.ElementCount));
-        int influenceCount = mesh.SkinInfluenceCount;
+        int skinnedVertexCount = Math.Min(mesh.VertexCount, Math.Min(meshSkin.BoneIndices.ElementCount, meshSkin.BoneWeights.ElementCount));
+        int influenceCount = meshSkin.InfluenceCount;
 
         // Single pass over all vertices to collect per-bone influences.
         Dictionary<int, (List<int> Indices, List<double> Weights)> boneInfluences = [];
@@ -211,8 +209,8 @@ public static class FbxSkinningMapper
         {
             for (int influenceIndex = 0; influenceIndex < influenceCount; influenceIndex++)
             {
-                int paletteIndex = mesh.BoneIndices.Get<int>(vertexIndex, influenceIndex, 0);
-                float weight = mesh.BoneWeights.Get<float>(vertexIndex, influenceIndex, 0);
+                int paletteIndex = meshSkin.BoneIndices.Get<int>(vertexIndex, influenceIndex, 0);
+                float weight = meshSkin.BoneWeights.Get<float>(vertexIndex, influenceIndex, 0);
 
                 if (weight <= 0f)
                 {
@@ -233,9 +231,9 @@ public static class FbxSkinningMapper
         // Pre-compute the mesh world matrix in export (Y-up) space.
         Matrix4x4 meshWorld = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
 
-        for (int paletteIndex = 0; paletteIndex < mesh.SkinnedBones.Count; paletteIndex++)
+        for (int paletteIndex = 0; paletteIndex < meshSkin.Bones.Count; paletteIndex++)
         {
-            SkeletonBone bone = mesh.SkinnedBones[paletteIndex];
+            SkeletonBone bone = meshSkin.Bones[paletteIndex];
 
             if (!boneIds.TryGetValue(bone, out long boneModelId))
             {

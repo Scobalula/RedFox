@@ -71,17 +71,17 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers.Add(MeshGpuBufferBinding.CreateVertex(Owner.Normals, nameof(Owner.Normals)));
             _buffers.Add(MeshGpuBufferBinding.CreateIndex(Owner.FaceIndices, nameof(Owner.FaceIndices)));
             _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.UVLayers, "UVLayerBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
-            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.BoneIndices, "BoneIndexBuffer", BufferUsage.Sampled, normalizeIndexElementType: true));
-            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.BoneWeights, "BoneWeightBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.Skin?.BoneIndices, "BoneIndexBuffer", BufferUsage.Sampled, normalizeIndexElementType: true));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(Owner.Skin?.BoneWeights, "BoneWeightBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
             _buffers.Add(MeshGpuBufferBinding.CreateShaderResource("SkinTransformBuffer", BufferUsage.Sampled | BufferUsage.DynamicWrite, normalizeIndexElementType: false, (binding, graphicsDevice) =>
             {
-                if (Owner.BoneIndices is null || Owner.BoneWeights is null || Owner.SkinnedBones is null)
+                if (Owner.Skin is not { } skin)
                 {
                     binding.Release();
                     return false;
                 }
 
-                Span<Matrix4x4> matrixBuffer = Owner.SkinnedBones.Count > 128 ? new Matrix4x4[Owner.SkinnedBones.Count] : stackalloc Matrix4x4[Owner.SkinnedBones.Count];
+                Span<Matrix4x4> matrixBuffer = skin.Bones.Count > 128 ? new Matrix4x4[skin.Bones.Count] : stackalloc Matrix4x4[skin.Bones.Count];
                 Owner.CopySkinTransforms(matrixBuffer);
 
                 GpuBufferData transformData = new(
@@ -97,6 +97,18 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
 
                 return updated;
+            }));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(CreateMorphDeltaBuffer(Owner.Morph), "MorphDeltaBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource("MorphWeightBuffer", BufferUsage.Sampled | BufferUsage.DynamicWrite, normalizeIndexElementType: false, (binding, graphicsDevice) =>
+            {
+                if (Owner.Morph is not { TargetCount: > 0 } morph)
+                {
+                    binding.Release();
+                    return false;
+                }
+
+                GpuBufferData weightData = new(MemoryMarshal.AsBytes(morph.Weights.AsSpan()), GpuBufferElementType.Float32, morph.TargetCount, 1, 1, sizeof(float), sizeof(float), sizeof(float));
+                return binding.UpdateGenerated(graphicsDevice, weightData);
             }));
         }
 
@@ -150,7 +162,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             commandList.SetUniformVector3("CameraPosition", cameraPosition);
             commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
             commandList.SetUniformInt("UVLayerIndex", 0);
-            commandList.SetUniformInt("SkinInfluenceCount", Owner.BoneIndices is null ? 0 : Owner.BoneIndices.ValueCount);
+            commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin?.BoneIndices.ValueCount ?? 0);
+            commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
 
             foreach (MeshGpuBufferBinding buffer in _buffers)
             {
@@ -188,5 +201,28 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
         VertexCount = 0;
         IndexCount = 0;
+    }
+
+    private static DataBuffer<float>? CreateMorphDeltaBuffer(Morph? morph)
+    {
+        if (morph is not { TargetCount: > 0, VertexCount: > 0 })
+            return null;
+
+        float[] deltas = new float[morph.VertexCount * morph.TargetCount * 8];
+
+        for (int vertexIndex = 0; vertexIndex < morph.VertexCount; vertexIndex++)
+        {
+            for (int targetIndex = 0; targetIndex < morph.TargetCount; targetIndex++)
+            {
+                int offset = ((vertexIndex * morph.TargetCount) + targetIndex) * 8;
+                Vector3 position = morph.DeltaPositions?.GetVector3(vertexIndex, targetIndex) ?? Vector3.Zero;
+                Vector3 normal = morph.DeltaNormals?.GetVector3(vertexIndex, targetIndex) ?? Vector3.Zero;
+
+                position.CopyTo(deltas, offset);
+                normal.CopyTo(deltas, offset + 4);
+            }
+        }
+
+        return new DataBuffer<float>(deltas, 2, 4);
     }
 }

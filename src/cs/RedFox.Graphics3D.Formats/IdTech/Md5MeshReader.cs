@@ -387,11 +387,7 @@ public sealed class Md5MeshReader
         mesh.FaceIndices = faceIndices;
 
         if (boneIndices is not null && boneWeights is not null)
-        {
-            mesh.BoneIndices = boneIndices;
-            mesh.BoneWeights = boneWeights;
-            mesh.SkinnedBones = bones;
-        }
+            mesh.Skin = new Skin(bones, boneIndices, boneWeights);
     }
 
     /// <summary>

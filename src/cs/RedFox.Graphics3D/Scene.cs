@@ -62,11 +62,6 @@ namespace RedFox.Graphics3D
         public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
 
         /// <summary>
-        /// Gets or sets the front-face winding used for scene rendering.
-        /// </summary>
-        public FaceWinding FaceWinding { get; set; } = FaceWinding.CounterClockwise;
-
-        /// <summary>
         /// Gets or sets a value indicating whether animation playback is paused.
         /// When <see langword="true"/>, animation players are not updated but the scene graph still updates.
         /// </summary>
@@ -136,8 +131,8 @@ namespace RedFox.Graphics3D
 
         /// <summary>
         /// Rebuilds <see cref="AnimationPlayers"/> by creating one player per discovered
-        /// <see cref="SkeletonAnimation"/> in the scene. Each animation is bound to bone hierarchies
-        /// found within the scene, with bones matched by name (case-sensitive).
+        /// <see cref="SkeletonAnimation"/> and <see cref="MorphAnimation"/> in the scene. Skeletal animations are bound
+        /// to bone hierarchies and morph animations to mesh morph targets, both matched by name (case-sensitive).
         /// </summary>
         /// <returns>The rebuilt animation player list.</returns>
         public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers()
@@ -186,6 +181,22 @@ namespace RedFox.Graphics3D
                     FrameRate = frameRate
                 };
 
+                player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+                AnimationPlayers.Add(player);
+                playerIndex++;
+            }
+
+            foreach (MorphAnimation animation in EnumerateDescendants<MorphAnimation>())
+            {
+                float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f ? animation.Framerate : DefaultAnimationFrameRate;
+                string baseName = string.IsNullOrWhiteSpace(animation.Name) ? $"Morph_{playerIndex}" : animation.Name;
+
+                MorphAnimationSampler sampler = new($"{baseName}_Sampler", animation, RootNode) { FrameRate = frameRate };
+
+                if (sampler.Bindings.Count == 0)
+                    continue;
+
+                AnimationPlayer player = new($"{baseName}_Player") { FrameRate = frameRate };
                 player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
                 AnimationPlayers.Add(player);
                 playerIndex++;

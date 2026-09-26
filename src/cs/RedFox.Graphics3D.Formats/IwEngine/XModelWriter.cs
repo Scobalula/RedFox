@@ -6,6 +6,8 @@ namespace RedFox.Graphics3D.Formats.IwEngine;
 
 internal static class XModelWriter
 {
+    private static readonly int[] ClockwiseCorners = [0, 2, 1];
+
     public static void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? cancellationToken)
     {
         SceneTranslationSelection selection = context.GetSelection(scene);
@@ -145,7 +147,7 @@ internal static class XModelWriter
                     writer.WriteTri16("TRI16", 0x6711, objectIndex, materialIndex);
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex + corner, 0, 0);
+                    int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex + ClockwiseCorners[corner], 0, 0);
                     if ((uint)vertexIndex >= (uint)mesh.Positions!.ElementCount)
                         throw new InvalidDataException($"Mesh '{mesh.Name}' face index {vertexIndex} is outside its vertex range.");
                     WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
@@ -206,13 +208,13 @@ internal static class XModelWriter
 
     private static int[] GetSkinBoneIndices(Mesh mesh, IReadOnlyDictionary<SkeletonBone, int> boneIndices)
     {
-        if (mesh.SkinnedBones is null)
+        if (mesh.Skin is not { } skin)
             return [];
-        int[] result = new int[mesh.SkinnedBones.Count];
+        int[] result = new int[skin.Bones.Count];
         for (int i = 0; i < result.Length; i++)
         {
-            if (!boneIndices.TryGetValue(mesh.SkinnedBones[i], out result[i]))
-                throw new InvalidDataException($"Mesh '{mesh.Name}' references bone '{mesh.SkinnedBones[i].Name}' outside the XModel skeleton.");
+            if (!boneIndices.TryGetValue(skin.Bones[i], out result[i]))
+                throw new InvalidDataException($"Mesh '{mesh.Name}' references bone '{skin.Bones[i].Name}' outside the XModel skeleton.");
         }
         return result;
     }
@@ -221,16 +223,16 @@ internal static class XModelWriter
     {
         List<(int BoneIndex, float Weight)> weights = [];
 
-        if (mesh.BoneIndices is not null && mesh.BoneWeights is not null && skinBoneIndices.Length > 0)
+        if (mesh.Skin is { } skin && skinBoneIndices.Length > 0)
         {
-            for (int influence = 0; influence < mesh.BoneIndices.ValueCount; influence++)
+            for (int influence = 0; influence < skin.BoneIndices.ValueCount; influence++)
             {
-                float weight = mesh.BoneWeights.Get<float>(vertexIndex, influence, 0);
+                float weight = skin.BoneWeights.Get<float>(vertexIndex, influence, 0);
 
                 if (!float.IsFinite(weight) || weight <= 0f)
                     continue;
 
-                int localBoneIndex = mesh.BoneIndices.Get<int>(vertexIndex, influence, 0);
+                int localBoneIndex = skin.BoneIndices.Get<int>(vertexIndex, influence, 0);
 
                 if ((uint)localBoneIndex >= (uint)skinBoneIndices.Length)
                     throw new InvalidDataException($"Mesh '{mesh.Name}' vertex {vertexIndex} references skin bone {localBoneIndex} outside its skin table.");

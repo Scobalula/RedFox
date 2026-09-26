@@ -53,7 +53,8 @@ public sealed class PskWriter
             byte materialIndex = ResolveMaterialIndex(mesh, selection, materials, materialIndices);
             int baseWedge = wedges.Count;
             int vertexCount = mesh.Positions.ElementCount;
-            int influenceCount = mesh.BoneIndices?.ValueCount ?? 0;
+            Skin? skin = mesh.Skin;
+            int influenceCount = skin?.BoneIndices.ValueCount ?? 0;
             int[]? globalBones = BuildGlobalBoneTable(mesh, boneIndexMap, influenceCount);
 
             for (int v = 0; v < vertexCount; v++)
@@ -64,16 +65,16 @@ public sealed class PskWriter
                 Vector2 uv = mesh.UVLayers is not null ? mesh.UVLayers.GetVector2(v, 0) : Vector2.Zero;
                 wedges.Add(new ActorXVertex(pointIndex, uv, materialIndex));
 
-                if (globalBones is null || mesh.BoneIndices is null || mesh.BoneWeights is null)
+                if (globalBones is null || skin is null)
                     continue;
 
                 for (int j = 0; j < influenceCount; j++)
                 {
-                    float weight = mesh.BoneWeights.Get<float>(v, j, 0);
+                    float weight = skin.BoneWeights.Get<float>(v, j, 0);
                     if (weight <= 0f)
                         continue;
 
-                    int local = mesh.BoneIndices.Get<int>(v, j, 0);
+                    int local = skin.BoneIndices.Get<int>(v, j, 0);
                     int global = (uint)local < (uint)globalBones.Length ? globalBones[local] : 0;
                     influences.Add(new ActorXInfluence(weight, pointIndex, global));
                 }
@@ -140,7 +141,7 @@ public sealed class PskWriter
 
     private static int[]? BuildGlobalBoneTable(Mesh mesh, Dictionary<SkeletonBone, int> boneIndexMap, int influenceCount)
     {
-        if (influenceCount <= 0 || mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+        if (influenceCount <= 0 || mesh.Skin?.Bones is not { Count: > 0 } skinnedBones)
             return null;
 
         var table = new int[skinnedBones.Count];

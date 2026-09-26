@@ -15,10 +15,13 @@ uniform int UVLayerCount;
 uniform int UVLayerIndex;
 uniform int SkinInfluenceCount;
 uniform int SkinningMode;
+uniform int MorphTargetCount;
 uniform sampler2D UVLayerBuffer;
 uniform usampler2D BoneIndexBuffer;
 uniform sampler2D BoneWeightBuffer;
 uniform sampler2D SkinTransformBuffer;
+uniform sampler2D MorphDeltaBuffer;
+uniform sampler2D MorphWeightBuffer;
 
 out vec3 WorldPosition;
 out vec3 WorldNormal;
@@ -147,6 +150,23 @@ vec2 ResolveTextureCoordinate(uint vertexIndex)
     return FetchFloatBufferTexel(UVLayerBuffer, bufferIndex).xy;
 }
 
+void ResolveMorphedVertex(uint vertexIndex, inout vec3 position, inout vec3 normal)
+{
+    int baseIndex = int(vertexIndex) * MorphTargetCount;
+    for (int targetIndex = 0; targetIndex < MorphTargetCount; targetIndex++)
+    {
+        float weight = FetchFloatBufferTexel(MorphWeightBuffer, targetIndex).x;
+        if (weight == 0.0)
+        {
+            continue;
+        }
+
+        int deltaIndex = (baseIndex + targetIndex) * 2;
+        position += FetchFloatBufferTexel(MorphDeltaBuffer, deltaIndex).xyz * weight;
+        normal += FetchFloatBufferTexel(MorphDeltaBuffer, deltaIndex + 1).xyz * weight;
+    }
+}
+
 void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNormal, out vec3 outputPosition, out vec3 outputNormal)
 {
     outputPosition = sourcePosition;
@@ -237,9 +257,13 @@ void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNorm
 
 void main()
 {
+    vec3 morphedPosition = Positions;
+    vec3 morphedNormal = Normals;
+    ResolveMorphedVertex(uint(gl_VertexID), morphedPosition, morphedNormal);
+
     vec3 resolvedPosition;
     vec3 resolvedNormal;
-    ResolveSkinnedVertex(uint(gl_VertexID), Positions, Normals, resolvedPosition, resolvedNormal);
+    ResolveSkinnedVertex(uint(gl_VertexID), morphedPosition, morphedNormal, resolvedPosition, resolvedNormal);
 
     mat4 worldMatrix = SceneAxis * Model;
     vec4 worldPosition = worldMatrix * vec4(resolvedPosition, 1.0);

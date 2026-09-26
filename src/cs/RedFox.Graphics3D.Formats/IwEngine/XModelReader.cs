@@ -207,7 +207,6 @@ internal static class XModelReader
             positions.Add(group.Positions[i]);
             normals.Add(group.Normals[i]);
             colors.Add(group.Colors[i]);
-            faceIndices.Add(i);
             if (uvLayers is not null)
             {
                 DataBufferElement element = uvLayers.Add();
@@ -226,17 +225,21 @@ internal static class XModelReader
             }
         }
 
+        for (int i = 0; i < vertexCount; i += 3)
+        {
+            faceIndices.Add(i);
+            faceIndices.Add(i + 2);
+            faceIndices.Add(i + 1);
+        }
+
         mesh.Positions = positions;
         mesh.Normals = normals;
         mesh.ColorLayers = colors;
         mesh.UVLayers = uvLayers;
         mesh.FaceIndices = faceIndices;
+
         if (boneIndices is not null && boneWeights is not null)
-        {
-            mesh.BoneIndices = boneIndices;
-            mesh.BoneWeights = boneWeights;
-            mesh.SkinnedBones = bones;
-        }
+            mesh.Skin = new Skin(bones, boneIndices, boneWeights);
     }
 
     private static string? ResolveTexturePath(string textureName, string? sourceDirectoryPath)

@@ -9,6 +9,8 @@ internal static class CastAnimationTranslator
 {
     private const string VisibilityCurveName = "visibility";
 
+    private const string BlendShapeKeyProperty = "bs";
+
     private static readonly string[] TransformKeyProperties = ["rq", "tx", "ty", "tz", "sx", "sy", "sz"];
 
     public static void Read(Scene scene, AnimationNode animationNode, string name)
@@ -19,7 +21,8 @@ internal static class CastAnimationTranslator
             Framerate = animationNode.Framerate,
         };
 
-        var curveNodes = animationNode.Curves;
+        var curveNodes = Array.FindAll(animationNode.Curves, x => x.KeyPropertyName != BlendShapeKeyProperty);
+        var morphAnimation = ReadMorphAnimation(animationNode, name);
 
         foreach (var curveName in curveNodes.Select(x => x.NodeName).Distinct())
         {
@@ -87,7 +90,62 @@ internal static class CastAnimationTranslator
             }
         }
 
-        scene.RootNode.AddNode(skeletalAnimation);
+        if (skeletalAnimation.Tracks.Count > 0 || skeletalAnimation.Actions is { Count: > 0 } || morphAnimation is null)
+            scene.RootNode.AddNode(skeletalAnimation);
+
+        if (morphAnimation is not null)
+            scene.RootNode.AddNode(morphAnimation);
+    }
+
+    public static void Write(CastNode root, MorphAnimation animation)
+    {
+        var animationNode = root.AddNode<AnimationNode>();
+
+        animationNode.AddValue("fr", animation.Framerate);
+        animationNode.AddValue("lo", (byte)0);
+
+        foreach (var track in animation.Tracks)
+        {
+            if (track.WeightCurve is not { KeyFrameCount: > 0 } weightCurve)
+                continue;
+
+            var curveNode = animationNode.AddNode<CurveNode>();
+
+            curveNode.Mode = CastTranslator.ConvertFromTransformType(TransformType.Absolute);
+            curveNode.NodeName = track.Name;
+            curveNode.KeyPropertyName = BlendShapeKeyProperty;
+
+            var keyValues = curveNode.AddArray<float>("kv", weightCurve.KeyFrameCount);
+            var keyFrames = curveNode.AddArray<uint>("kb", weightCurve.KeyFrameCount);
+
+            for (int i = 0; i < weightCurve.KeyFrameCount; i++)
+            {
+                keyValues.Add(weightCurve.GetScalar(i));
+                keyFrames.Add((uint)weightCurve.GetKeyTime(i));
+            }
+        }
+    }
+
+    private static MorphAnimation? ReadMorphAnimation(AnimationNode animationNode, string name)
+    {
+        var curveNodes = Array.FindAll(animationNode.Curves, x => x.KeyPropertyName == BlendShapeKeyProperty);
+
+        if (curveNodes.Length == 0)
+            return null;
+
+        var morphAnimation = new MorphAnimation($"{name}_Morph") { Framerate = animationNode.Framerate };
+
+        foreach (var curveNode in curveNodes)
+        {
+            var track = morphAnimation.GetOrCreateTrack(curveNode.NodeName);
+            var keyFrames = curveNode.EnumerateKeyFrames().ToArray();
+            var keyValues = curveNode.EnumerateKeyValues<float>().ToArray();
+
+            for (int i = 0; i < keyFrames.Length && i < keyValues.Length; i++)
+                track.AddWeightFrame((float)keyFrames[i], keyValues[i]);
+        }
+
+        return morphAnimation;
     }
 
     public static void Write(CastNode root, SkeletonAnimation animation)

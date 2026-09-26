@@ -131,6 +131,8 @@ public static class GltfJsonParser
                 mesh.Name = name.GetString();
             if (el.TryGetProperty("weights", out JsonElement weights))
                 mesh.Weights = ReadFloatArray(weights);
+            if (el.TryGetProperty("extras", out JsonElement extras) && extras.TryGetProperty("targetNames", out JsonElement targetNames))
+                mesh.TargetNames = [.. targetNames.EnumerateArray().Select(targetName => targetName.GetString() ?? string.Empty)];
 
             if (el.TryGetProperty("primitives", out JsonElement prims))
             {

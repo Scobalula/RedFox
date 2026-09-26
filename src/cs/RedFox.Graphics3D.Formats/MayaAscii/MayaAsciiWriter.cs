@@ -240,7 +240,7 @@ public sealed class MayaAsciiWriter
         string meshShapeName = RegisterName(mesh.Name + "Shape");
         meshShapeNames[mesh] = meshShapeName;
 
-        bool hasSkinning = mesh.HasSkinning && mesh.SkinnedBones is not null;
+        bool hasSkinning = mesh.HasSkinning;
 
         string? parentName = GetParentDagName(mesh);
         WriteCreateNode(MayaNodeTypes.Transform, meshTransformName, parentName);
@@ -544,13 +544,13 @@ public sealed class MayaAsciiWriter
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
-        if (mesh.SkinnedBones is null || mesh.BoneIndices is null || mesh.BoneWeights is null)
+        if (mesh.Skin is not { } skin)
         {
             return;
         }
 
         List<string> missingBones = [];
-        foreach (SkeletonBone bone in mesh.SkinnedBones)
+        foreach (SkeletonBone bone in skin.Bones)
         {
             if (!_nodeNames.ContainsKey(bone))
                 missingBones.Add(bone.Name);
@@ -563,7 +563,7 @@ public sealed class MayaAsciiWriter
         }
 
         string baseName = SanitizeMayaName(mesh.Name);
-        string skinClusterName = RegisterName($"skinCluster_{baseName}");
+        string skinClusterName = RegisterName(skin.Name ?? $"skinCluster_{baseName}");
         string tweakName = RegisterName($"tweak_{baseName}");
         string skinClusterSetName = RegisterName($"{skinClusterName}Set");
         string skinClusterGroupIdName = RegisterName($"{skinClusterName}GroupId");
@@ -576,7 +576,7 @@ public sealed class MayaAsciiWriter
         WriteCreateNode(MayaNodeTypes.SkinCluster, skinClusterName, null);
 
         int vertexCount = mesh.VertexCount;
-        int influenceCount = mesh.SkinInfluenceCount;
+        int influenceCount = skin.InfluenceCount;
 
         _writer.WriteLine($"setAttr -s {vertexCount} \".wl\";");
         for (int v = 0; v < vertexCount; v++)
@@ -584,9 +584,9 @@ public sealed class MayaAsciiWriter
             var weights = new List<(int boneIndex, float weight)>();
             for (int w = 0; w < influenceCount; w++)
             {
-                int boneIdx = mesh.BoneIndices.Get<int>(v, w, 0);
-                float weight = mesh.BoneWeights.Get<float>(v, w, 0);
-                if (weight > 0.0f && boneIdx >= 0 && boneIdx < mesh.SkinnedBones.Count)
+                int boneIdx = skin.BoneIndices.Get<int>(v, w, 0);
+                float weight = skin.BoneWeights.Get<float>(v, w, 0);
+                if (weight > 0.0f && boneIdx >= 0 && boneIdx < skin.Bones.Count)
                 {
                     weights.Add((boneIdx, weight));
                 }
@@ -606,10 +606,10 @@ public sealed class MayaAsciiWriter
             }
         }
 
-        _writer.WriteLine($"setAttr -s {mesh.SkinnedBones.Count} \".pm\";");
-        for (int i = 0; i < mesh.SkinnedBones.Count; i++)
+        _writer.WriteLine($"setAttr -s {skin.Bones.Count} \".pm\";");
+        for (int i = 0; i < skin.Bones.Count; i++)
         {
-            Matrix4x4 boneWorldMatrix = mesh.SkinnedBones[i].GetBindWorldMatrix();
+            Matrix4x4 boneWorldMatrix = skin.Bones[i].GetBindWorldMatrix();
             Matrix4x4 bindMatrix = Matrix4x4.Invert(boneWorldMatrix, out Matrix4x4 inverseBoneWorld)
                 ? inverseBoneWorld
                 : Matrix4x4.Identity;
@@ -619,7 +619,7 @@ public sealed class MayaAsciiWriter
 
         WriteSetAttrMatrix(".gm", Matrix4x4.Identity);
 
-        int boneCount = mesh.SkinnedBones.Count;
+        int boneCount = skin.Bones.Count;
         _writer.WriteLine($"setAttr -s {boneCount} \".ma\";");
 
         _writer.Write($"setAttr -s {boneCount} \".dpf[0:{boneCount - 1}]\"");
@@ -686,9 +686,9 @@ public sealed class MayaAsciiWriter
         _connections.Add(new MayaConnection(tweakName + ".msg", tweakSetName + ".ub[0]", false));
 
         // Joint connections
-        for (int i = 0; i < mesh.SkinnedBones.Count; i++)
+        for (int i = 0; i < skin.Bones.Count; i++)
         {
-            SkeletonBone bone = mesh.SkinnedBones[i];
+            SkeletonBone bone = skin.Bones[i];
             if (_nodeNames.TryGetValue(bone, out string? boneName))
             {
                 _connections.Add(new MayaConnection(boneName + ".wm", skinClusterName + $".ma[{i}]", false));

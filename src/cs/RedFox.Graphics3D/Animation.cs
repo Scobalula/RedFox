@@ -6,7 +6,7 @@ namespace RedFox.Graphics3D;
 /// Abstract base class for all animation types in the RedFox scene graph.
 /// Provides common metadata (name, framerate, actions) and helper methods
 /// for keyframe lookup. Concrete subclasses (e.g. <c>SkeletonAnimation</c>,
-/// <c>BlendShapeAnimation</c>) define their own track storage.
+/// <c>MorphAnimation</c>) define their own track storage.
 /// <para>
 /// Extends <see cref="SceneNode"/> so animations participate in the scene
 /// hierarchy and can be discovered via standard traversal.

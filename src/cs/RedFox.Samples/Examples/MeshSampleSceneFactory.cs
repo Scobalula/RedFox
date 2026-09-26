@@ -37,7 +37,6 @@ internal static class MeshSampleSceneFactory
 
         ArgumentNullException.ThrowIfNull(scene);
         scene.UpAxis = options.UpAxis;
-        scene.FaceWinding = options.FaceWinding;
         ApplySkeletonVisibility(scene, options.ShowSkeletonBones);
 
         IReadOnlyList<AnimationPlayer> animationPlayers = scene.CreateAnimationPlayers();
@@ -116,15 +115,6 @@ internal static class MeshSampleSceneFactory
                     options.UpAxis = SceneUpAxis.Y;
                 }
 
-                continue;
-            }
-
-            if (arg.StartsWith("--winding=", StringComparison.OrdinalIgnoreCase))
-            {
-                string value = arg[10..].Trim();
-                options.FaceWinding = value.Equals("cw", StringComparison.OrdinalIgnoreCase)
-                    ? FaceWinding.Clockwise
-                    : FaceWinding.CounterClockwise;
                 continue;
             }
 

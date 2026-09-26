@@ -27,7 +27,7 @@ public static class MeshNormals
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh lacks <see cref="Mesh.Positions"/> or <see cref="Mesh.FaceIndices"/>.</exception>
     public static void Generate(Mesh mesh)
-        => Generate(mesh, NormalGenerationMode.WeightedByAngle, MeshFaceOrder.CounterClockwise);
+        => Generate(mesh, NormalGenerationMode.WeightedByAngle, FaceWinding.CounterClockwise);
 
     /// <summary>
     /// Computes per-vertex normals using the specified weighting mode for a counter-clockwise mesh,
@@ -38,7 +38,7 @@ public static class MeshNormals
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh lacks <see cref="Mesh.Positions"/> or <see cref="Mesh.FaceIndices"/>.</exception>
     public static void Generate(Mesh mesh, NormalGenerationMode mode)
-        => Generate(mesh, mode, MeshFaceOrder.CounterClockwise);
+        => Generate(mesh, mode, FaceWinding.CounterClockwise);
 
     /// <summary>
     /// Computes per-vertex normals using the specified weighting mode and winding order,
@@ -46,10 +46,10 @@ public static class MeshNormals
     /// </summary>
     /// <param name="mesh">The target mesh. Must have non-null <see cref="Mesh.Positions"/> and <see cref="Mesh.FaceIndices"/>.</param>
     /// <param name="mode">The weighting strategy applied when accumulating face contributions.</param>
-    /// <param name="faceOrder">The winding order of the mesh triangles.</param>
+    /// <param name="faceWinding">The winding order of the mesh triangles.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh lacks <see cref="Mesh.Positions"/> or <see cref="Mesh.FaceIndices"/>.</exception>
-    public static void Generate(Mesh mesh, NormalGenerationMode mode, MeshFaceOrder faceOrder)
+    public static void Generate(Mesh mesh, NormalGenerationMode mode, FaceWinding faceWinding)
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
@@ -61,7 +61,7 @@ public static class MeshNormals
 
         int vertexCount = positions.ElementCount;
         int faceCount   = faceIndices.ElementCount / 3;
-        bool clockwise  = faceOrder == MeshFaceOrder.Clockwise;
+        bool clockwise  = faceWinding == FaceWinding.Clockwise;
 
         Vector3[] accum = new Vector3[vertexCount];
 

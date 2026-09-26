@@ -61,6 +61,11 @@ public sealed class CastTranslator : SceneTranslator
             CastAnimationTranslator.Write(root, animation);
         }
 
+        foreach (var animation in selection.GetDescendants<MorphAnimation>())
+        {
+            CastAnimationTranslator.Write(root, animation);
+        }
+
         CastWriter.Save(stream, root);
     }
 

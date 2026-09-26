@@ -12,12 +12,15 @@ cbuffer SkinningConstants : register(b1)
     int SkinningMode;
     int UVLayerCount;
     int UVLayerIndex;
+    int MorphTargetCount;
 };
 
 Buffer<uint> BoneIndexBuffer : register(t12);
 Buffer<float> BoneWeightBuffer : register(t13);
 Buffer<float4> SkinTransformBuffer : register(t14);
 Buffer<float2> UVLayerBuffer : register(t15);
+Buffer<float4> MorphDeltaBuffer : register(t16);
+Buffer<float> MorphWeightBuffer : register(t17);
 
 static const int SkinningModeLinear = 0;
 static const int SkinningModeDualQuaternion = 1;
@@ -138,6 +141,23 @@ float2 ResolveTextureCoordinate(uint vertexIndex)
     return UVLayerBuffer[bufferIndex];
 }
 
+void ResolveMorphedVertex(uint vertexIndex, inout float3 position, inout float3 normal)
+{
+    uint baseIndex = vertexIndex * (uint)MorphTargetCount;
+    for (int targetIndex = 0; targetIndex < MorphTargetCount; targetIndex++)
+    {
+        float weight = MorphWeightBuffer[(uint)targetIndex];
+        if (weight == 0.0f)
+        {
+            continue;
+        }
+
+        uint deltaIndex = (baseIndex + (uint)targetIndex) * 2u;
+        position += MorphDeltaBuffer[deltaIndex].xyz * weight;
+        normal += MorphDeltaBuffer[deltaIndex + 1u].xyz * weight;
+    }
+}
+
 void ResolveSkinnedVertex(uint vertexIndex, float3 sourcePosition, float3 sourceNormal, out float3 outputPosition, out float3 outputNormal)
 {
     outputPosition = sourcePosition;
@@ -229,9 +249,13 @@ void ResolveSkinnedVertex(uint vertexIndex, float3 sourcePosition, float3 source
 VSOutput Main(VSInput input, uint vertexId : SV_VertexID)
 {
     VSOutput output;
+    float3 morphedPosition = input.Positions;
+    float3 morphedNormal = input.Normals;
+    ResolveMorphedVertex(vertexId, morphedPosition, morphedNormal);
+
     float3 resolvedPosition;
     float3 resolvedNormal;
-    ResolveSkinnedVertex(vertexId, input.Positions, input.Normals, resolvedPosition, resolvedNormal);
+    ResolveSkinnedVertex(vertexId, morphedPosition, morphedNormal, resolvedPosition, resolvedNormal);
     row_major float4x4 worldMatrix = mul(Model, SceneAxis);
     float4 worldPosition = mul(float4(resolvedPosition, 1.0f), worldMatrix);
     output.WorldPosition = worldPosition.xyz;

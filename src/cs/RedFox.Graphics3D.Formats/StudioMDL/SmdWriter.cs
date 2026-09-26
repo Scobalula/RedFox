@@ -221,7 +221,8 @@ public sealed class SmdWriter
             string materialName = ResolveMaterialName(mesh, selection);
 
             int faceCount  = mesh.FaceIndices.ElementCount / 3;
-            int influences = mesh.BoneIndices?.ValueCount ?? 0;
+            Skin? skin = mesh.Skin;
+            int influences = skin?.BoneIndices.ValueCount ?? 0;
             int[] globalBoneTable = BuildGlobalBoneIndexTable(mesh, allBones, boneIndexMap);
 
             int[]? pooledBoneIndices = influences > 0 ? ArrayPool<int>.Shared.Rent(influences) : null;
@@ -249,13 +250,13 @@ public sealed class SmdWriter
                         int parentBone = 0;
                         int linkCount = 0;
 
-                        if (influences > 0 && pooledBoneIndices is not null && pooledBoneWeights is not null && mesh.BoneWeights is not null && mesh.BoneIndices is not null)
+                        if (influences > 0 && pooledBoneIndices is not null && pooledBoneWeights is not null && skin is not null)
                         {
                             for (int j = 0; j < influences; j++)
                             {
-                                float weight = mesh.BoneWeights.Get<float>(vertIdx, j, 0);
+                                float weight = skin.BoneWeights.Get<float>(vertIdx, j, 0);
                                 if (weight <= 0f) continue;
-                                int localIdx  = mesh.BoneIndices.Get<int>(vertIdx, j, 0);
+                                int localIdx  = skin.BoneIndices.Get<int>(vertIdx, j, 0);
                                 if ((uint)localIdx >= (uint)globalBoneTable.Length)
                                 {
                                     throw new InvalidDataException(
@@ -351,7 +352,7 @@ public sealed class SmdWriter
     public static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap)
     {
         _ = allBones;
-        var skinnedBones = mesh.SkinnedBones;
+        var skinnedBones = mesh.Skin?.Bones;
         if (skinnedBones is null || skinnedBones.Count == 0)
             return [];
 

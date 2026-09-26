@@ -159,15 +159,15 @@ public class SemodelTranslator : SceneTranslator
 
                 byte[] weightData = reader.ReadBytes(vertexCount * vertexStride);
 
-                mesh.BoneIndices = indexSize switch
+                DataBuffer boneIndices = indexSize switch
                 {
                     1 => DataBufferPacking.CreateStrided<byte>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
                     2 => DataBufferPacking.CreateStrided<ushort>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
                     _ => DataBufferPacking.CreateStrided<int>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
                 };
-                mesh.BoneWeights = DataBufferPacking.CreateStrided<float>(weightData, vertexCount, byteOffset: indexSize, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride);
+                DataBuffer boneWeights = DataBufferPacking.CreateStrided<float>(weightData, vertexCount, byteOffset: indexSize, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride);
 
-                AssignSkinBinding(mesh, skeleton, bones);
+                mesh.Skin = new Skin(bones, boneIndices, boneWeights);
             }
 
             // Face indices — bulk read
@@ -316,11 +316,10 @@ public class SemodelTranslator : SceneTranslator
             int vertexCount = mesh.Positions.ElementCount;
             int faceCount   = mesh.FaceIndices.ElementCount / 3;
             int layerCount  = mesh.UVLayers?.ValueCount ?? 0;
-            int influences  = mesh.BoneIndices is not null &&
-                              mesh.BoneWeights is not null &&
-                              mesh.SkinnedBones is not null ? mesh.BoneIndices.ValueCount : 0;
+            Skin? skin      = mesh.Skin;
+            int influences  = skin?.BoneIndices.ValueCount ?? 0;
 
-            int[] globalBoneIndexTable = influences > 0 ? GetExportBoneIndices(mesh, boneTable) : [];
+            int[] globalBoneIndexTable = skin is not null ? GetExportBoneIndices(mesh, skin, boneTable) : [];
 
             writer.Write((byte)0); // flags
             writer.Write((byte)layerCount);
@@ -395,13 +394,13 @@ public class SemodelTranslator : SceneTranslator
             }
 
             // Bone influences
-            if (influences > 0 && mesh.BoneWeights is not null && mesh.BoneIndices is not null)
+            if (skin is not null)
             {
                 for (int v = 0; v < vertexCount; v++)
                 {
                     for (int j = 0; j < influences; j++)
                     {
-                        int boneIdx = mesh.BoneIndices.Get<int>(v, j, 0);
+                        int boneIdx = skin.BoneIndices.Get<int>(v, j, 0);
 
                         if (bones.Length <= byte.MaxValue)
                             writer.Write((byte)globalBoneIndexTable[boneIdx]);
@@ -410,7 +409,7 @@ public class SemodelTranslator : SceneTranslator
                         else
                             writer.Write(globalBoneIndexTable[boneIdx]);
 
-                        writer.Write(mesh.BoneWeights.Get<float>(v, j, 0));
+                        writer.Write(skin.BoneWeights.Get<float>(v, j, 0));
                     }
                 }
             }
@@ -464,7 +463,7 @@ public class SemodelTranslator : SceneTranslator
             if (mesh.UVLayers is not null)    flags |= 1;
             if (mesh.Normals is not null)     flags |= 2;
             if (mesh.ColorLayers is not null) flags |= 4;
-            if (mesh.BoneWeights is not null) flags |= 8;
+            if (mesh.Skin is not null)        flags |= 8;
         }
         return flags;
     }
@@ -522,21 +521,10 @@ public class SemodelTranslator : SceneTranslator
         return texture.FilePath;
     }
 
-    private static void AssignSkinBinding(Mesh mesh, SkeletonBone skeleton, SkeletonBone[] bones)
+    private static int[] GetExportBoneIndices(Mesh mesh, Skin skin, Dictionary<SkeletonBone, int> boneTable)
     {
-        if (mesh.BoneIndices is null || mesh.BoneWeights is null)
-            return;
-
-        mesh.SetSkinBinding(bones);
-    }
-
-    private static int[] GetExportBoneIndices(Mesh mesh, Dictionary<SkeletonBone, int> boneTable)
-    {
-        if (mesh.SkinnedBones is null)
-            return [];
-
         List<string> missingBones = [];
-        foreach (SkeletonBone skinnedBone in mesh.SkinnedBones)
+        foreach (SkeletonBone skinnedBone in skin.Bones)
         {
             if (!boneTable.ContainsKey(skinnedBone))
                 missingBones.Add(skinnedBone.Name);
@@ -547,7 +535,7 @@ public class SemodelTranslator : SceneTranslator
             throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
-        return mesh.GetBoneIndices(boneTable);
+        return skin.GetBoneTableIndices(boneTable);
     }
 
     private static int[] GetExportMaterialIndices(Mesh mesh, int layerCount, IReadOnlyDictionary<Material, int> materialTable)

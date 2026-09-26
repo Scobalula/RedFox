@@ -252,18 +252,18 @@ public static class FbxSceneMapper
             ApplyImportedLiveWorldHints(importedLiveWorldHints);
         }
 
-        // Rebuild IBMs for ALL skinned meshes from the current scene graph.
+        // Derive IBMs for ALL skinned meshes from the current scene graph.
         // Imported cluster IBMs are in FBX Y-up world space, but after stripping
         // and applying BindPose hints the bone bind-world matrices are in the
         // engine's Z-up space.  Keeping the original Y-up IBMs would cause
         // v × IBM_yup × boneActiveWorld_zup — a coordinate-space mismatch that
-        // produces wrong vertex positions.  Rebuilding makes IBMs consistent:
+        // produces wrong vertex positions.  Clearing them makes the skin derive
         // IBM = meshBindWorld × inv(boneBindWorld), both in the same post-strip space.
         foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
         {
-            if (mesh.HasSkinning)
+            if (mesh.Skin is not null)
             {
-                mesh.RebuildInverseBindMatrices();
+                mesh.Skin.InverseBindMatrices = null;
             }
         }
     }
@@ -488,10 +488,7 @@ public static class FbxSceneMapper
 
         foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
         {
-            if (!mesh.HasSkinning
-                || !mesh.HasExplicitInverseBindMatrices
-                || mesh.InverseBindMatrices is not { Count: > 0 } inverseBindMatrices
-                || mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+            if (mesh.Skin is not { InverseBindMatrices: { Count: > 0 } inverseBindMatrices, Bones: { Count: > 0 } skinnedBones })
             {
                 continue;
             }
@@ -673,6 +670,7 @@ public static class FbxSceneMapper
         ClassifyNullContainers(modelNodes, collapseSingleBoneContainers: constraintNodes.Count == 0);
         AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials);
         AttachMaterials(meshesByModelId, materialsById, connections);
+        FbxMorphMapper.ImportMorphs(meshesByModelId, objectsById, connections);
         SplitMeshesByMaterial(perTriangleMaterials);
         FbxSkinningMapper.ImportSkinning(meshesByModelId, objectsById, connections, bonesByModelId);
         AttachNullNodeAttributes(modelNodes, objectsById, connections);
@@ -847,7 +845,14 @@ public static class FbxSceneMapper
                 }
             }
 
-            if (mesh.HasSkinning && geometryIds.TryGetValue(mesh, out long geometryId))
+            if (!geometryIds.TryGetValue(mesh, out long geometryId))
+            {
+                continue;
+            }
+
+            FbxMorphMapper.ExportMorph(objectsNode, connectionsNode, mesh, geometryId, ref nextId);
+
+            if (mesh.HasSkinning)
             {
                 ValidateExportSkinning(mesh, boneIds);
                 FbxSkinningMapper.ExportSkinning(objectsNode, connectionsNode, mesh, geometryId, boneIds, ref nextId);
@@ -1069,26 +1074,10 @@ public static class FbxSceneMapper
                 splitMesh.BiTangents = mesh.BiTangents;
                 splitMesh.ColorLayers = mesh.ColorLayers;
                 splitMesh.UVLayers = mesh.UVLayers;
-                splitMesh.BoneIndices = mesh.BoneIndices;
-                splitMesh.BoneWeights = mesh.BoneWeights;
-                splitMesh.DeltaPositions = mesh.DeltaPositions;
-                splitMesh.DeltaNormals = mesh.DeltaNormals;
-                splitMesh.DeltaTangents = mesh.DeltaTangents;
-                splitMesh.SkinBindingName = mesh.SkinBindingName;
+                splitMesh.Skin = mesh.Skin?.Clone();
+                splitMesh.Morph = mesh.Morph?.Clone();
                 splitMesh.Materials = [materials[materialIndex]];
                 splitMesh.FaceIndices = new DataBuffer<int>(triangleIndices.ToArray(), 1, 1);
-
-                if (mesh.SkinnedBones is not null)
-                {
-                    if (mesh.HasExplicitInverseBindMatrices)
-                    {
-                        splitMesh.SetSkinBinding(mesh.SkinnedBones, mesh.InverseBindMatrices);
-                    }
-                    else
-                    {
-                        splitMesh.SetSkinBinding(mesh.SkinnedBones);
-                    }
-                }
             }
 
             mesh.Detach();
@@ -2195,7 +2184,7 @@ public static class FbxSceneMapper
 
         AddBindPoseChain(nodes, seen, mesh, modelIds);
 
-        if (mesh.SkinnedBones is { Count: > 0 } bones)
+        if (mesh.Skin?.Bones is { Count: > 0 } bones)
         {
             for (int i = 0; i < bones.Count; i++)
             {
@@ -2436,7 +2425,7 @@ public static class FbxSceneMapper
     /// <returns>The owning skeleton node, or <see langword="null"/> when not found.</returns>
     public static SkeletonBone? FindBindPoseArmature(Mesh mesh)
     {
-        if (mesh.SkinnedBones is not { Count: > 0 } bones)
+        if (mesh.Skin?.Bones is not { Count: > 0 } bones)
         {
             return null;
         }
@@ -3008,7 +2997,7 @@ public static class FbxSceneMapper
 
     private static void ValidateExportSkinning(Mesh mesh, IReadOnlyDictionary<SkeletonBone, long> boneIds)
     {
-        if (!mesh.HasSkinning || mesh.SkinnedBones is not { Count: > 0 } skinnedBones)
+        if (mesh.Skin?.Bones is not { Count: > 0 } skinnedBones)
         {
             return;
         }

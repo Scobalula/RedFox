@@ -63,9 +63,9 @@ public sealed class FbxTranslatorTests
         Quaternion rootBoneRotBefore = rootBone.GetBindWorldRotation();
         Quaternion childBoneRotBefore = childBone.GetBindWorldRotation();
 
-        // Rebuild IBMs from current transforms (no explicit IBMs).
+        // Derive IBMs from current transforms (no explicit IBMs).
         Mesh mesh = sourceScene.GetDescendants<Mesh>()[0];
-        mesh.RebuildInverseBindMatrices();
+        mesh.Skin!.InverseBindMatrices = null;
         Vector3 meshWorldBefore = mesh.GetBindWorldPosition();
 
         SceneTranslatorManager manager = CreateManager();
@@ -219,8 +219,6 @@ public sealed class FbxTranslatorTests
 
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
-        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
 
         Matrix4x4 desiredBoneWorld = Matrix4x4.CreateTranslation(5f, 0f, 0f);
         Matrix4x4 meshBindWorldAfterStrip = Matrix4x4.CreateTranslation(2f, 0f, 0f);
@@ -228,8 +226,8 @@ public sealed class FbxTranslatorTests
             ? meshBindWorldAfterStrip * invBoneWorld
             : Matrix4x4.Identity;
 
-        mesh.SetSkinBinding([bone], [expectedIbm]);
-        Assert.True(mesh.HasExplicitInverseBindMatrices);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [expectedIbm]);
+        Assert.NotNull(mesh.Skin.InverseBindMatrices);
 
         FbxSceneMapper.StripImportedRootBasisTransforms(scene.RootNode);
 
@@ -237,18 +235,16 @@ public sealed class FbxTranslatorTests
         Assert.True(Vector3.Distance(correctedBoneWorld, new Vector3(5f, 0f, 0f)) < 0.0001f,
             $"Expected corrected bone world at <5,0,0>, got {correctedBoneWorld}");
 
-        // IBMs are rebuilt from the current scene graph (meshBindWorld × inv(boneBindWorld))
+        // IBMs are derived from the current scene graph (meshBindWorld × inv(boneBindWorld))
         // so they are in the same coordinate space as the bone transforms.
-        Assert.False(mesh.HasExplicitInverseBindMatrices);
-        Assert.NotNull(mesh.InverseBindMatrices);
-        Assert.Single(mesh.InverseBindMatrices!);
+        Assert.Null(mesh.Skin.InverseBindMatrices);
 
         // Rebuilt IBM should equal meshBindWorld × inv(boneBindWorld).
         Matrix4x4 meshWorld = mesh.GetBindWorldMatrix();
         Matrix4x4 rebuiltExpected = Matrix4x4.Invert(Matrix4x4.CreateTranslation(5f, 0f, 0f), out Matrix4x4 invBone)
             ? meshWorld * invBone
             : Matrix4x4.Identity;
-        AssertMatrixApproximatelyEqual(rebuiltExpected, mesh.InverseBindMatrices![0]);
+        AssertMatrixApproximatelyEqual(rebuiltExpected, mesh.Skin.GetInverseBindMatrix(0, meshWorld));
     }
 
     [Fact]
@@ -270,13 +266,11 @@ public sealed class FbxTranslatorTests
         MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
-        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
 
         // Bind pose hint says the bone bind world is at x=5, while imported local is at x=7.
         Matrix4x4 bindWorld = Matrix4x4.CreateTranslation(5f, 0f, 0f);
         Matrix4x4 explicitIbm = Matrix4x4.CreateTranslation(-5f, 0f, 0f);
-        mesh.SetSkinBinding([bone], [explicitIbm]);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [explicitIbm]);
 
         Dictionary<SkeletonBone, Matrix4x4> bindHints = new()
         {
@@ -295,7 +289,7 @@ public sealed class FbxTranslatorTests
             $"Expected active world at <7,0,0>, got {activeWorldPos}");
 
         // Skinning with the active pose produces the correct offset.
-        Matrix4x4 skinTransform = mesh.InverseBindMatrices![0] * bone.GetActiveWorldMatrix();
+        Matrix4x4 skinTransform = mesh.Skin!.GetSkinTransform(0, mesh.GetBindWorldMatrix());
         Vector3 skinned = Vector3.Transform(Vector3.Zero, skinTransform);
         Assert.True(Vector3.Distance(skinned, new Vector3(2f, 0f, 0f)) < 0.0001f,
             $"Expected skinned offset at <2,0,0>, got {skinned}");
@@ -321,12 +315,10 @@ public sealed class FbxTranslatorTests
         MeshGroup model = importedRoot.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
-        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
 
         Matrix4x4 bindWorld = Matrix4x4.CreateTranslation(5f, 0f, 0f);
         Matrix4x4 explicitIbm = Matrix4x4.CreateTranslation(-5f, 0f, 0f);
-        mesh.SetSkinBinding([bone], [explicitIbm]);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [explicitIbm]);
 
         Dictionary<SkeletonBone, Matrix4x4> bindHints = new()
         {
@@ -345,7 +337,7 @@ public sealed class FbxTranslatorTests
             $"Expected active world at <5.3,0,0>, got {activeWorldPos}");
 
         // Skinning with the active pose produces the correct small offset.
-        Matrix4x4 skinTransform = mesh.InverseBindMatrices![0] * bone.GetActiveWorldMatrix();
+        Matrix4x4 skinTransform = mesh.Skin!.GetSkinTransform(0, mesh.GetBindWorldMatrix());
         Vector3 skinned = Vector3.Transform(Vector3.Zero, skinTransform);
         Assert.True(Vector3.Distance(skinned, new Vector3(0.3f, 0f, 0f)) < 0.001f,
             $"Expected skinned offset at <0.3,0,0>, got {skinned}");
@@ -406,9 +398,7 @@ public sealed class FbxTranslatorTests
         MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
-        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
-        mesh.SetSkinBinding([bone], [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
 
         using MemoryStream writeStream = new();
         CreateManager().Write(writeStream, "live_bind_export.fbx", scene, new SceneTranslatorOptions(), token: null);
@@ -430,6 +420,26 @@ public sealed class FbxTranslatorTests
     }
 
     [Fact]
+    public void FbxTranslator_RoundTrip_PreservesSkinName()
+    {
+        Scene scene = new("skin-name");
+        SkeletonBone skeleton = scene.RootNode.AddNode(new SkeletonBone("Rig"));
+        SkeletonBone bone = skeleton.AddNode(new SkeletonBone("Bone"));
+
+        MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
+        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
+        mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0, 0, 0 }, 1, 1), new DataBuffer<float>([1f, 1f, 1f], 1, 1)) { Name = "skinCluster1" };
+
+        SceneTranslatorManager manager = CreateManager();
+        Scene roundTrip = ReadScene(manager, WriteScene(manager, scene, "skin_name.fbx"), "skin_name.fbx");
+
+        Mesh roundTripMesh = Assert.Single(roundTrip.GetDescendants<Mesh>());
+        Assert.Equal("skinCluster1", roundTripMesh.Skin?.Name);
+    }
+
+    [Fact]
     public void FbxTranslator_Write_UsesLiveModelTransformsForNonT7BonesAndPreservesBindClusterMatrices()
     {
         Scene scene = new("live-vs-bind-export-non-t7");
@@ -445,9 +455,7 @@ public sealed class FbxTranslatorTests
         MeshGroup model = scene.RootNode.AddNode(new MeshGroup { Name = "ModelRoot" });
         Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f], 1, 3);
-        mesh.BoneIndices = new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1);
-        mesh.BoneWeights = new DataBuffer<float>([1f], 1, 1);
-        mesh.SetSkinBinding([bone], [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
+        mesh.Skin = new Skin([bone], new DataBuffer<ushort>(new ushort[] { 0 }, 1, 1), new DataBuffer<float>([1f], 1, 1), [Matrix4x4.CreateTranslation(-5f, 0f, 0f)]);
 
         using MemoryStream writeStream = new();
         CreateManager().Write(writeStream, "live_bind_export_non_t7.fbx", scene, new SceneTranslatorOptions(), token: null);
@@ -911,7 +919,7 @@ public sealed class FbxTranslatorTests
         ], 2, 2);
 
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2, 0, 2, 3], 1, 1);
-        mesh.BoneIndices = new DataBuffer<ushort>(
+        DataBuffer<ushort> boneIndices = new(
         new ushort[]
         {
             0, 1,
@@ -920,7 +928,7 @@ public sealed class FbxTranslatorTests
             0, 1,
         }, 2, 1);
 
-        mesh.BoneWeights = new DataBuffer<float>(
+        DataBuffer<float> boneWeights = new(
         [
             0.75f, 0.25f,
             0.60f, 0.40f,
@@ -928,7 +936,7 @@ public sealed class FbxTranslatorTests
             0.80f, 0.20f,
         ], 2, 1);
 
-        mesh.SetSkinBinding([rootBone, childBone]);
+        mesh.Skin = new Skin([rootBone, childBone], boneIndices, boneWeights);
 
         Material material = model.AddNode(new Material("material_0")
         {
@@ -1076,11 +1084,11 @@ public sealed class FbxTranslatorTests
         Vector3 sourceRawVertex = sourceMesh.GetVertexPosition(0, raw: true);
         Vector3 roundTripRawVertex = roundTripMesh.GetVertexPosition(0, raw: true);
 
-        Matrix4x4 sourceIbm0 = sourceMesh.InverseBindMatrices is { Count: > 0 } sourceIbms ? sourceIbms[0] : Matrix4x4.Identity;
-        Matrix4x4 roundTripIbm0 = roundTripMesh.InverseBindMatrices is { Count: > 0 } roundTripIbms ? roundTripIbms[0] : Matrix4x4.Identity;
+        Matrix4x4 sourceIbm0 = sourceMesh.Skin?.InverseBindMatrices is { Count: > 0 } sourceIbms ? sourceIbms[0] : Matrix4x4.Identity;
+        Matrix4x4 roundTripIbm0 = roundTripMesh.Skin?.InverseBindMatrices is { Count: > 0 } roundTripIbms ? roundTripIbms[0] : Matrix4x4.Identity;
 
-        SkeletonBone? sourceMeshBone0 = sourceMesh.SkinnedBones is { Count: > 0 } sourceBones ? sourceBones[0] : null;
-        SkeletonBone? roundTripMeshBone0 = roundTripMesh.SkinnedBones is { Count: > 0 } roundTripBones ? roundTripBones[0] : null;
+        SkeletonBone? sourceMeshBone0 = sourceMesh.Skin?.Bones is { Count: > 0 } sourceBones ? sourceBones[0] : null;
+        SkeletonBone? roundTripMeshBone0 = roundTripMesh.Skin?.Bones is { Count: > 0 } roundTripBones ? roundTripBones[0] : null;
         Vector3 sourceMeshBone0Active = sourceMeshBone0?.GetActiveWorldPosition() ?? Vector3.Zero;
         Vector3 roundTripMeshBone0Active = roundTripMeshBone0?.GetActiveWorldPosition() ?? Vector3.Zero;
 
@@ -1112,31 +1120,31 @@ public sealed class FbxTranslatorTests
             }
         }
 
-        Matrix4x4 urbanSourceIbm0 = sourceMeshUrban.InverseBindMatrices is { Count: > 0 } urbanSourceIbms ? urbanSourceIbms[0] : Matrix4x4.Identity;
-        Matrix4x4 urbanRoundTripIbm0 = roundTripMeshUrban.InverseBindMatrices is { Count: > 0 } urbanRoundTripIbms ? urbanRoundTripIbms[0] : Matrix4x4.Identity;
+        Matrix4x4 urbanSourceIbm0 = sourceMeshUrban.Skin?.InverseBindMatrices is { Count: > 0 } urbanSourceIbms ? urbanSourceIbms[0] : Matrix4x4.Identity;
+        Matrix4x4 urbanRoundTripIbm0 = roundTripMeshUrban.Skin?.InverseBindMatrices is { Count: > 0 } urbanRoundTripIbms ? urbanRoundTripIbms[0] : Matrix4x4.Identity;
 
         string urbanInfluenceDetails = string.Empty;
-        if (urbanMaxIndex >= 0 && sourceMeshUrban.BoneIndices is not null && sourceMeshUrban.BoneWeights is not null && roundTripMeshUrban.BoneIndices is not null && roundTripMeshUrban.BoneWeights is not null)
+        if (urbanMaxIndex >= 0 && sourceMeshUrban.Skin is not null && roundTripMeshUrban.Skin is not null)
         {
-            int srcInfluenceCount = Math.Min(sourceMeshUrban.BoneIndices.ValueCount, sourceMeshUrban.BoneWeights.ValueCount);
-            int rtInfluenceCount = Math.Min(roundTripMeshUrban.BoneIndices.ValueCount, roundTripMeshUrban.BoneWeights.ValueCount);
+            int srcInfluenceCount = Math.Min(sourceMeshUrban.Skin.BoneIndices.ValueCount, sourceMeshUrban.Skin.BoneWeights.ValueCount);
+            int rtInfluenceCount = Math.Min(roundTripMeshUrban.Skin.BoneIndices.ValueCount, roundTripMeshUrban.Skin.BoneWeights.ValueCount);
             List<string> parts = [];
 
             for (int i = 0; i < srcInfluenceCount; i++)
             {
-                int idx = sourceMeshUrban.BoneIndices.Get<int>(urbanMaxIndex, i, 0);
-                float w = sourceMeshUrban.BoneWeights.Get<float>(urbanMaxIndex, i, 0);
-                string boneName = (uint)idx < (uint)(sourceMeshUrban.SkinnedBones?.Count ?? 0) ? sourceMeshUrban.SkinnedBones![idx].Name : "?";
-                Vector3 bonePos = (uint)idx < (uint)(sourceMeshUrban.SkinnedBones?.Count ?? 0) ? sourceMeshUrban.SkinnedBones![idx].GetActiveWorldPosition() : Vector3.Zero;
+                int idx = sourceMeshUrban.Skin.BoneIndices.Get<int>(urbanMaxIndex, i, 0);
+                float w = sourceMeshUrban.Skin.BoneWeights.Get<float>(urbanMaxIndex, i, 0);
+                string boneName = (uint)idx < (uint)sourceMeshUrban.Skin.Bones.Count ? sourceMeshUrban.Skin.Bones[idx].Name : "?";
+                Vector3 bonePos = (uint)idx < (uint)sourceMeshUrban.Skin.Bones.Count ? sourceMeshUrban.Skin.Bones[idx].GetActiveWorldPosition() : Vector3.Zero;
                 parts.Add($"src[{i}] idx={idx} w={w:F4} bone={boneName} pos={bonePos}");
             }
 
             for (int i = 0; i < rtInfluenceCount; i++)
             {
-                int idx = roundTripMeshUrban.BoneIndices.Get<int>(urbanMaxIndex, i, 0);
-                float w = roundTripMeshUrban.BoneWeights.Get<float>(urbanMaxIndex, i, 0);
-                string boneName = (uint)idx < (uint)(roundTripMeshUrban.SkinnedBones?.Count ?? 0) ? roundTripMeshUrban.SkinnedBones![idx].Name : "?";
-                Vector3 bonePos = (uint)idx < (uint)(roundTripMeshUrban.SkinnedBones?.Count ?? 0) ? roundTripMeshUrban.SkinnedBones![idx].GetActiveWorldPosition() : Vector3.Zero;
+                int idx = roundTripMeshUrban.Skin.BoneIndices.Get<int>(urbanMaxIndex, i, 0);
+                float w = roundTripMeshUrban.Skin.BoneWeights.Get<float>(urbanMaxIndex, i, 0);
+                string boneName = (uint)idx < (uint)roundTripMeshUrban.Skin.Bones.Count ? roundTripMeshUrban.Skin.Bones[idx].Name : "?";
+                Vector3 bonePos = (uint)idx < (uint)roundTripMeshUrban.Skin.Bones.Count ? roundTripMeshUrban.Skin.Bones[idx].GetActiveWorldPosition() : Vector3.Zero;
                 parts.Add($"rt[{i}] idx={idx} w={w:F4} bone={boneName} pos={bonePos}");
             }
 
@@ -1169,8 +1177,8 @@ public sealed class FbxTranslatorTests
             Assert.Equal(expectedMesh.UVLayerCount, actualMesh.UVLayerCount);
             Assert.Equal(expectedMesh.HasSkinning, actualMesh.HasSkinning);
 
-            int expectedSkinBoneCount = expectedMesh.SkinnedBones?.Count ?? 0;
-            int actualSkinBoneCount = actualMesh.SkinnedBones?.Count ?? 0;
+            int expectedSkinBoneCount = expectedMesh.Skin?.Bones.Count ?? 0;
+            int actualSkinBoneCount = actualMesh.Skin?.Bones.Count ?? 0;
             Assert.Equal(expectedSkinBoneCount, actualSkinBoneCount);
         }
 
@@ -1603,7 +1611,7 @@ public sealed class FbxTranslatorTests
             sw.WriteLine("=== Baking Heuristic Debug ===");
             foreach (Mesh m in meshes)
             {
-                if (!m.HasSkinning || m.Positions is not { ElementCount: > 0 } pos || m.SkinnedBones is not { Count: > 0 } sb)
+                if (!m.HasSkinning || m.Positions is not { ElementCount: > 0 } pos || m.Skin?.Bones is not { Count: > 0 } sb)
                     continue;
 
                 Vector3 vCenter = Vector3.Zero;
@@ -1639,8 +1647,8 @@ public sealed class FbxTranslatorTests
                 sw.WriteLine($"=== Mesh: {mesh.Name} (parent={mesh.Parent?.Name}) ===");
                 sw.WriteLine($"  localPos={mesh.GetBindLocalPosition()} localRot={mesh.GetBindLocalRotation()}");
                 sw.WriteLine($"  worldMatrix={mesh.GetBindWorldMatrix()}");
-                sw.WriteLine($"  HasSkinning={mesh.HasSkinning} SkinnedBones={mesh.SkinnedBones?.Count ?? 0}");
-                sw.WriteLine($"  HasExplicitIBMs={mesh.HasExplicitInverseBindMatrices}");
+                sw.WriteLine($"  HasSkinning={mesh.HasSkinning} SkinnedBones={mesh.Skin?.Bones.Count ?? 0}");
+                sw.WriteLine($"  HasExplicitIBMs={(mesh.Skin?.InverseBindMatrices is not null)}");
 
                 // Vertex bounding box
                 if (mesh.Positions != null)
@@ -1659,11 +1667,11 @@ public sealed class FbxTranslatorTests
                 }
 
                 // Show IBM and skinTransform for first bone
-                if (mesh.HasSkinning && mesh.SkinnedBones?.Count > 0)
+                if (mesh.HasSkinning && mesh.Skin?.Bones.Count > 0)
                 {
-                    SkeletonBone firstBone = mesh.SkinnedBones[0];
+                    SkeletonBone firstBone = mesh.Skin!.Bones[0];
 
-                    IReadOnlyList<Matrix4x4>? ibms = mesh.InverseBindMatrices;
+                    IReadOnlyList<Matrix4x4>? ibms = mesh.Skin?.InverseBindMatrices;
                     if (ibms != null && ibms.Count > 0)
                     {
                         sw.WriteLine($"  IBM[0] (bone={firstBone.Name}): {ibms[0]}");
@@ -1714,7 +1722,7 @@ public sealed class FbxTranslatorTests
                 foreach (Mesh mesh in refMeshes)
                 {
                     sw.WriteLine($"=== Mesh: {mesh.Name} (parent={mesh.Parent?.Name}) ===");
-                    sw.WriteLine($"  HasSkinning={mesh.HasSkinning} SkinnedBones={mesh.SkinnedBones?.Count ?? 0}");
+                    sw.WriteLine($"  HasSkinning={mesh.HasSkinning} SkinnedBones={mesh.Skin?.Bones.Count ?? 0}");
                     if (mesh.Positions != null)
                     {
                         Vector3 min = new(float.MaxValue);
@@ -1797,7 +1805,7 @@ public sealed class FbxTranslatorTests
 
                 sw.WriteLine($"  [{m}] {inMesh.Name}→{outMesh.Name}: verts in={inMesh.Positions.ElementCount} out={outMesh.Positions.ElementCount}");
                 sw.WriteLine($"    v0_in={inV0} v0_out={outV0} dist={dist:F6}");
-                sw.WriteLine($"    inSkinned={inMesh.HasSkinning}({inMesh.SkinnedBones?.Count ?? 0}) outSkinned={outMesh.HasSkinning}({outMesh.SkinnedBones?.Count ?? 0})");
+                sw.WriteLine($"    inSkinned={inMesh.HasSkinning}({inMesh.Skin?.Bones.Count ?? 0}) outSkinned={outMesh.HasSkinning}({outMesh.Skin?.Bones.Count ?? 0})");
             }
         }
     }
@@ -1838,13 +1846,13 @@ public sealed class FbxTranslatorTests
         report.AppendLine("\n=== FBX Meshes ===");
         foreach (Mesh m in fbxMeshes)
         {
-            report.AppendLine($"  {m.Name}: verts={m.VertexCount} skinned={m.HasSkinning} bones={m.SkinnedBones?.Count ?? 0}");
+            report.AppendLine($"  {m.Name}: verts={m.VertexCount} skinned={m.HasSkinning} bones={m.Skin?.Bones.Count ?? 0}");
         }
 
         report.AppendLine("\n=== SEModel Meshes ===");
         foreach (Mesh m in seMeshes)
         {
-            report.AppendLine($"  {m.Name}: verts={m.VertexCount} skinned={m.HasSkinning} bones={m.SkinnedBones?.Count ?? 0}");
+            report.AppendLine($"  {m.Name}: verts={m.VertexCount} skinned={m.HasSkinning} bones={m.Skin?.Bones.Count ?? 0}");
         }
 
         // For each FBX mesh, find matching SEModel mesh by name suffix and compare
@@ -2197,9 +2205,9 @@ public sealed class FbxTranslatorTests
             Matrix4x4 exportWorld = FbxSceneMapper.GetExportBindWorldMatrix(mesh);
             report.AppendLine($"  {mesh.Name}: bindWorld_zup pos=({bindWorld.M41:F2},{bindWorld.M42:F2},{bindWorld.M43:F2})");
             report.AppendLine($"  {mesh.Name}: exportWorld_yup pos=({exportWorld.M41:F2},{exportWorld.M42:F2},{exportWorld.M43:F2})");
-            report.AppendLine($"    HasSkinning={mesh.HasSkinning} HasExplicit={mesh.HasExplicitInverseBindMatrices}");
+            report.AppendLine($"    HasSkinning={mesh.HasSkinning} HasExplicit={(mesh.Skin?.InverseBindMatrices is not null)}");
 
-            if (mesh.SkinnedBones is { Count: > 0 } bones && mesh.InverseBindMatrices is { Count: > 0 } ibms)
+            if (mesh.Skin?.Bones is { Count: > 0 } bones && mesh.Skin?.InverseBindMatrices is { Count: > 0 } ibms)
             {
                 for (int i = 0; i < Math.Min(3, bones.Count); i++)
                 {
@@ -2348,8 +2356,8 @@ public sealed class FbxTranslatorTests
 
             report.AppendLine($"\n=== Mesh '{orig.Name}' → '{reimp.Name}' ===");
             report.AppendLine($"  Verts: {orig.VertexCount} → {reimp.VertexCount}");
-            report.AppendLine($"  Skinned: {orig.HasSkinning}({orig.SkinnedBones?.Count ?? 0}) → {reimp.HasSkinning}({reimp.SkinnedBones?.Count ?? 0})");
-            report.AppendLine($"  HasExplicit: {orig.HasExplicitInverseBindMatrices} → {reimp.HasExplicitInverseBindMatrices}");
+            report.AppendLine($"  Skinned: {orig.HasSkinning}({orig.Skin?.Bones.Count ?? 0}) → {reimp.HasSkinning}({reimp.Skin?.Bones.Count ?? 0})");
+            report.AppendLine($"  HasExplicit: {(orig.Skin?.InverseBindMatrices is not null)} → {(reimp.Skin?.InverseBindMatrices is not null)}");
 
             if (orig.VertexCount == 0 || reimp.VertexCount == 0)
             {

@@ -366,7 +366,7 @@ public sealed class GltfWriter
 
         // Create glTF mesh
         int gltfMeshIdx = _doc.Meshes.Count;
-        GltfMesh gltfMesh = new() { Name = mesh.Name };
+        GltfMesh gltfMesh = new() { Name = mesh.Name, Weights = mesh.Morph?.Weights.ToArray(), TargetNames = mesh.Morph?.TargetNames.ToArray() };
         gltfMesh.Primitives.Add(prim);
         _doc.Meshes.Add(gltfMesh);
 
@@ -382,17 +382,9 @@ public sealed class GltfWriter
         WriteNodeTransform(CreateWorldBindTransform(mesh), node);
 
         // Skinning reference
-        if (mesh.SkinBindingName is not null)
+        if (mesh.Skin is { Bones.Count: > 0 } skin)
         {
-            if (skinIndices.TryGetValue(mesh.SkinBindingName, out int skinIndex))
-                node.Skin = skinIndex;
-            else if (mesh.HasSkinning)
-                throw new InvalidDataException(
-                    $"Cannot write glTF: mesh '{mesh.Name}' references skin '{mesh.SkinBindingName}' that is not included in the export selection.");
-        }
-        else if (mesh.HasSkinning && mesh.SkinnedBones is not null && mesh.SkinnedBones.Count > 0)
-        {
-            string? skeletonName = GetOwningSkeletonName(mesh.SkinnedBones[0]);
+            string? skeletonName = GetOwningSkeletonName(skin.Bones[0]);
             if (skeletonName is not null && skinIndices.TryGetValue(skeletonName, out int skinIndex))
                 node.Skin = skinIndex;
             else
@@ -411,16 +403,16 @@ public sealed class GltfWriter
     /// <param name="prim">The glTF mesh primitive to add the skin influence attributes to.</param>
     public void WriteSkinInfluences(Mesh mesh, GltfMeshPrimitive prim)
     {
-        if (mesh.BoneIndices is null || mesh.BoneWeights is null)
+        if (mesh.Skin is not { } skin)
             return;
 
-        if (mesh.SkinnedBones is not { Count: > 0 })
+        if (skin.Bones.Count == 0)
             throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' contains skin weights but has no skinned bone table.");
 
         int[] jointIndexTable = BuildExportJointIndexTable(mesh);
 
-        int vertexCount = mesh.BoneIndices.ElementCount;
-        int influenceCount = mesh.BoneIndices.ValueCount;
+        int vertexCount = skin.BoneIndices.ElementCount;
+        int influenceCount = skin.BoneIndices.ValueCount;
         int numSets = (influenceCount + 3) / 4;
 
         for (int set = 0; set < numSets; set++)
@@ -434,7 +426,7 @@ public sealed class GltfWriter
             {
                 for (int c = 0; c < setSize; c++)
                 {
-                    int localBoneIndex = mesh.BoneIndices.Get<int>(v, startInfluence + c, 0);
+                    int localBoneIndex = skin.BoneIndices.Get<int>(v, startInfluence + c, 0);
                     if ((uint)localBoneIndex >= (uint)jointIndexTable.Length)
                     {
                         throw new InvalidDataException(
@@ -457,7 +449,7 @@ public sealed class GltfWriter
             for (int v = 0; v < vertexCount; v++)
             {
                 for (int c = 0; c < setSize; c++)
-                    weights[v * 4 + c] = mesh.BoneWeights.Get<float>(v, startInfluence + c, 0);
+                    weights[v * 4 + c] = skin.BoneWeights.Get<float>(v, startInfluence + c, 0);
             }
 
             prim.Attributes[$"WEIGHTS_{set}"] = WriteAccessor(weights, GltfConstants.TypeVec4, GltfConstants.ComponentTypeFloat);
@@ -465,63 +457,51 @@ public sealed class GltfWriter
     }
 
     /// <summary>
-    /// Writes morph targets from the mesh's delta buffers.
+    /// Writes morph targets from the mesh's <see cref="Morph"/>.
     /// </summary>
-    /// <param name="mesh">The mesh containing delta position, normal, and tangent buffers.</param>
+    /// <param name="mesh">The mesh containing the morph.</param>
     /// <param name="prim">The glTF mesh primitive to add the morph target data to.</param>
     public void WriteMorphTargets(Mesh mesh, GltfMeshPrimitive prim)
     {
-        if (mesh.DeltaPositions is null && mesh.DeltaNormals is null && mesh.DeltaTangents is null)
+        if (mesh.Morph is not { TargetCount: > 0 } morph)
             return;
 
-        int targetCount = mesh.DeltaPositions?.ValueCount ?? mesh.DeltaNormals?.ValueCount ?? mesh.DeltaTangents?.ValueCount ?? 0;
-        if (targetCount == 0) return;
-
-        int vertexCount = mesh.VertexCount;
         prim.Targets = [];
 
-        for (int t = 0; t < targetCount; t++)
+        for (int t = 0; t < morph.TargetCount; t++)
         {
             Dictionary<string, int> target = [];
 
-            if (mesh.DeltaPositions is not null)
-            {
-                float[] data = new float[vertexCount * 3];
-                for (int v = 0; v < vertexCount; v++)
-                {
-                    data[v * 3] = mesh.DeltaPositions.Get<float>(v, t, 0);
-                    data[v * 3 + 1] = mesh.DeltaPositions.Get<float>(v, t, 1);
-                    data[v * 3 + 2] = mesh.DeltaPositions.Get<float>(v, t, 2);
-                }
-                target["POSITION"] = WriteAccessor(data, GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
-            }
-
-            if (mesh.DeltaNormals is not null)
-            {
-                float[] data = new float[vertexCount * 3];
-                for (int v = 0; v < vertexCount; v++)
-                {
-                    data[v * 3] = mesh.DeltaNormals.Get<float>(v, t, 0);
-                    data[v * 3 + 1] = mesh.DeltaNormals.Get<float>(v, t, 1);
-                    data[v * 3 + 2] = mesh.DeltaNormals.Get<float>(v, t, 2);
-                }
-                target["NORMAL"] = WriteAccessor(data, GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
-            }
-
-            if (mesh.DeltaTangents is not null)
-            {
-                float[] data = new float[vertexCount * 3];
-                for (int v = 0; v < vertexCount; v++)
-                {
-                    data[v * 3] = mesh.DeltaTangents.Get<float>(v, t, 0);
-                    data[v * 3 + 1] = mesh.DeltaTangents.Get<float>(v, t, 1);
-                    data[v * 3 + 2] = mesh.DeltaTangents.Get<float>(v, t, 2);
-                }
-                target["TANGENT"] = WriteAccessor(data, GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
-            }
+            WriteMorphDeltas(target, "POSITION", morph.DeltaPositions, t);
+            WriteMorphDeltas(target, "NORMAL", morph.DeltaNormals, t);
+            WriteMorphDeltas(target, "TANGENT", morph.DeltaTangents, t);
 
             prim.Targets.Add(target);
         }
+    }
+
+    /// <summary>
+    /// Writes the deltas of a single morph target attribute as an accessor.
+    /// </summary>
+    /// <param name="target">The glTF morph target to add the accessor to.</param>
+    /// <param name="attribute">The attribute name, such as POSITION.</param>
+    /// <param name="deltas">The delta buffer, or <see langword="null"/> to skip the attribute.</param>
+    /// <param name="targetIndex">The morph target index.</param>
+    public void WriteMorphDeltas(Dictionary<string, int> target, string attribute, DataBuffer? deltas, int targetIndex)
+    {
+        if (deltas is null)
+            return;
+
+        float[] data = new float[deltas.ElementCount * 3];
+
+        for (int v = 0; v < deltas.ElementCount; v++)
+        {
+            data[v * 3] = deltas.Get<float>(v, targetIndex, 0);
+            data[v * 3 + 1] = deltas.Get<float>(v, targetIndex, 1);
+            data[v * 3 + 2] = deltas.Get<float>(v, targetIndex, 2);
+        }
+
+        target[attribute] = WriteAccessor(data, GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
     }
 
     /// <summary>
@@ -639,14 +619,14 @@ public sealed class GltfWriter
 
     private int[] BuildExportJointIndexTable(Mesh mesh)
     {
-        if (mesh.SkinnedBones is null || mesh.SkinnedBones.Count == 0)
+        if (mesh.Skin is null || mesh.Skin.Bones.Count == 0)
             return [];
 
         List<string> missingBones = [];
-        int[] jointIndexTable = new int[mesh.SkinnedBones.Count];
-        for (int i = 0; i < mesh.SkinnedBones.Count; i++)
+        int[] jointIndexTable = new int[mesh.Skin.Bones.Count];
+        for (int i = 0; i < mesh.Skin.Bones.Count; i++)
         {
-            SkeletonBone bone = mesh.SkinnedBones[i];
+            SkeletonBone bone = mesh.Skin.Bones[i];
             if (!_jointIndices.TryGetValue(bone, out int jointIndex))
             {
                 missingBones.Add(bone.Name);

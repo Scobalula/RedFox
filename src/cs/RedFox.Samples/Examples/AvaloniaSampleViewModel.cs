@@ -363,8 +363,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
             UseViewBasedLighting = UseViewBasedLighting,
             ShowSkeletonBones = _context?.Options.ShowSkeletonBones ?? false,
             SkinningMode = SkinningMode,
-            UpAxis = _context?.Options.UpAxis ?? SceneUpAxis.Y,
-            FaceWinding = _context?.Options.FaceWinding ?? FaceWinding.CounterClockwise
+            UpAxis = _context?.Options.UpAxis ?? SceneUpAxis.Y
         };
 
         foreach (string path in paths)

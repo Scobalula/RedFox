@@ -18,7 +18,7 @@ public sealed class MeshNormalsTests
 
     // Builds a single CCW right-angled triangle in the XY plane.
     // Positions: (0,0,0), (1,0,0), (0,1,0).  Expected face normal: +Z.
-    private static Mesh CreateTriangle(MeshFaceOrder order = MeshFaceOrder.CounterClockwise)
+    private static Mesh CreateTriangle(FaceWinding order = FaceWinding.CounterClockwise)
     {
         Mesh mesh = new() { Name = "tri" };
         mesh.Positions = new DataBuffer<float>(
@@ -28,7 +28,7 @@ public sealed class MeshNormalsTests
             0f, 1f, 0f,
         ], 1, 3);
 
-        if (order == MeshFaceOrder.CounterClockwise)
+        if (order == FaceWinding.CounterClockwise)
             mesh.FaceIndices = new DataBuffer<float>([0f, 1f, 2f], 1, 1);
         else
             mesh.FaceIndices = new DataBuffer<float>([0f, 2f, 1f], 1, 1);
@@ -39,7 +39,7 @@ public sealed class MeshNormalsTests
     [Fact]
     public void Generate_DefaultCCW_ProducesPositiveZNormal()
     {
-        Mesh mesh = CreateTriangle(MeshFaceOrder.CounterClockwise);
+        Mesh mesh = CreateTriangle(FaceWinding.CounterClockwise);
         MeshNormals.Generate(mesh);
 
         Assert.NotNull(mesh.Normals);
@@ -56,8 +56,8 @@ public sealed class MeshNormalsTests
     [Fact]
     public void Generate_ClockwiseOrder_ProducesNegativeZNormal()
     {
-        Mesh mesh = CreateTriangle(MeshFaceOrder.CounterClockwise);
-        MeshNormals.Generate(mesh, NormalGenerationMode.WeightedByAngle, MeshFaceOrder.Clockwise);
+        Mesh mesh = CreateTriangle(FaceWinding.CounterClockwise);
+        MeshNormals.Generate(mesh, NormalGenerationMode.WeightedByAngle, FaceWinding.Clockwise);
 
         Assert.NotNull(mesh.Normals);
         for (int i = 0; i < 3; i++)
