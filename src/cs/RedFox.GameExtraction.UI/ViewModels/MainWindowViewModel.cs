@@ -1226,7 +1226,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PreviewReadResult = readResult;
             HandlerDisplay = handlerName;
             PayloadTypeDisplay = payloadType?.Name ?? "Unknown";
-            ReferenceCountDisplay = "0";
+            ReferenceCountDisplay = readResult.References.Count.ToString("N0");
             ContentTitle = PreviewBytes is not null ? "Hex preview" : PreviewData is null ? "Asset data loaded" : "Asset data captured";
             ContentText = PreviewBytes is not null ? $"{PreviewBytes.Length:N0} bytes" : PreviewData is null ? "The asset handler returned a result without a typed payload. Future preview controls can still inspect the read result." : "No compatible preview control accepted this payload.";
             Control? previewControl = CreatePreviewControl();

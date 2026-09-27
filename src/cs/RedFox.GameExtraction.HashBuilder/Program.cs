@@ -25,16 +25,16 @@ var inputPath = args[0];
 var outputPath = args.Length > 1 && !args[1].StartsWith("--") ? args[1] : Path.ChangeExtension(inputPath, ".namefile");
 
 string? hashAlgorithm = null;
-var compress = true;
+var compress = false;
 var checksum = true;
 var metadataPairs = new List<string>();
 
 for (var i = 1; i < args.Length; i++)
 {
-    if (args[i] is "--name" && i + 1 < args.Length)
+    if ((args[i] is "--algorithm" or "--name") && i + 1 < args.Length)
         hashAlgorithm = args[++i];
-    else if (args[i] is "--nocompress")
-        compress = false;
+    else if (args[i] is "--compress")
+        compress = true;
     else if (args[i] is "--nochecksum")
         checksum = false;
     else if (args[i] is "--metadata" && i + 1 < args.Length)

@@ -98,7 +98,7 @@ public sealed class AssetExportContext
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        string relativePath = ExportConfiguration.PreserveDirectoryStructure ? global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name) : asset.Name;
+        string relativePath = ExportConfiguration.PreserveDirectoryStructure ? global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(asset.Name);
 
         return ResolveOutputPath(relativePath);
     }
