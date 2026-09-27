@@ -5,22 +5,24 @@ namespace RedFox.Graphics3D
     /// <summary>
     /// Represents an axis-aligned world-space bounds volume for a scene.
     /// </summary>
-    public readonly struct SceneBounds
+    /// <param name="min">The minimum world-space corner.</param>
+    /// <param name="max">The maximum world-space corner.</param>
+    public readonly struct SceneBounds(Vector3 min, Vector3 max)
     {
         /// <summary>
         /// Gets the minimum world-space corner.
         /// </summary>
-        public Vector3 Min { get; }
+        public Vector3 Min { get; } = min;
 
         /// <summary>
         /// Gets the maximum world-space corner.
         /// </summary>
-        public Vector3 Max { get; }
+        public Vector3 Max { get; } = max;
 
         /// <summary>
         /// Gets a value indicating whether this bounds volume is valid.
         /// </summary>
-        public bool IsValid { get; }
+        public bool IsValid { get; } = true;
 
         /// <summary>
         /// Gets the world-space center.
@@ -46,18 +48,6 @@ namespace RedFox.Graphics3D
         /// Gets the radius of the smallest sphere centered at <see cref="Center"/> that encloses the bounds.
         /// </summary>
         public float Radius => Extents.Length();
-
-        /// <summary>
-        /// Initializes a new instance of <see cref="SceneBounds"/>.
-        /// </summary>
-        /// <param name="min">The minimum world-space corner.</param>
-        /// <param name="max">The maximum world-space corner.</param>
-        public SceneBounds(Vector3 min, Vector3 max)
-        {
-            Min = min;
-            Max = max;
-            IsValid = true;
-        }
 
         /// <summary>
         /// Gets an invalid bounds value.

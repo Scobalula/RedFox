@@ -6,7 +6,8 @@ namespace RedFox.Graphics3D
     /// Represents a point light in the scene graph.
     /// The light position is driven by the node transform so hosts can move it like any other scene node.
     /// </summary>
-    public class Light : SceneNode
+    /// <param name="name">The light name.</param>
+    public class Light(string name) : SceneNode(name)
     {
         /// <summary>
         /// Gets or sets the world-space colour of the light.
@@ -36,13 +37,6 @@ namespace RedFox.Graphics3D
         /// Initializes a new instance of <see cref="Light"/> with the default name.
         /// </summary>
         public Light() : this("Light")
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of <see cref="Light"/> with the specified name.
-        /// </summary>
-        public Light(string name) : base(name)
         {
         }
 

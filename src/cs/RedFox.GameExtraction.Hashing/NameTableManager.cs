@@ -58,9 +58,9 @@ public sealed class NameTableManager
     /// <exception cref="InvalidOperationException">Thrown when loading a .txt file and no matching hash algorithm is registered.</exception>
     public NameTable Load(string filePath)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-        if (ext == ".txt")
+        if (extension == ".txt")
         {
             var algorithm = NameFile.DeriveAlgorithm(filePath);
 
@@ -86,11 +86,11 @@ public sealed class NameTableManager
     /// <exception cref="InvalidOperationException">Thrown when loading a .txt file and no matching hash algorithm is registered.</exception>
     public NameTable Load(string filePath, string hashAlgorithm)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
         NameTable table;
 
-        if (ext == ".txt")
+        if (extension == ".txt")
         {
             if (!_hashers.TryGetValue(hashAlgorithm, out var hasher))
                 throw new InvalidOperationException($"No hash algorithm registered with the name '{hashAlgorithm}'. Call Register() first.");

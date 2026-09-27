@@ -65,8 +65,8 @@ public abstract class Animation : SceneNode
     public AnimationAction CreateAction(string actionName)
     {
         Actions ??= [];
-        var idx = Actions.FindIndex(x => x.Name == actionName);
-        if (idx != -1) return Actions[idx];
+        var actionIndex = Actions.FindIndex(x => x.Name == actionName);
+        if (actionIndex != -1) return Actions[actionIndex];
 
         var action = new AnimationAction(actionName, "Default");
         Actions.Add(action);
@@ -83,8 +83,8 @@ public abstract class Animation : SceneNode
     public AnimationAction CreateAction(string actionName, IEnumerable<AnimationKeyFrame<float, Action<Scene>?>> keyFrames)
     {
         Actions ??= [];
-        var idx = Actions.FindIndex(x => x.Name == actionName);
-        if (idx != -1) return Actions[idx];
+        var actionIndex = Actions.FindIndex(x => x.Name == actionName);
+        if (actionIndex != -1) return Actions[actionIndex];
 
         var action = new AnimationAction(actionName, "Default");
         action.KeyFrames.AddRange(keyFrames);
@@ -106,14 +106,22 @@ public abstract class Animation : SceneNode
     /// <param name="list">Sorted keyframe list to search.</param>
     /// <param name="time">Current playback time.</param>
     /// <param name="startTime">Offset added to each keyframe's time.</param>
+    /// <returns>Indices of the surrounding keyframes, or (-1, -1) if empty.</returns>
+    public static (int, int) GetFramePairIndex<TFrame, TValue>(List<AnimationKeyFrame<TFrame, TValue>>? list, TFrame time, TFrame startTime) where TFrame : INumber<TFrame>
+        => GetFramePairIndex(list, time, startTime, 0);
+
+    /// <summary>
+    /// Gets the previous and next frame pair indices at the given time from a
+    /// sorted list of keyframes, starting its search from a cursor hint.
+    /// </summary>
+    /// <typeparam name="TFrame">Numeric frame type.</typeparam>
+    /// <typeparam name="TValue">Value type stored at each keyframe.</typeparam>
+    /// <param name="list">Sorted keyframe list to search.</param>
+    /// <param name="time">Current playback time.</param>
+    /// <param name="startTime">Offset added to each keyframe's time.</param>
     /// <param name="cursor">Hint index for sequential scanning.</param>
     /// <returns>Indices of the surrounding keyframes, or (-1, -1) if empty.</returns>
-    public static (int, int) GetFramePairIndex<TFrame, TValue>(
-        List<AnimationKeyFrame<TFrame, TValue>>? list,
-        TFrame time,
-        TFrame startTime,
-        int cursor = 0)
-        where TFrame : INumber<TFrame>
+    public static (int, int) GetFramePairIndex<TFrame, TValue>(List<AnimationKeyFrame<TFrame, TValue>>? list, TFrame time, TFrame startTime, int cursor) where TFrame : INumber<TFrame>
     {
         if (list is null || list.Count == 0) return (-1, -1);
         if (list.Count == 1) return (0, 0);
@@ -141,7 +149,7 @@ public abstract class Animation : SceneNode
         where TFrame : INumber<TFrame>
     {
         if (keyFrames is null) yield break;
-        foreach (var kf in keyFrames)
-            yield return kf;
+        foreach (var keyframe in keyFrames)
+            yield return keyframe;
     }
 }

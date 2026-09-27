@@ -69,8 +69,8 @@
                     IsHitTestVisible="False"/>
             <Border Classes="sidebar" ClipToBounds="True">
                 <Grid>
-                    <ContentControl Content="{Binding PreviewControl}"
-                                    IsVisible="{Binding HasPreviewControl}"/>
+                    <ContentControl Content="{Binding PreviewContent}"
+                                    IsVisible="{Binding IsPreviewContentVisible}"/>
 
                     <StackPanel Spacing="12"
                                 HorizontalAlignment="Stretch"
@@ -93,9 +93,6 @@
                                 <TextBlock Text="Preview data captured"
                                            Foreground="#FFFFFF"
                                            FontWeight="SemiBold"/>
-                                <TextBlock Text="No configured preview control accepted this payload."
-                                           Foreground="#909096"
-                                           TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>

@@ -40,8 +40,19 @@ public sealed class GltfReader
     /// <param name="doc">The parsed glTF document with buffer data loaded.</param>
     /// <param name="name">The scene/file name used for the root model node.</param>
     /// <param name="options">Translation options.</param>
+    public GltfReader(GltfDocument doc, string name, SceneTranslatorOptions options)
+        : this(doc, name, options, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="GltfReader"/> with a pre-parsed <see cref="GltfDocument"/> and base directory.
+    /// </summary>
+    /// <param name="doc">The parsed glTF document with buffer data loaded.</param>
+    /// <param name="name">The scene/file name used for the root model node.</param>
+    /// <param name="options">Translation options.</param>
     /// <param name="baseDirectory">The directory used to resolve relative external asset paths, if available.</param>
-    public GltfReader(GltfDocument doc, string name, SceneTranslatorOptions options, string? baseDirectory = null)
+    public GltfReader(GltfDocument doc, string name, SceneTranslatorOptions options, string? baseDirectory)
     {
         _doc = doc ?? throw new ArgumentNullException(nameof(doc));
         _name = name ?? throw new ArgumentNullException(nameof(name));
@@ -538,11 +549,7 @@ public sealed class GltfReader
             mat.DoubleSided = gltfMat.DoubleSided;
 
             // Base color
-            mat.DiffuseColor = new Vector4(
-                gltfMat.BaseColorFactor[0],
-                gltfMat.BaseColorFactor[1],
-                gltfMat.BaseColorFactor[2],
-                gltfMat.BaseColorFactor[3]);
+            mat.DiffuseColor = new Vector4(gltfMat.BaseColorFactor[0], gltfMat.BaseColorFactor[1], gltfMat.BaseColorFactor[2], gltfMat.BaseColorFactor[3]);
 
             // Metallic/Roughness
             mat.MetallicColor = new Vector4(gltfMat.MetallicFactor, gltfMat.MetallicFactor, gltfMat.MetallicFactor, 1f);
@@ -551,11 +558,7 @@ public sealed class GltfReader
             // Emissive
             if (gltfMat.EmissiveFactor[0] != 0f || gltfMat.EmissiveFactor[1] != 0f || gltfMat.EmissiveFactor[2] != 0f)
             {
-                mat.EmissiveColor = new Vector4(
-                    gltfMat.EmissiveFactor[0],
-                    gltfMat.EmissiveFactor[1],
-                    gltfMat.EmissiveFactor[2],
-                    1f);
+                mat.EmissiveColor = new Vector4(gltfMat.EmissiveFactor[0], gltfMat.EmissiveFactor[1], gltfMat.EmissiveFactor[2], 1f);
             }
 
             // Texture references
@@ -689,20 +692,6 @@ public sealed class GltfReader
     {
         HashSet<int> jointSet = [.. joints];
         return FindParentJoint(nodeIdx, jointSet);
-    }
-
-    private int? FindParentJoint(int nodeIdx, IReadOnlySet<int> jointSet)
-    {
-        // Walk up the glTF node tree to find a parent that's also a joint
-        int? parentIdx = FindParentNode(nodeIdx);
-        while (parentIdx.HasValue)
-        {
-            if (jointSet.Contains(parentIdx.Value))
-                return parentIdx.Value;
-            parentIdx = FindParentNode(parentIdx.Value);
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -883,11 +872,7 @@ public sealed class GltfReader
     {
         // glTF stores column-major: [col0.x, col0.y, col0.z, col0.w, col1.x, ...]
         // .NET Matrix4x4 constructor is row-major: (m11, m12, m13, m14, m21, ...)
-        return new Matrix4x4(
-            data[offset + 0], data[offset + 4], data[offset + 8], data[offset + 12],
-            data[offset + 1], data[offset + 5], data[offset + 9], data[offset + 13],
-            data[offset + 2], data[offset + 6], data[offset + 10], data[offset + 14],
-            data[offset + 3], data[offset + 7], data[offset + 11], data[offset + 15]);
+        return new Matrix4x4(data[offset + 0], data[offset + 4], data[offset + 8], data[offset + 12], data[offset + 1], data[offset + 5], data[offset + 9], data[offset + 13], data[offset + 2], data[offset + 6], data[offset + 10], data[offset + 14], data[offset + 3], data[offset + 7], data[offset + 11], data[offset + 15]);
     }
 
     /// <summary>
@@ -940,5 +925,19 @@ public sealed class GltfReader
                 throw new InvalidOperationException("Unexpected end of stream.");
             totalRead += read;
         }
+    }
+
+    private int? FindParentJoint(int nodeIdx, IReadOnlySet<int> jointSet)
+    {
+        // Walk up the glTF node tree to find a parent that's also a joint
+        int? parentIdx = FindParentNode(nodeIdx);
+        while (parentIdx.HasValue)
+        {
+            if (jointSet.Contains(parentIdx.Value))
+                return parentIdx.Value;
+            parentIdx = FindParentNode(parentIdx.Value);
+        }
+
+        return null;
     }
 }

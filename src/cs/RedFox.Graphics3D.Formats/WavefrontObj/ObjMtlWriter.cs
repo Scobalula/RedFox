@@ -14,8 +14,15 @@ public static class ObjMtlWriter
     /// </summary>
     /// <param name="stream">The output stream to write MTL data to.</param>
     /// <param name="materials">The materials to export.</param>
+    public static void Write(Stream stream, IReadOnlyList<Material> materials) => Write(stream, materials, null);
+
+    /// <summary>
+    /// Writes the specified materials to the MTL stream.
+    /// </summary>
+    /// <param name="stream">The output stream to write MTL data to.</param>
+    /// <param name="materials">The materials to export.</param>
     /// <param name="targetDirectory">The directory the MTL file is written to, used to relativize texture paths.</param>
-    public static void Write(Stream stream, IReadOnlyList<Material> materials, string? targetDirectory = null)
+    public static void Write(Stream stream, IReadOnlyList<Material> materials, string? targetDirectory)
     {
         using StreamWriter writer = new(stream, leaveOpen: true);
         writer.NewLine = "\n";

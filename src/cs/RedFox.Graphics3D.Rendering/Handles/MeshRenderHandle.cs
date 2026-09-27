@@ -256,7 +256,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     }
 
     /// <inheritdoc/>
-    protected override void ReleaseCore()
+    protected override void ReleaseResources()
     {
         ReleaseBuffers();
     }

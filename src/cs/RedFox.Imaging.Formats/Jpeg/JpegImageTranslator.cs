@@ -85,14 +85,14 @@ public sealed class JpegImageTranslator : ImageTranslator
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)
     {
-        WriteCore(stream, image, EncoderOptions);
+        WriteEncodedImage(stream, image, EncoderOptions);
     }
 
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        WriteCore(stream, image, ResolveEncoderOptions(options));
+        WriteEncodedImage(stream, image, ResolveEncoderOptions(options));
     }
 
     /// <inheritdoc/>
@@ -160,7 +160,7 @@ public sealed class JpegImageTranslator : ImageTranslator
         };
     }
 
-    private static void WriteCore(Stream stream, Image image, JpegEncoderOptions encoderOptions)
+    private static void WriteEncodedImage(Stream stream, Image image, JpegEncoderOptions encoderOptions)
     {
         JpegEncoder encoder = new(stream, encoderOptions);
         encoder.Encode(image);

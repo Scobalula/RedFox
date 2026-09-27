@@ -21,7 +21,7 @@ internal static class SilkMeshSampleRunner
 
         if (!MeshSampleSceneFactory.TryCreate(arguments, fallbackSceneName, out MeshSampleSceneContext? context, out string? error))
         {
-            Console.Error.WriteLine(error);
+            SampleConsole.Error.WriteLine(error, SampleConsole.ErrorStyle);
             return 1;
         }
 
@@ -33,7 +33,7 @@ internal static class SilkMeshSampleRunner
 
         if (context.AnimationPlayers.Count > 0)
         {
-            Console.WriteLine($"[Animation] Created {context.AnimationPlayers.Count} skeletal animation player(s).");
+            AnsiConsole.WriteLine($"[Animation] Created {context.AnimationPlayers.Count} skeletal animation player(s).");
         }
 
         SilkCameraInputAdapter? cameraInputAdapter = null;
@@ -119,30 +119,25 @@ internal static class SilkMeshSampleRunner
         return 0;
     }
 
-    private static void OnKeyDown(
-        Key key,
-        SceneRenderer renderer,
-        Scene scene,
-        SceneViewportController viewportController,
-        Grid? grid)
+    private static void OnKeyDown(Key key, SceneRenderer renderer, Scene scene, SceneViewportController viewportController, Grid? grid)
     {
         switch (key)
         {
             case Key.L:
                 renderer.UseViewBasedLighting = !renderer.UseViewBasedLighting;
-                Console.WriteLine($"[Lighting] View-based lighting {(renderer.UseViewBasedLighting ? "enabled" : "disabled")}");
+                AnsiConsole.WriteLine($"[Lighting] View-based lighting {(renderer.UseViewBasedLighting ? "enabled" : "disabled")}");
                 break;
 
             case Key.B:
                 bool showSkeletonBones = ToggleSkeletonBones(scene);
                 viewportController.RecomputeBounds();
-                Console.WriteLine($"[Skeleton] Bones {(showSkeletonBones ? "visible" : "hidden")}");
+                AnsiConsole.WriteLine($"[Skeleton] Bones {(showSkeletonBones ? "visible" : "hidden")}");
                 break;
 
             case Key.F:
                 if (viewportController.RecomputeBounds() && viewportController.FitCameraToScene())
                 {
-                    Console.WriteLine("[Camera] Fit to scene.");
+                    AnsiConsole.WriteLine("[Camera] Fit to scene.");
                 }
 
                 break;
@@ -151,12 +146,12 @@ internal static class SilkMeshSampleRunner
                 renderer.SkinningMode = renderer.SkinningMode == SkinningMode.Linear
                     ? SkinningMode.DualQuaternion
                     : SkinningMode.Linear;
-                Console.WriteLine($"[Skinning] Mode: {renderer.SkinningMode}");
+                AnsiConsole.WriteLine($"[Skinning] Mode: {renderer.SkinningMode}");
                 break;
 
             case Key.Space:
                 scene.IsAnimationPaused = !scene.IsAnimationPaused;
-                Console.WriteLine($"[Animation] {(scene.IsAnimationPaused ? "Paused" : "Playing")}");
+                AnsiConsole.WriteLine($"[Animation] {(scene.IsAnimationPaused ? "Paused" : "Playing")}");
                 break;
 
             case Key.T:
@@ -169,11 +164,11 @@ internal static class SilkMeshSampleRunner
                         node.ResetLiveTransform();
                     }
 
-                    Console.WriteLine("[Animation] Disabled; bind pose restored.");
+                    AnsiConsole.WriteLine("[Animation] Disabled; bind pose restored.");
                 }
                 else
                 {
-                    Console.WriteLine("[Animation] Enabled.");
+                    AnsiConsole.WriteLine("[Animation] Enabled.");
                 }
 
                 break;
@@ -182,7 +177,7 @@ internal static class SilkMeshSampleRunner
                 if (grid is not null)
                 {
                     grid.Enabled = !grid.Enabled;
-                    Console.WriteLine($"[Grid] {(grid.Enabled ? "Visible" : "Hidden")}");
+                    AnsiConsole.WriteLine($"[Grid] {(grid.Enabled ? "Visible" : "Hidden")}");
                 }
 
                 break;

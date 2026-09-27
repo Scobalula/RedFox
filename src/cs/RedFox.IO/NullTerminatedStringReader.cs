@@ -8,19 +8,6 @@ namespace RedFox.IO;
 public static class NullTerminatedStringReader
 {
     /// <summary>
-    /// Represents a callback that fills a destination span with the next sequence of bytes.
-    /// </summary>
-    /// <param name="destination">The destination span to fill.</param>
-    /// <returns>The number of bytes written to <paramref name="destination"/>. Return 0 to indicate end-of-source.</returns>
-    public delegate int ReadChunk(Span<byte> destination);
-
-    /// <summary>
-    /// Represents a callback that creates an exception when a null terminator is not found.
-    /// </summary>
-    /// <returns>The exception to throw.</returns>
-    public delegate Exception ExceptionFactory();
-
-    /// <summary>
     /// Gets the null-terminator byte width for the specified encoding.
     /// </summary>
     /// <param name="encoding">The text encoding.</param>
@@ -62,7 +49,7 @@ public static class NullTerminatedStringReader
     /// <param name="readChunk">The callback used to read bytes from the source.</param>
     /// <param name="onMissing">Factory used when no terminator is found before reaching <paramref name="maxBytes"/>.</param>
     /// <returns>The bytes before the null terminator.</returns>
-    public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing)
+    public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, NullTerminatedChunkReader readChunk, NullTerminatorExceptionFactory onMissing)
     {
         return ReadNullTerminatedBytes(encoding, maxBytes, chunkSize, readChunk, onMissing, out int _);
     }
@@ -77,7 +64,7 @@ public static class NullTerminatedStringReader
     /// <param name="onMissing">Factory used when no terminator is found before reaching <paramref name="maxBytes"/>.</param>
     /// <param name="overReadBytes">The number of bytes read beyond the null terminator.</param>
     /// <returns>The bytes before the null terminator.</returns>
-    public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing, out int overReadBytes)
+    public static byte[] ReadNullTerminatedBytes(Encoding encoding, int maxBytes, int chunkSize, NullTerminatedChunkReader readChunk, NullTerminatorExceptionFactory onMissing, out int overReadBytes)
     {
         ArgumentNullException.ThrowIfNull(encoding);
         int terminatorLength = GetTerminatorLength(encoding);
@@ -129,14 +116,14 @@ public static class NullTerminatedStringReader
     /// <param name="readChunk">The callback used to read bytes from the source.</param>
     /// <param name="onMissing">Factory used when no terminator is found before reaching <paramref name="maxBytes"/>.</param>
     /// <returns>The decoded string value before the null terminator.</returns>
-    public static string ReadNullTerminatedString(Encoding encoding, int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing)
+    public static string ReadNullTerminatedString(Encoding encoding, int maxBytes, int chunkSize, NullTerminatedChunkReader readChunk, NullTerminatorExceptionFactory onMissing)
     {
         ArgumentNullException.ThrowIfNull(encoding);
         byte[] bytes = ReadNullTerminatedBytes(encoding, maxBytes, chunkSize, readChunk, onMissing);
         return encoding.GetString(bytes);
     }
 
-    private static void ValidateReadArguments(int maxBytes, int chunkSize, ReadChunk readChunk, ExceptionFactory onMissing)
+    private static void ValidateReadArguments(int maxBytes, int chunkSize, NullTerminatedChunkReader readChunk, NullTerminatorExceptionFactory onMissing)
     {
         if (maxBytes < 1)
         {

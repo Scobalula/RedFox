@@ -15,28 +15,28 @@ namespace RedFox.GameExtraction.UI.Controls;
 public sealed class HexBytesPreviewControl : UserControl
 {
     private const int DefaultBytesPerRow = 16;
-    private const double HeaderHeight = 28;
-    private const double RowHeight = 22;
-    private const double LeftPadding = 12;
-    private const double TopPadding = 8;
-    private const double OffsetGap = 18;
-    private const double AsciiGap = 24;
-    private const double CharWidth = 8.2;
-    private const double TextFontSize = 13;
+    internal const double HeaderHeight = 28;
+    internal const double RowHeight = 22;
+    internal const double LeftPadding = 12;
+    internal const double TopPadding = 8;
+    internal const double OffsetGap = 18;
+    internal const double AsciiGap = 24;
+    internal const double CharWidth = 8.2;
+    internal const double TextFontSize = 13;
 
-    private static readonly Typeface HexTypeface = new("Consolas");
-    private static readonly IBrush BackgroundBrush = Brush.Parse("#141417");
-    private static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#1E1E22");
-    private static readonly IBrush AlternateRowBrush = Brush.Parse("#1A1A1E");
-    private static readonly IBrush HeaderTextBrush = Brush.Parse("#909096");
-    private static readonly IBrush OffsetTextBrush = Brush.Parse("#6DB6FF");
-    private static readonly IBrush HexTextBrush = Brush.Parse("#E8E8EA");
-    private static readonly IBrush AsciiTextBrush = Brush.Parse("#D69D85");
-    private static readonly IBrush BorderStrokeBrush = Brush.Parse("#2C2C31");
+    internal static readonly Typeface HexTypeface = new("Consolas");
+    internal static readonly IBrush BackgroundBrush = Brush.Parse("#141417");
+    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#1E1E22");
+    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1A1A1E");
+    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#909096");
+    internal static readonly IBrush OffsetTextBrush = Brush.Parse("#6DB6FF");
+    internal static readonly IBrush HexTextBrush = Brush.Parse("#E8E8EA");
+    internal static readonly IBrush AsciiTextBrush = Brush.Parse("#D69D85");
+    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#2C2C31");
 
     private readonly ScrollBar _horizontalScrollBar;
     private readonly ScrollBar _verticalScrollBar;
-    private readonly ViewportControl _viewport;
+    private readonly HexBytesViewportControl _viewport;
     private int _firstVisibleRow;
     private double _horizontalOffset;
     private bool _updatingScrollBars;
@@ -64,7 +64,7 @@ public sealed class HexBytesPreviewControl : UserControl
     /// </summary>
     public HexBytesPreviewControl()
     {
-        _viewport = new ViewportControl(this);
+        _viewport = new HexBytesViewportControl(this);
         _viewport.PointerWheelChanged += OnViewportPointerWheelChanged;
         _viewport.SizeChanged += OnViewportSizeChanged;
 
@@ -140,9 +140,9 @@ public sealed class HexBytesPreviewControl : UserControl
         set => SetValue(BytesPerRowProperty, value);
     }
 
-    private byte[]? PreviewBytes => Bytes;
+    internal byte[]? PreviewBytes => Bytes;
 
-    private int RowCount
+    internal int RowCount
     {
         get
         {
@@ -153,7 +153,7 @@ public sealed class HexBytesPreviewControl : UserControl
         }
     }
 
-    private int VisibleRowCount
+    internal int VisibleRowCount
     {
         get
         {
@@ -162,9 +162,9 @@ public sealed class HexBytesPreviewControl : UserControl
         }
     }
 
-    private int FirstVisibleRow => _firstVisibleRow;
+    internal int FirstVisibleRow => _firstVisibleRow;
 
-    private double HorizontalOffset => _horizontalOffset;
+    internal double HorizontalOffset => _horizontalOffset;
 
     private void OnPreviewBytesChanged()
     {
@@ -275,7 +275,7 @@ public sealed class HexBytesPreviewControl : UserControl
         }
     }
 
-    private int GetBytesPerRow() => Math.Clamp(BytesPerRow, 1, 64);
+    internal int GetBytesPerRow() => Math.Clamp(BytesPerRow, 1, 64);
 
     private static double GetContentWidth(byte[]? bytes, int bytesPerRow)
     {
@@ -283,9 +283,9 @@ public sealed class HexBytesPreviewControl : UserControl
         return LeftPadding + offsetDigits * CharWidth + OffsetGap + bytesPerRow * 3 * CharWidth + AsciiGap + bytesPerRow * CharWidth + LeftPadding;
     }
 
-    private static int GetOffsetDigitCount(byte[] bytes) => Math.Max(8, (bytes.Length - 1).ToString("X", CultureInfo.InvariantCulture).Length);
+    internal static int GetOffsetDigitCount(byte[] bytes) => Math.Max(8, (bytes.Length - 1).ToString("X", CultureInfo.InvariantCulture).Length);
 
-    private static string CreateHeader(int bytesPerRow)
+    internal static string CreateHeader(int bytesPerRow)
     {
         StringBuilder builder = new(bytesPerRow * 3);
         for (int index = 0; index < bytesPerRow; index++)
@@ -301,7 +301,7 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    private static string CreateHexRow(byte[] bytes, int offset, int count)
+    internal static string CreateHexRow(byte[] bytes, int offset, int count)
     {
         StringBuilder builder = new(count * 3);
         for (int index = 0; index < count; index++)
@@ -317,7 +317,7 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    private static string CreateAsciiRow(byte[] bytes, int offset, int count)
+    internal static string CreateAsciiRow(byte[] bytes, int offset, int count)
     {
         StringBuilder builder = new(count);
         for (int index = 0; index < count; index++)
@@ -329,7 +329,7 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    private static void DrawText(DrawingContext context, string text, IBrush brush, Point origin)
+    internal static void DrawText(DrawingContext context, string text, IBrush brush, Point origin)
     {
         FormattedText formattedText = new(
             text,
@@ -342,65 +342,4 @@ public sealed class HexBytesPreviewControl : UserControl
         context.DrawText(formattedText, origin);
     }
 
-    private sealed class ViewportControl : Control
-    {
-        private readonly HexBytesPreviewControl _owner;
-
-        public ViewportControl(HexBytesPreviewControl owner)
-        {
-            _owner = owner ?? throw new ArgumentNullException(nameof(owner));
-            ClipToBounds = true;
-        }
-
-        public override void Render(DrawingContext context)
-        {
-            base.Render(context);
-
-            Rect bounds = Bounds;
-            context.DrawRectangle(BackgroundBrush, null, bounds);
-            context.DrawRectangle(HeaderBackgroundBrush, null, new Rect(0, 0, bounds.Width, HeaderHeight));
-            context.DrawLine(new Pen(BorderStrokeBrush, 1), new Point(0, HeaderHeight - 0.5), new Point(bounds.Width, HeaderHeight - 0.5));
-
-            byte[]? bytes = _owner.PreviewBytes;
-            if (bytes is null)
-            {
-                DrawText(context, "No byte data", HexTextBrush, new Point(LeftPadding, HeaderHeight + TopPadding));
-                return;
-            }
-
-            int bytesPerRow = _owner.GetBytesPerRow();
-            int offsetDigits = GetOffsetDigitCount(bytes);
-            double offsetColumnWidth = offsetDigits * CharWidth;
-            double hexColumnStart = LeftPadding + offsetColumnWidth + OffsetGap - _owner.HorizontalOffset;
-            double asciiColumnStart = hexColumnStart + bytesPerRow * 3 * CharWidth + AsciiGap;
-
-            DrawText(context, "Offset", HeaderTextBrush, new Point(LeftPadding, 7));
-            DrawText(context, CreateHeader(bytesPerRow), HeaderTextBrush, new Point(hexColumnStart, 7));
-            DrawText(context, "ASCII", HeaderTextBrush, new Point(asciiColumnStart, 7));
-
-            if (bytes.Length == 0)
-            {
-                DrawText(context, "No byte data", HexTextBrush, new Point(LeftPadding, HeaderHeight + TopPadding));
-                return;
-            }
-
-            int startRow = _owner.FirstVisibleRow;
-            int endRow = Math.Min(_owner.RowCount, startRow + _owner.VisibleRowCount + 1);
-            for (int rowIndex = startRow; rowIndex < endRow; rowIndex++)
-            {
-                int offset = rowIndex * bytesPerRow;
-                int count = Math.Min(bytesPerRow, bytes.Length - offset);
-                double rowY = HeaderHeight + TopPadding + ((rowIndex - startRow) * RowHeight);
-
-                if (rowIndex % 2 == 1)
-                {
-                    context.DrawRectangle(AlternateRowBrush, null, new Rect(0, rowY, bounds.Width, RowHeight));
-                }
-
-                DrawText(context, offset.ToString($"X{offsetDigits}", CultureInfo.InvariantCulture), OffsetTextBrush, new Point(LeftPadding, rowY + 2));
-                DrawText(context, CreateHexRow(bytes, offset, count), HexTextBrush, new Point(hexColumnStart, rowY + 2));
-                DrawText(context, CreateAsciiRow(bytes, offset, count), AsciiTextBrush, new Point(asciiColumnStart, rowY + 2));
-            }
-        }
-    }
 }

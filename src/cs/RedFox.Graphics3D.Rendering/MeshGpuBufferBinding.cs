@@ -20,13 +20,7 @@ public sealed class MeshGpuBufferBinding
     private int _sizeBytes;
     private int _strideBytes;
 
-    private MeshGpuBufferBinding(
-        DataBuffer? data,
-        string shaderName,
-        BufferUsage usage,
-        int strideKind,
-        bool normalizeIndexElementType,
-        Func<MeshGpuBufferBinding, IGraphicsDevice, bool>? customUpdater)
+    private MeshGpuBufferBinding(DataBuffer? data, string shaderName, BufferUsage usage, int strideKind, bool normalizeIndexElementType, Func<MeshGpuBufferBinding, IGraphicsDevice, bool>? customUpdater)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
 
@@ -94,11 +88,7 @@ public sealed class MeshGpuBufferBinding
     /// <param name="usage">The GPU usage flags for the resource buffer.</param>
     /// <param name="normalizeIndexElementType">True to normalize signed integer index element types to unsigned GPU element types.</param>
     /// <returns>A mesh buffer binding configured for shader-resource binding.</returns>
-    public static MeshGpuBufferBinding CreateShaderResource(
-        DataBuffer? data,
-        string shaderName,
-        BufferUsage usage,
-        bool normalizeIndexElementType)
+    public static MeshGpuBufferBinding CreateShaderResource(DataBuffer? data, string shaderName, BufferUsage usage, bool normalizeIndexElementType)
     {
         if (usage.HasFlag(BufferUsage.Index) || usage.HasFlag(BufferUsage.Vertex))
         {
@@ -116,11 +106,7 @@ public sealed class MeshGpuBufferBinding
     /// <param name="normalizeIndexElementType">True to normalize signed integer index element types to unsigned GPU element types.</param>
     /// <param name="customUpdater">The callback that fully owns how the binding updates its GPU buffer.</param>
     /// <returns>A mesh buffer binding configured for shader-resource binding.</returns>
-    public static MeshGpuBufferBinding CreateShaderResource(
-        string shaderName,
-        BufferUsage usage,
-        bool normalizeIndexElementType,
-        Func<MeshGpuBufferBinding, IGraphicsDevice, bool> customUpdater)
+    public static MeshGpuBufferBinding CreateShaderResource(string shaderName, BufferUsage usage, bool normalizeIndexElementType, Func<MeshGpuBufferBinding, IGraphicsDevice, bool> customUpdater)
     {
         ArgumentNullException.ThrowIfNull(customUpdater);
 
@@ -184,7 +170,7 @@ public sealed class MeshGpuBufferBinding
             data = GetRequiredGpuBufferData(new DataBuffer<uint>(sourceData.ToArray<uint>(), sourceData.ValueCount, sourceData.ComponentCount), ShaderName);
         }
 
-        return UpdateCore(graphicsDevice, data);
+        return UpdateBinding(graphicsDevice, data);
     }
 
     /// <summary>
@@ -196,7 +182,7 @@ public sealed class MeshGpuBufferBinding
     public bool UpdateGenerated(IGraphicsDevice graphicsDevice, GpuBufferData data)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
-        return UpdateCore(graphicsDevice, data);
+        return UpdateBinding(graphicsDevice, data);
     }
 
     /// <summary>
@@ -315,7 +301,7 @@ public sealed class MeshGpuBufferBinding
         };
     }
 
-    private bool UpdateCore(IGraphicsDevice graphicsDevice, GpuBufferData data)
+    private bool UpdateBinding(IGraphicsDevice graphicsDevice, GpuBufferData data)
     {
         int stride = GetStride(data);
         if (data.Bytes.IsEmpty || stride <= 0)

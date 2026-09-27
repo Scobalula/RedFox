@@ -14,12 +14,4 @@ namespace RedFox.Graphics3D.Formats.ActorX;
 /// <param name="Position">The reference-pose position relative to the parent.</param>
 /// <param name="Length">The bone length hint.</param>
 /// <param name="Size">The per-axis bone size hint.</param>
-public readonly record struct ActorXBone(
-    string Name,
-    uint Flags,
-    int ChildCount,
-    int ParentIndex,
-    Quaternion Orientation,
-    Vector3 Position,
-    float Length,
-    Vector3 Size);
+public readonly record struct ActorXBone(string Name, uint Flags, int ChildCount, int ParentIndex, Quaternion Orientation, Vector3 Position, float Length, Vector3 Size);

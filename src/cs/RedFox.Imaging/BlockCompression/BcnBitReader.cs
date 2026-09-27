@@ -7,25 +7,16 @@ namespace RedFox.Imaging.BlockCompression;
 /// Lightweight sequential bit reader for block-compressed format decoding.
 /// Reads bits LSB-first from a byte span, maintaining a running position.
 /// </summary>
-internal ref struct BcnBitReader
+/// <param name="data">The source byte span to read bits from.</param>
+internal ref struct BcnBitReader(ReadOnlySpan<byte> data)
 {
-    private readonly ReadOnlySpan<byte> _data;
+    private readonly ReadOnlySpan<byte> _data = data;
     private int _position;
 
     /// <summary>
     /// Gets the current bit position within the data.
     /// </summary>
     public readonly int Position => _position;
-
-    /// <summary>
-    /// Initializes a new <see cref="BcnBitReader"/> over the specified data.
-    /// </summary>
-    /// <param name="data">The source byte span to read bits from.</param>
-    public BcnBitReader(ReadOnlySpan<byte> data)
-    {
-        _data = data;
-        _position = 0;
-    }
 
     /// <summary>
     /// Reads <paramref name="numBits"/> bits from the current position and advances.
@@ -36,24 +27,24 @@ internal ref struct BcnBitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public uint Read(int numBits)
     {
-        uint result = 0;
+        uint value = 0;
         for (int i = 0; i < numBits; i++)
         {
             int byteIndex = _position >> 3;
             int bitIndex = _position & 7;
-            result |= (uint)((_data[byteIndex] >> bitIndex) & 1) << i;
+            value |= (uint)((_data[byteIndex] >> bitIndex) & 1) << i;
             _position++;
         }
-        return result;
+        return value;
     }
 
     /// <summary>
-    /// Reads a single bit at position <paramref name="p"/> without advancing the reader position.
+    /// Reads a single bit at position <paramref name="bitPosition"/> without advancing the reader position.
     /// </summary>
-    /// <param name="p">The zero-based bit position to read.</param>
+    /// <param name="bitPosition">The zero-based bit position to read.</param>
     /// <returns>0 or 1.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly int Bit(int p) => (_data[p >> 3] >> (p & 7)) & 1;
+    public readonly int Bit(int bitPosition) => (_data[bitPosition >> 3] >> (bitPosition & 7)) & 1;
 
     /// <summary>
     /// Reads <paramref name="count"/> bits starting at position <paramref name="start"/>
@@ -65,10 +56,10 @@ internal ref struct BcnBitReader
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly int Bits(int start, int count)
     {
-        int r = 0;
+        int value = 0;
         for (int i = 0; i < count; i++)
-            r |= Bit(start + i) << i;
-        return r;
+            value |= Bit(start + i) << i;
+        return value;
     }
 
     /// <summary>

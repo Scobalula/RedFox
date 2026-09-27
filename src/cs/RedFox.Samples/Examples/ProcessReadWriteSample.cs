@@ -53,9 +53,9 @@ internal sealed class ProcessReadWriteSample : ISample
         processWriter.WritePointer(pointerStorageAddress, pointedValueAddress, ProcessPointerSize.Native);
         int pointerReadValue = processReader.ReadPointer<int>(pointerStorageAddress, ProcessPointerSize.Native);
 
-        Console.WriteLine($"Direct int read/write value: {directReadValue}");
-        Console.WriteLine($"Pointer target value: {pointerReadValue}");
-        Console.WriteLine($"Main module base: 0x{processReader.GetMainModuleBaseAddress():X}");
+        AnsiConsole.WriteLine($"Direct int read/write value: {directReadValue}");
+        AnsiConsole.WriteLine($"Pointer target value: {pointerReadValue}");
+        AnsiConsole.WriteLine($"Main module base: 0x{processReader.GetMainModuleBaseAddress():X}");
         return 0;
     }
 }

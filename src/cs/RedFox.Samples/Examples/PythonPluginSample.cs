@@ -39,7 +39,7 @@ internal sealed class PythonPluginSample : ISample
         scriptPath ??= Path.Combine(AppContext.BaseDirectory, "Examples", "Plugins", "sample_translator.py");
         if (!File.Exists(scriptPath))
         {
-            Console.Error.WriteLine($"Plugin script not found at '{scriptPath}'.");
+            SampleConsole.Error.WriteLine($"Plugin script not found at '{scriptPath}'.", SampleConsole.ErrorStyle);
             return 1;
         }
 
@@ -48,7 +48,7 @@ internal sealed class PythonPluginSample : ISample
         using PluginManager plugins = new();
         plugins.Services["scene-translators"] = translators;
 
-        Console.WriteLine($"Loading Python plugin: {scriptPath}");
+        AnsiConsole.WriteLine($"Loading Python plugin: {scriptPath}");
         Plugin plugin;
         try
         {
@@ -57,8 +57,8 @@ internal sealed class PythonPluginSample : ISample
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Plugin load failed: {ex.InnerException?.Message ?? ex.Message}");
-            Console.Error.WriteLine("Ensure Python 3 is installed and the PYTHONNET_PYDLL environment variable points at python3X.dll (e.g. C:\\Python312\\python312.dll).");
+            SampleConsole.Error.WriteLine($"Plugin load failed: {ex.InnerException?.Message ?? ex.Message}", SampleConsole.ErrorStyle);
+            SampleConsole.Error.WriteLine("Ensure Python 3 is installed and the PYTHONNET_PYDLL environment variable points at python3X.dll (e.g. C:\\Python312\\python312.dll).", SampleConsole.ErrorStyle);
             return 1;
         }
 
@@ -69,32 +69,32 @@ internal sealed class PythonPluginSample : ISample
 
         string outputPath = Path.Combine(outputDirectory, "scene.pytxt");
         translators.Write(outputPath, scene, new SceneTranslatorOptions(), CancellationToken.None);
-        Console.WriteLine($"Wrote scene via Python translator -> {outputPath} ({new FileInfo(outputPath).Length} bytes)");
+        AnsiConsole.WriteLine($"Wrote scene via Python translator -> {outputPath} ({new FileInfo(outputPath).Length} bytes)");
 
-        Console.WriteLine("Reloading plugin...");
+        AnsiConsole.WriteLine("Reloading plugin...");
         try
         {
             plugins.Reload(plugin.Name);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Reload failed: {ex.InnerException?.Message ?? ex.Message}");
+            SampleConsole.Error.WriteLine($"Reload failed: {ex.InnerException?.Message ?? ex.Message}", SampleConsole.ErrorStyle);
             return 1;
         }
         translators.Write(outputPath, scene, new SceneTranslatorOptions(), CancellationToken.None);
-        Console.WriteLine("Reload OK, wrote scene again.");
+        AnsiConsole.WriteLine("Reload OK, wrote scene again.");
 
-        Console.WriteLine("Unloading plugin...");
+        AnsiConsole.WriteLine("Unloading plugin...");
         try
         {
             plugins.Unload(plugin.Name);
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Unload failed: {ex.InnerException?.Message ?? ex.Message}");
+            SampleConsole.Error.WriteLine($"Unload failed: {ex.InnerException?.Message ?? ex.Message}", SampleConsole.ErrorStyle);
             return 1;
         }
-        Console.WriteLine($"Translators after unload: {translators.Translators.Count}");
+        AnsiConsole.WriteLine($"Translators after unload: {translators.Translators.Count}");
 
         return 0;
     }

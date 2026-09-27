@@ -12,14 +12,6 @@ namespace RedFox.Patterns;
 public static class BytePatternScanner
 {
     /// <summary>
-    /// Represents a callback that reads bytes from a source into a destination span.
-    /// </summary>
-    /// <param name="offset">The source offset for the current read operation.</param>
-    /// <param name="destination">The destination span to fill with source bytes.</param>
-    /// <returns>The number of bytes written into <paramref name="destination"/>.</returns>
-    public delegate int ByteChunkReader(long offset, Span<byte> destination);
-
-    /// <summary>
     /// Scans a source for a byte pattern and returns matching absolute offsets.
     /// </summary>
     /// <param name="pattern">The byte pattern to scan for, including wildcard mask values.</param>
@@ -29,7 +21,7 @@ public static class BytePatternScanner
     /// <param name="firstOnly">When true, scanning stops after the first match.</param>
     /// <param name="readChunk">The callback used to read source bytes.</param>
     /// <returns>An array containing matching offsets.</returns>
-    public static long[] Scan(Pattern<byte> pattern, long start, long end, int bufferSize, bool firstOnly, ByteChunkReader readChunk)
+    public static long[] Scan(Pattern<byte> pattern, long start, long end, int bufferSize, bool firstOnly, BytePatternChunkReader readChunk)
     {
         BytePatternPlan plan = ValidateAndCreatePatternPlan(pattern, bufferSize, readChunk);
         BytePatternScanBounds bounds = new(start, end);
@@ -218,7 +210,7 @@ public static class BytePatternScanner
         }
     }
 
-    private static BytePatternPlan ValidateAndCreatePatternPlan(Pattern<byte> pattern, int bufferSize, ByteChunkReader readChunk)
+    private static BytePatternPlan ValidateAndCreatePatternPlan(Pattern<byte> pattern, int bufferSize, BytePatternChunkReader readChunk)
     {
         ArgumentNullException.ThrowIfNull(readChunk);
         ArgumentNullException.ThrowIfNull(pattern.Needle);

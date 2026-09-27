@@ -12,7 +12,8 @@ namespace RedFox.Imaging.BlockCompression;
 /// half-precision RGB values using one of 14 modes with 1–2 subsets.
 /// Supports both decoding and encoding.
 /// </summary>
-public sealed class BC6HCodec : IPixelCodec
+/// <param name="format">The image format (BC6HTypeless, BC6HUF16, or BC6HSF16).</param>
+public sealed class BC6HCodec(ImageFormat format) : IPixelCodec
 {
     private const int BytesPerBlock = 16;
 
@@ -40,25 +41,16 @@ public sealed class BC6HCodec : IPixelCodec
     private bool IsSigned => Format == ImageFormat.BC6HSF16;
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.BC6HTypeless => format,
+        ImageFormat.BC6HUF16 => format,
+        ImageFormat.BC6HSF16 => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC6HCodec supports only BC6HTypeless, BC6HUF16, and BC6HSF16."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 0;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BC6HCodec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format (BC6HTypeless, BC6HUF16, or BC6HSF16).</param>
-    public BC6HCodec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.BC6HTypeless => format,
-            ImageFormat.BC6HUF16 => format,
-            ImageFormat.BC6HSF16 => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC6HCodec supports only BC6HTypeless, BC6HUF16, and BC6HSF16."),
-        };
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)
@@ -233,21 +225,21 @@ public sealed class BC6HCodec : IPixelCodec
         {
             bool anchor = info.NumSubsets == 1 ? i == 0 : i == 0 || i == BC6HPartitionTable.AnchorTable[partition];
             int nbits = anchor ? info.IndexBits - 1 : info.IndexBits;
-            int idx = reader.Bits(bp, nbits);
+            int paletteIndex = reader.Bits(bp, nbits);
             bp += nbits;
 
             int subset = info.NumSubsets == 1 ? 0 : (BC6HPartitionTable.Partitions2[partition] >> i) & 1;
             if (subset == 0)
             {
-                outR[i] = rSubset0[idx];
-                outG[i] = gSubset0[idx];
-                outB[i] = bSubset0[idx];
+                outR[i] = rSubset0[paletteIndex];
+                outG[i] = gSubset0[paletteIndex];
+                outB[i] = bSubset0[paletteIndex];
             }
             else
             {
-                outR[i] = rSubset1[idx];
-                outG[i] = gSubset1[idx];
-                outB[i] = bSubset1[idx];
+                outR[i] = rSubset1[paletteIndex];
+                outG[i] = gSubset1[paletteIndex];
+                outB[i] = bSubset1[paletteIndex];
             }
         }
 
@@ -264,7 +256,7 @@ public sealed class BC6HCodec : IPixelCodec
     /// <param name="signed">True for signed half-float encoding, false for unsigned.</param>
     public static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed)
     {
-        EncodeBlockCore(pixels, block, signed, fastMode: false);
+        EncodeBlock(pixels, block, signed, fastMode: false);
     }
 
     /// <summary>
@@ -276,7 +268,7 @@ public sealed class BC6HCodec : IPixelCodec
     /// <param name="signed">True for signed half-float encoding, false for unsigned.</param>
     public static void EncodeBlockFast(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed)
     {
-        EncodeBlockCore(pixels, block, signed, fastMode: true);
+        EncodeBlock(pixels, block, signed, fastMode: true);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -606,7 +598,7 @@ public sealed class BC6HCodec : IPixelCodec
         return 0;
     }
 
-    private static void EncodeBlockCore(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed, bool fastMode)
+    private static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool signed, bool fastMode)
     {
         Span<ushort> rHalf = stackalloc ushort[16];
         Span<ushort> gHalf = stackalloc ushort[16];

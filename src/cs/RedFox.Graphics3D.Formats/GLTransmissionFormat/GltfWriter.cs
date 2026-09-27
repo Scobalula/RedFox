@@ -40,8 +40,16 @@ public sealed class GltfWriter
     /// Initializes a new <see cref="GltfWriter"/> with the specified translation options.
     /// </summary>
     /// <param name="options">Options that control how the scene data is written.</param>
+    public GltfWriter(SceneTranslatorOptions options) : this(options, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="GltfWriter"/> with translation options and a target directory.
+    /// </summary>
+    /// <param name="options">Options that control how the scene data is written.</param>
     /// <param name="targetDirectoryPath">The directory used to make external texture paths relative, if available.</param>
-    public GltfWriter(SceneTranslatorOptions options, string? targetDirectoryPath = null)
+    public GltfWriter(SceneTranslatorOptions options, string? targetDirectoryPath)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _targetDirectoryPath = targetDirectoryPath;
@@ -223,24 +231,6 @@ public sealed class GltfWriter
         return texIdx;
     }
 
-    private bool TryResolveTexturePath(Material material, string? mapName, out string? imagePath)
-    {
-        imagePath = null;
-        if (string.IsNullOrWhiteSpace(mapName))
-            return false;
-
-        if (material.TryGetTexture(mapName, out Texture? texture))
-        {
-            imagePath = texture.GetPortableFilePath(_targetDirectoryPath);
-            return !string.IsNullOrWhiteSpace(imagePath);
-        }
-
-        imagePath = NormalizePath(mapName);
-        return true;
-    }
-
-    private static string NormalizePath(string path) => path.Replace('\\', '/');
-
     /// <summary>
     /// Writes a <see cref="Mesh"/> to the glTF document, returning the node index.
     /// </summary>
@@ -267,10 +257,7 @@ public sealed class GltfWriter
         if (mesh.Tangents is not null)
         {
             int tangentComponents = mesh.Tangents.ComponentCount;
-            prim.Attributes["TANGENT"] = WriteAccessor(
-                ReadBufferAsFloats(mesh.Tangents, 0, tangentComponents),
-                tangentComponents == 4 ? GltfConstants.TypeVec4 : GltfConstants.TypeVec3,
-                GltfConstants.ComponentTypeFloat);
+            prim.Attributes["TANGENT"] = WriteAccessor(ReadBufferAsFloats(mesh.Tangents, 0, tangentComponents), tangentComponents == 4 ? GltfConstants.TypeVec4 : GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
         }
 
         // UV Layers
@@ -306,10 +293,7 @@ public sealed class GltfWriter
                     for (int c = 0; c < compCount; c++)
                         colorData[v * compCount + c] = mesh.ColorLayers.Get<float>(v, layer, c);
                 }
-                prim.Attributes[$"COLOR_{layer}"] = WriteAccessor(
-                    colorData,
-                    compCount == 3 ? GltfConstants.TypeVec3 : GltfConstants.TypeVec4,
-                    GltfConstants.ComponentTypeFloat);
+                prim.Attributes[$"COLOR_{layer}"] = WriteAccessor(colorData, compCount == 3 ? GltfConstants.TypeVec3 : GltfConstants.TypeVec4, GltfConstants.ComponentTypeFloat);
             }
         }
 
@@ -323,9 +307,9 @@ public sealed class GltfWriter
 
             // Use ushort if possible
             bool canUseShort = true;
-            foreach (int idx in indices)
+            foreach (int index in indices)
             {
-                if (idx > ushort.MaxValue)
+                if (index > ushort.MaxValue)
                 {
                     canUseShort = false;
                     break;
@@ -357,8 +341,7 @@ public sealed class GltfWriter
             Material material = mesh.Materials[0];
             if (!_materialIndices.TryGetValue(material, out int matIdx))
             {
-                throw new InvalidDataException(
-                    $"Cannot write glTF: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
             }
 
             prim.Material = matIdx;
@@ -392,8 +375,7 @@ public sealed class GltfWriter
             if (skinIndices.TryGetValue(GetOwningSkeletonName(skin.Bones[0]), out int skinIndex))
                 node.Skin = skinIndex;
             else
-                throw new InvalidDataException(
-                    $"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection.");
+                throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection.");
         }
 
         _doc.Nodes.Add(node);
@@ -433,8 +415,7 @@ public sealed class GltfWriter
                     int localBoneIndex = skin.BoneIndices.Get<int>(v, startInfluence + c, 0);
                     if ((uint)localBoneIndex >= (uint)jointIndexTable.Length)
                     {
-                        throw new InvalidDataException(
-                            $"Cannot write glTF: mesh '{mesh.Name}' contains skin index {localBoneIndex} outside the exported skin table.");
+                        throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' contains skin index {localBoneIndex} outside the exported skin table.");
                     }
 
                     joints[v * 4 + c] = jointIndexTable[localBoneIndex];
@@ -588,122 +569,6 @@ public sealed class GltfWriter
         return skinIdx;
     }
 
-    private static IReadOnlyList<(string Name, SkeletonBone[] Bones)> GetSelectedSkeletons(SceneTranslationSelection selection)
-    {
-        Dictionary<SceneNode, List<SkeletonBone>> bonesBySkeleton = [];
-
-        foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
-        {
-            SceneNode skeleton = GetSkeletonRoot(bone);
-
-            if (!bonesBySkeleton.TryGetValue(skeleton, out List<SkeletonBone>? bones))
-            {
-                bones = [];
-                bonesBySkeleton.Add(skeleton, bones);
-            }
-
-            bones.Add(bone);
-        }
-
-        List<(string Name, SkeletonBone[] Bones)> result = [];
-        foreach ((SceneNode skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
-            result.Add((skeleton.Name, [.. bones]));
-
-        return result;
-    }
-
-    private static SceneNode GetSkeletonRoot(SkeletonBone bone)
-    {
-        SceneNode root = bone;
-
-        for (SceneNode? current = bone.Parent; current is not null; current = current.Parent)
-        {
-            if (current is Skeleton)
-                return current;
-
-            if (current is SkeletonBone)
-                root = current;
-        }
-
-        return root;
-    }
-
-    private static string GetOwningSkeletonName(SkeletonBone bone) => GetSkeletonRoot(bone).Name;
-
-    private int[] BuildExportJointIndexTable(Mesh mesh)
-    {
-        if (mesh.Skin is null || mesh.Skin.Bones.Count == 0)
-            return [];
-
-        List<string> missingBones = [];
-        int[] jointIndexTable = new int[mesh.Skin.Bones.Count];
-        for (int i = 0; i < mesh.Skin.Bones.Count; i++)
-        {
-            SkeletonBone bone = mesh.Skin.Bones[i];
-            if (!_jointIndices.TryGetValue(bone, out int jointIndex))
-            {
-                missingBones.Add(bone.Name);
-                continue;
-            }
-
-            jointIndexTable[i] = jointIndex;
-        }
-
-        if (missingBones.Count > 0)
-        {
-            throw new InvalidDataException(
-                $"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
-        }
-
-        return jointIndexTable;
-    }
-
-    private static Transform GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes)
-    {
-        SceneNode? exportedParent = SceneNode.GetBestParent(bone, exportedBoneNodes);
-        Vector3 worldPosition = bone.GetBindWorldPosition();
-        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
-        Vector3 localScale = bone.GetBindLocalScale();
-
-        if (exportedParent is not null)
-        {
-            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
-            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
-            return new Transform
-            {
-                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
-                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
-                Scale = localScale,
-            };
-        }
-
-        return new Transform
-        {
-            LocalPosition = worldPosition,
-            LocalRotation = worldRotation,
-            Scale = localScale,
-        };
-    }
-
-    private static Transform CreateWorldBindTransform(SceneNode node)
-    {
-        return new Transform
-        {
-            LocalPosition = node.GetBindWorldPosition(),
-            LocalRotation = Quaternion.Normalize(node.GetBindWorldRotation()),
-            Scale = node.GetBindLocalScale(),
-        };
-    }
-
-    private static IEnumerable<SkeletonBone> EnumerateExportChildren(SkeletonBone parentBone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes)
-    {
-        for (int i = 0; i < bones.Count; i++)
-        {
-            if (ReferenceEquals(SceneNode.GetBestParent(bones[i], exportedBoneNodes), parentBone))
-                yield return bones[i];
-        }
-    }
-
     /// <summary>
     /// Writes a <see cref="SkeletonAnimation"/> to the glTF document.
     /// </summary>
@@ -760,53 +625,6 @@ public sealed class GltfWriter
     public void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount)
     {
         WriteAnimationChannel(anim, targetNode, path, curve, componentCount, 30f);
-    }
-
-    private void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount, float frameRate)
-    {
-        int frameCount = curve.KeyFrameCount;
-
-        // Write times
-        float[] times = new float[frameCount];
-        for (int i = 0; i < frameCount; i++)
-            times[i] = curve.GetKeyTime(i) / frameRate;
-
-        float[] minTime = [times.Min()];
-        float[] maxTime = [times.Max()];
-        int inputAccessor = WriteAccessor(times, GltfConstants.TypeScalar, GltfConstants.ComponentTypeFloat, minTime, maxTime);
-
-        // Write values
-        float[] values = new float[frameCount * componentCount];
-        for (int i = 0; i < frameCount; i++)
-        {
-            for (int c = 0; c < componentCount; c++)
-                values[i * componentCount + c] = curve.Values!.Get<float>(i, 0, c);
-        }
-
-        string accessorType = componentCount switch
-        {
-            1 => GltfConstants.TypeScalar,
-            3 => GltfConstants.TypeVec3,
-            4 => GltfConstants.TypeVec4,
-            _ => GltfConstants.TypeScalar
-        };
-
-        int outputAccessor = WriteAccessor(values, accessorType, GltfConstants.ComponentTypeFloat);
-
-        int samplerIdx = anim.Samplers.Count;
-        anim.Samplers.Add(new GltfAnimationSampler
-        {
-            Input = inputAccessor,
-            Output = outputAccessor,
-            Interpolation = GltfConstants.InterpolationLinear
-        });
-
-        anim.Channels.Add(new GltfAnimationChannel
-        {
-            Sampler = samplerIdx,
-            TargetNode = targetNode,
-            TargetPath = path
-        });
     }
 
     /// <summary>
@@ -1108,5 +926,185 @@ public sealed class GltfWriter
             for (int i = 0; i < binPadding; i++)
                 stream.WriteByte(0);
         }
+    }
+
+    private bool TryResolveTexturePath(Material material, string? mapName, out string? imagePath)
+    {
+        imagePath = null;
+        if (string.IsNullOrWhiteSpace(mapName))
+            return false;
+
+        if (material.TryGetTexture(mapName, out Texture? texture))
+        {
+            imagePath = texture.GetPortableFilePath(_targetDirectoryPath);
+            return !string.IsNullOrWhiteSpace(imagePath);
+        }
+
+        imagePath = NormalizePath(mapName);
+        return true;
+    }
+
+    private static string NormalizePath(string path) => path.Replace('\\', '/');
+
+    private static IReadOnlyList<(string Name, SkeletonBone[] Bones)> GetSelectedSkeletons(SceneTranslationSelection selection)
+    {
+        Dictionary<SceneNode, List<SkeletonBone>> bonesBySkeleton = [];
+
+        foreach (SkeletonBone bone in selection.GetDescendants<SkeletonBone>())
+        {
+            SceneNode skeleton = GetSkeletonRoot(bone);
+
+            if (!bonesBySkeleton.TryGetValue(skeleton, out List<SkeletonBone>? bones))
+            {
+                bones = [];
+                bonesBySkeleton.Add(skeleton, bones);
+            }
+
+            bones.Add(bone);
+        }
+
+        List<(string Name, SkeletonBone[] Bones)> result = [];
+        foreach ((SceneNode skeleton, List<SkeletonBone> bones) in bonesBySkeleton)
+            result.Add((skeleton.Name, [.. bones]));
+
+        return result;
+    }
+
+    private static SceneNode GetSkeletonRoot(SkeletonBone bone)
+    {
+        SceneNode root = bone;
+
+        for (SceneNode? current = bone.Parent; current is not null; current = current.Parent)
+        {
+            if (current is Skeleton)
+                return current;
+
+            if (current is SkeletonBone)
+                root = current;
+        }
+
+        return root;
+    }
+
+    private static string GetOwningSkeletonName(SkeletonBone bone) => GetSkeletonRoot(bone).Name;
+
+    private int[] BuildExportJointIndexTable(Mesh mesh)
+    {
+        if (mesh.Skin is null || mesh.Skin.Bones.Count == 0)
+            return [];
+
+        List<string> missingBones = [];
+        int[] jointIndexTable = new int[mesh.Skin.Bones.Count];
+        for (int i = 0; i < mesh.Skin.Bones.Count; i++)
+        {
+            SkeletonBone bone = mesh.Skin.Bones[i];
+            if (!_jointIndices.TryGetValue(bone, out int jointIndex))
+            {
+                missingBones.Add(bone.Name);
+                continue;
+            }
+
+            jointIndexTable[i] = jointIndex;
+        }
+
+        if (missingBones.Count > 0)
+        {
+            throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+        }
+
+        return jointIndexTable;
+    }
+
+    private static Transform GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes)
+    {
+        SceneNode? exportedParent = SceneNode.GetBestParent(bone, exportedBoneNodes);
+        Vector3 worldPosition = bone.GetBindWorldPosition();
+        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
+        Vector3 localScale = bone.GetBindLocalScale();
+
+        if (exportedParent is not null)
+        {
+            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
+            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
+            return new Transform
+            {
+                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
+                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
+                Scale = localScale,
+            };
+        }
+
+        return new Transform
+        {
+            LocalPosition = worldPosition,
+            LocalRotation = worldRotation,
+            Scale = localScale,
+        };
+    }
+
+    private static Transform CreateWorldBindTransform(SceneNode node)
+    {
+        return new Transform
+        {
+            LocalPosition = node.GetBindWorldPosition(),
+            LocalRotation = Quaternion.Normalize(node.GetBindWorldRotation()),
+            Scale = node.GetBindLocalScale(),
+        };
+    }
+
+    private static IEnumerable<SkeletonBone> EnumerateExportChildren(SkeletonBone parentBone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes)
+    {
+        for (int i = 0; i < bones.Count; i++)
+        {
+            if (ReferenceEquals(SceneNode.GetBestParent(bones[i], exportedBoneNodes), parentBone))
+                yield return bones[i];
+        }
+    }
+
+    private void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount, float frameRate)
+    {
+        int frameCount = curve.KeyFrameCount;
+
+        // Write times
+        float[] times = new float[frameCount];
+        for (int i = 0; i < frameCount; i++)
+            times[i] = curve.GetKeyTime(i) / frameRate;
+
+        float[] minTime = [times.Min()];
+        float[] maxTime = [times.Max()];
+        int inputAccessor = WriteAccessor(times, GltfConstants.TypeScalar, GltfConstants.ComponentTypeFloat, minTime, maxTime);
+
+        // Write values
+        float[] values = new float[frameCount * componentCount];
+        for (int i = 0; i < frameCount; i++)
+        {
+            for (int c = 0; c < componentCount; c++)
+                values[i * componentCount + c] = curve.Values!.Get<float>(i, 0, c);
+        }
+
+        string accessorType = componentCount switch
+        {
+            1 => GltfConstants.TypeScalar,
+            3 => GltfConstants.TypeVec3,
+            4 => GltfConstants.TypeVec4,
+            _ => GltfConstants.TypeScalar
+        };
+
+        int outputAccessor = WriteAccessor(values, accessorType, GltfConstants.ComponentTypeFloat);
+
+        int samplerIdx = anim.Samplers.Count;
+        anim.Samplers.Add(new GltfAnimationSampler
+        {
+            Input = inputAccessor,
+            Output = outputAccessor,
+            Interpolation = GltfConstants.InterpolationLinear
+        });
+
+        anim.Channels.Add(new GltfAnimationChannel
+        {
+            Sampler = samplerIdx,
+            TargetNode = targetNode,
+            TargetPath = path
+        });
     }
 }

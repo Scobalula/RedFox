@@ -54,29 +54,29 @@ internal static class JpegIdct
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IdctColumn(ReadOnlySpan<int> src, Span<int> dst, int col)
+    private static void IdctColumn(ReadOnlySpan<int> source, Span<int> destination, int column)
     {
-        int s0 = src[col + 0 * 8];
-        int s1 = src[col + 1 * 8];
-        int s2 = src[col + 2 * 8];
-        int s3 = src[col + 3 * 8];
-        int s4 = src[col + 4 * 8];
-        int s5 = src[col + 5 * 8];
-        int s6 = src[col + 6 * 8];
-        int s7 = src[col + 7 * 8];
+        int s0 = source[column + 0 * 8];
+        int s1 = source[column + 1 * 8];
+        int s2 = source[column + 2 * 8];
+        int s3 = source[column + 3 * 8];
+        int s4 = source[column + 4 * 8];
+        int s5 = source[column + 5 * 8];
+        int s6 = source[column + 6 * 8];
+        int s7 = source[column + 7 * 8];
 
         // Check for all-zero AC coefficients (common case optimization)
         if ((s1 | s2 | s3 | s4 | s5 | s6 | s7) == 0)
         {
             int dc = s0 << 2;
-            dst[col + 0 * 8] = dc;
-            dst[col + 1 * 8] = dc;
-            dst[col + 2 * 8] = dc;
-            dst[col + 3 * 8] = dc;
-            dst[col + 4 * 8] = dc;
-            dst[col + 5 * 8] = dc;
-            dst[col + 6 * 8] = dc;
-            dst[col + 7 * 8] = dc;
+            destination[column + 0 * 8] = dc;
+            destination[column + 1 * 8] = dc;
+            destination[column + 2 * 8] = dc;
+            destination[column + 3 * 8] = dc;
+            destination[column + 4 * 8] = dc;
+            destination[column + 5 * 8] = dc;
+            destination[column + 6 * 8] = dc;
+            destination[column + 7 * 8] = dc;
             return;
         }
 
@@ -115,42 +115,42 @@ internal static class JpegIdct
         o3 += z2 + z3;
         o1 += z1 + z4;
 
-        dst[col + 0 * 8] = (e0 + o1) >> 11;
-        dst[col + 7 * 8] = (e0 - o1) >> 11;
-        dst[col + 1 * 8] = (e1 + o3) >> 11;
-        dst[col + 6 * 8] = (e1 - o3) >> 11;
-        dst[col + 2 * 8] = (e2 + o5) >> 11;
-        dst[col + 5 * 8] = (e2 - o5) >> 11;
-        dst[col + 3 * 8] = (e3 + o7) >> 11;
-        dst[col + 4 * 8] = (e3 - o7) >> 11;
+        destination[column + 0 * 8] = (e0 + o1) >> 11;
+        destination[column + 7 * 8] = (e0 - o1) >> 11;
+        destination[column + 1 * 8] = (e1 + o3) >> 11;
+        destination[column + 6 * 8] = (e1 - o3) >> 11;
+        destination[column + 2 * 8] = (e2 + o5) >> 11;
+        destination[column + 5 * 8] = (e2 - o5) >> 11;
+        destination[column + 3 * 8] = (e3 + o7) >> 11;
+        destination[column + 4 * 8] = (e3 - o7) >> 11;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void IdctRow(ReadOnlySpan<int> src, Span<int> dst, int row)
+    private static void IdctRow(ReadOnlySpan<int> source, Span<int> destination, int row)
     {
         int offset = row * 8;
 
-        int s0 = src[offset + 0];
-        int s1 = src[offset + 1];
-        int s2 = src[offset + 2];
-        int s3 = src[offset + 3];
-        int s4 = src[offset + 4];
-        int s5 = src[offset + 5];
-        int s6 = src[offset + 6];
-        int s7 = src[offset + 7];
+        int s0 = source[offset + 0];
+        int s1 = source[offset + 1];
+        int s2 = source[offset + 2];
+        int s3 = source[offset + 3];
+        int s4 = source[offset + 4];
+        int s5 = source[offset + 5];
+        int s6 = source[offset + 6];
+        int s7 = source[offset + 7];
 
         // All-zero AC shortcut
         if ((s1 | s2 | s3 | s4 | s5 | s6 | s7) == 0)
         {
             int dc = Clamp((s0 + 16) >> 5);
-            dst[offset + 0] = dc;
-            dst[offset + 1] = dc;
-            dst[offset + 2] = dc;
-            dst[offset + 3] = dc;
-            dst[offset + 4] = dc;
-            dst[offset + 5] = dc;
-            dst[offset + 6] = dc;
-            dst[offset + 7] = dc;
+            destination[offset + 0] = dc;
+            destination[offset + 1] = dc;
+            destination[offset + 2] = dc;
+            destination[offset + 3] = dc;
+            destination[offset + 4] = dc;
+            destination[offset + 5] = dc;
+            destination[offset + 6] = dc;
+            destination[offset + 7] = dc;
             return;
         }
 
@@ -187,14 +187,14 @@ internal static class JpegIdct
         o3 += z2 + z3;
         o1 += z1 + z4;
 
-        dst[offset + 0] = Clamp((e0 + o1) >> 18);
-        dst[offset + 7] = Clamp((e0 - o1) >> 18);
-        dst[offset + 1] = Clamp((e1 + o3) >> 18);
-        dst[offset + 6] = Clamp((e1 - o3) >> 18);
-        dst[offset + 2] = Clamp((e2 + o5) >> 18);
-        dst[offset + 5] = Clamp((e2 - o5) >> 18);
-        dst[offset + 3] = Clamp((e3 + o7) >> 18);
-        dst[offset + 4] = Clamp((e3 - o7) >> 18);
+        destination[offset + 0] = Clamp((e0 + o1) >> 18);
+        destination[offset + 7] = Clamp((e0 - o1) >> 18);
+        destination[offset + 1] = Clamp((e1 + o3) >> 18);
+        destination[offset + 6] = Clamp((e1 - o3) >> 18);
+        destination[offset + 2] = Clamp((e2 + o5) >> 18);
+        destination[offset + 5] = Clamp((e2 - o5) >> 18);
+        destination[offset + 3] = Clamp((e3 + o7) >> 18);
+        destination[offset + 4] = Clamp((e3 - o7) >> 18);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

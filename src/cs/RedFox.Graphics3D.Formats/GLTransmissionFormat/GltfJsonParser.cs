@@ -215,8 +215,8 @@ public static class GltfJsonParser
         foreach (JsonElement el in array.EnumerateArray())
         {
             GltfBufferView bv = new();
-            if (el.TryGetProperty("buffer", out JsonElement buf))
-                bv.Buffer = buf.GetInt32();
+            if (el.TryGetProperty("buffer", out JsonElement bufferElement))
+                bv.Buffer = bufferElement.GetInt32();
             if (el.TryGetProperty("byteOffset", out JsonElement bo))
                 bv.ByteOffset = bo.GetInt32();
             if (el.TryGetProperty("byteLength", out JsonElement bl))
@@ -240,14 +240,14 @@ public static class GltfJsonParser
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
-            GltfBuffer buf = new();
+            GltfBuffer buffer = new();
             if (el.TryGetProperty("byteLength", out JsonElement bl))
-                buf.ByteLength = bl.GetInt32();
+                buffer.ByteLength = bl.GetInt32();
             if (el.TryGetProperty("uri", out JsonElement uri))
-                buf.Uri = uri.GetString();
+                buffer.Uri = uri.GetString();
             if (el.TryGetProperty("name", out JsonElement name))
-                buf.Name = name.GetString();
-            doc.Buffers.Add(buf);
+                buffer.Name = name.GetString();
+            doc.Buffers.Add(buffer);
         }
     }
 
@@ -281,31 +281,31 @@ public static class GltfJsonParser
 
                 if (pbr.TryGetProperty("baseColorTexture", out JsonElement bct))
                 {
-                    if (bct.TryGetProperty("index", out JsonElement idx))
-                        mat.BaseColorTextureIndex = idx.GetInt32();
+                    if (bct.TryGetProperty("index", out JsonElement indexElement))
+                        mat.BaseColorTextureIndex = indexElement.GetInt32();
                     if (bct.TryGetProperty("texCoord", out JsonElement tc))
                         mat.BaseColorTextureTexCoord = tc.GetInt32();
                 }
 
                 if (pbr.TryGetProperty("metallicRoughnessTexture", out JsonElement mrt))
                 {
-                    if (mrt.TryGetProperty("index", out JsonElement idx))
-                        mat.MetallicRoughnessTextureIndex = idx.GetInt32();
+                    if (mrt.TryGetProperty("index", out JsonElement indexElement))
+                        mat.MetallicRoughnessTextureIndex = indexElement.GetInt32();
                 }
             }
 
             if (el.TryGetProperty("normalTexture", out JsonElement nt))
             {
-                if (nt.TryGetProperty("index", out JsonElement idx))
-                    mat.NormalTextureIndex = idx.GetInt32();
+                if (nt.TryGetProperty("index", out JsonElement indexElement))
+                    mat.NormalTextureIndex = indexElement.GetInt32();
                 if (nt.TryGetProperty("scale", out JsonElement sc))
                     mat.NormalTextureScale = sc.GetSingle();
             }
 
             if (el.TryGetProperty("occlusionTexture", out JsonElement ot))
             {
-                if (ot.TryGetProperty("index", out JsonElement idx))
-                    mat.OcclusionTextureIndex = idx.GetInt32();
+                if (ot.TryGetProperty("index", out JsonElement indexElement))
+                    mat.OcclusionTextureIndex = indexElement.GetInt32();
                 if (ot.TryGetProperty("strength", out JsonElement st))
                     mat.OcclusionTextureStrength = st.GetSingle();
             }
@@ -315,8 +315,8 @@ public static class GltfJsonParser
 
             if (el.TryGetProperty("emissiveTexture", out JsonElement et))
             {
-                if (et.TryGetProperty("index", out JsonElement idx))
-                    mat.EmissiveTextureIndex = idx.GetInt32();
+                if (et.TryGetProperty("index", out JsonElement indexElement))
+                    mat.EmissiveTextureIndex = indexElement.GetInt32();
             }
 
             doc.Materials.Add(mat);

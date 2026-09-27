@@ -8,7 +8,7 @@ using System;
 
 namespace RedFox.Graphics3D.D3D11;
 
-internal static class D3D11Helpers
+internal static class D3D11Support
 {
     public static void ThrowIfFailed(int result, string operation)
     {

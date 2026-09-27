@@ -34,7 +34,7 @@ internal static class Program
             return RunSample(samples, arguments);
         }
 
-        Console.Error.WriteLine($"Unknown command '{command}'.");
+        SampleConsole.Error.WriteLine($"Unknown command '{command}'.", SampleConsole.ErrorStyle);
         WriteUsage(samples);
         return 1;
     }
@@ -43,14 +43,14 @@ internal static class Program
     {
         if (arguments.Length < 2)
         {
-            Console.Error.WriteLine("Missing sample name. Use 'list' to see available samples.");
+            SampleConsole.Error.WriteLine("Missing sample name. Use 'list' to see available samples.", SampleConsole.ErrorStyle);
             return 1;
         }
 
         string sampleName = arguments[1];
         if (!samples.TryGetValue(sampleName, out ISample? sample))
         {
-            Console.Error.WriteLine($"Unknown sample '{sampleName}'. Use 'list' to view available samples.");
+            SampleConsole.Error.WriteLine($"Unknown sample '{sampleName}'. Use 'list' to view available samples.", SampleConsole.ErrorStyle);
             return 1;
         }
 
@@ -61,7 +61,7 @@ internal static class Program
         }
         catch (Exception exception)
         {
-            Console.Error.WriteLine($"Sample '{sampleName}' failed: {exception}");
+            SampleConsole.Error.WriteLine($"Sample '{sampleName}' failed: {exception}", SampleConsole.ErrorStyle);
             return 1;
         }
     }
@@ -75,21 +75,21 @@ internal static class Program
 
     private static void WriteUsage(IReadOnlyDictionary<string, ISample> samples)
     {
-        Console.WriteLine("RedFox samples CLI");
-        Console.WriteLine("Usage:");
-        Console.WriteLine("  RedFox.Samples list");
-        Console.WriteLine("  RedFox.Samples run <sample-name> [sample arguments]");
-        Console.WriteLine();
+        AnsiConsole.WriteLine("RedFox samples CLI");
+        AnsiConsole.WriteLine("Usage:");
+        AnsiConsole.WriteLine("  RedFox.Samples list");
+        AnsiConsole.WriteLine("  RedFox.Samples run <sample-name> [sample arguments]");
+        AnsiConsole.WriteLine();
         WriteSampleList(samples);
     }
 
     private static void WriteSampleList(IReadOnlyDictionary<string, ISample> samples)
     {
-        Console.WriteLine("Available samples:");
+        AnsiConsole.WriteLine("Available samples:");
         IOrderedEnumerable<KeyValuePair<string, ISample>> orderedSamples = samples.OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase);
         foreach (KeyValuePair<string, ISample> sample in orderedSamples)
         {
-            Console.WriteLine($"  {sample.Key,-22} {sample.Value.Description}");
+            AnsiConsole.WriteLine($"  {sample.Key,-22} {sample.Value.Description}");
         }
     }
 }

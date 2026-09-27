@@ -16,18 +16,7 @@ public sealed unsafe class D3D11Texture : IGpuTexture
     private ComPtr<ID3D11ShaderResourceView> _shaderResourceView;
     private ComPtr<ID3D11Texture2D> _texture;
 
-    internal D3D11Texture(
-        ComPtr<ID3D11Texture2D> texture,
-        ComPtr<ID3D11ShaderResourceView> shaderResourceView,
-        ComPtr<ID3D11SamplerState> samplerState,
-        int width,
-        int height,
-        int arraySize,
-        int mipLevels,
-        ImageFormat format,
-        TextureUsage usage,
-        int sampleCount,
-        bool isCubemap)
+    internal D3D11Texture(ComPtr<ID3D11Texture2D> texture, ComPtr<ID3D11ShaderResourceView> shaderResourceView, ComPtr<ID3D11SamplerState> samplerState, int width, int height, int arraySize, int mipLevels, ImageFormat format, TextureUsage usage, int sampleCount, bool isCubemap)
     {
         _texture = texture;
         _shaderResourceView = shaderResourceView;

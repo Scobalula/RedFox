@@ -8,30 +8,20 @@ namespace RedFox.Imaging.Codecs;
 /// Codec for <see cref="ImageFormat.R32Typeless"/>, <see cref="ImageFormat.D32Float"/>, <see cref="ImageFormat.R32Float"/>, <see cref="ImageFormat.R32Uint"/>, and <see cref="ImageFormat.R32Sint"/>.
 /// Float and typeless variants decode as 32-bit floats; <see cref="ImageFormat.R32Uint"/> decodes to [0, 1] and <see cref="ImageFormat.R32Sint"/> to [-1, 1].
 /// </summary>
-public sealed class R32Codec : IPixelCodec
+/// <param name="format">The image format this codec handles.</param>
+public sealed class R32Codec(ImageFormat format) : IPixelCodec
 {
-    private readonly ComponentKind _kind;
+    private readonly ComponentKind _kind = ComponentEncoding.GetKind(format);
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.R32Typeless or ImageFormat.D32Float or ImageFormat.R32Float or ImageFormat.R32Uint or ImageFormat.R32Sint => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32Codec supports only R32Typeless, D32Float, R32Float, R32Uint, and R32Sint."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 4;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="R32Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec handles.</param>
-    public R32Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.R32Typeless or ImageFormat.D32Float or ImageFormat.R32Float or ImageFormat.R32Uint or ImageFormat.R32Sint => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32Codec supports only R32Typeless, D32Float, R32Float, R32Uint, and R32Sint."),
-        };
-
-        _kind = ComponentEncoding.GetKind(format);
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)

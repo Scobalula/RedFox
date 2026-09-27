@@ -38,8 +38,6 @@ public sealed class AnimationHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        Console.WriteLine("Executing");
-
         var translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
 
         await using Stream stream = OpenAssetStream(asset);

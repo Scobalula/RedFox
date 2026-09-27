@@ -281,9 +281,7 @@ public class OrbitCamera : Camera
             Vector3 right = GetRight();
             Vector3 up = Up;
 
-            Vector3 move = (input.MoveIntent.X * right)
-                + (input.MoveIntent.Y * up)
-                + (input.MoveIntent.Z * forward);
+            Vector3 move = (input.MoveIntent.X * right) + (input.MoveIntent.Y * up) + (input.MoveIntent.Z * forward);
 
             if (move.LengthSquared() > 1e-8f)
             {

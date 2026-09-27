@@ -185,7 +185,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         ID3D11Resource* sourceResource = (ID3D11Resource*)d3dSource.ColorTexture.Handle;
         if (d3dSource.ColorTexture.SampleCount > 1)
         {
-            Format resolveFormat = D3D11Helpers.GetDxgiFormat(d3dSource.ColorTexture.Format);
+            Format resolveFormat = D3D11Support.GetDxgiFormat(d3dSource.ColorTexture.Format);
             _context.DeviceContext.Get().ResolveSubresource(destinationResource, 0, sourceResource, 0, resolveFormat);
         }
         else
@@ -477,7 +477,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     {
         BufferDesc desc = new()
         {
-            ByteWidth = D3D11Helpers.AlignTo16(sizeBytes),
+            ByteWidth = D3D11Support.AlignTo16(sizeBytes),
             Usage = Usage.Default,
             BindFlags = (uint)BindFlag.ConstantBuffer,
             CPUAccessFlags = 0,
@@ -486,7 +486,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         };
 
         ComPtr<ID3D11Buffer> buffer = default;
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             _context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer),
             "ID3D11Device::CreateBuffer(constant)");
         return buffer;
@@ -576,7 +576,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
 
     private void EnsureConstantBuffer(ref D3D11ConstantBufferSlot slot, int sizeBytes)
     {
-        int alignedSize = checked((int)D3D11Helpers.AlignTo16(Math.Max(sizeBytes, 16)));
+        int alignedSize = checked((int)D3D11Support.AlignTo16(Math.Max(sizeBytes, 16)));
         if (slot.Buffer.Handle is not null && slot.SizeBytes >= alignedSize)
         {
             slot.StagingData ??= new byte[slot.SizeBytes];

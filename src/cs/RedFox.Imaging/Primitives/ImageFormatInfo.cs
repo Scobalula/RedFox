@@ -217,8 +217,8 @@ public static class ImageFormatInfo
         }
         else
         {
-            int bpp = GetBitsPerPixel(format);
-            int rowPitch = (width * bpp + 7) / 8;
+            int bitsPerPixel = GetBitsPerPixel(format);
+            int rowPitch = (width * bitsPerPixel + 7) / 8;
             int slicePitch = rowPitch * height;
 
             return (rowPitch, slicePitch);

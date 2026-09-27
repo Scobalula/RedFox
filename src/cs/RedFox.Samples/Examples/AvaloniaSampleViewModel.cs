@@ -63,7 +63,7 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _selectedNode, value))
             {
-                RemoveSelectedNodeCommand.RaiseCanExecuteChanged();
+                RemoveSelectedNodeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -464,11 +464,11 @@ internal sealed class AvaloniaSampleViewModel : INotifyPropertyChanged
 
     private void RaiseCommandStateChanged()
     {
-        AddTriangleCommand.RaiseCanExecuteChanged();
-        RemoveSelectedNodeCommand.RaiseCanExecuteChanged();
-        ClearSceneCommand.RaiseCanExecuteChanged();
-        FitCameraCommand.RaiseCanExecuteChanged();
-        ToggleGridCommand.RaiseCanExecuteChanged();
+        AddTriangleCommand.NotifyCanExecuteChanged();
+        RemoveSelectedNodeCommand.NotifyCanExecuteChanged();
+        ClearSceneCommand.NotifyCanExecuteChanged();
+        FitCameraCommand.NotifyCanExecuteChanged();
+        ToggleGridCommand.NotifyCanExecuteChanged();
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

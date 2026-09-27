@@ -91,30 +91,14 @@ public sealed class ObjReader
                     currentMesh = CreateMesh(model, currentGroupName, ref meshIndex);
                 }
 
-                ParseFace(
-                    span[2..],
-                    globalPositions,
-                    globalTexCoords,
-                    globalNormals,
-                    meshPositions,
-                    meshTexCoords,
-                    meshNormals,
-                    meshFaceIndices,
-                    meshVertexMap);
+                ParseFace(span[2..], globalPositions, globalTexCoords, globalNormals, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, meshVertexMap);
             }
             else if (span.StartsWith("g ") || span.StartsWith("o "))
             {
                 // Flush current mesh if it has any faces
                 if (currentMesh is not null && meshFaceIndices.Count > 0)
                 {
-                    FinalizeMesh(
-                        currentMesh,
-                        meshPositions,
-                        meshTexCoords,
-                        meshNormals,
-                        meshFaceIndices,
-                        currentMaterialName,
-                        materialsByName);
+                    FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
                 }
 
                 currentGroupName = span[2..].Trim().ToString();
@@ -131,14 +115,7 @@ public sealed class ObjReader
 
                 if (currentMesh is not null && meshFaceIndices.Count > 0)
                 {
-                    FinalizeMesh(
-                        currentMesh,
-                        meshPositions,
-                        meshTexCoords,
-                        meshNormals,
-                        meshFaceIndices,
-                        currentMaterialName,
-                        materialsByName);
+                    FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
 
                     currentMesh = CreateMesh(model, currentGroupName, ref meshIndex);
                     meshPositions = [];
@@ -159,14 +136,7 @@ public sealed class ObjReader
         // Flush the last mesh
         if (currentMesh is not null && meshFaceIndices.Count > 0)
         {
-            FinalizeMesh(
-                currentMesh,
-                meshPositions,
-                meshTexCoords,
-                meshNormals,
-                meshFaceIndices,
-                currentMaterialName,
-                materialsByName);
+            FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
         }
 
         if (_options.Get<bool>(ObjTranslator.MergeStaticMeshesOption))
@@ -185,9 +155,7 @@ public sealed class ObjReader
 
     private static Mesh CreateMesh(MeshGroup model, string groupName, ref int meshIndex)
     {
-        string meshName = string.IsNullOrWhiteSpace(groupName)
-            ? $"mesh_{meshIndex}"
-            : groupName;
+        string meshName = string.IsNullOrWhiteSpace(groupName) ? $"mesh_{meshIndex}" : groupName;
 
         // Avoid duplicate names by appending the mesh index as a suffix.
         if (model.TryFindDescendant<Mesh>(meshName, out _))
@@ -366,14 +334,7 @@ public sealed class ObjReader
         return new DataBuffer<int>([.. faceIndices], 1, 1);
     }
 
-    private static void FinalizeMesh(
-        Mesh mesh,
-        List<Vector3> positions,
-        List<Vector2> texCoords,
-        List<Vector3> normals,
-        List<int> faceIndices,
-        string? materialName,
-        Dictionary<string, Material> materialsByName)
+    private static void FinalizeMesh(Mesh mesh, List<Vector3> positions, List<Vector2> texCoords, List<Vector3> normals, List<int> faceIndices, string? materialName, Dictionary<string, Material> materialsByName)
     {
         int vertexCount = positions.Count;
 
@@ -449,16 +410,7 @@ public sealed class ObjReader
         return new DataBuffer<float>(data, 1, 2);
     }
 
-    private static void ParseFace(
-        ReadOnlySpan<char> faceData,
-        List<Vector3> globalPositions,
-        List<Vector2> globalTexCoords,
-        List<Vector3> globalNormals,
-        List<Vector3> meshPositions,
-        List<Vector2> meshTexCoords,
-        List<Vector3> meshNormals,
-        List<int> meshFaceIndices,
-        Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap)
+    private static void ParseFace(ReadOnlySpan<char> faceData, List<Vector3> globalPositions, List<Vector2> globalTexCoords, List<Vector3> globalNormals, List<Vector3> meshPositions, List<Vector2> meshTexCoords, List<Vector3> meshNormals, List<int> meshFaceIndices, Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap)
     {
         // Parse all face vertices first, then fan-triangulate if polygon.
         List<int> faceVertexIndices = [];
@@ -479,18 +431,7 @@ public sealed class ObjReader
                 continue;
             }
 
-            ParseFaceVertex(
-                vertexToken,
-                globalPositions,
-                globalTexCoords,
-                globalNormals,
-                meshPositions,
-                meshTexCoords,
-                meshNormals,
-                meshVertexMap,
-                hasTexCoords,
-                hasNormals,
-                out int localIndex);
+            ParseFaceVertex(vertexToken, globalPositions, globalTexCoords, globalNormals, meshPositions, meshTexCoords, meshNormals, meshVertexMap, hasTexCoords, hasNormals, out int localIndex);
 
             faceVertexIndices.Add(localIndex);
         }
@@ -504,18 +445,7 @@ public sealed class ObjReader
         }
     }
 
-    private static void ParseFaceVertex(
-        ReadOnlySpan<char> token,
-        List<Vector3> globalPositions,
-        List<Vector2> globalTexCoords,
-        List<Vector3> globalNormals,
-        List<Vector3> meshPositions,
-        List<Vector2> meshTexCoords,
-        List<Vector3> meshNormals,
-        Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap,
-        bool hasTexCoords,
-        bool hasNormals,
-        out int localIndex)
+    private static void ParseFaceVertex(ReadOnlySpan<char> token, List<Vector3> globalPositions, List<Vector2> globalTexCoords, List<Vector3> globalNormals, List<Vector3> meshPositions, List<Vector2> meshTexCoords, List<Vector3> meshNormals, Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap, bool hasTexCoords, bool hasNormals, out int localIndex)
     {
         int posIdx = 0;
         int texIdx = -1;
@@ -629,32 +559,9 @@ public sealed class ObjReader
 
         ReadOnlySpan<char> rest = span[(i0 + 1)..].TrimStart();
         int i1 = rest.IndexOf(' ');
-        float v = i1 < 0
-            ? float.Parse(rest, NumberStyles.Float, CultureInfo.InvariantCulture)
-            : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
+        float v = i1 < 0 ? float.Parse(rest, NumberStyles.Float, CultureInfo.InvariantCulture) : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
 
         return new Vector2(u, v);
     }
 
-    private sealed class MeshMergeBucket
-    {
-        public MeshMergeBucket(Material? material)
-        {
-            Material = material;
-        }
-
-        public Material? Material { get; }
-
-        public List<Vector3> Positions { get; } = [];
-
-        public List<Vector3> Normals { get; } = [];
-
-        public List<Vector2> TexCoords { get; } = [];
-
-        public List<int> FaceIndices { get; } = [];
-
-        public bool HasCompleteNormals { get; set; } = true;
-
-        public bool HasCompleteTexCoords { get; set; } = true;
-    }
 }

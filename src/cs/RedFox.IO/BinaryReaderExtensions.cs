@@ -26,9 +26,9 @@ public static class BinaryReaderExtensions
     /// <returns>A structure of the given type from the current stream</returns>
     public static T ReadStruct<T>(this BinaryReader reader) where T : unmanaged
     {
-        Span<byte> buf = stackalloc byte[Unsafe.SizeOf<T>()];
-        reader.BaseStream.ReadExactly(buf);
-        return MemoryMarshal.Cast<byte, T>(buf)[0];
+        Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<T>()];
+        reader.BaseStream.ReadExactly(buffer);
+        return MemoryMarshal.Cast<byte, T>(buffer)[0];
     }
 
     /// <summary>
@@ -65,9 +65,9 @@ public static class BinaryReaderExtensions
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count == 0)
             return new Span<T>();
-        Span<byte> buf = new byte[checked(count * Unsafe.SizeOf<T>())];
-        reader.BaseStream.ReadExactly(buf);
-        return MemoryMarshal.Cast<byte, T>(buf);
+        Span<byte> buffer = new byte[checked(count * Unsafe.SizeOf<T>())];
+        reader.BaseStream.ReadExactly(buffer);
+        return MemoryMarshal.Cast<byte, T>(buffer);
     }
 
     /// <summary>

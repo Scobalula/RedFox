@@ -41,14 +41,14 @@ public sealed class ExrImageTranslator : ImageTranslator
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)
     {
-        WriteCore(stream, image, EncoderOptions);
+        WriteEncodedImage(stream, image, EncoderOptions);
     }
 
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        WriteCore(stream, image, ResolveEncoderOptions(options));
+        WriteEncodedImage(stream, image, ResolveEncoderOptions(options));
     }
 
     /// <inheritdoc/>
@@ -91,7 +91,7 @@ public sealed class ExrImageTranslator : ImageTranslator
         };
     }
 
-    private static void WriteCore(Stream stream, Image image, ExrWriteOptions encoderOptions)
+    private static void WriteEncodedImage(Stream stream, Image image, ExrWriteOptions encoderOptions)
     {
         ExrWriter.Save(stream, image, encoderOptions);
     }

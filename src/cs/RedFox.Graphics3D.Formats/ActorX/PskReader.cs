@@ -171,14 +171,7 @@ public sealed class PskReader
         return bones;
     }
 
-    private static void BuildMeshes(
-        MeshGroup model,
-        Vector3[] points,
-        List<ActorXVertex> wedges,
-        List<ActorXTriangle> faces,
-        List<ActorXMaterial> materials,
-        SkeletonBone[] bones,
-        List<ActorXInfluence> influences)
+    private static void BuildMeshes(MeshGroup model, Vector3[] points, List<ActorXVertex> wedges, List<ActorXTriangle> faces, List<ActorXMaterial> materials, SkeletonBone[] bones, List<ActorXInfluence> influences)
     {
         var influencesByPoint = GroupInfluences(influences, out int maxInfluences);
         bool hasSkinning = maxInfluences > 0 && bones.Length > 0;
@@ -202,25 +195,13 @@ public sealed class PskReader
             var remap = new Dictionary<int, int>();
             var order = new List<int>();
 
-            int Resolve(int wedgeIndex)
-            {
-                if (!remap.TryGetValue(wedgeIndex, out int local))
-                {
-                    local = order.Count;
-                    remap[wedgeIndex] = local;
-                    order.Add(wedgeIndex);
-                }
-
-                return local;
-            }
-
             var faceIndices = new int[materialFaces.Count * 3];
             for (int f = 0; f < materialFaces.Count; f++)
             {
                 var face = materialFaces[f];
-                faceIndices[f * 3] = Resolve(face.Wedge0);
-                faceIndices[f * 3 + 1] = Resolve(face.Wedge1);
-                faceIndices[f * 3 + 2] = Resolve(face.Wedge2);
+                faceIndices[f * 3] = ResolveWedgeIndex(face.Wedge0, remap, order);
+                faceIndices[f * 3 + 1] = ResolveWedgeIndex(face.Wedge1, remap, order);
+                faceIndices[f * 3 + 2] = ResolveWedgeIndex(face.Wedge2, remap, order);
             }
 
             int vertexCount = order.Count;
@@ -260,6 +241,18 @@ public sealed class PskReader
             if (boneIndices is not null && boneWeights is not null)
                 mesh.Skin = new Skin(bones, new DataBuffer<int>(boneIndices, maxInfluences, 1), new DataBuffer<float>(boneWeights, maxInfluences, 1));
         }
+    }
+
+    private static int ResolveWedgeIndex(int wedgeIndex, Dictionary<int, int> remap, List<int> order)
+    {
+        if (!remap.TryGetValue(wedgeIndex, out int local))
+        {
+            local = order.Count;
+            remap[wedgeIndex] = local;
+            order.Add(wedgeIndex);
+        }
+
+        return local;
     }
 
     private static Dictionary<int, List<(int BoneIndex, float Weight)>> GroupInfluences(List<ActorXInfluence> influences, out int maxInfluences)

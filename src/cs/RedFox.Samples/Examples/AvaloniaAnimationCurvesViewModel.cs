@@ -127,7 +127,7 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         {
             if (SetProperty(ref _viewportController, value))
             {
-                FitCameraCommand.RaiseCanExecuteChanged();
+                FitCameraCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -400,7 +400,7 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
 
         RefreshAnimations(context.Scene);
         FitCameraToScene();
-        ClearCommand.RaiseCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
         Status = BuildLoadedStatus(context, bones.Length);
     }
 
@@ -438,7 +438,7 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
             addedCount++;
         }
 
-        ClearCommand.RaiseCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
         return addedCount;
     }
 
@@ -519,7 +519,7 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         MaximumFrame = 0.0;
         SetCurrentFrameFromPlayback(0.0);
         RaiseTimelineStateChanged();
-        ClearCommand.RaiseCanExecuteChanged();
+        ClearCommand.NotifyCanExecuteChanged();
         Status = "Cleared.";
     }
 
@@ -687,8 +687,8 @@ internal sealed class AvaloniaAnimationCurvesViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanScrub)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(FrameSummary)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PlayPauseText)));
-        PlayPauseCommand.RaiseCanExecuteChanged();
-        StopCommand.RaiseCanExecuteChanged();
+        PlayPauseCommand.NotifyCanExecuteChanged();
+        StopCommand.NotifyCanExecuteChanged();
     }
 
     private static string BuildLoadedStatus(MeshSampleSceneContext context, int boneCount)

@@ -450,7 +450,10 @@ public class Mesh : SceneNode
         MaterialIndexRanges = MaterialIndexRanges is null ? null : [.. MaterialIndexRanges];
     }
 
-    private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms, ReadOnlySpan<Matrix4x4> transformOverrides = default)
+    private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms)
+        => ApplySkinning(value, vertexIndex, transform, skinTransforms, default);
+
+    private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms, ReadOnlySpan<Matrix4x4> transformOverrides)
     {
         if (Skin is null)
             return null;

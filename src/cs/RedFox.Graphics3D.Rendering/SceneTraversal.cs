@@ -27,11 +27,7 @@ public static class SceneTraversal
         nodes.Add(node);
     }
 
-    internal static void Update(
-        IReadOnlyList<SceneNode> nodes,
-        ICommandList commandList,
-        IGraphicsDevice graphicsDevice,
-        IMaterialTypeRegistry materialTypes)
+    internal static void Update(IReadOnlyList<SceneNode> nodes, ICommandList commandList, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(commandList);
@@ -50,15 +46,7 @@ public static class SceneTraversal
         }
     }
 
-    internal static void Render(
-        IReadOnlyList<IRenderHandle> handles,
-        ICommandList commandList,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    internal static void Render(IReadOnlyList<IRenderHandle> handles, ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ArgumentNullException.ThrowIfNull(handles);
         ArgumentNullException.ThrowIfNull(commandList);
@@ -70,15 +58,7 @@ public static class SceneTraversal
         }
     }
 
-    internal static void Render(
-        IReadOnlyList<(SceneNode Node, IRenderHandle Handle)> handles,
-        ICommandList commandList,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    internal static void Render(IReadOnlyList<(SceneNode Node, IRenderHandle Handle)> handles, ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ArgumentNullException.ThrowIfNull(handles);
         ArgumentNullException.ThrowIfNull(commandList);
@@ -91,16 +71,7 @@ public static class SceneTraversal
         }
     }
 
-    internal static void Render(
-        IReadOnlyList<SceneNode> nodes,
-        ICommandList commandList,
-        IGraphicsDevice graphicsDevice,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    internal static void Render(IReadOnlyList<SceneNode> nodes, ICommandList commandList, IGraphicsDevice graphicsDevice, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(commandList);
@@ -167,16 +138,7 @@ public static class SceneTraversal
     /// <param name="sceneAxis">The scene-axis transform matrix.</param>
     /// <param name="cameraPosition">The active camera position.</param>
     /// <param name="viewportSize">The active viewport size in pixels.</param>
-    public static void Render(
-        SceneNode node,
-        ICommandList commandList,
-        IGraphicsDevice graphicsDevice,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    public static void Render(SceneNode node, ICommandList commandList, IGraphicsDevice graphicsDevice, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(commandList);
@@ -198,11 +160,7 @@ public static class SceneTraversal
         SceneRenderResources.Get(graphicsDevice, node)?.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
     }
 
-    private static void UpdateNode(
-        SceneNode node,
-        ICommandList commandList,
-        IGraphicsDevice graphicsDevice,
-        IMaterialTypeRegistry materialTypes)
+    private static void UpdateNode(SceneNode node, ICommandList commandList, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
         IRenderHandle? graphicsHandle = SceneRenderResources.GetOrCreate(node, graphicsDevice, materialTypes);
 

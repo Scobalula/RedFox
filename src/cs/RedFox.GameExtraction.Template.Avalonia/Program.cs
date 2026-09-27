@@ -91,7 +91,7 @@ internal static class Program
             {
                 Description = "A minimal Avalonia shell for ZIP-backed RedFox.GameExtraction sources.",
             },
-            PreviewControlFactory = viewModel =>
+            PreviewContentFactory = viewModel =>
             {
                 var scene = viewModel.PreviewData switch
                 {

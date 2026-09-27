@@ -33,9 +33,9 @@ internal sealed class MurMur3Sample : ISample
         byte[] incrementalBytes = hash.ComputeHash(Encoding.UTF8.GetBytes(input));
         uint incrementalHash = BitConverter.ToUInt32(incrementalBytes, 0);
 
-        Console.WriteLine($"Input: {input}");
-        Console.WriteLine($"Static hash     : 0x{staticHash:X8}");
-        Console.WriteLine($"Incremental hash: 0x{incrementalHash:X8}");
+        AnsiConsole.WriteLine($"Input: {input}");
+        AnsiConsole.WriteLine($"Static hash     : 0x{staticHash:X8}");
+        AnsiConsole.WriteLine($"Incremental hash: 0x{incrementalHash:X8}");
         return 0;
     }
 }

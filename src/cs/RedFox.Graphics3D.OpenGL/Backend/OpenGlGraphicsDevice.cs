@@ -54,6 +54,30 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="OpenGlGraphicsDevice"/> class.
+    /// </summary>
+    /// <param name="gl">The active GL instance.</param>
+    public OpenGlGraphicsDevice(GL gl)
+        : this(new OpenGlContext(gl ?? throw new ArgumentNullException(nameof(gl))))
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OpenGlGraphicsDevice"/> class.
+    /// </summary>
+    /// <param name="context">The active OpenGL context wrapper.</param>
+    internal OpenGlGraphicsDevice(OpenGlContext context)
+    {
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        ValidateContext();
+        _supportsBptcTextureCompression = SupportsBptcTextureCompression(_context.Gl);
+        _supportsRgtcTextureCompression = SupportsRgtcTextureCompression(_context.Gl);
+        _supportsS3tcTextureCompression = SupportsS3tcTextureCompression(_context.Gl);
+        _supportsS3tcSrgbTextureCompression = SupportsS3tcSrgbTextureCompression(_context.Gl);
+        MaterialTypes = new OpenGlMaterialTypeRegistry();
+    }
+
+    /// <summary>
     /// Gets the sample count of the configured default framebuffer.
     /// </summary>
     /// <returns>The default framebuffer sample count, or 1 when it is single-sampled.</returns>
@@ -99,16 +123,8 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         GL gl = _context.Gl;
         gl.GetInteger((GLEnum)FramebufferBinding, out int previousFramebuffer);
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, _context.DefaultFramebufferHandle);
-        gl.GetFramebufferAttachmentParameter(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            (GLEnum)FramebufferAttachmentObjectType,
-            out int objectType);
-        gl.GetFramebufferAttachmentParameter(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment0,
-            (GLEnum)FramebufferAttachmentObjectName,
-            out int objectName);
+        gl.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, (GLEnum)FramebufferAttachmentObjectType, out int objectType);
+        gl.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, (GLEnum)FramebufferAttachmentObjectName, out int objectName);
 
         if (objectType == Renderbuffer && objectName > 0)
         {
@@ -121,30 +137,6 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, previousFramebuffer < 0 ? 0u : (uint)previousFramebuffer);
         return width > 0 && height > 0;
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="OpenGlGraphicsDevice"/> class.
-    /// </summary>
-    /// <param name="gl">The active GL instance.</param>
-    public OpenGlGraphicsDevice(GL gl)
-        : this(new OpenGlContext(gl ?? throw new ArgumentNullException(nameof(gl))))
-    {
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="OpenGlGraphicsDevice"/> class.
-    /// </summary>
-    /// <param name="context">The active OpenGL context wrapper.</param>
-    internal OpenGlGraphicsDevice(OpenGlContext context)
-    {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        ValidateContext();
-        _supportsBptcTextureCompression = SupportsBptcTextureCompression(_context.Gl);
-        _supportsRgtcTextureCompression = SupportsRgtcTextureCompression(_context.Gl);
-        _supportsS3tcTextureCompression = SupportsS3tcTextureCompression(_context.Gl);
-        _supportsS3tcSrgbTextureCompression = SupportsS3tcSrgbTextureCompression(_context.Gl);
-        MaterialTypes = new OpenGlMaterialTypeRegistry();
     }
 
     /// <inheritdoc/>
@@ -269,21 +261,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
-    public IGpuPipelineState CreatePipelineState(
-        IGpuShader vertexShader,
-        IGpuShader fragmentShader,
-        ReadOnlySpan<VertexAttribute> vertexAttributes,
-        CullMode cullMode,
-        FaceWinding faceWinding,
-        bool wireframe,
-        bool blend,
-        BlendFactor sourceBlendFactor,
-        BlendFactor destinationBlendFactor,
-        BlendOp blendOperation,
-        bool depthTest,
-        bool depthWrite,
-        CompareFunc depthCompareFunc,
-        PrimitiveTopology primitiveTopology)
+    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
     {
         ThrowIfDisposed();
 
@@ -303,20 +281,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         }
 
         GlShaderProgram graphicsProgram = _context.CreateShaderProgram(openGlVertexShader.Source, openGlFragmentShader.Source);
-        return new OpenGlPipelineState(
-            graphicsProgram,
-            vertexAttributes,
-            cullMode,
-            faceWinding,
-            wireframe,
-            blend,
-            sourceBlendFactor,
-            destinationBlendFactor,
-            blendOperation,
-            depthTest,
-            depthWrite,
-            depthCompareFunc,
-            primitiveTopology);
+        return new OpenGlPipelineState(graphicsProgram, vertexAttributes, cullMode, faceWinding, wireframe, blend, sourceBlendFactor, destinationBlendFactor, blendOperation, depthTest, depthWrite, depthCompareFunc, primitiveTopology);
     }
 
     /// <inheritdoc/>
@@ -359,66 +324,6 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return CreateTexture(width, height, format, usage, pixels, 1);
     }
 
-    private unsafe IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, ReadOnlySpan<byte> pixels, int sampleCount)
-    {
-        ThrowIfDisposed();
-
-        if (width <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(width));
-        }
-
-        if (height <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(height));
-        }
-
-        if (sampleCount <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sampleCount));
-        }
-
-        if (sampleCount > 1 && !pixels.IsEmpty)
-        {
-            throw new NotSupportedException("Multisampled OpenGL textures cannot be created with initial pixel data.");
-        }
-
-        if (sampleCount > 1 && usage.HasFlag(TextureUsage.Sampled))
-        {
-            throw new NotSupportedException("Multisampled OpenGL textures are supported for render targets only.");
-        }
-
-        ValidateTexturePixelData(format, width, height, pixels);
-
-        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
-        {
-            throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
-        }
-
-        GL gl = _context.Gl;
-        if (sampleCount > 1)
-        {
-            uint renderbufferHandle = gl.GenRenderbuffer();
-            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferHandle);
-            gl.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, (uint)sampleCount, (InternalFormat)internalFormat, (uint)width, (uint)height);
-            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
-            return new OpenGlTexture(gl, renderbufferHandle, width, height, format, usage, sampleCount, TextureTarget.Texture2D, true);
-        }
-
-        uint handle = gl.GenTexture();
-        gl.BindTexture(TextureTarget.Texture2D, handle);
-
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
-
-        UploadTextureLevel(gl, TextureTarget.Texture2D, 0, width, height, format, internalFormat, pixelFormat, pixelType, isCompressed, pixels);
-
-        gl.BindTexture(TextureTarget.Texture2D, 0);
-        return new OpenGlTexture(gl, handle, width, height, format, usage);
-    }
-
     /// <inheritdoc/>
     public unsafe IGpuTexture CreateTexture(Image image, TextureUsage usage)
     {
@@ -441,71 +346,6 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         }
 
         return CreateTexture2D(image, usage);
-    }
-
-    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage)
-    {
-        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
-        {
-            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
-        }
-
-        GL gl = _context.Gl;
-        uint handle = gl.GenTexture();
-        gl.BindTexture(TextureTarget.Texture2D, handle);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
-
-        for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
-        {
-            ref readonly ImageSlice slice = ref image.GetSlice(mipLevel);
-            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
-        }
-
-        gl.BindTexture(TextureTarget.Texture2D, 0);
-        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage);
-    }
-
-    private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage)
-    {
-        if (image.Width <= 0 || image.Height <= 0 || image.Width != image.Height)
-        {
-            throw new ArgumentException("Cubemap images must be square and greater than zero in size.", nameof(image));
-        }
-
-        if (image.ArraySize < 6 || image.ArraySize % 6 != 0)
-        {
-            throw new ArgumentException("Cubemap images must contain a multiple of six array slices.", nameof(image));
-        }
-
-        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
-        {
-            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
-        }
-
-        GL gl = _context.Gl;
-        uint handle = gl.GenTexture();
-        gl.BindTexture(TextureTarget.TextureCubeMap, handle);
-        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
-        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
-        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapR, (int)GLEnum.ClampToEdge);
-
-        for (int faceIndex = 0; faceIndex < 6; faceIndex++)
-        {
-            TextureTarget faceTarget = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + faceIndex);
-            for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
-            {
-                ref readonly ImageSlice slice = ref image.GetSlice(mipLevel, faceIndex);
-                UploadTextureLevel(gl, faceTarget, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
-            }
-        }
-
-        gl.BindTexture(TextureTarget.TextureCubeMap, 0);
-        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage, TextureTarget.TextureCubeMap);
     }
 
     /// <inheritdoc/>
@@ -609,6 +449,131 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         GC.SuppressFinalize(this);
     }
 
+    private unsafe IGpuTexture CreateTexture(int width, int height, ImageFormat format, TextureUsage usage, ReadOnlySpan<byte> pixels, int sampleCount)
+    {
+        ThrowIfDisposed();
+
+        if (width <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width));
+        }
+
+        if (height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(height));
+        }
+
+        if (sampleCount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sampleCount));
+        }
+
+        if (sampleCount > 1 && !pixels.IsEmpty)
+        {
+            throw new NotSupportedException("Multisampled OpenGL textures cannot be created with initial pixel data.");
+        }
+
+        if (sampleCount > 1 && usage.HasFlag(TextureUsage.Sampled))
+        {
+            throw new NotSupportedException("Multisampled OpenGL textures are supported for render targets only.");
+        }
+
+        ValidateTexturePixelData(format, width, height, pixels);
+
+        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        if (sampleCount > 1)
+        {
+            uint renderbufferHandle = gl.GenRenderbuffer();
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferHandle);
+            gl.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, (uint)sampleCount, (InternalFormat)internalFormat, (uint)width, (uint)height);
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+            return new OpenGlTexture(gl, renderbufferHandle, width, height, format, usage, sampleCount, TextureTarget.Texture2D, true);
+        }
+
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.Texture2D, handle);
+
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
+
+        UploadTextureLevel(gl, TextureTarget.Texture2D, 0, width, height, format, internalFormat, pixelFormat, pixelType, isCompressed, pixels);
+
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        return new OpenGlTexture(gl, handle, width, height, format, usage);
+    }
+
+    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage)
+    {
+        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.Texture2D, handle);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
+
+        for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
+        {
+            ref readonly ImageSlice slice = ref image.GetSlice(mipLevel);
+            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
+        }
+
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage);
+    }
+
+    private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage)
+    {
+        if (image.Width <= 0 || image.Height <= 0 || image.Width != image.Height)
+        {
+            throw new ArgumentException("Cubemap images must be square and greater than zero in size.", nameof(image));
+        }
+
+        if (image.ArraySize < 6 || image.ArraySize % 6 != 0)
+        {
+            throw new ArgumentException("Cubemap images must contain a multiple of six array slices.", nameof(image));
+        }
+
+        if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{image.Format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.TextureCubeMap, handle);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapR, (int)GLEnum.ClampToEdge);
+
+        for (int faceIndex = 0; faceIndex < 6; faceIndex++)
+        {
+            TextureTarget faceTarget = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + faceIndex);
+            for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
+            {
+                ref readonly ImageSlice slice = ref image.GetSlice(mipLevel, faceIndex);
+                UploadTextureLevel(gl, faceTarget, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
+            }
+        }
+
+        gl.BindTexture(TextureTarget.TextureCubeMap, 0);
+        return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage, TextureTarget.TextureCubeMap);
+    }
+
     private static BufferTargetARB GetAllocationTarget(BufferUsage usage)
     {
         if (usage.HasFlag(BufferUsage.Index))
@@ -636,13 +601,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             : BufferUsageARB.StaticDraw;
     }
 
-    private uint CreateSampledBufferTexture(
-        uint bufferHandle,
-        int sizeBytes,
-        int stride,
-        GpuBufferElementType elementType,
-        ReadOnlySpan<byte> initialData,
-        out TextureTarget textureTarget)
+    private uint CreateSampledBufferTexture(uint bufferHandle, int sizeBytes, int stride, GpuBufferElementType elementType, ReadOnlySpan<byte> initialData, out TextureTarget textureTarget)
     {
         textureTarget = TextureTarget.Texture2D;
         return CreateEmbeddedSampledBufferTexture(sizeBytes, stride, elementType, initialData);
@@ -772,12 +731,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         };
     }
 
-    private static void GetEmbeddedSampledTextureFormat(
-        int stride,
-        GpuBufferElementType elementType,
-        out SizedInternalFormat internalFormat,
-        out global::Silk.NET.OpenGL.PixelFormat pixelFormat,
-        out PixelType pixelType)
+    private static void GetEmbeddedSampledTextureFormat(int stride, GpuBufferElementType elementType, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType)
     {
         int componentSizeBytes = GetElementSizeBytes(elementType);
         if (componentSizeBytes <= 0 || stride % componentSizeBytes != 0)
@@ -856,13 +810,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return (rowPitch % 2) == 0 ? 2 : 1;
     }
 
-    private bool TryGetTextureFormat(
-        ImageFormat format,
-        TextureUsage usage,
-        out SizedInternalFormat internalFormat,
-        out global::Silk.NET.OpenGL.PixelFormat pixelFormat,
-        out PixelType pixelType,
-        out bool isCompressed)
+    private bool TryGetTextureFormat(ImageFormat format, TextureUsage usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed)
     {
         switch (format)
         {
@@ -1066,18 +1014,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return slicePitch;
     }
 
-    private static unsafe void UploadTextureLevel(
-        GL gl,
-        TextureTarget target,
-        int mipLevel,
-        int width,
-        int height,
-        ImageFormat format,
-        SizedInternalFormat internalFormat,
-        global::Silk.NET.OpenGL.PixelFormat pixelFormat,
-        PixelType pixelType,
-        bool isCompressed,
-        ReadOnlySpan<byte> pixels)
+    private static unsafe void UploadTextureLevel(GL gl, TextureTarget target, int mipLevel, int width, int height, ImageFormat format, SizedInternalFormat internalFormat, global::Silk.NET.OpenGL.PixelFormat pixelFormat, PixelType pixelType, bool isCompressed, ReadOnlySpan<byte> pixels)
     {
         if (isCompressed)
         {

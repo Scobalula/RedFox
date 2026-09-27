@@ -5,24 +5,31 @@ namespace RedFox.Imaging.Formats.Tiff;
 /// <summary>
 /// Represents the mutable state used while decoding TIFF LZW code streams.
 /// </summary>
-internal ref struct TiffLzwDecoder
+/// <param name="sourceData">The compressed TIFF LZW byte stream.</param>
+/// <param name="prefixes">The prefix table used to rebuild dictionary strings.</param>
+/// <param name="suffixes">The suffix table used to rebuild dictionary strings.</param>
+/// <param name="lengths">The cached string lengths for each dictionary entry.</param>
+/// <param name="decodeBuffer">The scratch buffer used to materialize decoded strings.</param>
+/// <param name="firstCode">The first non-control code in the dictionary.</param>
+/// <param name="leastSignificantBitFirst"><see langword="true"/> to read codes LSB-first; otherwise MSB-first.</param>
+internal ref struct TiffLzwDecoder(ReadOnlySpan<byte> sourceData, int[] prefixes, byte[] suffixes, int[] lengths, byte[] decodeBuffer, int firstCode, bool leastSignificantBitFirst)
 {
-    private readonly ReadOnlySpan<byte> _src;
+    private readonly ReadOnlySpan<byte> _sourceData = sourceData;
     private int _bytePos;
     private uint _bitBuffer;
     private int _bitsInBuffer;
-    private readonly int _totalBytes;
-    private readonly int _firstCode;
-    private readonly bool _leastSignificantBitFirst;
-    private readonly int[] _prefixes;
-    private readonly byte[] _suffixes;
-    private readonly int[] _lengths;
-    private readonly byte[] _decodeBuffer;
+    private readonly int _totalBytes = sourceData.Length;
+    private readonly int _firstCode = firstCode;
+    private readonly bool _leastSignificantBitFirst = leastSignificantBitFirst;
+    private readonly int[] _prefixes = prefixes;
+    private readonly byte[] _suffixes = suffixes;
+    private readonly int[] _lengths = lengths;
+    private readonly byte[] _decodeBuffer = decodeBuffer;
 
     /// <summary>
     /// Gets the source LZW byte stream.
     /// </summary>
-    public readonly ReadOnlySpan<byte> Source => _src;
+    public readonly ReadOnlySpan<byte> Source => _sourceData;
 
     /// <summary>
     /// Gets or sets the current byte position within <see cref="Source"/>.
@@ -84,44 +91,17 @@ internal ref struct TiffLzwDecoder
     /// <summary>
     /// Gets or sets the next table entry index that will be assigned during decoding.
     /// </summary>
-    public int NextCode { get; set; }
+    public int NextCode { get; set; } = firstCode;
 
     /// <summary>
     /// Gets or sets the current number of bits used to read each code.
     /// </summary>
-    public int CodeSize { get; set; }
+    public int CodeSize { get; set; } = TiffConstants.LzwInitialCodeSize;
 
     /// <summary>
     /// Gets the scratch buffer used to materialize decoded strings.
     /// </summary>
     public readonly Span<byte> DecodeBufferSpan => _decodeBuffer;
-
-    /// <summary>
-    /// Initializes a decoder over a TIFF LZW code stream.
-    /// </summary>
-    /// <param name="src">The compressed TIFF LZW byte stream.</param>
-    /// <param name="prefixes">The prefix table used to rebuild dictionary strings.</param>
-    /// <param name="suffixes">The suffix table used to rebuild dictionary strings.</param>
-    /// <param name="lengths">The cached string lengths for each dictionary entry.</param>
-    /// <param name="decodeBuffer">The scratch buffer used to materialize decoded strings.</param>
-    /// <param name="firstCode">The first non-control code in the dictionary.</param>
-    /// <param name="leastSignificantBitFirst"><see langword="true"/> to read codes LSB-first; otherwise MSB-first.</param>
-    public TiffLzwDecoder(ReadOnlySpan<byte> src, int[] prefixes, byte[] suffixes, int[] lengths, byte[] decodeBuffer, int firstCode, bool leastSignificantBitFirst)
-    {
-        _src = src;
-        _bytePos = 0;
-        _bitBuffer = 0;
-        _bitsInBuffer = 0;
-        _totalBytes = src.Length;
-        _firstCode = firstCode;
-        _leastSignificantBitFirst = leastSignificantBitFirst;
-        _prefixes = prefixes;
-        _suffixes = suffixes;
-        _lengths = lengths;
-        _decodeBuffer = decodeBuffer;
-        NextCode = firstCode;
-        CodeSize = TiffConstants.LzwInitialCodeSize;
-    }
 
     /// <summary>
     /// Resets the decoder string table to its initial TIFF state.
@@ -163,7 +143,7 @@ internal ref struct TiffLzwDecoder
                     return false;
                 }
 
-                _bitBuffer |= (uint)_src[_bytePos++] << _bitsInBuffer;
+                _bitBuffer |= (uint)_sourceData[_bytePos++] << _bitsInBuffer;
                 _bitsInBuffer += 8;
             }
 
@@ -182,7 +162,7 @@ internal ref struct TiffLzwDecoder
                 return false;
             }
 
-            _bitBuffer = (_bitBuffer << 8) | _src[_bytePos++];
+            _bitBuffer = (_bitBuffer << 8) | _sourceData[_bytePos++];
             _bitsInBuffer += 8;
         }
 

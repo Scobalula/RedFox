@@ -164,32 +164,32 @@ public sealed class Md5AnimWriter
                 if ((flags & 1) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localPosition.X));
+                    sb.Append(FormatFloat(localPosition.X));
                 }
                 if ((flags & 2) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localPosition.Y));
+                    sb.Append(FormatFloat(localPosition.Y));
                 }
                 if ((flags & 4) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localPosition.Z));
+                    sb.Append(FormatFloat(localPosition.Z));
                 }
                 if ((flags & 8) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localOrientation.X));
+                    sb.Append(FormatFloat(localOrientation.X));
                 }
                 if ((flags & 16) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localOrientation.Y));
+                    sb.Append(FormatFloat(localOrientation.Y));
                 }
                 if ((flags & 32) != 0)
                 {
                     sb.Append('\t');
-                    sb.Append(F(localOrientation.Z));
+                    sb.Append(FormatFloat(localOrientation.Z));
                 }
             }
 
@@ -258,7 +258,7 @@ public sealed class Md5AnimWriter
             {
                 q = new Quaternion(-q.X, -q.Y, -q.Z, -q.W);
             }
-            writer.WriteLine($"\t( {F(pos.X)} {F(pos.Y)} {F(pos.Z)} ) ( {F(q.X)} {F(q.Y)} {F(q.Z)} )");
+            writer.WriteLine($"\t( {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)} ) ( {FormatFloat(q.X)} {FormatFloat(q.Y)} {FormatFloat(q.Z)} )");
         }
         writer.WriteLine("}");
     }
@@ -282,5 +282,5 @@ public sealed class Md5AnimWriter
     /// </summary>
     /// <param name="v">The value to format.</param>
     /// <returns>An invariant-culture numeric string.</returns>
-    public static string F(float v) => Md5Format.F(v);
+    public static string FormatFloat(float value) => Md5Format.FormatFloat(value);
 }

@@ -165,14 +165,14 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)
     {
-        WriteCore(stream, image, EncoderOptions);
+        WriteEncodedImage(stream, image, EncoderOptions);
     }
 
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image, ImageTranslatorOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        WriteCore(stream, image, ResolveEncoderOptions(options));
+        WriteEncodedImage(stream, image, ResolveEncoderOptions(options));
     }
 
     /// <inheritdoc/>
@@ -245,7 +245,7 @@ public sealed class TiffImageTranslator : ImageTranslator
     /// <param name="stream">The destination stream that receives the TIFF file data.</param>
     /// <param name="image">The image to encode.</param>
     /// <param name="encoderOptions">The explicit TIFF encoder settings to apply.</param>
-    private static void WriteCore(Stream stream, Image image, TiffEncoderOptions encoderOptions)
+    private static void WriteEncodedImage(Stream stream, Image image, TiffEncoderOptions encoderOptions)
     {
         ref readonly var slice = ref image.GetSlice(0, 0, 0);
         int width = slice.Width;

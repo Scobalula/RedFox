@@ -102,12 +102,6 @@
                                FontWeight="Medium"
                                Foreground="#E4E4EA"
                                HorizontalAlignment="Center"/>
-                    <TextBlock Text="Drop plugin files into the directory below and click Refresh."
-                               FontSize="12"
-                               Foreground="#78787E"
-                               HorizontalAlignment="Center"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"/>
                     <TextBlock Text="{Binding PluginsDirectory}"
                                FontSize="11"
                                Foreground="#606066"

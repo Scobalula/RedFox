@@ -62,18 +62,6 @@
 
             <Separator Background="#2A2A2E" Margin="0,4"/>
 
-            <!-- Footer -->
-            <StackPanel Spacing="2" HorizontalAlignment="Center" Margin="0,8,0,0">
-                <TextBlock Text="Built with RedFox.GameExtraction.UI"
-                           FontSize="11"
-                           Foreground="#58585E"
-                           HorizontalAlignment="Center"/>
-                <TextBlock Text="Powered by Avalonia UI"
-                           FontSize="11"
-                           Foreground="#58585E"
-                           HorizontalAlignment="Center"/>
-            </StackPanel>
-
             <Button Classes="cancel-btn"
                     Content="Close"
                     HorizontalAlignment="Center"

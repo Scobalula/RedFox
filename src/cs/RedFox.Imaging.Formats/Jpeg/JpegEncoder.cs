@@ -196,9 +196,9 @@ internal sealed class JpegEncoder
                     }
                 }
 
-                int idx = cy * cbWidth + cx;
-                cbPlane[idx] = ClampByte(sumCb / count);
-                crPlane[idx] = ClampByte(sumCr / count);
+                int chromaIndex = cy * cbWidth + cx;
+                cbPlane[chromaIndex] = ClampByte(sumCb / count);
+                crPlane[chromaIndex] = ClampByte(sumCr / count);
             }
         }
     }

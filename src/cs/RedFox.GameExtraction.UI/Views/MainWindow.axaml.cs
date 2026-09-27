@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using RedFox.GameExtraction.UI.Models;
@@ -38,8 +39,26 @@ public partial class MainWindow : Window
 
         MainWindowViewModel viewModel = new(config);
         DataContext = viewModel;
+        SidebarIconImage.Source = LoadIcon(viewModel.SidebarIconPath);
 
         SubscribeToViewModel(viewModel);
+    }
+
+    private static Bitmap? LoadIcon(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new Bitmap(path);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private void SubscribeToViewModel(MainWindowViewModel viewModel)

@@ -98,14 +98,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
-    public override void Render(
-        ICommandList commandList,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize)
+    public override void Render(ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
@@ -131,7 +124,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     }
 
     /// <inheritdoc/>
-    protected override void ReleaseCore()
+    protected override void ReleaseResources()
     {
         ReleaseTexture();
         _pipeline?.Dispose();

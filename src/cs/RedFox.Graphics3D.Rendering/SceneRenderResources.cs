@@ -7,13 +7,13 @@ namespace RedFox.Graphics3D.Rendering;
 /// <summary>Owns renderer resources associated with scene objects.</summary>
 internal static class SceneRenderResources
 {
-    private static readonly ConditionalWeakTable<IGraphicsDevice, DeviceResources> Resources = [];
+    private static readonly ConditionalWeakTable<IGraphicsDevice, Dictionary<object, IRenderHandle>> Resources = [];
 
     public static IRenderHandle? Get(IGraphicsDevice graphicsDevice, object owner)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         ArgumentNullException.ThrowIfNull(owner);
-        return Resources.TryGetValue(graphicsDevice, out DeviceResources? resources) && resources.Handles.TryGetValue(owner, out IRenderHandle? handle) ? handle : null;
+        return Resources.TryGetValue(graphicsDevice, out Dictionary<object, IRenderHandle>? handles) && handles.TryGetValue(owner, out IRenderHandle? handle) ? handle : null;
     }
 
     public static T GetOrCreate<T>(IGraphicsDevice graphicsDevice, object owner, Func<T> factory) where T : class, IRenderHandle
@@ -21,15 +21,15 @@ internal static class SceneRenderResources
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(factory);
-        DeviceResources resources = Resources.GetOrCreateValue(graphicsDevice);
-        if (resources.Handles.TryGetValue(owner, out IRenderHandle? existingHandle) && existingHandle is T existing)
+        Dictionary<object, IRenderHandle> handles = Resources.GetValue(graphicsDevice, static _ => new(ReferenceEqualityComparer.Instance));
+        if (handles.TryGetValue(owner, out IRenderHandle? existingHandle) && existingHandle is T existing)
         {
             return existing;
         }
 
-        Release(resources, owner);
+        Release(handles, owner);
         T newHandle = factory();
-        resources.Handles.Add(owner, newHandle);
+        handles.Add(owner, newHandle);
         return newHandle;
     }
 
@@ -51,40 +51,36 @@ internal static class SceneRenderResources
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         ArgumentNullException.ThrowIfNull(owner);
-        if (Resources.TryGetValue(graphicsDevice, out DeviceResources? resources))
+        if (Resources.TryGetValue(graphicsDevice, out Dictionary<object, IRenderHandle>? handles))
         {
-            Release(resources, owner);
+            Release(handles, owner);
         }
     }
 
     public static void ReleaseAll(IGraphicsDevice graphicsDevice)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
-        if (!Resources.TryGetValue(graphicsDevice, out DeviceResources? resources))
+        if (!Resources.TryGetValue(graphicsDevice, out Dictionary<object, IRenderHandle>? handles))
         {
             return;
         }
 
-        foreach (IRenderHandle handle in resources.Handles.Values)
+        foreach (IRenderHandle handle in handles.Values)
         {
             handle.Release();
             handle.Dispose();
         }
 
-        resources.Handles.Clear();
+        handles.Clear();
     }
 
-    private static void Release(DeviceResources resources, object owner)
+    private static void Release(Dictionary<object, IRenderHandle> handles, object owner)
     {
-        if (resources.Handles.Remove(owner, out IRenderHandle? handle))
+        if (handles.Remove(owner, out IRenderHandle? handle))
         {
             handle.Release();
             handle.Dispose();
         }
     }
 
-    private sealed class DeviceResources
-    {
-        public Dictionary<object, IRenderHandle> Handles { get; } = new(ReferenceEqualityComparer.Instance);
-    }
 }

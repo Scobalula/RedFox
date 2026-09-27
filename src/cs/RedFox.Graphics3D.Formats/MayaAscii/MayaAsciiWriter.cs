@@ -299,6 +299,9 @@ public sealed class MayaAsciiWriter
         }
     }
 
+    /// <inheritdoc cref="WriteMeshGeometry(Mesh, bool)"/>
+    public void WriteMeshGeometry(Mesh mesh) => WriteMeshGeometry(mesh, false);
+
     /// <summary>
     /// Writes the core polygon geometry data for a mesh, including vertex positions, edge definitions,
     /// and face topology using Maya's edge-based <c>polyFaces</c> format. Also sets required mesh shape
@@ -306,7 +309,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="mesh">The mesh whose geometry data to write.</param>
     /// <param name="forceRawPositions">Whether to use positions before skinning deformation.</param>
-    public void WriteMeshGeometry(Mesh mesh, bool forceRawPositions = false)
+    public void WriteMeshGeometry(Mesh mesh, bool forceRawPositions)
     {
         ArgumentNullException.ThrowIfNull(mesh);
 

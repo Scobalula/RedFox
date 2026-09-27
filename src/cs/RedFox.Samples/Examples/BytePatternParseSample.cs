@@ -28,10 +28,10 @@ internal sealed class BytePatternParseSample : ISample
         string patternText = arguments.Length > 0 ? string.Join(" ", arguments) : "48 8B ?? ?? 89";
         Pattern<byte> pattern = BytePattern.Parse(patternText);
 
-        Console.WriteLine($"Pattern text: {patternText}");
-        Console.WriteLine($"Needle      : {FormatBytes(pattern.Needle)}");
-        Console.WriteLine($"Mask        : {FormatBytes(pattern.Mask)}");
-        Console.WriteLine("Note: mask bytes of FF indicate wildcard bytes in the pattern.");
+        AnsiConsole.WriteLine($"Pattern text: {patternText}");
+        AnsiConsole.WriteLine($"Needle      : {FormatBytes(pattern.Needle)}");
+        AnsiConsole.WriteLine($"Mask        : {FormatBytes(pattern.Mask)}");
+        AnsiConsole.WriteLine("Note: mask bytes of FF indicate wildcard bytes in the pattern.");
         return 0;
     }
 

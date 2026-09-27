@@ -138,7 +138,7 @@ public sealed class PngImageTranslator : ImageTranslator
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)
     {
-        WriteCore(stream, image, fastPathCompressionLevel: CompressionLevel.Fastest, adaptiveCompressionLevel: CompressionLevel.Optimal);
+        WriteEncodedImage(stream, image, fastPathCompressionLevel: CompressionLevel.Fastest, adaptiveCompressionLevel: CompressionLevel.Optimal);
     }
 
     /// <inheritdoc/>
@@ -148,7 +148,7 @@ public sealed class PngImageTranslator : ImageTranslator
 
         CompressionLevel compressionLevel = ResolveCompressionLevel(options.Compression, CompressionLevel.Optimal);
         CompressionLevel fastPathCompressionLevel = ResolveCompressionLevel(options.Compression, CompressionLevel.Fastest);
-        WriteCore(stream, image, fastPathCompressionLevel, compressionLevel);
+        WriteEncodedImage(stream, image, fastPathCompressionLevel, compressionLevel);
     }
 
     /// <inheritdoc/>
@@ -160,7 +160,7 @@ public sealed class PngImageTranslator : ImageTranslator
         return header.Length >= PngConstants.PngSignature.Length && header[..PngConstants.PngSignature.Length].SequenceEqual(PngConstants.PngSignature);
     }
 
-    private static void WriteCore(Stream stream, Image image, CompressionLevel fastPathCompressionLevel, CompressionLevel adaptiveCompressionLevel)
+    private static void WriteEncodedImage(Stream stream, Image image, CompressionLevel fastPathCompressionLevel, CompressionLevel adaptiveCompressionLevel)
     {
         ref readonly var slice = ref image.GetSlice(0, 0, 0);
         int width = slice.Width;

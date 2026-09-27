@@ -23,14 +23,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     private ComPtr<ID3D11RenderTargetView> _defaultRenderTargetView;
     private ComPtr<IDXGISwapChain> _swapChain;
 
-    private D3D11Context(
-        IWindow window,
-        D3D11Api d3d,
-        DXGI dxgi,
-        ComPtr<ID3D11Device> device,
-        ComPtr<ID3D11DeviceContext> deviceContext,
-        ComPtr<IDXGIFactory1> factory,
-        ComPtr<IDXGISwapChain> swapChain)
+    private D3D11Context(IWindow window, D3D11Api d3d, DXGI dxgi, ComPtr<ID3D11Device> device, ComPtr<ID3D11DeviceContext> deviceContext, ComPtr<IDXGIFactory1> factory, ComPtr<IDXGISwapChain> swapChain)
     {
         _window = window;
         D3D = d3d;
@@ -88,7 +81,7 @@ internal sealed unsafe class D3D11Context : IDisposable
                 &devicePointer,
                 &featureLevel,
                 &deviceContextPointer);
-            D3D11Helpers.ThrowIfFailed(result, "D3D11CreateDevice");
+            D3D11Support.ThrowIfFailed(result, "D3D11CreateDevice");
             device = new ComPtr<ID3D11Device>(devicePointer);
             deviceContext = new ComPtr<ID3D11DeviceContext>(deviceContextPointer);
         }
@@ -96,7 +89,7 @@ internal sealed unsafe class D3D11Context : IDisposable
         ComPtr<IDXGIFactory1> factory = dxgi.CreateDXGIFactory1<IDXGIFactory1>();
         SwapChainDesc swapChainDesc = CreateSwapChainDesc(window, outputWindowHandle);
         ComPtr<IDXGISwapChain> swapChain = default;
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             factory.Get().CreateSwapChain(device, ref swapChainDesc, ref swapChain),
             "IDXGIFactory1::CreateSwapChain");
         factory.Get().MakeWindowAssociation(outputWindowHandle, 2u);
@@ -114,7 +107,7 @@ internal sealed unsafe class D3D11Context : IDisposable
         int safeHeight = Math.Max(1, height);
 
         ReleaseDefaultTargets();
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             _swapChain.Get().ResizeBuffers(DefaultSwapChainBufferCount, (uint)safeWidth, (uint)safeHeight, Format.FormatB8G8R8A8Unorm, 0),
             "IDXGISwapChain::ResizeBuffers");
         CreateDefaultTargets(safeWidth, safeHeight);
@@ -123,7 +116,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     public void Present()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        D3D11Helpers.ThrowIfFailed(_swapChain.Get().Present(0, 0), "IDXGISwapChain::Present");
+        D3D11Support.ThrowIfFailed(_swapChain.Get().Present(0, 0), "IDXGISwapChain::Present");
     }
 
     public void Dispose()
@@ -160,7 +153,7 @@ internal sealed unsafe class D3D11Context : IDisposable
             BufferUsage = BufferUsageRenderTargetOutput,
             BufferCount = DefaultSwapChainBufferCount,
             OutputWindow = outputWindowHandle,
-            Windowed = D3D11Helpers.ToBool32(true),
+            Windowed = D3D11Support.ToBool32(true),
             SwapEffect = SwapEffect.Discard,
             Flags = 0,
         };
@@ -191,7 +184,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     private void CreateDefaultTargets(int width, int height)
     {
         _defaultBackBuffer = _swapChain.Get().GetBuffer<ID3D11Texture2D>(0);
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             Device.Get().CreateRenderTargetView(_defaultBackBuffer, (RenderTargetViewDesc*)null, ref _defaultRenderTargetView),
             "ID3D11Device::CreateRenderTargetView");
 
@@ -209,10 +202,10 @@ internal sealed unsafe class D3D11Context : IDisposable
             MiscFlags = 0,
         };
 
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             Device.Get().CreateTexture2D(ref depthDesc, (SubresourceData*)null, ref _defaultDepthTexture),
             "ID3D11Device::CreateTexture2D(depth)");
-        D3D11Helpers.ThrowIfFailed(
+        D3D11Support.ThrowIfFailed(
             Device.Get().CreateDepthStencilView(_defaultDepthTexture, (DepthStencilViewDesc*)null, ref _defaultDepthStencilView),
             "ID3D11Device::CreateDepthStencilView");
     }

@@ -28,8 +28,8 @@ internal sealed class ProcessFinderSample : ISample
         string processName = arguments.Length > 0 ? arguments[0] : Process.GetCurrentProcess().ProcessName;
         int[] processIds = ProcessFinder.FindProcessIdsByName(processName);
 
-        Console.WriteLine($"Process name: {processName}");
-        Console.WriteLine($"Found IDs   : {(processIds.Length == 0 ? "<none>" : string.Join(", ", processIds))}");
+        AnsiConsole.WriteLine($"Process name: {processName}");
+        AnsiConsole.WriteLine($"Found IDs   : {(processIds.Length == 0 ? "<none>" : string.Join(", ", processIds))}");
 
         if (processIds.Length == 0)
         {
@@ -38,9 +38,9 @@ internal sealed class ProcessFinderSample : ISample
 
         using ProcessReader reader = new(processIds[0]);
         ProcessModuleInfo mainModule = reader.GetMainModule();
-        Console.WriteLine($"Reader PID  : {reader.ProcessId}");
-        Console.WriteLine($"Main module : {mainModule.Name}");
-        Console.WriteLine($"Base address: 0x{mainModule.BaseAddress:X}");
+        AnsiConsole.WriteLine($"Reader PID  : {reader.ProcessId}");
+        AnsiConsole.WriteLine($"Main module : {mainModule.Name}");
+        AnsiConsole.WriteLine($"Base address: 0x{mainModule.BaseAddress:X}");
         return 0;
     }
 }

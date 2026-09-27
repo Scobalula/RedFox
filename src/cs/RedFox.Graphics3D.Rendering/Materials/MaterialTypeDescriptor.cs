@@ -97,12 +97,7 @@ public sealed record class MaterialTypeDescriptor
     /// <param name="vertexAttributes">The vertex input attributes.</param>
     /// <param name="pipelineState">The graphics pipeline state.</param>
     /// <returns>The created descriptor.</returns>
-    public static MaterialTypeDescriptor CreateGraphics(
-        string name,
-        string vertexShaderName,
-        string fragmentShaderName,
-        IReadOnlyList<VertexAttribute> vertexAttributes,
-        MaterialPipelineStateDefinition pipelineState)
+    public static MaterialTypeDescriptor CreateGraphics(string name, string vertexShaderName, string fragmentShaderName, IReadOnlyList<VertexAttribute> vertexAttributes, MaterialPipelineStateDefinition pipelineState)
     {
         return CreateGraphics(name, vertexShaderName, fragmentShaderName, vertexAttributes, pipelineState, MaterialTypeRequirements.Empty);
     }
@@ -117,13 +112,7 @@ public sealed record class MaterialTypeDescriptor
     /// <param name="pipelineState">The graphics pipeline state.</param>
     /// <param name="requirements">The material input requirements.</param>
     /// <returns>The created descriptor.</returns>
-    public static MaterialTypeDescriptor CreateGraphics(
-        string name,
-        string vertexShaderName,
-        string fragmentShaderName,
-        IReadOnlyList<VertexAttribute> vertexAttributes,
-        MaterialPipelineStateDefinition pipelineState,
-        MaterialTypeRequirements requirements)
+    public static MaterialTypeDescriptor CreateGraphics(string name, string vertexShaderName, string fragmentShaderName, IReadOnlyList<VertexAttribute> vertexAttributes, MaterialPipelineStateDefinition pipelineState, MaterialTypeRequirements requirements)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(vertexShaderName);
         ArgumentException.ThrowIfNullOrWhiteSpace(fragmentShaderName);

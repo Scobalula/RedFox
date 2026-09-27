@@ -2,17 +2,11 @@ using System.Buffers;
 
 namespace RedFox.Patterns;
 
-internal sealed class BytePatternScanBufferSet : IDisposable
+internal sealed class BytePatternScanBufferSet(int bufferSize, int patternLength) : IDisposable
 {
-    private readonly int _overlapCapacity;
-    private readonly byte[] _scanBuffer;
+    private readonly int _overlapCapacity = Math.Max(0, patternLength - 1);
+    private readonly byte[] _scanBuffer = ArrayPool<byte>.Shared.Rent(Math.Max(0, patternLength - 1) + bufferSize);
     private int _overlapLength;
-
-    public BytePatternScanBufferSet(int bufferSize, int patternLength)
-    {
-        _overlapCapacity = Math.Max(0, patternLength - 1);
-        _scanBuffer = ArrayPool<byte>.Shared.Rent(_overlapCapacity + bufferSize);
-    }
 
     public Span<byte> GetReadDestination(int readLength)
     {

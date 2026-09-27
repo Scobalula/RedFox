@@ -27,7 +27,7 @@ public sealed class ClearAndStateResetPass : RenderPass
     }
 
     /// <inheritdoc/>
-    protected override void ExecuteCore(RenderFrameContext context)
+    protected override void ExecutePass(RenderFrameContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
 

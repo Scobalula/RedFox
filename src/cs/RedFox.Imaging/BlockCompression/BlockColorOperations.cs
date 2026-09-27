@@ -102,8 +102,8 @@ public static class BlockColorOperations
 
         for (int i = 0; i < 16; i++)
         {
-            int idx = (int)((indices >> (3 * i)) & 0x7);
-            output[i] = palette[idx];
+            int paletteIndex = (int)((indices >> (3 * i)) & 0x7);
+            output[i] = palette[paletteIndex];
         }
     }
 

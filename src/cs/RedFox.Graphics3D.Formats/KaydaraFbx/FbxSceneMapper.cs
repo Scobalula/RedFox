@@ -67,9 +67,7 @@ public static class FbxSceneMapper
             return false;
         }
 
-        return IsNearlyZero(node.GetBindLocalPosition())
-            && Vector3.DistanceSquared(node.GetBindLocalScale(), Vector3.One) <= 1e-6f
-            && MathF.Abs(Quaternion.Dot(node.GetBindLocalRotation(), Quaternion.Identity)) > 0.9999f;
+        return IsNearlyZero(node.GetBindLocalPosition()) && Vector3.DistanceSquared(node.GetBindLocalScale(), Vector3.One) <= 1e-6f && MathF.Abs(Quaternion.Dot(node.GetBindLocalRotation(), Quaternion.Identity)) > 0.9999f;
     }
 
     /// <summary>
@@ -96,9 +94,7 @@ public static class FbxSceneMapper
     public static Matrix4x4 GetExportBindWorldMatrix(SceneNode node)
     {
         Matrix4x4 localMatrix = GetExportLocalBindMatrix(node);
-        return node.Parent is not null and not Scene
-            ? localMatrix * GetExportBindWorldMatrix(node.Parent)
-            : localMatrix;
+        return node.Parent is not null and not Scene ? localMatrix * GetExportBindWorldMatrix(node.Parent) : localMatrix;
     }
 
     /// <summary>
@@ -109,9 +105,7 @@ public static class FbxSceneMapper
     public static Matrix4x4 GetExportActiveWorldMatrix(SceneNode node)
     {
         Matrix4x4 localMatrix = GetExportLocalModelMatrix(node);
-        return node.Parent is not null and not Scene
-            ? localMatrix * GetExportActiveWorldMatrix(node.Parent)
-            : localMatrix;
+        return node.Parent is not null and not Scene ? localMatrix * GetExportActiveWorldMatrix(node.Parent) : localMatrix;
     }
 
     /// <summary>
@@ -130,9 +124,7 @@ public static class FbxSceneMapper
             return s_authoredRootBasis;
         }
 
-        return Matrix4x4.CreateScale(localScale)
-            * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(localRotation))
-            * Matrix4x4.CreateTranslation(localTranslation);
+        return Matrix4x4.CreateScale(localScale) * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(localRotation)) * Matrix4x4.CreateTranslation(localTranslation);
     }
 
     /// <summary>
@@ -140,16 +132,14 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="value">The vector to test.</param>
     /// <returns><see langword="true"/> when the vector magnitude is within the zero tolerance.</returns>
-    public static bool IsNearlyZero(Vector3 value)
-        => value.LengthSquared() <= 1e-10f;
+    public static bool IsNearlyZero(Vector3 value) => value.LengthSquared() <= 1e-10f;
 
     /// <summary>
     /// Determines whether a vector is numerically close to <see cref="Vector3.One"/>.
     /// </summary>
     /// <param name="value">The vector to test.</param>
     /// <returns><see langword="true"/> when the vector is within the one tolerance.</returns>
-    public static bool IsNearlyOne(Vector3 value)
-        => Vector3.DistanceSquared(value, Vector3.One) <= 1e-10f;
+    public static bool IsNearlyOne(Vector3 value) => Vector3.DistanceSquared(value, Vector3.One) <= 1e-10f;
 
     /// <summary>
     /// Strips coordinate-system conversion rotations from top-level imported containers.
@@ -161,8 +151,11 @@ public static class FbxSceneMapper
     /// descendant meshes so that skin bindings remain consistent.
     /// </summary>
     /// <param name="rootNode">The scene root whose direct children should be inspected.</param>
+    public static void StripImportedRootBasisTransforms(SceneNode rootNode) => StripImportedRootBasisTransforms(rootNode, null);
+
+    /// <inheritdoc cref="StripImportedRootBasisTransforms(SceneNode)"/>
     /// <param name="boneBindWorldHints">Optional imported bind-world matrices keyed by skeleton bone.</param>
-    public static void StripImportedRootBasisTransforms(SceneNode rootNode, IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints = null)
+    public static void StripImportedRootBasisTransforms(SceneNode rootNode, IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints)
     {
         Quaternion basisRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
         SceneNode[] topLevelChildren = [.. rootNode.EnumerateChildren()];
@@ -269,330 +262,19 @@ public static class FbxSceneMapper
     }
 
     /// <summary>
-    /// Applies transient imported bone bind-world hints by reconstructing each hinted bone's
-    /// local transform from its parent bind world. Parents are applied before children.
-    /// </summary>
-    /// <param name="boneBindWorldHints">Bone bind-world hints resolved from raw FBX skin clusters.</param>
-    private static void ApplyBoneBindWorldHints(IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints)
-    {
-        if (boneBindWorldHints is null || boneBindWorldHints.Count == 0)
-        {
-            return;
-        }
-
-        List<(SkeletonBone bone, Matrix4x4 world, int depth)> sorted = [];
-        foreach ((SkeletonBone bone, Matrix4x4 world) in boneBindWorldHints)
-        {
-            int depth = 0;
-            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
-            {
-                depth++;
-            }
-
-            sorted.Add((bone, world, depth));
-        }
-
-        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
-
-        foreach ((SkeletonBone bone, Matrix4x4 bindWorld, _) in sorted)
-        {
-            Matrix4x4 parentWorld = bone.Parent is not null ? bone.Parent.GetBindWorldMatrix() : Matrix4x4.Identity;
-            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
-                ? bindWorld * invParent
-                : bindWorld;
-
-            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
-            {
-                bone.BindTransform.LocalPosition = translation;
-                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
-                bone.BindTransform.Scale = scale;
-            }
-            else
-            {
-                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
-                bone.BindTransform.LocalRotation = Quaternion.Identity;
-            }
-
-            bone.BindTransform.WorldPosition = null;
-            bone.BindTransform.WorldRotation = null;
-        }
-    }
-
-    /// <summary>
-    /// Applies imported authored world-pose hints into live transforms so active pose keeps
-    /// pre-export adjustments after root-basis stripping while bind transforms remain skin-aligned.
-    /// Parent worlds come from the same imported dictionary so that each bone's live local is
-    /// computed in a consistent coordinate space (FBX Model chain), cancelling per-bone euler
-    /// decomposition drift. Only TRS components that genuinely differ from bind are stored.
-    /// </summary>
-    /// <param name="importedLiveWorldHints">Imported live-world hints keyed by scene node.</param>
-    private static void ApplyImportedLiveWorldHints(IReadOnlyDictionary<SceneNode, Matrix4x4> importedLiveWorldHints)
-    {
-        List<(SceneNode node, Matrix4x4 world, int depth)> sorted = [];
-        foreach ((SceneNode node, Matrix4x4 world) in importedLiveWorldHints)
-        {
-            int depth = 0;
-            for (SceneNode? p = node.Parent; p is not null; p = p.Parent)
-            {
-                depth++;
-            }
-
-            sorted.Add((node, world, depth));
-        }
-
-        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
-
-        foreach ((SceneNode node, Matrix4x4 liveWorld, _) in sorted)
-        {
-            Matrix4x4 parentWorld = Matrix4x4.Identity;
-            if (node.Parent is not null)
-            {
-                if (!importedLiveWorldHints.TryGetValue(node.Parent, out parentWorld))
-                {
-                    parentWorld = node.Parent.GetActiveWorldMatrix();
-                }
-            }
-
-            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
-                ? liveWorld * invParent
-                : liveWorld;
-
-            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
-            {
-                rotation = Quaternion.Normalize(rotation);
-
-                bool positionDiffers = Vector3.DistanceSquared(translation, node.GetBindLocalPosition()) > 1e-4f;
-                bool rotationDiffers = MathF.Abs(Quaternion.Dot(rotation, node.GetBindLocalRotation())) < 0.9999f;
-                bool scaleDiffers = Vector3.DistanceSquared(scale, node.GetBindLocalScale()) > 1e-4f;
-
-                if (!positionDiffers && !rotationDiffers && !scaleDiffers)
-                {
-                    continue;
-                }
-
-                if (positionDiffers)
-                {
-                    node.LiveTransform.LocalPosition = translation;
-                }
-
-                if (rotationDiffers)
-                {
-                    node.LiveTransform.LocalRotation = rotation;
-                }
-
-                if (scaleDiffers)
-                {
-                    node.LiveTransform.Scale = scale;
-                }
-            }
-            else
-            {
-                Vector3 fallbackPosition = new(localMatrix.M41, localMatrix.M42, localMatrix.M43);
-                if (Vector3.DistanceSquared(fallbackPosition, node.GetBindLocalPosition()) < 1e-4f)
-                {
-                    continue;
-                }
-
-                node.LiveTransform.LocalPosition = fallbackPosition;
-            }
-
-            node.LiveTransform.WorldPosition = null;
-            node.LiveTransform.WorldRotation = null;
-        }
-    }
-
-    /// <summary>
-    /// Builds per-bone bind-world hints from FBX BindPose nodes.
-    /// The bind-pose matrix is authored in FBX Y-up world space and converted to
-    /// RedFox Z-up world space using <see cref="s_importBasis"/>.
-    /// </summary>
-    /// <param name="objectsById">All FBX objects keyed by id.</param>
-    /// <param name="bonesByModelId">Imported bones keyed by FBX model id.</param>
-    /// <returns>A map of bones to converted bind-world matrices.</returns>
-    private static Dictionary<SkeletonBone, Matrix4x4> BuildBindPoseBoneWorldHints(Dictionary<long, FbxNode> objectsById, Dictionary<long, SkeletonBone> bonesByModelId)
-    {
-        Dictionary<SkeletonBone, Matrix4x4> hints = [];
-
-        foreach ((_, FbxNode objectNode) in objectsById)
-        {
-            if (!string.Equals(objectNode.Name, "Pose", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            FbxNode? typeNode = objectNode.FirstChild("Type");
-            if (typeNode is null || typeNode.Properties.Count == 0 || !string.Equals(typeNode.Properties[0].AsString(), "BindPose", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            foreach (FbxNode poseNode in objectNode.ChildrenNamed("PoseNode"))
-            {
-                FbxNode? nodeIdNode = poseNode.FirstChild("Node");
-                if (nodeIdNode is null || nodeIdNode.Properties.Count == 0)
-                {
-                    continue;
-                }
-
-                long modelId = nodeIdNode.Properties[0].AsInt64();
-                if (!bonesByModelId.TryGetValue(modelId, out SkeletonBone? bone))
-                {
-                    continue;
-                }
-
-                Matrix4x4 poseWorld = FbxSkinningMapper.ReadNodeMatrix(poseNode, "Matrix");
-                Matrix4x4 convertedWorld = RequiresImportBasisConversion(bone)
-                    ? poseWorld * s_importBasis
-                    : poseWorld;
-
-                if (!hints.ContainsKey(bone))
-                {
-                    hints[bone] = convertedWorld;
-                }
-            }
-        }
-
-        return hints;
-    }
-
-    private static bool RequiresImportBasisConversion(SkeletonBone bone)
-    {
-        SceneNode topLevelNode = bone;
-        while (topLevelNode.Parent is not null and not Scene)
-        {
-            topLevelNode = topLevelNode.Parent;
-        }
-
-        if (topLevelNode is SkeletonBone || topLevelNode is Mesh)
-        {
-            return false;
-        }
-
-        Quaternion basisRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
-        return IsNearlyZero(topLevelNode.GetBindLocalPosition())
-            && IsNearlyOne(topLevelNode.GetBindLocalScale())
-            && MathF.Abs(Quaternion.Dot(topLevelNode.GetBindLocalRotation(), basisRotation)) >= 0.9999f;
-    }
-
-    /// <summary>
-    /// Reconstructs bind-local transforms for bones that participate in meshes with
-    /// explicit inverse-bind matrices. For each bone influence this solves:
-    /// <c>IBM = meshBindWorld × inv(boneBindWorld)</c>, therefore
-    /// <c>boneBindWorld = inv(IBM) × meshBindWorld</c>. Using mesh bind WORLD (not local)
-    /// keeps reconstruction correct for nested mesh parents.
-    /// </summary>
-    /// <param name="rootNode">The scene root whose descendant meshes and bones should be inspected.</param>
-    private static void ReconstructBoneLocalsFromExplicitSkinning(SceneNode rootNode)
-    {
-        Dictionary<SkeletonBone, Matrix4x4> corrections = [];
-
-        foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
-        {
-            if (mesh.Skin is not { InverseBindMatrices: { Count: > 0 } inverseBindMatrices, Bones: { Count: > 0 } skinnedBones })
-            {
-                continue;
-            }
-            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
-
-            for (int i = 0; i < skinnedBones.Count; i++)
-            {
-                SkeletonBone bone = skinnedBones[i];
-
-                if (!Matrix4x4.Invert(inverseBindMatrices[i], out Matrix4x4 invIbm))
-                {
-                    continue;
-                }
-
-                Matrix4x4 candidateWorld = invIbm * meshBindWorld;
-                if (corrections.TryGetValue(bone, out Matrix4x4 existingWorld))
-                {
-                    Vector3 existingTranslation = new(existingWorld.M41, existingWorld.M42, existingWorld.M43);
-                    Vector3 candidateTranslation = new(candidateWorld.M41, candidateWorld.M42, candidateWorld.M43);
-                    Vector3 currentTranslation = bone.GetBindWorldPosition();
-
-                    float existingDelta = Vector3.DistanceSquared(existingTranslation, currentTranslation);
-                    float candidateDelta = Vector3.DistanceSquared(candidateTranslation, currentTranslation);
-
-                    if (candidateDelta < existingDelta)
-                    {
-                        corrections[bone] = candidateWorld;
-                    }
-
-                    continue;
-                }
-
-                corrections[bone] = candidateWorld;
-            }
-        }
-
-        if (corrections.Count == 0)
-        {
-            return;
-        }
-
-        // Sort corrected bones top-down (by ancestor depth) so that parents are processed
-        // before children. This ensures GetBindWorldMatrix() on a parent already reflects
-        // any prior correction when we compute the child's local.
-        List<(SkeletonBone bone, Matrix4x4 correctWorld, int depth)> sorted = [];
-        foreach ((SkeletonBone bone, Matrix4x4 correctWorld) in corrections)
-        {
-            int depth = 0;
-            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
-            {
-                depth++;
-            }
-
-            sorted.Add((bone, correctWorld, depth));
-        }
-
-        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
-
-        // Apply corrections: compute local = correctWorld × inv(parentWorld), decompose,
-        // and replace the bone's local transform. Clear cached world so it recomputes.
-        foreach ((SkeletonBone bone, Matrix4x4 correctWorld, _) in sorted)
-        {
-            Matrix4x4 parentWorld = bone.Parent is not null
-                ? bone.Parent.GetBindWorldMatrix()
-                : Matrix4x4.Identity;
-
-            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent)
-                ? correctWorld * invParent
-                : correctWorld;
-
-            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
-            {
-                bone.BindTransform.LocalPosition = translation;
-                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
-                bone.BindTransform.Scale = scale;
-            }
-            else
-            {
-                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
-                bone.BindTransform.LocalRotation = Quaternion.Identity;
-            }
-
-            // Clear cached worlds so GetBindWorldMatrix re-derives from the corrected local chain.
-            bone.BindTransform.WorldPosition = null;
-            bone.BindTransform.WorldRotation = null;
-        }
-    }
-
-    /// <summary>
     /// Determines whether a node should export an FBX Null node attribute.
     /// Container-type nodes (non-bone, non-mesh, non-light, non-camera) always get one.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
     /// <returns><see langword="true"/> when a Null node attribute should be written.</returns>
-    public static bool ShouldExportNullNodeAttribute(SceneNode node)
-        => node is not (SkeletonBone or Mesh or Camera or Light);
+    public static bool ShouldExportNullNodeAttribute(SceneNode node) => node is not (SkeletonBone or Mesh or Camera or Light);
 
     /// <summary>
     /// Resolves the FBX Null node-attribute name for a node.
     /// </summary>
     /// <param name="node">The node to inspect.</param>
     /// <returns>The generated Null node-attribute name.</returns>
-    public static string GetNullNodeAttributeName(SceneNode node)
-        => $"{node.Name}\0\u0001NodeAttribute";
+    public static string GetNullNodeAttributeName(SceneNode node) => $"{node.Name}\0\u0001NodeAttribute";
 
     /// <summary>
     /// Imports a scene from an FBX document.
@@ -694,8 +376,7 @@ public static class FbxSceneMapper
     /// <param name="scene">The source scene.</param>
     /// <param name="format">The target FBX format.</param>
     /// <returns>The exported FBX document.</returns>
-    public static FbxDocument ExportScene(Scene scene, FbxFormat format)
-        => ExportScene(scene, format, new SceneTranslationSelection(scene, SceneNodeFlags.None));
+    public static FbxDocument ExportScene(Scene scene, FbxFormat format) => ExportScene(scene, format, new SceneTranslationSelection(scene, SceneNodeFlags.None));
 
     /// <summary>
     /// Exports a scene into an FBX document using a filtered scene selection.
@@ -966,27 +647,7 @@ public static class FbxSceneMapper
     /// <param name="geometryNodes">Geometry FBX nodes keyed by object id.</param>
     /// <param name="connections">The full FBX connection list.</param>
     /// <param name="perTriangleMaterials">Output dictionary populated with per-triangle material indices.</param>
-    public static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials)
-        => AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials, null);
-
-    private static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials, Dictionary<Mesh, FbxNode>? geometryByMesh)
-    {
-        for (int i = 0; i < connections.Count; i++)
-        {
-            FbxConnection connection = connections[i];
-            if (!string.Equals(connection.ConnectionType, "OO", StringComparison.Ordinal) || !geometryNodes.TryGetValue(connection.ChildId, out FbxNode? geometry) || !meshesByModelId.TryGetValue(connection.ParentId, out Mesh? mesh))
-            {
-                continue;
-            }
-
-            int[] materialIndices = FbxGeometryMapper.ImportControlPointGeometry(mesh, geometry);
-            geometryByMesh?.TryAdd(mesh, geometry);
-            if (materialIndices.Length > 0)
-            {
-                perTriangleMaterials[mesh] = materialIndices;
-            }
-        }
-    }
+    public static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials) => AttachGeometry(meshesByModelId, geometryNodes, connections, perTriangleMaterials, null);
 
     /// <summary>
     /// Attaches imported material objects to their target meshes by scanning connections.
@@ -1229,56 +890,7 @@ public static class FbxSceneMapper
     /// Reclassifies imported Null containers after hierarchy construction so skeleton-shaped and model-shaped branches map to the correct scene-node types.
     /// </summary>
     /// <param name="modelNodes">All imported scene nodes keyed by model id.</param>
-    public static void ClassifyNullContainers(Dictionary<long, SceneNode> modelNodes)
-        => ClassifyNullContainers(modelNodes, collapseSingleBoneContainers: true);
-
-    private static void ClassifyNullContainers(Dictionary<long, SceneNode> modelNodes, bool collapseSingleBoneContainers)
-    {
-        KeyValuePair<long, SceneNode>[] groupsByDepth = [.. modelNodes
-            .Where(static pair => pair.Value is Group)
-            .OrderByDescending(static pair => pair.Value.GetAncestors().Length)];
-
-        for (int i = 0; i < groupsByDepth.Length; i++)
-        {
-            long objectId = groupsByDepth[i].Key;
-            if (modelNodes[objectId] is not Group group)
-            {
-                continue;
-            }
-
-            if (collapseSingleBoneContainers && TryCollapseSkeletonContainer(group, out SkeletonBone? skeletonRoot))
-            {
-                modelNodes[objectId] = skeletonRoot!;
-                continue;
-            }
-
-            SceneNode replacement = CreateClassifiedNullContainer(group);
-            if (ReferenceEquals(replacement, group))
-            {
-                continue;
-            }
-
-            ReplaceImportedNullContainer(group, replacement);
-            modelNodes[objectId] = replacement;
-        }
-    }
-
-    private static bool TryCollapseSkeletonContainer(Group group, out SkeletonBone? skeletonRoot)
-    {
-        SceneNode[] children = [.. group.EnumerateChildren()];
-        if (children.Length != 1 || children[0] is not SkeletonBone rootBone || group.Parent is null)
-        {
-            skeletonRoot = null;
-            return false;
-        }
-
-        SceneNode parent = group.Parent;
-        rootBone.MoveTo(parent, ReparentTransformMode.PreserveWorld);
-        rootBone.Name = group.Name;
-        parent.RemoveNode(group);
-        skeletonRoot = rootBone;
-        return true;
-    }
+    public static void ClassifyNullContainers(Dictionary<long, SceneNode> modelNodes) => ClassifyNullContainers(modelNodes, collapseSingleBoneContainers: true);
 
     /// <summary>
     /// Creates the scene-node type that best matches an imported Null container based on its immediate children.
@@ -1390,18 +1002,14 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="constraintType">The FBX constraint type token.</param>
     /// <returns><see langword="true"/> when the type is a supported parent-constraint form.</returns>
-    public static bool IsParentConstraintType(string constraintType)
-        => string.Equals(constraintType, "Parent-Child", StringComparison.OrdinalIgnoreCase);
+    public static bool IsParentConstraintType(string constraintType) => string.Equals(constraintType, "Parent-Child", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Determines whether an FBX constraint type maps to a supported orient constraint.
     /// </summary>
     /// <param name="constraintType">The FBX constraint type token.</param>
     /// <returns><see langword="true"/> when the type is a supported orient-constraint form.</returns>
-    public static bool IsOrientConstraintType(string constraintType)
-        => string.Equals(constraintType, "Orientation", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(constraintType, "Orient", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(constraintType, "Rotation", StringComparison.OrdinalIgnoreCase);
+    public static bool IsOrientConstraintType(string constraintType) => string.Equals(constraintType, "Orientation", StringComparison.OrdinalIgnoreCase) || string.Equals(constraintType, "Orient", StringComparison.OrdinalIgnoreCase) || string.Equals(constraintType, "Rotation", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Imports supported FBX constraint objects as runtime solver scene nodes.
@@ -1521,15 +1129,13 @@ public static class FbxSceneMapper
                 continue;
             }
 
-            if (string.Equals(connection.PropertyName, "Constrained object (Child)", StringComparison.OrdinalIgnoreCase)
-                && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedChild))
+            if (string.Equals(connection.PropertyName, "Constrained object (Child)", StringComparison.OrdinalIgnoreCase) && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedChild))
             {
                 constrainedNode = resolvedChild;
                 continue;
             }
 
-            if (string.Equals(connection.PropertyName, "Source (Parent)", StringComparison.OrdinalIgnoreCase)
-                && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedSource))
+            if (string.Equals(connection.PropertyName, "Source (Parent)", StringComparison.OrdinalIgnoreCase) && modelNodes.TryGetValue(connection.ChildId, out SceneNode? resolvedSource))
             {
                 sourceNode = resolvedSource;
             }
@@ -1567,16 +1173,14 @@ public static class FbxSceneMapper
     /// </summary>
     /// <param name="constraintNode">The source FBX constraint node.</param>
     /// <returns>The imported translation offset.</returns>
-    public static Vector3 GetConstraintOffsetTranslation(FbxNode constraintNode)
-        => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset T", Vector3.Zero);
+    public static Vector3 GetConstraintOffsetTranslation(FbxNode constraintNode) => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset T", Vector3.Zero);
 
     /// <summary>
     /// Reads the Euler rotation offset in degrees from an FBX constraint node.
     /// </summary>
     /// <param name="constraintNode">The source FBX constraint node.</param>
     /// <returns>The imported XYZ Euler rotation offset in degrees.</returns>
-    public static Vector3 GetConstraintOffsetRotation(FbxNode constraintNode)
-        => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset R", Vector3.Zero);
+    public static Vector3 GetConstraintOffsetRotation(FbxNode constraintNode) => GetConstraintVector3PropertyBySuffix(constraintNode, ".Offset R", Vector3.Zero);
 
     /// <summary>
     /// Reads a vector constraint property whose name ends with the specified suffix.
@@ -1606,10 +1210,7 @@ public static class FbxSceneMapper
                 continue;
             }
 
-            return new Vector3(
-                (float)propertyNode.Properties[4].AsDouble(),
-                (float)propertyNode.Properties[5].AsDouble(),
-                (float)propertyNode.Properties[6].AsDouble());
+            return new Vector3((float)propertyNode.Properties[4].AsDouble(), (float)propertyNode.Properties[5].AsDouble(), (float)propertyNode.Properties[6].AsDouble());
         }
 
         return fallback;
@@ -1691,46 +1292,6 @@ public static class FbxSceneMapper
         node.BindTransform.LocalPosition = resolvedTranslation;
         node.BindTransform.LocalRotation = Quaternion.Normalize(resolvedRotation);
         node.BindTransform.Scale = resolvedScale;
-    }
-
-    private static void ApplyGeometricTransform(Mesh mesh, FbxNode modelObject)
-    {
-        FbxNode? properties70 = modelObject.FirstChild("Properties70");
-        if (properties70 is null)
-        {
-            return;
-        }
-
-        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
-        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
-        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
-        int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
-        Matrix4x4 geometricMatrix = ComposeGeometricTransform(translation, rotation, scale, rotationOrder);
-
-        if (!Matrix4x4.Decompose(geometricMatrix, out Vector3 resolvedScale, out Quaternion resolvedRotation, out Vector3 resolvedTranslation))
-        {
-            resolvedScale = scale;
-            resolvedRotation = ComposeEulerRotation(rotation, rotationOrder);
-            resolvedTranslation = translation;
-        }
-
-        mesh.BindTransform.LocalPosition = resolvedTranslation;
-        mesh.BindTransform.LocalRotation = Quaternion.Normalize(resolvedRotation);
-        mesh.BindTransform.Scale = resolvedScale;
-    }
-
-    private static bool HasGeometricTransform(FbxNode modelObject)
-    {
-        FbxNode? properties70 = modelObject.FirstChild("Properties70");
-        if (properties70 is null)
-        {
-            return false;
-        }
-
-        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
-        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
-        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
-        return translation != Vector3.Zero || rotation != Vector3.Zero || scale != Vector3.One;
     }
 
     /// <summary>
@@ -2045,11 +1606,7 @@ public static class FbxSceneMapper
     /// <param name="name">The property name.</param>
     /// <param name="type">The FBX property type string.</param>
     /// <param name="value">The value property.</param>
-    public static void AddGlobalProperty(
-        FbxNode properties,
-        string name,
-        string type,
-        FbxProperty value)
+    public static void AddGlobalProperty(FbxNode properties, string name, string type, FbxProperty value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', name));
@@ -2067,8 +1624,7 @@ public static class FbxSceneMapper
     /// <param name="type">The FBX Model type string (e.g. <c>Null</c>, <c>Mesh</c>, <c>LimbNode</c>).</param>
     /// <param name="sourceNode">The source scene node providing the local transform.</param>
     /// <returns>The generated FBX Model node.</returns>
-    public static FbxNode CreateModelObject(long id, string name, string type, SceneNode sourceNode)
-        => CreateModelObject(id, name, type, sourceNode, sourceNode.Parent);
+    public static FbxNode CreateModelObject(long id, string name, string type, SceneNode sourceNode) => CreateModelObject(id, name, type, sourceNode, sourceNode.Parent);
 
     /// <summary>
     /// Creates an FBX Model object for export using the node's nearest exported parent as the local transform basis.
@@ -2100,10 +1656,7 @@ public static class FbxSceneMapper
             exportedLocalRotation = Vector3.Zero;
             exportedLocalScale = Vector3.One;
         }
-        else if (sourceNode is SkeletonBone
-            && sourceNode.LiveTransform.LocalRotation is null
-            && IsNearlyZero(exportedPreRotation)
-            && !IsNearlyZero(exportedLocalRotation))
+        else if (sourceNode is SkeletonBone && sourceNode.LiveTransform.LocalRotation is null && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
         {
             exportedPreRotation = exportedLocalRotation;
             exportedLocalRotation = Vector3.Zero;
@@ -2348,9 +1901,7 @@ public static class FbxSceneMapper
 
         Matrix4x4 sourceWorld = GetExportActiveWorldMatrix(sourceNode);
         Matrix4x4 parentWorld = exportedParent is null ? Matrix4x4.Identity : GetExportActiveWorldMatrix(exportedParent);
-        Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 inverseParent)
-            ? sourceWorld * inverseParent
-            : sourceWorld;
+        Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 inverseParent) ? sourceWorld * inverseParent : sourceWorld;
 
         if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
         {
@@ -2380,26 +1931,13 @@ public static class FbxSceneMapper
             exportedLocalRotation = Vector3.Zero;
             exportedLocalScale = Vector3.One;
         }
-        else if (node is SkeletonBone
-            && node.LiveTransform.LocalRotation is null
-            && IsNearlyZero(exportedPreRotation)
-            && !IsNearlyZero(exportedLocalRotation))
+        else if (node is SkeletonBone && node.LiveTransform.LocalRotation is null && IsNearlyZero(exportedPreRotation) && !IsNearlyZero(exportedLocalRotation))
         {
             exportedPreRotation = exportedLocalRotation;
             exportedLocalRotation = Vector3.Zero;
         }
 
-        return ComposeNodeLocalTransform(
-            exportedLocalTranslation,
-            exportedLocalRotation,
-            exportedLocalScale,
-            exportedPreRotation,
-            Vector3.Zero,
-            Vector3.Zero,
-            Vector3.Zero,
-            Vector3.Zero,
-            Vector3.Zero,
-            0);
+        return ComposeNodeLocalTransform(exportedLocalTranslation, exportedLocalRotation, exportedLocalScale, exportedPreRotation, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, 0);
     }
 
     /// <summary>
@@ -2491,9 +2029,7 @@ public static class FbxSceneMapper
         // "Lcl Translation/Rotation/Scaling" and "Color" type properties are animatable
         // with empty attribute type and "A" flags. Other vector types like "Vector3D" and
         // "ColorRGB" use the standard attribute type mapping with empty flags.
-        bool isAnimatableType = propertyType.StartsWith("Lcl ", StringComparison.Ordinal)
-            || string.Equals(propertyType, "Color", StringComparison.Ordinal)
-            || string.Equals(propertyType, "Visibility", StringComparison.Ordinal);
+        bool isAnimatableType = propertyType.StartsWith("Lcl ", StringComparison.Ordinal) || string.Equals(propertyType, "Color", StringComparison.Ordinal) || string.Equals(propertyType, "Visibility", StringComparison.Ordinal);
         string attributeType = isAnimatableType ? string.Empty : GetPropertyAttributeType(propertyType);
         string flags = isAnimatableType ? "A" : string.Empty;
 
@@ -2514,11 +2050,7 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The integer value to write.</param>
-    public static void AddIntProperty(
-        FbxNode properties,
-        string propertyName,
-        string propertyType,
-        int value)
+    public static void AddIntProperty(FbxNode properties, string propertyName, string propertyType, int value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
@@ -2535,11 +2067,7 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The string value to write.</param>
-    public static void AddStringProperty(
-        FbxNode properties,
-        string propertyName,
-        string propertyType,
-        string value)
+    public static void AddStringProperty(FbxNode properties, string propertyName, string propertyType, string value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
@@ -2916,11 +2444,7 @@ public static class FbxSceneMapper
     /// <param name="propertyName">The FBX property name.</param>
     /// <param name="propertyType">The FBX property type string.</param>
     /// <param name="value">The double value to write.</param>
-    public static void AddDoubleProperty(
-        FbxNode properties,
-        string propertyName,
-        string propertyType,
-        double value)
+    public static void AddDoubleProperty(FbxNode properties, string propertyName, string propertyType, double value)
     {
         FbxNode property = properties.AddChild("P");
         property.Properties.Add(new FbxProperty('S', propertyName));
@@ -3012,6 +2536,23 @@ public static class FbxSceneMapper
         _ => string.Empty,
     };
 
+    private static bool RequiresImportBasisConversion(SkeletonBone bone)
+    {
+        SceneNode topLevelNode = bone;
+        while (topLevelNode.Parent is not null and not Scene)
+        {
+            topLevelNode = topLevelNode.Parent;
+        }
+
+        if (topLevelNode is SkeletonBone || topLevelNode is Mesh)
+        {
+            return false;
+        }
+
+        Quaternion basisRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, float.DegreesToRadians(-90f));
+        return IsNearlyZero(topLevelNode.GetBindLocalPosition()) && IsNearlyOne(topLevelNode.GetBindLocalScale()) && MathF.Abs(Quaternion.Dot(topLevelNode.GetBindLocalRotation(), basisRotation)) >= 0.9999f;
+    }
+
     private static void ValidateExportMaterialConnections(Mesh mesh, IReadOnlyDictionary<Material, long> materialIds)
     {
         if (mesh.Materials is not { Count: > 0 })
@@ -3024,8 +2565,7 @@ public static class FbxSceneMapper
             Material material = mesh.Materials[materialIndex];
             if (!materialIds.ContainsKey(material))
             {
-                throw new InvalidDataException(
-                    $"Cannot write FBX: mesh '{mesh.Name}' references material '{material.Name}' for slot {materialIndex} that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write FBX: mesh '{mesh.Name}' references material '{material.Name}' for slot {materialIndex} that is not included in the export selection.");
             }
         }
     }
@@ -3049,8 +2589,394 @@ public static class FbxSceneMapper
 
         if (missingBones.Count > 0)
         {
-            throw new InvalidDataException(
-                $"Cannot write FBX: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+            throw new InvalidDataException($"Cannot write FBX: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
     }
+    /// <summary>
+    /// Applies transient imported bone bind-world hints by reconstructing each hinted bone's
+    /// local transform from its parent bind world. Parents are applied before children.
+    /// </summary>
+    /// <param name="boneBindWorldHints">Bone bind-world hints resolved from raw FBX skin clusters.</param>
+    private static void ApplyBoneBindWorldHints(IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints)
+    {
+        if (boneBindWorldHints is null || boneBindWorldHints.Count == 0)
+        {
+            return;
+        }
+
+        List<(SkeletonBone bone, Matrix4x4 world, int depth)> sorted = [];
+        foreach ((SkeletonBone bone, Matrix4x4 world) in boneBindWorldHints)
+        {
+            int depth = 0;
+            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((bone, world, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        foreach ((SkeletonBone bone, Matrix4x4 bindWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = bone.Parent is not null ? bone.Parent.GetBindWorldMatrix() : Matrix4x4.Identity;
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent) ? bindWorld * invParent : bindWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                bone.BindTransform.LocalPosition = translation;
+                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
+                bone.BindTransform.Scale = scale;
+            }
+            else
+            {
+                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                bone.BindTransform.LocalRotation = Quaternion.Identity;
+            }
+
+            bone.BindTransform.WorldPosition = null;
+            bone.BindTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
+    /// Applies imported authored world-pose hints into live transforms so active pose keeps
+    /// pre-export adjustments after root-basis stripping while bind transforms remain skin-aligned.
+    /// Parent worlds come from the same imported dictionary so that each bone's live local is
+    /// computed in a consistent coordinate space (FBX Model chain), cancelling per-bone euler
+    /// decomposition drift. Only TRS components that genuinely differ from bind are stored.
+    /// </summary>
+    /// <param name="importedLiveWorldHints">Imported live-world hints keyed by scene node.</param>
+    private static void ApplyImportedLiveWorldHints(IReadOnlyDictionary<SceneNode, Matrix4x4> importedLiveWorldHints)
+    {
+        List<(SceneNode node, Matrix4x4 world, int depth)> sorted = [];
+        foreach ((SceneNode node, Matrix4x4 world) in importedLiveWorldHints)
+        {
+            int depth = 0;
+            for (SceneNode? p = node.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((node, world, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        foreach ((SceneNode node, Matrix4x4 liveWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = Matrix4x4.Identity;
+            if (node.Parent is not null)
+            {
+                if (!importedLiveWorldHints.TryGetValue(node.Parent, out parentWorld))
+                {
+                    parentWorld = node.Parent.GetActiveWorldMatrix();
+                }
+            }
+
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent) ? liveWorld * invParent : liveWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                rotation = Quaternion.Normalize(rotation);
+
+                bool positionDiffers = Vector3.DistanceSquared(translation, node.GetBindLocalPosition()) > 1e-4f;
+                bool rotationDiffers = MathF.Abs(Quaternion.Dot(rotation, node.GetBindLocalRotation())) < 0.9999f;
+                bool scaleDiffers = Vector3.DistanceSquared(scale, node.GetBindLocalScale()) > 1e-4f;
+
+                if (!positionDiffers && !rotationDiffers && !scaleDiffers)
+                {
+                    continue;
+                }
+
+                if (positionDiffers)
+                {
+                    node.LiveTransform.LocalPosition = translation;
+                }
+
+                if (rotationDiffers)
+                {
+                    node.LiveTransform.LocalRotation = rotation;
+                }
+
+                if (scaleDiffers)
+                {
+                    node.LiveTransform.Scale = scale;
+                }
+            }
+            else
+            {
+                Vector3 fallbackPosition = new(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                if (Vector3.DistanceSquared(fallbackPosition, node.GetBindLocalPosition()) < 1e-4f)
+                {
+                    continue;
+                }
+
+                node.LiveTransform.LocalPosition = fallbackPosition;
+            }
+
+            node.LiveTransform.WorldPosition = null;
+            node.LiveTransform.WorldRotation = null;
+        }
+    }
+
+    /// <summary>
+    /// Builds per-bone bind-world hints from FBX BindPose nodes.
+    /// The bind-pose matrix is authored in FBX Y-up world space and converted to
+    /// RedFox Z-up world space using <see cref="s_importBasis"/>.
+    /// </summary>
+    /// <param name="objectsById">All FBX objects keyed by id.</param>
+    /// <param name="bonesByModelId">Imported bones keyed by FBX model id.</param>
+    /// <returns>A map of bones to converted bind-world matrices.</returns>
+    private static Dictionary<SkeletonBone, Matrix4x4> BuildBindPoseBoneWorldHints(Dictionary<long, FbxNode> objectsById, Dictionary<long, SkeletonBone> bonesByModelId)
+    {
+        Dictionary<SkeletonBone, Matrix4x4> hints = [];
+
+        foreach ((_, FbxNode objectNode) in objectsById)
+        {
+            if (!string.Equals(objectNode.Name, "Pose", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            FbxNode? typeNode = objectNode.FirstChild("Type");
+            if (typeNode is null || typeNode.Properties.Count == 0 || !string.Equals(typeNode.Properties[0].AsString(), "BindPose", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            foreach (FbxNode poseNode in objectNode.ChildrenNamed("PoseNode"))
+            {
+                FbxNode? nodeIdNode = poseNode.FirstChild("Node");
+                if (nodeIdNode is null || nodeIdNode.Properties.Count == 0)
+                {
+                    continue;
+                }
+
+                long modelId = nodeIdNode.Properties[0].AsInt64();
+                if (!bonesByModelId.TryGetValue(modelId, out SkeletonBone? bone))
+                {
+                    continue;
+                }
+
+                Matrix4x4 poseWorld = FbxSkinningMapper.ReadNodeMatrix(poseNode, "Matrix");
+                Matrix4x4 convertedWorld = RequiresImportBasisConversion(bone) ? poseWorld * s_importBasis : poseWorld;
+
+                if (!hints.ContainsKey(bone))
+                {
+                    hints[bone] = convertedWorld;
+                }
+            }
+        }
+
+        return hints;
+    }
+
+    /// <summary>
+    /// Reconstructs bind-local transforms for bones that participate in meshes with
+    /// explicit inverse-bind matrices. For each bone influence this solves:
+    /// <c>IBM = meshBindWorld × inv(boneBindWorld)</c>, therefore
+    /// <c>boneBindWorld = inv(IBM) × meshBindWorld</c>. Using mesh bind WORLD (not local)
+    /// keeps reconstruction correct for nested mesh parents.
+    /// </summary>
+    /// <param name="rootNode">The scene root whose descendant meshes and bones should be inspected.</param>
+    private static void ReconstructBoneLocalsFromExplicitSkinning(SceneNode rootNode)
+    {
+        Dictionary<SkeletonBone, Matrix4x4> corrections = [];
+
+        foreach (Mesh mesh in rootNode.EnumerateDescendants().OfType<Mesh>())
+        {
+            if (mesh.Skin is not { InverseBindMatrices: { Count: > 0 } inverseBindMatrices, Bones: { Count: > 0 } skinnedBones })
+            {
+                continue;
+            }
+            Matrix4x4 meshBindWorld = mesh.GetBindWorldMatrix();
+
+            for (int i = 0; i < skinnedBones.Count; i++)
+            {
+                SkeletonBone bone = skinnedBones[i];
+
+                if (!Matrix4x4.Invert(inverseBindMatrices[i], out Matrix4x4 invIbm))
+                {
+                    continue;
+                }
+
+                Matrix4x4 candidateWorld = invIbm * meshBindWorld;
+                if (corrections.TryGetValue(bone, out Matrix4x4 existingWorld))
+                {
+                    Vector3 existingTranslation = new(existingWorld.M41, existingWorld.M42, existingWorld.M43);
+                    Vector3 candidateTranslation = new(candidateWorld.M41, candidateWorld.M42, candidateWorld.M43);
+                    Vector3 currentTranslation = bone.GetBindWorldPosition();
+
+                    float existingDelta = Vector3.DistanceSquared(existingTranslation, currentTranslation);
+                    float candidateDelta = Vector3.DistanceSquared(candidateTranslation, currentTranslation);
+
+                    if (candidateDelta < existingDelta)
+                    {
+                        corrections[bone] = candidateWorld;
+                    }
+
+                    continue;
+                }
+
+                corrections[bone] = candidateWorld;
+            }
+        }
+
+        if (corrections.Count == 0)
+        {
+            return;
+        }
+
+        // Sort corrected bones top-down (by ancestor depth) so that parents are processed
+        // before children. This ensures GetBindWorldMatrix() on a parent already reflects
+        // any prior correction when we compute the child's local.
+        List<(SkeletonBone bone, Matrix4x4 correctWorld, int depth)> sorted = [];
+        foreach ((SkeletonBone bone, Matrix4x4 correctWorld) in corrections)
+        {
+            int depth = 0;
+            for (SceneNode? p = bone.Parent; p is not null; p = p.Parent)
+            {
+                depth++;
+            }
+
+            sorted.Add((bone, correctWorld, depth));
+        }
+
+        sorted.Sort((a, b) => a.depth.CompareTo(b.depth));
+
+        // Apply corrections: compute local = correctWorld × inv(parentWorld), decompose,
+        // and replace the bone's local transform. Clear cached world so it recomputes.
+        foreach ((SkeletonBone bone, Matrix4x4 correctWorld, _) in sorted)
+        {
+            Matrix4x4 parentWorld = bone.Parent is not null ? bone.Parent.GetBindWorldMatrix() : Matrix4x4.Identity;
+
+            Matrix4x4 localMatrix = Matrix4x4.Invert(parentWorld, out Matrix4x4 invParent) ? correctWorld * invParent : correctWorld;
+
+            if (Matrix4x4.Decompose(localMatrix, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+            {
+                bone.BindTransform.LocalPosition = translation;
+                bone.BindTransform.LocalRotation = Quaternion.Normalize(rotation);
+                bone.BindTransform.Scale = scale;
+            }
+            else
+            {
+                bone.BindTransform.LocalPosition = new Vector3(localMatrix.M41, localMatrix.M42, localMatrix.M43);
+                bone.BindTransform.LocalRotation = Quaternion.Identity;
+            }
+
+            // Clear cached worlds so GetBindWorldMatrix re-derives from the corrected local chain.
+            bone.BindTransform.WorldPosition = null;
+            bone.BindTransform.WorldRotation = null;
+        }
+    }
+
+    private static void AttachGeometry(Dictionary<long, Mesh> meshesByModelId, Dictionary<long, FbxNode> geometryNodes, IReadOnlyList<FbxConnection> connections, Dictionary<Mesh, int[]> perTriangleMaterials, Dictionary<Mesh, FbxNode>? geometryByMesh)
+    {
+        for (int i = 0; i < connections.Count; i++)
+        {
+            FbxConnection connection = connections[i];
+            if (!string.Equals(connection.ConnectionType, "OO", StringComparison.Ordinal) || !geometryNodes.TryGetValue(connection.ChildId, out FbxNode? geometry) || !meshesByModelId.TryGetValue(connection.ParentId, out Mesh? mesh))
+            {
+                continue;
+            }
+
+            int[] materialIndices = FbxGeometryMapper.ImportControlPointGeometry(mesh, geometry);
+            geometryByMesh?.TryAdd(mesh, geometry);
+            if (materialIndices.Length > 0)
+            {
+                perTriangleMaterials[mesh] = materialIndices;
+            }
+        }
+    }
+
+    private static void ClassifyNullContainers(Dictionary<long, SceneNode> modelNodes, bool collapseSingleBoneContainers)
+    {
+        KeyValuePair<long, SceneNode>[] groupsByDepth = [.. modelNodes
+            .Where(static pair => pair.Value is Group)
+            .OrderByDescending(static pair => pair.Value.GetAncestors().Length)];
+
+        for (int i = 0; i < groupsByDepth.Length; i++)
+        {
+            long objectId = groupsByDepth[i].Key;
+            if (modelNodes[objectId] is not Group group)
+            {
+                continue;
+            }
+
+            if (collapseSingleBoneContainers && TryCollapseSkeletonContainer(group, out SkeletonBone? skeletonRoot))
+            {
+                modelNodes[objectId] = skeletonRoot!;
+                continue;
+            }
+
+            SceneNode replacement = CreateClassifiedNullContainer(group);
+            if (ReferenceEquals(replacement, group))
+            {
+                continue;
+            }
+
+            ReplaceImportedNullContainer(group, replacement);
+            modelNodes[objectId] = replacement;
+        }
+    }
+
+    private static bool TryCollapseSkeletonContainer(Group group, out SkeletonBone? skeletonRoot)
+    {
+        SceneNode[] children = [.. group.EnumerateChildren()];
+        if (children.Length != 1 || children[0] is not SkeletonBone rootBone || group.Parent is null)
+        {
+            skeletonRoot = null;
+            return false;
+        }
+
+        SceneNode parent = group.Parent;
+        rootBone.MoveTo(parent, ReparentTransformMode.PreserveWorld);
+        rootBone.Name = group.Name;
+        parent.RemoveNode(group);
+        skeletonRoot = rootBone;
+        return true;
+    }
+
+    private static void ApplyGeometricTransform(Mesh mesh, FbxNode modelObject)
+    {
+        FbxNode? properties70 = modelObject.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return;
+        }
+
+        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
+        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
+        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
+        int rotationOrder = GetPropertyInt(properties70, "RotationOrder", 0);
+        Matrix4x4 geometricMatrix = ComposeGeometricTransform(translation, rotation, scale, rotationOrder);
+
+        if (!Matrix4x4.Decompose(geometricMatrix, out Vector3 resolvedScale, out Quaternion resolvedRotation, out Vector3 resolvedTranslation))
+        {
+            resolvedScale = scale;
+            resolvedRotation = ComposeEulerRotation(rotation, rotationOrder);
+            resolvedTranslation = translation;
+        }
+
+        mesh.BindTransform.LocalPosition = resolvedTranslation;
+        mesh.BindTransform.LocalRotation = Quaternion.Normalize(resolvedRotation);
+        mesh.BindTransform.Scale = resolvedScale;
+    }
+
+    private static bool HasGeometricTransform(FbxNode modelObject)
+    {
+        FbxNode? properties70 = modelObject.FirstChild("Properties70");
+        if (properties70 is null)
+        {
+            return false;
+        }
+
+        Vector3 translation = GetPropertyVector3(properties70, "GeometricTranslation", Vector3.Zero);
+        Vector3 rotation = GetPropertyVector3(properties70, "GeometricRotation", Vector3.Zero);
+        Vector3 scale = GetPropertyVector3(properties70, "GeometricScaling", Vector3.One);
+        return translation != Vector3.Zero || rotation != Vector3.Zero || scale != Vector3.One;
+    }
+
 }

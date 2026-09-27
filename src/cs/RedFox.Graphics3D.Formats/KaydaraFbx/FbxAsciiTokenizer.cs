@@ -3,34 +3,21 @@ namespace RedFox.Graphics3D.Formats.KaydaraFbx;
 /// <summary>
 /// Provides a lightweight tokenizer for FBX ASCII text.
 /// </summary>
-public sealed class FbxAsciiTokenizer
+/// <param name="text">The full ASCII FBX document text.</param>
+/// <param name="start">The inclusive start offset.</param>
+/// <param name="length">The slice length.</param>
+public sealed class FbxAsciiTokenizer(string text, int start, int length)
 {
-    private readonly string _text;
-    private readonly int _end;
-    private int _position;
+    private readonly string _text = text;
+    private readonly int _end = start + length;
+    private int _position = start;
 
     /// <summary>
     /// Initializes a new tokenizer over the given FBX ASCII text.
     /// </summary>
     /// <param name="text">The full ASCII FBX document text.</param>
-    public FbxAsciiTokenizer(string text)
+    public FbxAsciiTokenizer(string text) : this(text, 0, text.Length)
     {
-        _text = text;
-        _position = 0;
-        _end = text.Length;
-    }
-
-    /// <summary>
-    /// Initializes a new tokenizer over a bounded slice of FBX ASCII text.
-    /// </summary>
-    /// <param name="text">The full ASCII FBX document text.</param>
-    /// <param name="start">The inclusive start offset.</param>
-    /// <param name="length">The slice length.</param>
-    public FbxAsciiTokenizer(string text, int start, int length)
-    {
-        _text = text;
-        _position = start;
-        _end = start + length;
     }
 
     /// <summary>

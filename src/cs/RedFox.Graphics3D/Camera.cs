@@ -114,16 +114,8 @@ public class Camera : SceneNode
     /// </summary>
     public Matrix4x4 GetProjectionMatrix() => Projection switch
     {
-        CameraProjection.Perspective => Matrix4x4.CreatePerspectiveFieldOfView(
-            float.DegreesToRadians(FieldOfView),
-            AspectRatio,
-            NearPlane,
-            FarPlane),
-        CameraProjection.Orthographic => Matrix4x4.CreateOrthographic(
-            OrthographicSize * AspectRatio,
-            OrthographicSize,
-            NearPlane,
-            FarPlane),
+        CameraProjection.Perspective => Matrix4x4.CreatePerspectiveFieldOfView(float.DegreesToRadians(FieldOfView), AspectRatio, NearPlane, FarPlane),
+        CameraProjection.Orthographic => Matrix4x4.CreateOrthographic(OrthographicSize * AspectRatio, OrthographicSize, NearPlane, FarPlane),
         _ => Matrix4x4.Identity,
     };
 

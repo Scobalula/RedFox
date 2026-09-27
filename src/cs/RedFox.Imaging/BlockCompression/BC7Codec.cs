@@ -12,7 +12,8 @@ namespace RedFox.Imaging.BlockCompression;
 /// with variable color/alpha precision, 1–3 subsets, optional rotation, and dual index sets.
 /// Supports both decoding and encoding.
 /// </summary>
-public sealed class BC7Codec : IPixelCodec
+/// <param name="format">The image format (BC7Typeless, BC7Unorm, or BC7UnormSrgb).</param>
+public sealed class BC7Codec(ImageFormat format) : IPixelCodec
 {
     private const int BytesPerBlock = 16;
 
@@ -29,25 +30,16 @@ public sealed class BC7Codec : IPixelCodec
     ];
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.BC7Typeless => format,
+        ImageFormat.BC7Unorm => format,
+        ImageFormat.BC7UnormSrgb => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC7Codec supports only BC7Typeless, BC7Unorm, and BC7UnormSrgb."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 0;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BC7Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format (BC7Typeless, BC7Unorm, or BC7UnormSrgb).</param>
-    public BC7Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.BC7Typeless => format,
-            ImageFormat.BC7Unorm => format,
-            ImageFormat.BC7UnormSrgb => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC7Codec supports only BC7Typeless, BC7Unorm, and BC7UnormSrgb."),
-        };
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
@@ -263,7 +255,7 @@ public sealed class BC7Codec : IPixelCodec
     /// <param name="block">The destination 16-byte span for the compressed block.</param>
     public static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block)
     {
-        EncodeBlockCore(pixels, block, fastMode: false);
+        EncodeBlock(pixels, block, fastMode: false);
     }
 
     /// <summary>
@@ -274,7 +266,7 @@ public sealed class BC7Codec : IPixelCodec
     /// <param name="block">The destination 16-byte span for the compressed block.</param>
     public static void EncodeBlockFast(ReadOnlySpan<Vector4> pixels, Span<byte> block)
     {
-        EncodeBlockCore(pixels, block, fastMode: true);
+        EncodeBlock(pixels, block, fastMode: true);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -287,7 +279,7 @@ public sealed class BC7Codec : IPixelCodec
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int Interpolate(int e0, int e1, int weight) => ((64 - weight) * e0 + weight * e1 + 32) >> 6;
 
-    private static void EncodeBlockCore(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool fastMode)
+    private static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block, bool fastMode)
     {
         Span<int> rPix = stackalloc int[16];
         Span<int> gPix = stackalloc int[16];

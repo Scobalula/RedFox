@@ -21,18 +21,7 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
     private ComPtr<ID3D11RasterizerState> _counterClockwiseRasterizerState;
     private ComPtr<ID3D11VertexShader> _vertexShader;
 
-    internal D3D11PipelineState(
-        ComPtr<ID3D11VertexShader> vertexShader,
-        ComPtr<ID3D11PixelShader> pixelShader,
-        ComPtr<ID3D11InputLayout> inputLayout,
-        ComPtr<ID3D11RasterizerState> counterClockwiseRasterizerState,
-        ComPtr<ID3D11RasterizerState> clockwiseRasterizerState,
-        ComPtr<ID3D11BlendState> blendState,
-        ComPtr<ID3D11DepthStencilState> depthStencilState,
-        ReadOnlySpan<VertexAttribute> vertexAttributes,
-        IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers,
-        IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings,
-        PrimitiveTopology primitiveTopology)
+    internal D3D11PipelineState(ComPtr<ID3D11VertexShader> vertexShader, ComPtr<ID3D11PixelShader> pixelShader, ComPtr<ID3D11InputLayout> inputLayout, ComPtr<ID3D11RasterizerState> counterClockwiseRasterizerState, ComPtr<ID3D11RasterizerState> clockwiseRasterizerState, ComPtr<ID3D11BlendState> blendState, ComPtr<ID3D11DepthStencilState> depthStencilState, ReadOnlySpan<VertexAttribute> vertexAttributes, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers, IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings, PrimitiveTopology primitiveTopology)
     {
         _vertexShader = vertexShader;
         _pixelShader = pixelShader;
@@ -47,10 +36,7 @@ public sealed unsafe class D3D11PipelineState : IGpuPipelineState
         PrimitiveTopology = primitiveTopology;
     }
 
-    internal D3D11PipelineState(
-        ComPtr<ID3D11ComputeShader> computeShader,
-        IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers,
-        IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings)
+    internal D3D11PipelineState(ComPtr<ID3D11ComputeShader> computeShader, IReadOnlyList<D3D11ShaderConstantBufferLayout> constantBuffers, IReadOnlyList<D3D11ShaderResourceBinding> resourceBindings)
     {
         _computeShader = computeShader;
         _vertexAttributes = [];

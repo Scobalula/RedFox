@@ -3,21 +3,13 @@ namespace RedFox.Graphics3D.Formats.KaydaraFbx;
 /// <summary>
 /// Represents an FBX node containing ordered properties and child nodes.
 /// </summary>
-public sealed class FbxNode
+/// <param name="name">The FBX node name.</param>
+public sealed class FbxNode(string name)
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FbxNode"/> class.
-    /// </summary>
-    /// <param name="name">The FBX node name.</param>
-    public FbxNode(string name)
-    {
-        Name = name;
-    }
-
     /// <summary>
     /// Gets the FBX node name.
     /// </summary>
-    public string Name { get; }
+    public string Name { get; } = name;
 
     /// <summary>
     /// Gets the mutable collection of typed properties associated with this node.

@@ -8,30 +8,20 @@ namespace RedFox.Imaging.Codecs;
 /// Codec for <see cref="ImageFormat.R32G32B32Typeless"/>, <see cref="ImageFormat.R32G32B32Float"/>, <see cref="ImageFormat.R32G32B32Uint"/>, and <see cref="ImageFormat.R32G32B32Sint"/>.
 /// Float and typeless variants decode as 32-bit floats; <see cref="ImageFormat.R32G32B32Uint"/> decodes to [0, 1] and <see cref="ImageFormat.R32G32B32Sint"/> to [-1, 1].
 /// </summary>
-public sealed class R32G32B32Codec : IPixelCodec
+/// <param name="format">The image format this codec handles.</param>
+public sealed class R32G32B32Codec(ImageFormat format) : IPixelCodec
 {
-    private readonly ComponentKind _kind;
+    private readonly ComponentKind _kind = ComponentEncoding.GetKind(format);
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.R32G32B32Typeless or ImageFormat.R32G32B32Float or ImageFormat.R32G32B32Uint or ImageFormat.R32G32B32Sint => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32G32B32Codec supports only R32G32B32Typeless, R32G32B32Float, R32G32B32Uint, and R32G32B32Sint."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 12;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="R32G32B32Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec handles.</param>
-    public R32G32B32Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.R32G32B32Typeless or ImageFormat.R32G32B32Float or ImageFormat.R32G32B32Uint or ImageFormat.R32G32B32Sint => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R32G32B32Codec supports only R32G32B32Typeless, R32G32B32Float, R32G32B32Uint, and R32G32B32Sint."),
-        };
-
-        _kind = ComponentEncoding.GetKind(format);
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)

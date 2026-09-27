@@ -93,9 +93,7 @@ public static class MaterialTypeJsonLoader
     /// <param name="descriptors">The material type descriptors.</param>
     /// <param name="shaderFactory">The backend shader factory.</param>
     /// <returns>The backend-bound material type definitions.</returns>
-    public static IReadOnlyList<MaterialTypeDefinition> CreateDefinitions(
-        IReadOnlyList<MaterialTypeDescriptor> descriptors,
-        IMaterialShaderFactory shaderFactory)
+    public static IReadOnlyList<MaterialTypeDefinition> CreateDefinitions(IReadOnlyList<MaterialTypeDescriptor> descriptors, IMaterialShaderFactory shaderFactory)
     {
         ArgumentNullException.ThrowIfNull(descriptors);
         ArgumentNullException.ThrowIfNull(shaderFactory);

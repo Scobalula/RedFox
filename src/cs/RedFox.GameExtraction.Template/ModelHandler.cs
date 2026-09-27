@@ -35,8 +35,6 @@ public sealed class ModelHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        Console.WriteLine("Executing");
-
         var translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
 
 

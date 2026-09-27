@@ -118,9 +118,9 @@ internal sealed class JpegDecoder(Stream stream)
 
     private int ReadSegmentLength()
     {
-        Span<byte> buf = stackalloc byte[2];
-        _stream.ReadExactly(buf);
-        return BinaryPrimitives.ReadUInt16BigEndian(buf);
+        Span<byte> buffer = stackalloc byte[2];
+        _stream.ReadExactly(buffer);
+        return BinaryPrimitives.ReadUInt16BigEndian(buffer);
     }
 
     private byte[] ReadSegment()

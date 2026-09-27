@@ -84,8 +84,8 @@ public sealed class SmdReader
 
         // ---- Build bone objects ----
         var bones = new SkeletonBone[boneInfos.Count];
-        foreach (var (idx, boneName, _) in boneInfos)
-            bones[idx] = new SkeletonBone(boneName);
+        foreach (var (boneIndex, boneName, _) in boneInfos)
+            bones[boneIndex] = new SkeletonBone(boneName);
 
         // Apply bind-pose local transforms from frame 0
         if (frameData.TryGetValue(0, out var frame0))
@@ -100,12 +100,12 @@ public sealed class SmdReader
 
         // ---- Build skeleton hierarchy ----
         var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
-        foreach (var (idx, _, parentIdx) in boneInfos)
+        foreach (var (boneIndex, _, parentBoneIndex) in boneInfos)
         {
-            if (parentIdx < 0)
-                bones[idx].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
-            else if ((uint)parentIdx < (uint)bones.Length)
-                bones[idx].MoveTo(bones[parentIdx], ReparentTransformMode.PreserveExisting);
+            if (parentBoneIndex < 0)
+                bones[boneIndex].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
+            else if ((uint)parentBoneIndex < (uint)bones.Length)
+                bones[boneIndex].MoveTo(bones[parentBoneIndex], ReparentTransformMode.PreserveExisting);
         }
 
         // ---- Build model + meshes from triangles ----
@@ -158,13 +158,13 @@ public sealed class SmdReader
             if (span.IsEmpty || span.StartsWith("//")) continue;
 
             // Format:  index "name" parentIndex
-            if (!TryParseInt(ref span, out int idx)) continue;
+            if (!TryParseInt(ref span, out int boneIndex)) continue;
             SkipWhitespace(ref span);
             if (!TryParseQuotedString(span, out string name, out int charsConsumed)) continue;
             span = span[charsConsumed..].TrimStart();
-            if (!TryParseInt(ref span, out int parentIdx)) continue;
+            if (!TryParseInt(ref span, out int parentBoneIndex)) continue;
 
-            boneInfos.Add((idx, name, parentIdx));
+            boneInfos.Add((boneIndex, name, parentBoneIndex));
         }
     }
 
@@ -577,10 +577,6 @@ public sealed class SmdReader
     // Rotation conversion
     // ------------------------------------------------------------------
 
-    /// <summary>
-    /// Converts SMD Euler angles (XYZ intrinsic order, radians) to a quaternion.
-    /// Equivalent to: Q = Qz * Qy * Qx — applies X first, then Y, then Z.
-    /// </summary>
     /// <summary>
     /// Converts SMD Euler angles in XYZ intrinsic order into a normalized quaternion.
     /// </summary>

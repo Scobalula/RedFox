@@ -32,7 +32,7 @@ internal sealed class ImageTranslationSample : ISample
         Image standardDynamicRangeImage = CreatePatternImage(width: 192, height: 128);
         Image highDynamicRangeImage = CreateHighDynamicRangeImage(width: 96, height: 64);
 
-        Console.WriteLine($"Writing image samples to: {outputDirectory}");
+        AnsiConsole.WriteLine($"Writing image samples to: {outputDirectory}");
 
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern-fast.png"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.Fast });
         WriteVariant(manager, standardDynamicRangeImage, Path.Combine(outputDirectory, "pattern-small.png"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.SmallestSize });
@@ -46,7 +46,7 @@ internal sealed class ImageTranslationSample : ISample
         WriteVariant(manager, highDynamicRangeImage, Path.Combine(outputDirectory, "pattern-half.exr"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.Balanced, BitsPerChannel = 16 });
         WriteVariant(manager, highDynamicRangeImage, Path.Combine(outputDirectory, "pattern-float.exr"), new ImageTranslatorOptions { Compression = ImageCompressionPreference.SmallestSize, BitsPerChannel = 32 });
 
-        Console.WriteLine("For precise codec-specific control, use the individual translator or writer APIs directly.");
+        AnsiConsole.WriteLine("For precise codec-specific control, use the individual translator or writer APIs directly.");
         return 0;
     }
 
@@ -58,7 +58,7 @@ internal sealed class ImageTranslationSample : ISample
         Image decoded = manager.Read(inputFileStream, outputPath);
         long sizeInBytes = new FileInfo(outputPath).Length;
 
-        Console.WriteLine($"  {Path.GetFileName(outputPath),-20} size={sizeInBytes,8} bytes  decoded={decoded.Width}x{decoded.Height} {decoded.Format}");
+            AnsiConsole.WriteLine($"  {Path.GetFileName(outputPath),-20} size={sizeInBytes,8} bytes  decoded={decoded.Width}x{decoded.Height} {decoded.Format}");
     }
 
     private static Image CreatePatternImage(int width, int height)

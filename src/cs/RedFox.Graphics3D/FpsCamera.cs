@@ -98,9 +98,7 @@ public sealed class FpsCamera : Camera
         Vector3 right = GetRight();
         Vector3 up = Up;
 
-        Vector3 move = (input.MoveIntent.X * right)
-            + (input.MoveIntent.Y * up)
-            + (input.MoveIntent.Z * forward);
+        Vector3 move = (input.MoveIntent.X * right) + (input.MoveIntent.Y * up) + (input.MoveIntent.Z * forward);
 
         float dolly = (input.ZoomDelta + input.DollyDelta) * ZoomSensitivity;
 

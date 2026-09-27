@@ -29,9 +29,9 @@ internal sealed class StreamScanSample : ISample
         using MemoryStream stream = new(data, writable: false);
 
         long[] offsets = stream.Scan(patternText, 0, stream.Length, firstOccurence: false);
-        Console.WriteLine($"Pattern text: {patternText}");
-        Console.WriteLine($"Match count : {offsets.Length}");
-        Console.WriteLine($"Offsets     : {string.Join(", ", offsets)}");
+        AnsiConsole.WriteLine($"Pattern text: {patternText}");
+        AnsiConsole.WriteLine($"Match count : {offsets.Length}");
+        AnsiConsole.WriteLine($"Offsets     : {string.Join(", ", offsets)}");
         return 0;
     }
 }

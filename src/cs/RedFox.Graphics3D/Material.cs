@@ -15,10 +15,6 @@ public class Material(string name) : SceneNode(name)
     private List<MaterialTextureBinding> _connections = [];
     private uint _version;
 
-    /// <summary>
-    /// Gets the mutation version of the connection list. Incremented on every
-    /// <see cref="Connect"/> or <see cref="Disconnect"/> call.
-    /// </summary>
     /// <summary>Gets the mutation version counter. Incremented on every <see cref="Connect"/> or <see cref="Disconnect"/> call; useful for cache invalidation.</summary>
     public uint Version => _version;
 

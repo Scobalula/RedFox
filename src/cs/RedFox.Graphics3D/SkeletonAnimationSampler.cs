@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // SkeletonAnimationSampler.cs — Samples skeletal animation onto bones
 // ------------------------------------------------------------------------
 // Binds a SkeletonAnimation's tracks to actual SkeletonBone nodes and
@@ -76,6 +76,23 @@ public class SkeletonAnimationSampler : AnimationSampler
         }
     }
 
+    /// <summary>
+    /// Sets the transform type on all bound tracks' curves.
+    /// </summary>
+    /// <param name="transformType">The transform type to apply.</param>
+    public void SetTransformType(TransformType transformType)
+    {
+        foreach (var (_, track) in Tracks)
+        {
+            track.TranslationCurve?.TransformType = transformType;
+            track.RotationCurve?.TransformType = transformType;
+            track.ScaleCurve?.TransformType = transformType;
+        }
+    }
+
+    /// <inheritdoc/>
+    public override bool IsObjectAnimated(string objectName) =>
+        Tracks.Exists(x => x.Key.Name.Equals(objectName, StringComparison.Ordinal));
     /// <summary>
     /// Applies the translation curve to the specified bone, handling transform
     /// space (local/world), transform type (absolute/relative/additive), and
@@ -187,21 +204,4 @@ public class SkeletonAnimationSampler : AnimationSampler
         };
     }
 
-    /// <summary>
-    /// Sets the transform type on all bound tracks' curves.
-    /// </summary>
-    /// <param name="transformType">The transform type to apply.</param>
-    public void SetTransformType(TransformType transformType)
-    {
-        foreach (var (_, track) in Tracks)
-        {
-            track.TranslationCurve?.TransformType = transformType;
-            track.RotationCurve?.TransformType = transformType;
-            track.ScaleCurve?.TransformType = transformType;
-        }
-    }
-
-    /// <inheritdoc/>
-    public override bool IsObjectAnimated(string objectName) =>
-        Tracks.Exists(x => x.Key.Name.Equals(objectName, StringComparison.Ordinal));
 }

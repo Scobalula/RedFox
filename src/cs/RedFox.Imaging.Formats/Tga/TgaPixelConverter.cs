@@ -14,24 +14,24 @@ internal static class TgaPixelConverter
     /// Converts BGR or BGRA pixel data to interleaved R8G8B8A8 output,
     /// swizzling the blue and red channels and filling alpha to 255 for 24-bit sources.
     /// </summary>
-    /// <param name="src">The raw TGA pixel data in BGR or BGRA order.</param>
-    /// <param name="dst">The destination buffer for RGBA8 output (4 bytes per pixel).</param>
+    /// <param name="source">The raw TGA pixel data in BGR or BGRA order.</param>
+    /// <param name="destination">The destination buffer for RGBA8 output (4 bytes per pixel).</param>
     /// <param name="pixelCount">The total number of pixels to convert.</param>
     /// <param name="bytesPerPixel">
     /// Source bytes per pixel (3 for BGR, 4 for BGRA).
     /// </param>
-    public static void BgrToRgba(ReadOnlySpan<byte> src, Span<byte> dst, int pixelCount, int bytesPerPixel)
+    public static void BgrToRgba(ReadOnlySpan<byte> source, Span<byte> destination, int pixelCount, int bytesPerPixel)
     {
         bool hasAlpha = bytesPerPixel == 4;
 
         for (int i = 0; i < pixelCount; i++)
         {
-            int s = i * bytesPerPixel;
-            int d = i * 4;
-            dst[d + 0] = src[s + 2];
-            dst[d + 1] = src[s + 1];
-            dst[d + 2] = src[s + 0];
-            dst[d + 3] = hasAlpha ? src[s + 3] : (byte)255;
+            int sourceOffset = i * bytesPerPixel;
+            int destinationOffset = i * 4;
+            destination[destinationOffset + 0] = source[sourceOffset + 2];
+            destination[destinationOffset + 1] = source[sourceOffset + 1];
+            destination[destinationOffset + 2] = source[sourceOffset + 0];
+            destination[destinationOffset + 3] = hasAlpha ? source[sourceOffset + 3] : (byte)255;
         }
     }
 

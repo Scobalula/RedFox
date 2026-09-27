@@ -39,7 +39,7 @@ internal sealed class CompressionSample : ISample
         }
         else
         {
-            Console.WriteLine("Deflate skipped (Native\\miniz.dll not found).");
+            AnsiConsole.WriteLine("Deflate skipped (Native\\miniz.dll not found).");
         }
 
         if (HasNativeLibrary("liblz4.dll"))
@@ -48,7 +48,7 @@ internal sealed class CompressionSample : ISample
         }
         else
         {
-            Console.WriteLine("LZ4 skipped (Native\\liblz4.dll not found).");
+            AnsiConsole.WriteLine("LZ4 skipped (Native\\liblz4.dll not found).");
         }
 
         if (HasNativeLibrary("libzstd.dll"))
@@ -57,7 +57,7 @@ internal sealed class CompressionSample : ISample
         }
         else
         {
-            Console.WriteLine("ZStandard skipped (Native\\libzstd.dll not found).");
+            AnsiConsole.WriteLine("ZStandard skipped (Native\\libzstd.dll not found).");
         }
 
         return 0;
@@ -71,7 +71,7 @@ internal sealed class CompressionSample : ISample
         int decompressedSize = codec.Decompress(compressed.AsSpan(0, compressedSize), decompressed);
         bool equal = source.AsSpan().SequenceEqual(decompressed.AsSpan(0, decompressedSize));
 
-        Console.WriteLine($"{name}: compressed={compressedSize}, decompressed={decompressedSize}, ok={equal}");
+        AnsiConsole.WriteLine($"{name}: compressed={compressedSize}, decompressed={decompressedSize}, ok={equal}");
     }
 
     private static bool HasNativeLibrary(string fileName)

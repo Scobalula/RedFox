@@ -17,14 +17,7 @@ public sealed class TestConverterEngine : ConverterEngine
 
     public int CallCount { get; private set; }
 
-    public override bool TryConvert(
-        ReadOnlySpan<byte> source,
-        ImageFormat sourceFormat,
-        Span<byte> destination,
-        ImageFormat destinationFormat,
-        int width,
-        int height,
-        ImageConvertFlags flags)
+    public override bool TryConvert(ReadOnlySpan<byte> source, ImageFormat sourceFormat, Span<byte> destination, ImageFormat destinationFormat, int width, int height, ImageConvertFlags flags)
     {
         CallCount++;
         if (!_result)

@@ -11,30 +11,22 @@ namespace RedFox.Imaging.BlockCompression;
 /// an 8-byte BC1-style color block. This provides smooth alpha gradients
 /// compared to BC2's explicit 4-bit alpha.
 /// </summary>
-public sealed class BC3Codec : IPixelCodec
+/// <param name="format">The image format this codec instance handles.</param>
+public sealed class BC3Codec(ImageFormat format) : IPixelCodec
 {
     private const int BytesPerBlock = 16;
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.BC3Typeless => format,
+        ImageFormat.BC3Unorm => format,
+        ImageFormat.BC3UnormSrgb => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC3Codec supports only BC3Typeless, BC3Unorm, and BC3UnormSrgb."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 0;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BC3Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec instance handles.</param>
-    public BC3Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.BC3Typeless => format,
-            ImageFormat.BC3Unorm => format,
-            ImageFormat.BC3UnormSrgb => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC3Codec supports only BC3Typeless, BC3Unorm, and BC3UnormSrgb."),
-        };
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);

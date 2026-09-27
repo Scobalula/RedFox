@@ -232,10 +232,7 @@ namespace RedFox.IO.ProcessMemory
         /// <param name="pointerValue">The pointer value to write.</param>
         /// <param name="pointerSize">The pointer width to use for the write operation.</param>
         /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="pointerSize"/> is invalid.</exception>
-        public void WritePointer(
-            nint address,
-            nint pointerValue,
-            ProcessPointerSize pointerSize)
+        public void WritePointer(nint address, nint pointerValue, ProcessPointerSize pointerSize)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             ProcessMemoryValidation.ThrowIfInvalidAddress(address);

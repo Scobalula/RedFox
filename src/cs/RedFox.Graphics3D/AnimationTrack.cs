@@ -72,51 +72,72 @@ namespace RedFox.Graphics3D
 
         /// <summary>
         /// Appends a translation keyframe. Lazily creates the translation curve
-        /// with the specified (or default) transform space and type.
+        /// in the specified transform space and type.
         /// </summary>
         /// <param name="time">Keyframe time.</param>
         /// <param name="value">Translation value.</param>
-        /// <param name="space">Coordinate space (defaults to <see cref="TransformSpace.Local"/>).</param>
-        /// <param name="type">Transform type (defaults to <see cref="TransformType.Absolute"/>).</param>
-        public void AddTranslationFrame(float time, System.Numerics.Vector3 value,
-            TransformSpace space = TransformSpace.Local,
-            TransformType type = TransformType.Absolute)
+        /// <param name="space">Coordinate space.</param>
+        /// <param name="type">Transform type.</param>
+        public void AddTranslationFrame(float time, System.Numerics.Vector3 value, TransformSpace space, TransformType type)
         {
             TranslationCurve ??= AnimationCurve.CreateVector3(space, type);
             TranslationCurve.Add(time, value);
         }
 
+        /// <inheritdoc cref="AddTranslationFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddTranslationFrame(float time, System.Numerics.Vector3 value) => AddTranslationFrame(time, value, TransformSpace.Local, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddTranslationFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddTranslationFrame(float time, System.Numerics.Vector3 value, TransformSpace space) => AddTranslationFrame(time, value, space, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddTranslationFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddTranslationFrame(float time, System.Numerics.Vector3 value, TransformType type) => AddTranslationFrame(time, value, TransformSpace.Local, type);
+
         /// <summary>
         /// Appends a rotation keyframe. Lazily creates the rotation curve
-        /// with the specified (or default) transform space and type.
+        /// in the specified transform space and type.
         /// </summary>
         /// <param name="time">Keyframe time.</param>
         /// <param name="value">Rotation value.</param>
-        /// <param name="space">Coordinate space (defaults to <see cref="TransformSpace.Local"/>).</param>
-        /// <param name="type">Transform type (defaults to <see cref="TransformType.Absolute"/>).</param>
-        public void AddRotationFrame(float time, System.Numerics.Quaternion value,
-            TransformSpace space = TransformSpace.Local,
-            TransformType type = TransformType.Absolute)
+        /// <param name="space">Coordinate space.</param>
+        /// <param name="type">Transform type.</param>
+        public void AddRotationFrame(float time, System.Numerics.Quaternion value, TransformSpace space, TransformType type)
         {
             RotationCurve ??= AnimationCurve.CreateQuaternion(space, type);
             RotationCurve.Add(time, value);
         }
 
+        /// <inheritdoc cref="AddRotationFrame(float, System.Numerics.Quaternion, TransformSpace, TransformType)"/>
+        public void AddRotationFrame(float time, System.Numerics.Quaternion value) => AddRotationFrame(time, value, TransformSpace.Local, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddRotationFrame(float, System.Numerics.Quaternion, TransformSpace, TransformType)"/>
+        public void AddRotationFrame(float time, System.Numerics.Quaternion value, TransformSpace space) => AddRotationFrame(time, value, space, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddRotationFrame(float, System.Numerics.Quaternion, TransformSpace, TransformType)"/>
+        public void AddRotationFrame(float time, System.Numerics.Quaternion value, TransformType type) => AddRotationFrame(time, value, TransformSpace.Local, type);
+
         /// <summary>
         /// Appends a scale keyframe. Lazily creates the scale curve
-        /// with the specified (or default) transform space and type.
+        /// in the specified transform space and type.
         /// </summary>
         /// <param name="time">Keyframe time.</param>
         /// <param name="value">Scale value.</param>
-        /// <param name="space">Coordinate space (defaults to <see cref="TransformSpace.Local"/>).</param>
-        /// <param name="type">Transform type (defaults to <see cref="TransformType.Absolute"/>).</param>
-        public void AddScaleFrame(float time, System.Numerics.Vector3 value,
-            TransformSpace space = TransformSpace.Local,
-            TransformType type = TransformType.Absolute)
+        /// <param name="space">Coordinate space.</param>
+        /// <param name="type">Transform type.</param>
+        public void AddScaleFrame(float time, System.Numerics.Vector3 value, TransformSpace space, TransformType type)
         {
             ScaleCurve ??= AnimationCurve.CreateVector3(space, type);
             ScaleCurve.Add(time, value);
         }
+
+        /// <inheritdoc cref="AddScaleFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddScaleFrame(float time, System.Numerics.Vector3 value) => AddScaleFrame(time, value, TransformSpace.Local, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddScaleFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddScaleFrame(float time, System.Numerics.Vector3 value, TransformSpace space) => AddScaleFrame(time, value, space, TransformType.Absolute);
+
+        /// <inheritdoc cref="AddScaleFrame(float, System.Numerics.Vector3, TransformSpace, TransformType)"/>
+        public void AddScaleFrame(float time, System.Numerics.Vector3 value, TransformType type) => AddScaleFrame(time, value, TransformSpace.Local, type);
 
         /// <summary>
         /// Gets or creates a custom named curve with the specified component count.
@@ -155,24 +176,17 @@ namespace RedFox.Graphics3D
             var min = float.MaxValue;
             var max = float.MinValue;
 
-            UpdateRange(TranslationCurve, ref min, ref max);
-            UpdateRange(RotationCurve, ref min, ref max);
-            UpdateRange(ScaleCurve, ref min, ref max);
+            UpdateTimeRange(TranslationCurve, ref min, ref max);
+            UpdateTimeRange(RotationCurve, ref min, ref max);
+            UpdateTimeRange(ScaleCurve, ref min, ref max);
 
             if (CustomCurves is not null)
             {
                 foreach (var curve in CustomCurves.Values)
-                    UpdateRange(curve, ref min, ref max);
+                    UpdateTimeRange(curve, ref min, ref max);
             }
 
             return (min, max);
-
-            static void UpdateRange(AnimationCurve? curve, ref float min, ref float max)
-            {
-                if (curve is null || curve.KeyFrameCount == 0) return;
-                min = MathF.Min(min, curve.StartTime);
-                max = MathF.Max(max, curve.EndTime);
-            }
         }
 
         /// <summary>
@@ -182,5 +196,12 @@ namespace RedFox.Graphics3D
             (TranslationCurve is not null && TranslationCurve.KeyFrameCount > 0) ||
             (RotationCurve is not null && RotationCurve.KeyFrameCount > 0) ||
             (ScaleCurve is not null && ScaleCurve.KeyFrameCount > 0);
+
+        private static void UpdateTimeRange(AnimationCurve? curve, ref float min, ref float max)
+        {
+            if (curve is null || curve.KeyFrameCount == 0) return;
+            min = MathF.Min(min, curve.StartTime);
+            max = MathF.Max(max, curve.EndTime);
+        }
     }
 }

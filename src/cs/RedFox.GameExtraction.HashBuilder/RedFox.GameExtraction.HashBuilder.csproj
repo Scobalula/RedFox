@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="Spectre.Console" Version="0.57.2" />
       <ProjectReference Include="..\RedFox.GameExtraction.Hashing\RedFox.GameExtraction.Hashing.csproj" />
     </ItemGroup>
 

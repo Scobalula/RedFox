@@ -13,11 +13,7 @@ public sealed unsafe class D3D11RenderTarget : IGpuRenderTarget
     private ComPtr<ID3D11DepthStencilView> _depthStencilView;
     private ComPtr<ID3D11RenderTargetView> _renderTargetView;
 
-    internal D3D11RenderTarget(
-        ComPtr<ID3D11RenderTargetView> renderTargetView,
-        ComPtr<ID3D11DepthStencilView> depthStencilView,
-        D3D11Texture colorTexture,
-        D3D11Texture? depthTexture)
+    internal D3D11RenderTarget(ComPtr<ID3D11RenderTargetView> renderTargetView, ComPtr<ID3D11DepthStencilView> depthStencilView, D3D11Texture colorTexture, D3D11Texture? depthTexture)
     {
         _renderTargetView = renderTargetView;
         _depthStencilView = depthStencilView;

@@ -163,14 +163,7 @@ public sealed class ObjWriter
         return referencedMaterials;
     }
 
-    private static void WriteFaces(
-        StreamWriter writer,
-        Mesh mesh,
-        int positionOffset,
-        int texCoordOffset,
-        int normalOffset,
-        bool hasUVs,
-        bool hasNormals)
+    private static void WriteFaces(StreamWriter writer, Mesh mesh, int positionOffset, int texCoordOffset, int normalOffset, bool hasUVs, bool hasNormals)
     {
         if (mesh.FaceIndices is null)
         {
@@ -195,14 +188,7 @@ public sealed class ObjWriter
         }
     }
 
-    private static void WriteFaceVertex(
-        StreamWriter writer,
-        int localIndex,
-        int positionOffset,
-        int texCoordOffset,
-        int normalOffset,
-        bool hasUVs,
-        bool hasNormals)
+    private static void WriteFaceVertex(StreamWriter writer, int localIndex, int positionOffset, int texCoordOffset, int normalOffset, bool hasUVs, bool hasNormals)
     {
         int p = localIndex + positionOffset + 1; // 1-based
 

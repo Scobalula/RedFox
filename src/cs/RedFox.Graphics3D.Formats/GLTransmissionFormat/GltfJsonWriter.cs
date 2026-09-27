@@ -259,14 +259,14 @@ public static class GltfJsonWriter
     private static void WriteBuffers(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("buffers");
-        foreach (GltfBuffer buf in doc.Buffers)
+        foreach (GltfBuffer buffer in doc.Buffers)
         {
             w.WriteStartObject();
-            w.WriteNumber("byteLength", buf.ByteLength);
-            if (buf.Uri is not null)
-                w.WriteString("uri", buf.Uri);
-            if (buf.Name is not null)
-                w.WriteString("name", buf.Name);
+            w.WriteNumber("byteLength", buffer.ByteLength);
+            if (buffer.Uri is not null)
+                w.WriteString("uri", buffer.Uri);
+            if (buffer.Name is not null)
+                w.WriteString("name", buffer.Name);
             w.WriteEndObject();
         }
         w.WriteEndArray();

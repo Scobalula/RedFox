@@ -1,10 +1,8 @@
 namespace RedFox.Samples.Examples;
 
-internal sealed class FrameStatsReporter
+internal sealed class FrameStatsReporter(bool printLiveStats)
 {
     private const double ReportIntervalSeconds = 1.0;
-
-    private readonly bool _printLiveStats;
 
     private double _lastReportSeconds;
     private double _maximumRenderMilliseconds;
@@ -16,11 +14,6 @@ internal sealed class FrameStatsReporter
     private double _windowMinimumRenderMilliseconds = double.MaxValue;
     private double _windowRenderMilliseconds;
     private int _windowFrameCount;
-
-    public FrameStatsReporter(bool printLiveStats)
-    {
-        _printLiveStats = printLiveStats;
-    }
 
     public void Record(double renderMilliseconds, double elapsedSeconds)
     {
@@ -35,7 +28,7 @@ internal sealed class FrameStatsReporter
         _windowMinimumRenderMilliseconds = Math.Min(_windowMinimumRenderMilliseconds, renderMilliseconds);
         _windowMaximumRenderMilliseconds = Math.Max(_windowMaximumRenderMilliseconds, renderMilliseconds);
 
-        if (!_printLiveStats || elapsedSeconds - _lastReportSeconds < ReportIntervalSeconds)
+        if (!printLiveStats || elapsedSeconds - _lastReportSeconds < ReportIntervalSeconds)
         {
             return;
         }
@@ -53,7 +46,7 @@ internal sealed class FrameStatsReporter
 
         double averageRenderMilliseconds = _totalRenderMilliseconds / _totalFrameCount;
         double deliveredFps = GetDeliveredFramesPerSecond(_totalFrameCount, _totalElapsedSeconds);
-        Console.WriteLine($"[FrameTiming] final elapsed={_totalElapsedSeconds:F2}s frames={_totalFrameCount} fps={deliveredFps:F1} renderAvg={averageRenderMilliseconds:F2}ms renderMin={_minimumRenderMilliseconds:F2}ms renderMax={_maximumRenderMilliseconds:F2}ms");
+        AnsiConsole.WriteLine($"[FrameTiming] final elapsed={_totalElapsedSeconds:F2}s frames={_totalFrameCount} fps={deliveredFps:F1} renderAvg={averageRenderMilliseconds:F2}ms renderMin={_minimumRenderMilliseconds:F2}ms renderMax={_maximumRenderMilliseconds:F2}ms");
     }
 
     private void PrintWindow(double elapsedSeconds)
@@ -66,7 +59,7 @@ internal sealed class FrameStatsReporter
         double windowElapsedSeconds = elapsedSeconds - _lastReportSeconds;
         double averageRenderMilliseconds = _windowRenderMilliseconds / _windowFrameCount;
         double deliveredFps = GetDeliveredFramesPerSecond(_windowFrameCount, windowElapsedSeconds);
-        Console.WriteLine($"[FrameTiming] t={elapsedSeconds:F1}s fps={deliveredFps:F1} renderAvg={averageRenderMilliseconds:F2}ms renderMin={_windowMinimumRenderMilliseconds:F2}ms renderMax={_windowMaximumRenderMilliseconds:F2}ms frames={_windowFrameCount}");
+        AnsiConsole.WriteLine($"[FrameTiming] t={elapsedSeconds:F1}s fps={deliveredFps:F1} renderAvg={averageRenderMilliseconds:F2}ms renderMin={_windowMinimumRenderMilliseconds:F2}ms renderMax={_windowMaximumRenderMilliseconds:F2}ms frames={_windowFrameCount}");
     }
 
     private void ResetWindow(double elapsedSeconds)

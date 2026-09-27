@@ -14,14 +14,7 @@ public sealed unsafe class D3D11Buffer : IGpuBuffer
     private ComPtr<ID3D11ShaderResourceView> _shaderResourceView;
     private ComPtr<ID3D11UnorderedAccessView> _unorderedAccessView;
 
-    internal D3D11Buffer(
-        ComPtr<ID3D11Buffer> buffer,
-        ComPtr<ID3D11ShaderResourceView> shaderResourceView,
-        ComPtr<ID3D11UnorderedAccessView> unorderedAccessView,
-        int sizeBytes,
-        int strideBytes,
-        BufferUsage usage,
-        GpuBufferElementType elementType)
+    internal D3D11Buffer(ComPtr<ID3D11Buffer> buffer, ComPtr<ID3D11ShaderResourceView> shaderResourceView, ComPtr<ID3D11UnorderedAccessView> unorderedAccessView, int sizeBytes, int strideBytes, BufferUsage usage, GpuBufferElementType elementType)
     {
         _buffer = buffer;
         _shaderResourceView = shaderResourceView;

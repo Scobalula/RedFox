@@ -11,32 +11,24 @@ namespace RedFox.Imaging.BlockCompression;
 /// and 3-bit indices per pixel. Decoded as (R, 0, 0, 1).
 /// Supports both unsigned (Unorm) and signed (Snorm) modes.
 /// </summary>
-public sealed class BC4Codec : IPixelCodec
+/// <param name="format">The image format this codec instance handles.</param>
+public sealed class BC4Codec(ImageFormat format) : IPixelCodec
 {
     private const int BytesPerBlock = 8;
 
     private bool IsSigned => Format == ImageFormat.BC4Snorm;
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.BC4Typeless => format,
+        ImageFormat.BC4Unorm => format,
+        ImageFormat.BC4Snorm => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC4Codec supports only BC4Typeless, BC4Unorm, and BC4Snorm."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 0;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BC4Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec instance handles.</param>
-    public BC4Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.BC4Typeless => format,
-            ImageFormat.BC4Unorm => format,
-            ImageFormat.BC4Snorm => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC4Codec supports only BC4Typeless, BC4Unorm, and BC4Snorm."),
-        };
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)

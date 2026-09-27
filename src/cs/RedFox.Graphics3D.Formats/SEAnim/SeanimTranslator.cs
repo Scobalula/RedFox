@@ -165,8 +165,8 @@ public class SeanimTranslator : SceneTranslator
         if (data.Actions is not null)
         {
             foreach (var action in data.Actions)
-                foreach (var kf in action.KeyFrames)
-                    maxActionFrame = MathF.Max(maxActionFrame, kf.Frame);
+                foreach (var keyframe in action.KeyFrames)
+                    maxActionFrame = MathF.Max(maxActionFrame, keyframe.Frame);
         }
 
         int frameCount = (int)MathF.Max(maxTrackFrame > float.MinValue ? maxTrackFrame : 0f, maxActionFrame) + 1;
@@ -248,9 +248,9 @@ public class SeanimTranslator : SceneTranslator
         {
             foreach (var action in data.Actions)
             {
-                foreach (var kf in action.KeyFrames)
+                foreach (var keyframe in action.KeyFrames)
                 {
-                    WriteFrameIndex(writer, (int)kf.Frame, frameCount);
+                    WriteFrameIndex(writer, (int)keyframe.Frame, frameCount);
                     writer.Write(Encoding.UTF8.GetBytes(action.Name));
                     writer.Write((byte)0);
                 }

@@ -154,7 +154,7 @@ public sealed class BmpImageTranslator : ImageTranslator
     /// <inheritdoc/>
     public override void Write(Stream stream, Image image)
     {
-        WriteCore(stream, image);
+        WriteEncodedImage(stream, image);
     }
 
     /// <inheritdoc/>
@@ -166,17 +166,17 @@ public sealed class BmpImageTranslator : ImageTranslator
         return header[0] == (byte)'B' && header[1] == (byte)'M';
     }
 
-    private static void WriteCore(Stream stream, Image image)
+    private static void WriteEncodedImage(Stream stream, Image image)
     {
         ref readonly var slice = ref image.GetSlice(0, 0, 0);
         int width = slice.Width;
         int height = slice.Height;
         var format = image.Format;
-        var src = slice.PixelSpan;
+        var sourcePixels = slice.PixelSpan;
 
-        bool hasAlpha = format is (ImageFormat.R8G8B8A8Unorm or ImageFormat.R8G8B8A8UnormSrgb or ImageFormat.B8G8R8A8Unorm or ImageFormat.B8G8R8A8UnormSrgb) && HasNonOpaqueAlpha(src);
-        int bpp = hasAlpha ? 32 : 24;
-        int rowStride = ((bpp * width + 31) / 32) * 4;
+        bool hasAlpha = format is (ImageFormat.R8G8B8A8Unorm or ImageFormat.R8G8B8A8UnormSrgb or ImageFormat.B8G8R8A8Unorm or ImageFormat.B8G8R8A8UnormSrgb) && HasNonOpaqueAlpha(sourcePixels);
+        int bitsPerPixel = hasAlpha ? 32 : 24;
+        int rowStride = ((bitsPerPixel * width + 31) / 32) * 4;
         int imageSize = rowStride * height;
         int fileSize = 14 + 40 + imageSize;
 
@@ -194,7 +194,7 @@ public sealed class BmpImageTranslator : ImageTranslator
         BinaryPrimitives.WriteInt32LittleEndian(dibHeader[4..], width);
         BinaryPrimitives.WriteInt32LittleEndian(dibHeader[8..], -height); // top-down
         BinaryPrimitives.WriteUInt16LittleEndian(dibHeader[12..], 1); // planes
-        BinaryPrimitives.WriteUInt16LittleEndian(dibHeader[14..], (ushort)bpp);
+        BinaryPrimitives.WriteUInt16LittleEndian(dibHeader[14..], (ushort)bitsPerPixel);
         BinaryPrimitives.WriteUInt32LittleEndian(dibHeader[16..], 0); // BI_RGB
         BinaryPrimitives.WriteUInt32LittleEndian(dibHeader[20..], (uint)imageSize);
         BinaryPrimitives.WriteInt32LittleEndian(dibHeader[24..], 2835); // ~72 DPI
@@ -203,78 +203,78 @@ public sealed class BmpImageTranslator : ImageTranslator
 
         if (format is ImageFormat.B8G8R8A8Unorm or ImageFormat.B8G8R8A8UnormSrgb)
         {
-            if (bpp == 32)
+            if (bitsPerPixel == 32)
             {
-                stream.Write(src);
+                stream.Write(sourcePixels);
             }
             else
             {
-                WriteRowsBgr(stream, src, width, height, rowStride);
+                WriteRowsBgr(stream, sourcePixels, width, height, rowStride);
             }
             return;
         }
 
         if (format is ImageFormat.R8G8B8A8Unorm or ImageFormat.R8G8B8A8UnormSrgb)
         {
-            WriteRowsSwizzled(stream, src, width, height, rowStride, bpp);
+            WriteRowsSwizzled(stream, sourcePixels, width, height, rowStride, bitsPerPixel);
             return;
         }
 
         if (format is ImageFormat.B8G8R8X8Unorm or ImageFormat.B8G8R8X8UnormSrgb)
         {
-            WriteRowsBgr(stream, src, width, height, rowStride);
+            WriteRowsBgr(stream, sourcePixels, width, height, rowStride);
             return;
         }
 
         if (!PixelCodecs.TryGetCodec(format, out var codec) || codec is null)
             throw new NotSupportedException($"BMP writing is not supported for format {format}.");
 
-        WriteBmpRowsDecoded(stream, slice, width, height, rowStride, bpp, codec);
+        WriteBmpRowsDecoded(stream, slice, width, height, rowStride, bitsPerPixel, codec);
     }
 
-    private static void DecodeBgra32(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width)
+    private static void DecodeBgra32(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width)
     {
         for (int x = 0; x < width; x++)
         {
-            int s = srcOff + x * 4;
-            int d = dstOff + x * 4;
-            dst[d + 0] = src[s + 2];
-            dst[d + 1] = src[s + 1];
-            dst[d + 2] = src[s + 0];
-            dst[d + 3] = src[s + 3];
+            int sourcePixelOffset = sourceOffset + x * 4;
+            int destinationPixelOffset = destinationOffset + x * 4;
+            destination[destinationPixelOffset + 0] = source[sourcePixelOffset + 2];
+            destination[destinationPixelOffset + 1] = source[sourcePixelOffset + 1];
+            destination[destinationPixelOffset + 2] = source[sourcePixelOffset + 0];
+            destination[destinationPixelOffset + 3] = source[sourcePixelOffset + 3];
         }
     }
 
-    private static void DecodeBgr24(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width)
+    private static void DecodeBgr24(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width)
     {
         for (int x = 0; x < width; x++)
         {
-            int s = srcOff + x * 3;
-            int d = dstOff + x * 4;
-            dst[d + 0] = src[s + 2];
-            dst[d + 1] = src[s + 1];
-            dst[d + 2] = src[s + 0];
-            dst[d + 3] = 255;
+            int sourcePixelOffset = sourceOffset + x * 3;
+            int destinationPixelOffset = destinationOffset + x * 4;
+            destination[destinationPixelOffset + 0] = source[sourcePixelOffset + 2];
+            destination[destinationPixelOffset + 1] = source[sourcePixelOffset + 1];
+            destination[destinationPixelOffset + 2] = source[sourcePixelOffset + 0];
+            destination[destinationPixelOffset + 3] = 255;
         }
     }
 
-    private static void Decode16Rgb555(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width)
+    private static void Decode16Rgb555(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width)
     {
         for (int x = 0; x < width; x++)
         {
-            ushort pixel = BinaryPrimitives.ReadUInt16LittleEndian(src[(srcOff + x * 2)..]);
-            int d = dstOff + x * 4;
+            ushort pixel = BinaryPrimitives.ReadUInt16LittleEndian(source[(sourceOffset + x * 2)..]);
+            int destinationPixelOffset = destinationOffset + x * 4;
             int r = (pixel >> 10) & 0x1F;
             int g = (pixel >> 5) & 0x1F;
             int b = pixel & 0x1F;
-            dst[d + 0] = (byte)((r << 3) | (r >> 2));
-            dst[d + 1] = (byte)((g << 3) | (g >> 2));
-            dst[d + 2] = (byte)((b << 3) | (b >> 2));
-            dst[d + 3] = 255;
+            destination[destinationPixelOffset + 0] = (byte)((r << 3) | (r >> 2));
+            destination[destinationPixelOffset + 1] = (byte)((g << 3) | (g >> 2));
+            destination[destinationPixelOffset + 2] = (byte)((b << 3) | (b >> 2));
+            destination[destinationPixelOffset + 3] = 255;
         }
     }
 
-    private static void DecodeBitfields32(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width, uint rMask, uint gMask, uint bMask, uint aMask)
+    private static void DecodeBitfields32(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width, uint rMask, uint gMask, uint bMask, uint aMask)
     {
         int rShift = BitOperations.TrailingZeroCount(rMask);
         int gShift = BitOperations.TrailingZeroCount(gMask);
@@ -287,16 +287,16 @@ public sealed class BmpImageTranslator : ImageTranslator
 
         for (int x = 0; x < width; x++)
         {
-            uint pixel = BinaryPrimitives.ReadUInt32LittleEndian(src[(srcOff + x * 4)..]);
-            int d = dstOff + x * 4;
-            dst[d + 0] = ScaleChannel((pixel & rMask) >> rShift, rBits);
-            dst[d + 1] = ScaleChannel((pixel & gMask) >> gShift, gBits);
-            dst[d + 2] = ScaleChannel((pixel & bMask) >> bShift, bBits);
-            dst[d + 3] = aMask != 0 ? ScaleChannel((pixel & aMask) >> aShift, aBits) : (byte)255;
+            uint pixel = BinaryPrimitives.ReadUInt32LittleEndian(source[(sourceOffset + x * 4)..]);
+            int destinationPixelOffset = destinationOffset + x * 4;
+            destination[destinationPixelOffset + 0] = ScaleChannel((pixel & rMask) >> rShift, rBits);
+            destination[destinationPixelOffset + 1] = ScaleChannel((pixel & gMask) >> gShift, gBits);
+            destination[destinationPixelOffset + 2] = ScaleChannel((pixel & bMask) >> bShift, bBits);
+            destination[destinationPixelOffset + 3] = aMask != 0 ? ScaleChannel((pixel & aMask) >> aShift, aBits) : (byte)255;
         }
     }
 
-    private static void DecodeBitfields16(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width, uint rMask, uint gMask, uint bMask, uint aMask)
+    private static void DecodeBitfields16(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width, uint rMask, uint gMask, uint bMask, uint aMask)
     {
         int rShift = BitOperations.TrailingZeroCount(rMask);
         int gShift = BitOperations.TrailingZeroCount(gMask);
@@ -309,12 +309,12 @@ public sealed class BmpImageTranslator : ImageTranslator
 
         for (int x = 0; x < width; x++)
         {
-            uint pixel = BinaryPrimitives.ReadUInt16LittleEndian(src[(srcOff + x * 2)..]);
-            int d = dstOff + x * 4;
-            dst[d + 0] = ScaleChannel((pixel & rMask) >> rShift, rBits);
-            dst[d + 1] = ScaleChannel((pixel & gMask) >> gShift, gBits);
-            dst[d + 2] = ScaleChannel((pixel & bMask) >> bShift, bBits);
-            dst[d + 3] = aMask != 0 ? ScaleChannel((pixel & aMask) >> aShift, aBits) : (byte)255;
+            uint pixel = BinaryPrimitives.ReadUInt16LittleEndian(source[(sourceOffset + x * 2)..]);
+            int destinationPixelOffset = destinationOffset + x * 4;
+            destination[destinationPixelOffset + 0] = ScaleChannel((pixel & rMask) >> rShift, rBits);
+            destination[destinationPixelOffset + 1] = ScaleChannel((pixel & gMask) >> gShift, gBits);
+            destination[destinationPixelOffset + 2] = ScaleChannel((pixel & bMask) >> bShift, bBits);
+            destination[destinationPixelOffset + 3] = aMask != 0 ? ScaleChannel((pixel & aMask) >> aShift, aBits) : (byte)255;
         }
     }
 
@@ -343,7 +343,7 @@ public sealed class BmpImageTranslator : ImageTranslator
         return dibHeader;
     }
 
-    private static void DecodeIndexed(ReadOnlySpan<byte> src, int srcOff, Span<byte> dst, int dstOff, int width, ReadOnlySpan<byte> palette, int bitsPerPixel)
+    private static void DecodeIndexed(ReadOnlySpan<byte> source, int sourceOffset, Span<byte> destination, int destinationOffset, int width, ReadOnlySpan<byte> palette, int bitsPerPixel)
     {
         for (int x = 0; x < width; x++)
         {
@@ -352,18 +352,18 @@ public sealed class BmpImageTranslator : ImageTranslator
             switch (bitsPerPixel)
             {
                 case 8:
-                    index = src[srcOff + x];
+                    index = source[sourceOffset + x];
                     break;
                 case 4:
                     {
-                        byte b = src[srcOff + x / 2];
-                        index = (x % 2 == 0) ? (b >> 4) : (b & 0x0F);
+                        byte packedPixels = source[sourceOffset + x / 2];
+                        index = (x % 2 == 0) ? (packedPixels >> 4) : (packedPixels & 0x0F);
                         break;
                     }
                 case 1:
                     {
-                        byte b = src[srcOff + x / 8];
-                        index = (b >> (7 - (x % 8))) & 1;
+                        byte packedPixels = source[sourceOffset + x / 8];
+                        index = (packedPixels >> (7 - (x % 8))) & 1;
                         break;
                     }
                 default:
@@ -371,11 +371,11 @@ public sealed class BmpImageTranslator : ImageTranslator
             }
 
             int paletteOffset = index * 4;
-            int d = dstOff + x * 4;
-            dst[d + 0] = palette[paletteOffset + 2];
-            dst[d + 1] = palette[paletteOffset + 1];
-            dst[d + 2] = palette[paletteOffset + 0];
-            dst[d + 3] = 255;
+            int destinationPixelOffset = destinationOffset + x * 4;
+            destination[destinationPixelOffset + 0] = palette[paletteOffset + 2];
+            destination[destinationPixelOffset + 1] = palette[paletteOffset + 1];
+            destination[destinationPixelOffset + 2] = palette[paletteOffset + 0];
+            destination[destinationPixelOffset + 3] = 255;
         }
     }
 
@@ -416,11 +416,11 @@ public sealed class BmpImageTranslator : ImageTranslator
     /// <summary>
     /// Writes from RGBA source with R↔B swizzle to produce BGRA/BGR output.
     /// </summary>
-    private static void WriteRowsSwizzled(Stream stream, ReadOnlySpan<byte> rgba, int width, int height, int rowStride, int bpp)
+    private static void WriteRowsSwizzled(Stream stream, ReadOnlySpan<byte> rgba, int width, int height, int rowStride, int bitsPerPixel)
     {
         var rowBuffer = new byte[rowStride];
 
-        if (bpp == 32)
+        if (bitsPerPixel == 32)
         {
             for (int y = 0; y < height; y++)
             {
@@ -459,7 +459,7 @@ public sealed class BmpImageTranslator : ImageTranslator
         }
     }
 
-    private static void WriteBmpRowsDecoded(Stream stream, in ImageSlice slice, int width, int height, int rowStride, int bpp, IPixelCodec codec)
+    private static void WriteBmpRowsDecoded(Stream stream, in ImageSlice slice, int width, int height, int rowStride, int bitsPerPixel, IPixelCodec codec)
     {
         var rowBuffer = new byte[rowStride];
         var pixels = new Vector4[width];
@@ -476,7 +476,7 @@ public sealed class BmpImageTranslator : ImageTranslator
                 byte b = (byte)(Math.Clamp(pixel.Z, 0f, 1f) * 255f + 0.5f);
                 byte a = (byte)(Math.Clamp(pixel.W, 0f, 1f) * 255f + 0.5f);
 
-                if (bpp == 32)
+                if (bitsPerPixel == 32)
                 {
                     int d = x * 4;
                     rowBuffer[d + 0] = b;

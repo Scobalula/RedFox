@@ -26,14 +26,14 @@ public static class NameFile
     /// <exception cref="NotSupportedException">Thrown when the file format is not supported.</exception>
     public static NameTable Load(string filePath)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-        return ext switch
+        return extension switch
         {
             ".namefile" => LoadBinary(filePath),
             ".csv" => NameTableCsvReader.FromFile(filePath, DeriveAlgorithm(filePath)),
             ".txt" => throw new ArgumentException("A hash algorithm and hasher function are required to load .txt files. Use the Load overload that accepts them."),
-            _ => throw new NotSupportedException($"Unsupported file format: '{ext}'. Supported formats: .namefile, .csv, .txt")
+            _ => throw new NotSupportedException($"Unsupported file format: '{extension}'. Supported formats: .namefile, .csv, .txt")
         };
     }
 
@@ -47,14 +47,14 @@ public static class NameFile
     /// <exception cref="NotSupportedException">Thrown when the file format is not supported.</exception>
     public static NameTable Load(string filePath, string hashAlgorithm)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-        return ext switch
+        return extension switch
         {
             ".namefile" => LoadBinary(filePath),
             ".csv" => NameTableCsvReader.FromFile(filePath, hashAlgorithm),
             ".txt" => throw new ArgumentException("A hasher function is required to load .txt files. Use the Load overload that accepts a hasher."),
-            _ => throw new NotSupportedException($"Unsupported file format: '{ext}'. Supported formats: .namefile, .csv, .txt")
+            _ => throw new NotSupportedException($"Unsupported file format: '{extension}'. Supported formats: .namefile, .csv, .txt")
         };
     }
 
@@ -71,14 +71,14 @@ public static class NameFile
     {
         ArgumentNullException.ThrowIfNull(hasher);
 
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-        return ext switch
+        return extension switch
         {
             ".namefile" => LoadBinary(filePath),
             ".csv" => NameTableCsvReader.FromFile(filePath, hashAlgorithm),
             ".txt" => NameTableTxtReader.FromFile(filePath, hashAlgorithm, hasher),
-            _ => throw new NotSupportedException($"Unsupported file format: '{ext}'. Supported formats: .namefile, .csv, .txt")
+            _ => throw new NotSupportedException($"Unsupported file format: '{extension}'. Supported formats: .namefile, .csv, .txt")
         };
     }
 
@@ -217,9 +217,9 @@ public static class NameFile
     /// <exception cref="NotSupportedException">Thrown when the file format is not supported.</exception>
     public static void Save(string filePath, NameTable nameTable, NameFileFlags flags)
     {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        var extension = Path.GetExtension(filePath).ToLowerInvariant();
 
-        switch (ext)
+        switch (extension)
         {
             case ".namefile":
                 SaveBinary(filePath, nameTable, flags);
@@ -231,7 +231,7 @@ public static class NameFile
                 SaveTxt(filePath, nameTable);
                 break;
             default:
-                throw new NotSupportedException($"Unsupported file format: '{ext}'. Supported formats: .namefile, .csv, .txt");
+                throw new NotSupportedException($"Unsupported file format: '{extension}'. Supported formats: .namefile, .csv, .txt");
         }
     }
 

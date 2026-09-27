@@ -102,43 +102,43 @@ internal static class PngScanlineProcessor
         return output;
     }
 
-    public static void FilterRow(ReadOnlySpan<byte> row, ReadOnlySpan<byte> prev, Span<byte> dst, int bytesPerPixel, byte filter)
+    public static void FilterRow(ReadOnlySpan<byte> row, ReadOnlySpan<byte> previousRow, Span<byte> destination, int bytesPerPixel, byte filter)
     {
         switch (filter)
         {
             case 0:
-                row.CopyTo(dst);
+                row.CopyTo(destination);
                 return;
 
             case 1:
                 for (int i = 0; i < row.Length; i++)
                 {
                     byte left = i >= bytesPerPixel ? row[i - bytesPerPixel] : (byte)0;
-                    dst[i] = unchecked((byte)(row[i] - left));
+                    destination[i] = unchecked((byte)(row[i] - left));
                 }
                 return;
 
             case 2:
                 for (int i = 0; i < row.Length; i++)
-                    dst[i] = unchecked((byte)(row[i] - prev[i]));
+                    destination[i] = unchecked((byte)(row[i] - previousRow[i]));
                 return;
 
             case 3:
                 for (int i = 0; i < row.Length; i++)
                 {
                     byte left = i >= bytesPerPixel ? row[i - bytesPerPixel] : (byte)0;
-                    byte up = prev[i];
-                    dst[i] = unchecked((byte)(row[i] - ((left + up) >> 1)));
+                    byte above = previousRow[i];
+                    destination[i] = unchecked((byte)(row[i] - ((left + above) >> 1)));
                 }
                 return;
 
             case 4:
                 for (int i = 0; i < row.Length; i++)
                 {
-                    int a = i >= bytesPerPixel ? row[i - bytesPerPixel] : 0;
-                    int b = prev[i];
-                    int c = i >= bytesPerPixel ? prev[i - bytesPerPixel] : 0;
-                    dst[i] = unchecked((byte)(row[i] - PngScanlineProcessor.PaethPredictor(a, b, c)));
+                    int left = i >= bytesPerPixel ? row[i - bytesPerPixel] : 0;
+                    int above = previousRow[i];
+                    int aboveLeft = i >= bytesPerPixel ? previousRow[i - bytesPerPixel] : 0;
+                    destination[i] = unchecked((byte)(row[i] - PngScanlineProcessor.PaethPredictor(left, above, aboveLeft)));
                 }
                 return;
 

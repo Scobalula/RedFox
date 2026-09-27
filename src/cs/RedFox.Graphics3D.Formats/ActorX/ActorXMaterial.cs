@@ -10,11 +10,4 @@ namespace RedFox.Graphics3D.Formats.ActorX;
 /// <param name="AuxFlags">Auxiliary flags, unused by most tools.</param>
 /// <param name="LodBias">The level-of-detail bias.</param>
 /// <param name="LodStyle">The level-of-detail style.</param>
-public readonly record struct ActorXMaterial(
-    string Name,
-    int TextureIndex,
-    uint PolyFlags,
-    int AuxMaterial,
-    uint AuxFlags,
-    int LodBias,
-    int LodStyle);
+public readonly record struct ActorXMaterial(string Name, int TextureIndex, uint PolyFlags, int AuxMaterial, uint AuxFlags, int LodBias, int LodStyle);

@@ -6,7 +6,7 @@ namespace RedFox.Graphics3D;
 /// Provides static helper methods for common animation operations such as
 /// weight interpolation from keyframe lists and DataBuffer-backed curves.
 /// </summary>
-public static class AnimationHelper
+public static class AnimationSampling
 {
     /// <summary>
     /// Interpolates the weight at the given time from a legacy keyframe list,
@@ -19,12 +19,7 @@ public static class AnimationHelper
     /// <param name="cursor">Scan-start hint; updated on output.</param>
     /// <returns>The interpolated weight at the given time.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float GetWeight(
-        List<AnimationKeyFrame<float, float>> weights,
-        float time,
-        float startTime,
-        float defaultWeight,
-        ref int cursor)
+    public static float GetWeight(List<AnimationKeyFrame<float, float>> weights, float time, float startTime, float defaultWeight, ref int cursor)
     {
         var (firstIndex, secondIndex) = Animation.GetFramePairIndex(weights, time, startTime, cursor: cursor);
         var result = defaultWeight;

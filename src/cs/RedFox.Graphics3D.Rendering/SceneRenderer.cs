@@ -287,6 +287,73 @@ public sealed class SceneRenderer : IDisposable
         _graphicsDevice.Submit(_commandList);
     }
 
+    /// <summary>
+    /// Releases renderer-owned resources attached to a scene without disposing the scene model.
+    /// </summary>
+    /// <param name="scene">The scene whose renderer resources should be released.</param>
+    public void ReleaseResources(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        _sceneTraversalScene = null;
+        _sceneTraversalVersion = -1;
+        _sceneTraversalNodes.Clear();
+        _sceneTraversalHandles.Clear();
+        ReleaseSkyboxResources(scene.Skybox);
+        ReleaseGridResources(scene.Grid);
+        ReleaseResources(scene.RootNode);
+    }
+
+    /// <summary>
+    /// Releases renderer-owned resources attached to a scene-node subtree without disposing the nodes.
+    /// </summary>
+    /// <param name="node">The node subtree whose renderer resources should be released.</param>
+    public void ReleaseResources(SceneNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+
+        SceneRenderResources.Release(_graphicsDevice, node);
+
+        if (node.Children is null)
+        {
+            return;
+        }
+
+        foreach (SceneNode child in node.Children)
+        {
+            ReleaseResources(child);
+        }
+    }
+
+    /// <summary>
+    /// Releases renderer resources.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _backgroundImageLoadThreadStopping = true;
+        _backgroundImageLoadSignal.Set();
+        _backgroundImageLoadThread.Join();
+        _backgroundImageLoadSignal.Dispose();
+        ReleaseAntiAliasingResources();
+        _clearAndStateResetPass.Dispose();
+        SceneRenderResources.ReleaseAll(_graphicsDevice);
+        _initialized = false;
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Creates a frame context populated with the renderer's per-frame lighting and skinning configuration.
+    /// </summary>
+    /// <param name="scene">The scene being rendered.</param>
+    /// <param name="view">The active camera view.</param>
+    /// <param name="viewportSize">The active viewport size.</param>
+    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
+    /// <returns>The populated frame context.</returns>
     private IReadOnlyList<SceneNode> GetSceneTraversalNodes(Scene scene)
     {
         if (ReferenceEquals(_sceneTraversalScene, scene) && _sceneTraversalVersion == scene.Version)
@@ -376,73 +443,6 @@ public sealed class SceneRenderer : IDisposable
         return Math.Min(colorSampleCount, depthSampleCount);
     }
 
-    /// <summary>
-    /// Releases renderer-owned resources attached to a scene without disposing the scene model.
-    /// </summary>
-    /// <param name="scene">The scene whose renderer resources should be released.</param>
-    public void ReleaseResources(Scene scene)
-    {
-        ArgumentNullException.ThrowIfNull(scene);
-        _sceneTraversalScene = null;
-        _sceneTraversalVersion = -1;
-        _sceneTraversalNodes.Clear();
-        _sceneTraversalHandles.Clear();
-        ReleaseSkyboxResources(scene.Skybox);
-        ReleaseGridResources(scene.Grid);
-        ReleaseResources(scene.RootNode);
-    }
-
-    /// <summary>
-    /// Releases renderer-owned resources attached to a scene-node subtree without disposing the nodes.
-    /// </summary>
-    /// <param name="node">The node subtree whose renderer resources should be released.</param>
-    public void ReleaseResources(SceneNode node)
-    {
-        ArgumentNullException.ThrowIfNull(node);
-
-        SceneRenderResources.Release(_graphicsDevice, node);
-
-        if (node.Children is null)
-        {
-            return;
-        }
-
-        foreach (SceneNode child in node.Children)
-        {
-            ReleaseResources(child);
-        }
-    }
-
-    /// <summary>
-    /// Releases renderer resources.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _backgroundImageLoadThreadStopping = true;
-        _backgroundImageLoadSignal.Set();
-        _backgroundImageLoadThread.Join();
-        _backgroundImageLoadSignal.Dispose();
-        ReleaseAntiAliasingResources();
-        _clearAndStateResetPass.Dispose();
-        SceneRenderResources.ReleaseAll(_graphicsDevice);
-        _initialized = false;
-        _disposed = true;
-        GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Creates a frame context populated with the renderer's per-frame lighting and skinning configuration.
-    /// </summary>
-    /// <param name="scene">The scene being rendered.</param>
-    /// <param name="view">The active camera view.</param>
-    /// <param name="viewportSize">The active viewport size.</param>
-    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
-    /// <returns>The populated frame context.</returns>
     private RenderFrameContext CreateFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
     {
         RenderFrameContext context = _frameContext ??= new(scene, view, viewportSize, deltaTime);

@@ -34,9 +34,9 @@ internal sealed class SpanReaderSample : ISample
         string text = spanReader.ReadString(3);
         long seekPosition = spanReader.Seek(2, SeekOrigin.Current);
 
-        Console.WriteLine($"Number: 0x{number:X8}");
-        Console.WriteLine($"Text: {text}");
-        Console.WriteLine($"Position after seek: {seekPosition}");
+        AnsiConsole.WriteLine($"Number: 0x{number:X8}");
+        AnsiConsole.WriteLine($"Text: {text}");
+        AnsiConsole.WriteLine($"Position after seek: {seekPosition}");
         return 0;
     }
 }

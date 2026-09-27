@@ -105,8 +105,14 @@ namespace RedFox.Graphics3D.Buffers
         /// Copies the populated component storage into the provided array.
         /// </summary>
         /// <param name="destination">The destination array.</param>
+        public void CopyTo(T[] destination) => CopyTo(destination, 0);
+
+        /// <summary>
+        /// Copies the populated component storage into the provided array.
+        /// </summary>
+        /// <param name="destination">The destination array.</param>
         /// <param name="destinationIndex">The index in the destination array at which copying begins.</param>
-        public void CopyTo(T[] destination, int destinationIndex = 0)
+        public void CopyTo(T[] destination, int destinationIndex)
         {
             ArgumentNullException.ThrowIfNull(destination);
 

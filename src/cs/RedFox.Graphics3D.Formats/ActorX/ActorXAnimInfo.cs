@@ -15,16 +15,4 @@ namespace RedFox.Graphics3D.Formats.ActorX;
 /// <param name="StartBone">The first bone index; usually zero.</param>
 /// <param name="FirstRawFrame">The offset of this sequence's first frame within the shared key array.</param>
 /// <param name="RawFrameCount">The number of frames in this sequence.</param>
-public readonly record struct ActorXAnimInfo(
-    string Name,
-    string Group,
-    int TotalBones,
-    int RootInclude,
-    int KeyCompressionStyle,
-    int KeyQuotum,
-    float KeyReduction,
-    float TrackTime,
-    float AnimRate,
-    int StartBone,
-    int FirstRawFrame,
-    int RawFrameCount);
+public readonly record struct ActorXAnimInfo(string Name, string Group, int TotalBones, int RootInclude, int KeyCompressionStyle, int KeyQuotum, float KeyReduction, float TrackTime, float AnimRate, int StartBone, int FirstRawFrame, int RawFrameCount);

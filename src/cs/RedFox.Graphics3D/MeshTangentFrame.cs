@@ -29,7 +29,7 @@ public static class MeshTangentFrame
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh is missing any required buffer.</exception>
     public static void Generate(Mesh mesh)
-        => GenerateCore(mesh, storeHandedness: true, storeBiTangents: false);
+        => GenerateFrame(mesh, storeHandedness: true, storeBiTangents: false);
 
     /// <summary>
     /// Computes per-vertex tangents stored as four-component vectors where the W component encodes the
@@ -42,7 +42,7 @@ public static class MeshTangentFrame
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh is missing any required buffer.</exception>
     public static void Generate(Mesh mesh, bool storeBiTangents)
-        => GenerateCore(mesh, storeHandedness: true, storeBiTangents: storeBiTangents);
+        => GenerateFrame(mesh, storeHandedness: true, storeBiTangents: storeBiTangents);
 
     /// <summary>
     /// Computes per-vertex tangents stored as three-component vectors without a handedness sign.
@@ -54,7 +54,7 @@ public static class MeshTangentFrame
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh is missing any required buffer.</exception>
     public static void GenerateCompact(Mesh mesh)
-        => GenerateCore(mesh, storeHandedness: false, storeBiTangents: false);
+        => GenerateFrame(mesh, storeHandedness: false, storeBiTangents: false);
 
     /// <summary>
     /// Computes per-vertex tangents stored as three-component vectors without a handedness sign, and
@@ -67,59 +67,7 @@ public static class MeshTangentFrame
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh is missing any required buffer.</exception>
     public static void GenerateCompact(Mesh mesh, bool storeBiTangents)
-        => GenerateCore(mesh, storeHandedness: false, storeBiTangents: storeBiTangents);
-
-    /// <summary>
-    /// Core implementation shared by all public entry-points. Generates tangent-frame data and assigns
-    /// <see cref="Mesh.Tangents"/> and, optionally, <see cref="Mesh.BiTangents"/> on the mesh.
-    /// </summary>
-    /// <param name="mesh">The mesh to generate tangent-frame data for.</param>
-    /// <param name="storeHandedness">When <see langword="true"/>, the tangent is stored as a four-component
-    /// vector whose W component encodes the handedness of the tangent frame (+1 or -1).</param>
-    /// <param name="storeBiTangents">When <see langword="true"/>, a separate bitangent buffer is assigned to <see cref="Mesh.BiTangents"/>.</param>
-    public static void GenerateCore(Mesh mesh, bool storeHandedness, bool storeBiTangents)
-    {
-        ArgumentNullException.ThrowIfNull(mesh);
-
-        if (mesh.Positions is not { } positions)
-            throw new InvalidOperationException("Mesh must have position data to generate a tangent frame.");
-
-        if (mesh.Normals is not { } normals)
-            throw new InvalidOperationException("Mesh must have normal data to generate a tangent frame.");
-
-        if (mesh.UVLayers is not { } uvLayers)
-            throw new InvalidOperationException("Mesh must have UV layer data to generate a tangent frame.");
-
-        if (mesh.FaceIndices is not { } faceIndices)
-            throw new InvalidOperationException("Mesh must have face index data to generate a tangent frame.");
-
-        int vertexCount = positions.ElementCount;
-        int faceCount   = faceIndices.ElementCount / 3;
-
-        // Accumulate raw UV-derived tangent and bitangent contributions per vertex.
-        Vector3[] tan1 = new Vector3[vertexCount];
-        Vector3[] tan2 = new Vector3[vertexCount];
-        AccumulateTangents(faceIndices, faceCount, positions, uvLayers, vertexCount, tan1, tan2);
-
-        int     tangentComponents = storeHandedness ? 4 : 3;
-        float[] tangentData       = GC.AllocateUninitializedArray<float>(vertexCount * tangentComponents);
-        float[]? biTangentData    = storeBiTangents ? GC.AllocateUninitializedArray<float>(vertexCount * 3) : null;
-
-        Span<Vector3> out3  = storeHandedness ? Span<Vector3>.Empty : MemoryMarshal.Cast<float, Vector3>(tangentData.AsSpan());
-        Span<Vector4> out4  = storeHandedness ? MemoryMarshal.Cast<float, Vector4>(tangentData.AsSpan()) : Span<Vector4>.Empty;
-        Span<Vector3> outBi = biTangentData is not null ? MemoryMarshal.Cast<float, Vector3>(biTangentData.AsSpan()) : Span<Vector3>.Empty;
-
-        OrthonormalizeAndStore(vertexCount, normals, tan1, tan2, out3, out4, outBi);
-
-        mesh.Tangents   = new DataBuffer<float>(tangentData, 1, tangentComponents);
-        mesh.BiTangents = biTangentData is not null ? new DataBuffer<float>(biTangentData, 1, 3) : null;
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> when all three indices reference valid, non-sentinel vertices.
-    /// </summary>
-    private static bool IsValidTriangle(int i0, int i1, int i2, int vertexCount)
-        => (uint)i0 < (uint)vertexCount && (uint)i1 < (uint)vertexCount && (uint)i2 < (uint)vertexCount;
+        => GenerateFrame(mesh, storeHandedness: false, storeBiTangents: storeBiTangents);
 
     /// <summary>
     /// Iterates all triangles and accumulates UV-derived raw tangent (<paramref name="tan1"/>) and
@@ -234,4 +182,56 @@ public static class MeshTangentFrame
                 outBi[j] = b2;
         }
     }
+    /// <summary>
+    /// Core implementation shared by all public entry-points. Generates tangent-frame data and assigns
+    /// <see cref="Mesh.Tangents"/> and, optionally, <see cref="Mesh.BiTangents"/> on the mesh.
+    /// </summary>
+    /// <param name="mesh">The mesh to generate tangent-frame data for.</param>
+    /// <param name="storeHandedness">When <see langword="true"/>, the tangent is stored as a four-component
+    /// vector whose W component encodes the handedness of the tangent frame (+1 or -1).</param>
+    /// <param name="storeBiTangents">When <see langword="true"/>, a separate bitangent buffer is assigned to <see cref="Mesh.BiTangents"/>.</param>
+    private static void GenerateFrame(Mesh mesh, bool storeHandedness, bool storeBiTangents)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+
+        if (mesh.Positions is not { } positions)
+            throw new InvalidOperationException("Mesh must have position data to generate a tangent frame.");
+
+        if (mesh.Normals is not { } normals)
+            throw new InvalidOperationException("Mesh must have normal data to generate a tangent frame.");
+
+        if (mesh.UVLayers is not { } uvLayers)
+            throw new InvalidOperationException("Mesh must have UV layer data to generate a tangent frame.");
+
+        if (mesh.FaceIndices is not { } faceIndices)
+            throw new InvalidOperationException("Mesh must have face index data to generate a tangent frame.");
+
+        int vertexCount = positions.ElementCount;
+        int faceCount   = faceIndices.ElementCount / 3;
+
+        // Accumulate raw UV-derived tangent and bitangent contributions per vertex.
+        Vector3[] tan1 = new Vector3[vertexCount];
+        Vector3[] tan2 = new Vector3[vertexCount];
+        AccumulateTangents(faceIndices, faceCount, positions, uvLayers, vertexCount, tan1, tan2);
+
+        int     tangentComponents = storeHandedness ? 4 : 3;
+        float[] tangentData       = GC.AllocateUninitializedArray<float>(vertexCount * tangentComponents);
+        float[]? biTangentData    = storeBiTangents ? GC.AllocateUninitializedArray<float>(vertexCount * 3) : null;
+
+        Span<Vector3> out3  = storeHandedness ? Span<Vector3>.Empty : MemoryMarshal.Cast<float, Vector3>(tangentData.AsSpan());
+        Span<Vector4> out4  = storeHandedness ? MemoryMarshal.Cast<float, Vector4>(tangentData.AsSpan()) : Span<Vector4>.Empty;
+        Span<Vector3> outBi = biTangentData is not null ? MemoryMarshal.Cast<float, Vector3>(biTangentData.AsSpan()) : Span<Vector3>.Empty;
+
+        OrthonormalizeAndStore(vertexCount, normals, tan1, tan2, out3, out4, outBi);
+
+        mesh.Tangents   = new DataBuffer<float>(tangentData, 1, tangentComponents);
+        mesh.BiTangents = biTangentData is not null ? new DataBuffer<float>(biTangentData, 1, 3) : null;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when all three indices reference valid, non-sentinel vertices.
+    /// </summary>
+    private static bool IsValidTriangle(int i0, int i1, int i2, int vertexCount)
+        => (uint)i0 < (uint)vertexCount && (uint)i1 < (uint)vertexCount && (uint)i2 < (uint)vertexCount;
+
 }

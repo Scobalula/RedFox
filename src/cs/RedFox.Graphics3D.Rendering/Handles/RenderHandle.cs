@@ -36,7 +36,7 @@ internal abstract class RenderHandle : IRenderHandle
             return;
         }
 
-        ReleaseCore();
+        ReleaseResources();
         _disposed = true;
     }
 
@@ -58,7 +58,7 @@ internal abstract class RenderHandle : IRenderHandle
     /// <summary>
     /// Releases handle-specific GPU resources.
     /// </summary>
-    protected virtual void ReleaseCore()
+    protected virtual void ReleaseResources()
     {
     }
 }

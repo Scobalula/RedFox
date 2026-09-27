@@ -13,12 +13,7 @@ namespace RedFox.GameExtraction.UI.Models;
 /// <param name="processName">The process name.</param>
 /// <param name="windowTitle">The process main window title.</param>
 /// <param name="matchingReaders">The matching source readers.</param>
-public sealed class ProcessCandidateViewModel(
-    AssetSourceRequest request,
-    int processId,
-    string processName,
-    string windowTitle,
-    IReadOnlyList<ProcessReaderViewModel> matchingReaders)
+public sealed class ProcessCandidateViewModel(AssetSourceRequest request, int processId, string processName, string windowTitle, IReadOnlyList<ProcessReaderViewModel> matchingReaders)
 {
     /// <summary>
     /// Gets the process source request.

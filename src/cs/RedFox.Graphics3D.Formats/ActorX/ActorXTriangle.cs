@@ -9,10 +9,4 @@ namespace RedFox.Graphics3D.Formats.ActorX;
 /// <param name="MaterialIndex">The index of the material assigned to this face.</param>
 /// <param name="AuxMaterialIndex">An auxiliary material index, unused by most tools.</param>
 /// <param name="SmoothingGroups">The smoothing-group bit mask for this face.</param>
-public readonly record struct ActorXTriangle(
-    int Wedge0,
-    int Wedge1,
-    int Wedge2,
-    byte MaterialIndex,
-    byte AuxMaterialIndex,
-    uint SmoothingGroups);
+public readonly record struct ActorXTriangle(int Wedge0, int Wedge1, int Wedge2, byte MaterialIndex, byte AuxMaterialIndex, uint SmoothingGroups);

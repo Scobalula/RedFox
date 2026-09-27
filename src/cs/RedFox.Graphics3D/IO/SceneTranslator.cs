@@ -52,11 +52,11 @@ public abstract class SceneTranslator
     /// Determines whether the specified file can be handled by this translator based on extension.
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
-    /// <param name="ext">The file extension, including the leading period.</param>
+    /// <param name="extension">The file extension, including the leading period.</param>
     /// <param name="context">The translation context.</param>
     /// <returns><see langword="true"/> if this translator supports the file; otherwise, <see langword="false"/>.</returns>
-    public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context) =>
-        Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
+    public virtual bool IsValid(string filePath, string extension, SceneTranslationContext context) =>
+        Extensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Determines whether the specified file can be handled by this translator based on extension and header magic.
@@ -64,12 +64,12 @@ public abstract class SceneTranslator
     /// the file to start with it.
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
-    /// <param name="ext">The file extension, including the leading period.</param>
+    /// <param name="extension">The file extension, including the leading period.</param>
     /// <param name="context">The translation context.</param>
     /// <param name="startOfFile">Initial bytes from the start of the file.</param>
     /// <returns><see langword="true"/> if this translator supports the file; otherwise, <see langword="false"/>.</returns>
-    public virtual bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
-        IsValid(filePath, ext, context) && (MagicValue.IsEmpty || startOfFile.StartsWith(MagicValue));
+    public virtual bool IsValid(string filePath, string extension, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
+        IsValid(filePath, extension, context) && (MagicValue.IsEmpty || startOfFile.StartsWith(MagicValue));
 
     /// <summary>
     /// Creates a <see cref="SceneTranslationContext"/> configured for a read operation.

@@ -18,7 +18,9 @@ public sealed class MeshNormalsTests
 
     // Builds a single CCW right-angled triangle in the XY plane.
     // Positions: (0,0,0), (1,0,0), (0,1,0).  Expected face normal: +Z.
-    private static Mesh CreateTriangle(FaceWinding order = FaceWinding.CounterClockwise)
+    private static Mesh CreateTriangle() => CreateTriangle(FaceWinding.CounterClockwise);
+
+    private static Mesh CreateTriangle(FaceWinding order)
     {
         Mesh mesh = new() { Name = "tri" };
         mesh.Positions = new DataBuffer<float>(

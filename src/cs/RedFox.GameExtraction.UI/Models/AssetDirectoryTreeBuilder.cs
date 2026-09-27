@@ -20,7 +20,7 @@ public static class AssetDirectoryTreeBuilder
     {
         ArgumentNullException.ThrowIfNull(rows);
 
-        MutableNode root = new(string.Empty, string.Empty, parent: null);
+        MutableAssetDirectoryNode root = new(string.Empty, string.Empty);
 
         foreach (AssetRowViewModel row in rows)
         {
@@ -32,7 +32,7 @@ public static class AssetDirectoryTreeBuilder
                 continue;
             }
 
-            MutableNode current = root;
+            MutableAssetDirectoryNode current = root;
             for (int i = 0; i < segments.Length - 1; i++)
             {
                 current = current.GetOrAddChild(segments[i]);
@@ -52,9 +52,7 @@ public static class AssetDirectoryTreeBuilder
     /// </summary>
     /// <param name="fileSystem">The virtual file system to mirror.</param>
     /// <param name="rows">The asset rows being displayed.</param>
-    public static AssetDirectoryNode BuildFromVirtualFileSystem(
-        VirtualFileSystem fileSystem,
-        IReadOnlyList<AssetRowViewModel> rows)
+    public static AssetDirectoryNode BuildFromVirtualFileSystem(VirtualFileSystem fileSystem, IReadOnlyList<AssetRowViewModel> rows)
     {
         ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentNullException.ThrowIfNull(rows);
@@ -73,7 +71,7 @@ public static class AssetDirectoryTreeBuilder
             }
         }
 
-        MutableNode root = new(string.Empty, string.Empty, parent: null);
+        MutableAssetDirectoryNode root = new(string.Empty, string.Empty);
         PopulateFromVirtualDirectory(root, fileSystem.Root, rowsByFile);
 
         foreach (AssetRowViewModel row in unmapped)
@@ -86,7 +84,7 @@ public static class AssetDirectoryTreeBuilder
                 continue;
             }
 
-            MutableNode current = root;
+            MutableAssetDirectoryNode current = root;
             for (int i = 0; i < segments.Length - 1; i++)
             {
                 current = current.GetOrAddChild(segments[i]);
@@ -98,10 +96,7 @@ public static class AssetDirectoryTreeBuilder
         return root.Freeze();
     }
 
-    private static void PopulateFromVirtualDirectory(
-        MutableNode node,
-        VirtualDirectory directory,
-        Dictionary<VirtualFile, AssetRowViewModel> rowsByFile)
+    private static void PopulateFromVirtualDirectory(MutableAssetDirectoryNode node, VirtualDirectory directory, Dictionary<VirtualFile, AssetRowViewModel> rowsByFile)
     {
         foreach (VirtualFile file in directory.Files)
         {
@@ -113,83 +108,9 @@ public static class AssetDirectoryTreeBuilder
 
         foreach (VirtualDirectory child in directory.Directories)
         {
-            MutableNode childNode = node.GetOrAddChild(child.Name);
+            MutableAssetDirectoryNode childNode = node.GetOrAddChild(child.Name);
             PopulateFromVirtualDirectory(childNode, child, rowsByFile);
         }
     }
 
-    private sealed class MutableNode
-    {
-        private readonly Dictionary<string, MutableNode> _childIndex = new(StringComparer.OrdinalIgnoreCase);
-
-        public MutableNode(string name, string fullPath, MutableNode? parent)
-        {
-            Name = name;
-            FullPath = fullPath;
-            Parent = parent;
-        }
-
-        public string Name { get; }
-
-        public string FullPath { get; }
-
-        public MutableNode? Parent { get; }
-
-        public List<MutableNode> Children { get; } = [];
-
-        public List<AssetRowViewModel> Files { get; } = [];
-
-        public MutableNode GetOrAddChild(string name)
-        {
-            if (_childIndex.TryGetValue(name, out MutableNode? existing))
-            {
-                return existing;
-            }
-
-            string childPath = string.IsNullOrEmpty(FullPath) ? name : $"{FullPath}/{name}";
-            MutableNode child = new(name, childPath, this);
-            _childIndex.Add(name, child);
-            Children.Add(child);
-            return child;
-        }
-
-        public AssetDirectoryNode Freeze()
-        {
-            AssetDirectoryNode node = FreezeRecursive();
-            SetParents(node, parent: null);
-            return node;
-        }
-
-        private static void SetParents(AssetDirectoryNode node, AssetDirectoryNode? parent)
-        {
-            node.Parent = parent;
-            for (int i = 0; i < node.Children.Count; i++)
-            {
-                SetParents(node.Children[i], node);
-            }
-        }
-
-        private AssetDirectoryNode FreezeRecursive()
-        {
-            Children.Sort(static (a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-            Files.Sort(static (a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
-
-            AssetDirectoryNode[] frozenChildren = new AssetDirectoryNode[Children.Count];
-            int recursiveCount = Files.Count;
-            for (int i = 0; i < Children.Count; i++)
-            {
-                AssetDirectoryNode frozenChild = Children[i].FreezeRecursive();
-                frozenChildren[i] = frozenChild;
-                recursiveCount += frozenChild.RecursiveFileCount;
-            }
-
-            return new AssetDirectoryNode(
-                Name,
-                FullPath,
-                parent: null,
-                frozenChildren,
-                Files,
-                recursiveCount);
-        }
-    }
 }

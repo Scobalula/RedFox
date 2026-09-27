@@ -40,5 +40,5 @@ public static class Md5Format
     /// <param name="v">The value to format.</param>
     /// <returns>A fixed-precision invariant-culture numeric string.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string F(float v) => v.ToString("G10", CultureInfo.InvariantCulture);
+    public static string FormatFloat(float value) => value.ToString("G10", CultureInfo.InvariantCulture);
 }

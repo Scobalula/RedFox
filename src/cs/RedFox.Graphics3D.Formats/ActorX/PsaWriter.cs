@@ -73,11 +73,7 @@ public sealed class PsaWriter
         writer.Write(frameCount);  // NumRawFrames
     }
 
-    private static void WriteKeys(
-        BinaryWriter writer,
-        SkeletonBone[] bones,
-        Dictionary<string, SkeletonAnimationTrack> trackByName,
-        int frameCount)
+    private static void WriteKeys(BinaryWriter writer, SkeletonBone[] bones, Dictionary<string, SkeletonAnimationTrack> trackByName, int frameCount)
     {
         ActorXChunkHeader.Write(writer, ActorXChunkId.AnimationKeys, ActorXBinary.Version, 32, frameCount * bones.Length);
 

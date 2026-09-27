@@ -217,6 +217,26 @@ namespace RedFox.Graphics3D
             return AnimationPlayers;
         }
 
+        internal void NotifyChanged(SceneChangeKind kind, SceneNode? node)
+        {
+            Version++;
+            Changed?.Invoke(this, new SceneChangedEventArgs(kind, node, Version));
+        }
+
+        /// <inheritdoc/>
+        public override string ToString() => Name;
+
+        /// <summary>
+        /// Creates a new scene from a node.
+        /// </summary>
+        /// <param name="node">The node to use as the root of the new scene.</param>
+        /// <returns>A new scene with the specified node.</returns>
+        public static Scene CreateFromNode(SceneNode node)
+        {
+            var scene = new Scene(node.Name);
+            node.MoveTo(scene);
+            return scene;
+        }
         private static SceneNode? ResolveSkeletonBoneRoot(SkeletonAnimation animation, IReadOnlyList<SceneNode> boneRoots)
         {
             if (boneRoots.Count == 0)
@@ -253,25 +273,5 @@ namespace RedFox.Graphics3D
             return bestMatchCount > 0 ? bestRoot : null;
         }
 
-        internal void NotifyChanged(SceneChangeKind kind, SceneNode? node)
-        {
-            Version++;
-            Changed?.Invoke(this, new SceneChangedEventArgs(kind, node, Version));
-        }
-
-        /// <inheritdoc/>
-        public override string ToString() => Name;
-
-        /// <summary>
-        /// Creates a new scene from a node.
-        /// </summary>
-        /// <param name="node">The node to use as the root of the new scene.</param>
-        /// <returns>A new scene with the specified node.</returns>
-        public static Scene CreateFromNode(SceneNode node)
-        {
-            var scene = new Scene(node.Name);
-            node.MoveTo(scene);
-            return scene;
-        }
     }
 }

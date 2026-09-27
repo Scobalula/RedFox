@@ -15,56 +15,56 @@ internal static class TiffCompressor
     /// <summary>
     /// Compresses data using the PackBits (byte-oriented RLE) scheme.
     /// </summary>
-    /// <param name="src">The uncompressed input data.</param>
+    /// <param name="sourceData">The uncompressed input data.</param>
     /// <returns>A byte array containing the PackBits-compressed data.</returns>
-    public static byte[] CompressPackBits(ReadOnlySpan<byte> src)
+    public static byte[] CompressPackBits(ReadOnlySpan<byte> sourceData)
     {
-        int worstCase = Math.Max(4, src.Length * 2);
-        var outBuf = ArrayPool<byte>.Shared.Rent(worstCase);
+        int worstCase = Math.Max(4, sourceData.Length * 2);
+        var outputBuffer = ArrayPool<byte>.Shared.Rent(worstCase);
         try
         {
             int pos = 0;
             int outPos = 0;
 
-            while (pos < src.Length)
+            while (pos < sourceData.Length)
             {
-                if (pos + 1 < src.Length && src[pos] == src[pos + 1])
+                if (pos + 1 < sourceData.Length && sourceData[pos] == sourceData[pos + 1])
                 {
-                    byte value = src[pos];
+                    byte value = sourceData[pos];
                     int runLen = 2;
-                    while (pos + runLen < src.Length && runLen < 128 && src[pos + runLen] == value)
+                    while (pos + runLen < sourceData.Length && runLen < 128 && sourceData[pos + runLen] == value)
                         runLen++;
 
                     // Header byte: (byte)(1 - runLen), which is -(runLen - 1) stored as sbyte.
-                    outBuf[outPos++] = (byte)(1 - runLen);
-                    outBuf[outPos++] = value;
+                    outputBuffer[outPos++] = (byte)(1 - runLen);
+                    outputBuffer[outPos++] = value;
                     pos += runLen;
                 }
                 else
                 {
                     int litStart = pos;
                     int litLen = 1;
-                    while (litLen < 128 && pos + litLen < src.Length)
+                    while (litLen < 128 && pos + litLen < sourceData.Length)
                     {
-                        if (pos + litLen + 1 < src.Length && src[pos + litLen] == src[pos + litLen + 1])
+                        if (pos + litLen + 1 < sourceData.Length && sourceData[pos + litLen] == sourceData[pos + litLen + 1])
                             break;
                         litLen++;
                     }
 
-                    outBuf[outPos++] = (byte)(litLen - 1);
-                    src.Slice(litStart, litLen).CopyTo(outBuf.AsSpan(outPos));
+                    outputBuffer[outPos++] = (byte)(litLen - 1);
+                    sourceData.Slice(litStart, litLen).CopyTo(outputBuffer.AsSpan(outPos));
                     outPos += litLen;
                     pos += litLen;
                 }
             }
 
             var result = new byte[outPos];
-            Array.Copy(outBuf, result, outPos);
+            Array.Copy(outputBuffer, result, outPos);
             return result;
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(outBuf);
+            ArrayPool<byte>.Shared.Return(outputBuffer);
         }
     }
 
@@ -72,84 +72,54 @@ internal static class TiffCompressor
     /// Compresses data using TIFF LZW with MSB-first bit packing.
     /// Produces output conforming to the TIFF 6.0 LZW specification.
     /// </summary>
-    /// <param name="src">The uncompressed input data.</param>
+    /// <param name="sourceData">The uncompressed input data.</param>
     /// <returns>A byte array containing the LZW-compressed data.</returns>
-    public static byte[] CompressLZW(ReadOnlySpan<byte> src)
+    public static byte[] CompressLZW(ReadOnlySpan<byte> sourceData)
     {
-        if (src.Length == 0)
+        if (sourceData.Length == 0)
         {
-            var emptyBuf = new byte[3];
-            var smallWriter = new TiffBitWriter(emptyBuf);
+            var emptyOutputBuffer = new byte[3];
+            var smallWriter = new TiffBitWriter(emptyOutputBuffer);
             smallWriter.Write(TiffConstants.LzwClearCode, TiffConstants.LzwInitialCodeSize);
             smallWriter.Write(TiffConstants.LzwEoiCode, TiffConstants.LzwInitialCodeSize);
-            int b = smallWriter.Flush();
-            var res = new byte[b];
-            Array.Copy(emptyBuf, res, b);
-            return res;
+            int bytesWritten = smallWriter.Flush();
+            var result = new byte[bytesWritten];
+            Array.Copy(emptyOutputBuffer, result, bytesWritten);
+            return result;
         }
 
-        int initialOutput = Math.Max(512, src.Length * 2 + 512);
+        int initialOutput = Math.Max(512, sourceData.Length * 2 + 512);
         var output = ArrayPool<byte>.Shared.Rent(initialOutput);
 
         int tableCapacity = 8192;
         var hashKeys = ArrayPool<long>.Shared.Rent(tableCapacity);
         var hashValues = ArrayPool<int>.Shared.Rent(tableCapacity);
-        int nextCode;
-        int codeSize;
-
-        void ResetTable()
-        {
-            Array.Fill(hashKeys, -1L, 0, tableCapacity);
-            nextCode = TiffConstants.LzwFirstCode;
-            codeSize = TiffConstants.LzwInitialCodeSize;
-        }
-
-        int FindOrInsert(int prefix, byte suffix)
-        {
-            long key = ((long)prefix << 8) | suffix;
-            int mask = tableCapacity - 1;
-            int slot = (int)((uint)(key * 2654435761L) >> 19) & mask;
-
-            while (true)
-            {
-                if (hashKeys[slot] == key)
-                    return hashValues[slot];
-                if (hashKeys[slot] == -1L)
-                {
-                    if (nextCode < TiffConstants.LzwMaxTableSize)
-                    {
-                        hashKeys[slot] = key;
-                        hashValues[slot] = nextCode++;
-                    }
-                    return -1;
-                }
-                slot = (slot + 1) & mask;
-            }
-        }
+        int nextCode = 0;
+        int codeSize = 0;
 
         var writer = new TiffBitWriter(output);
 
         try
         {
-            ResetTable();
+            ResetLzwTable(hashKeys, tableCapacity, ref nextCode, ref codeSize);
 
             writer.Write(TiffConstants.LzwClearCode, TiffConstants.LzwInitialCodeSize);
 
-            int w = src[0];
-            int srcPos = 1;
+            int prefixCode = sourceData[0];
+            int sourcePosition = 1;
 
-            while (srcPos < src.Length)
+            while (sourcePosition < sourceData.Length)
             {
-                byte k = src[srcPos++];
-                int code = FindOrInsert(w, k);
+                byte nextByte = sourceData[sourcePosition++];
+                int code = FindOrInsertLzwCode(hashKeys, hashValues, tableCapacity, ref nextCode, prefixCode, nextByte);
 
                 if (code >= 0)
                 {
-                    w = code;
+                    prefixCode = code;
                 }
                 else
                 {
-                    writer.Write(w, codeSize);
+                    writer.Write(prefixCode, codeSize);
 
                     // TIFF LZW uses the historical Aldus off-by-one code-size transition.
                     if (nextCode >= ((1 << codeSize) - 1) && codeSize < TiffConstants.LzwMaxCodeSize)
@@ -158,14 +128,14 @@ internal static class TiffCompressor
                     if (nextCode >= TiffConstants.LzwMaxTableSize)
                     {
                         writer.Write(TiffConstants.LzwClearCode, codeSize);
-                        ResetTable();
+                        ResetLzwTable(hashKeys, tableCapacity, ref nextCode, ref codeSize);
                     }
 
-                    w = k;
+                    prefixCode = nextByte;
                 }
             }
 
-            writer.Write(w, codeSize);
+            writer.Write(prefixCode, codeSize);
             writer.Write(TiffConstants.LzwEoiCode, codeSize);
 
             int totalBytes = writer.Flush();
@@ -184,16 +154,46 @@ internal static class TiffCompressor
     /// <summary>
     /// Compresses data using Deflate/ZIP compression.
     /// </summary>
-    /// <param name="src">The uncompressed input data.</param>
+    /// <param name="sourceData">The uncompressed input data.</param>
     /// <returns>A byte array containing the Deflate-compressed data.</returns>
-    public static byte[] CompressDeflate(ReadOnlySpan<byte> src)
+    public static byte[] CompressDeflate(ReadOnlySpan<byte> sourceData)
     {
         using MemoryStream output = new();
         using (ZLibStream compressor = new(output, CompressionLevel.Optimal, leaveOpen: true))
         {
-            compressor.Write(src);
+            compressor.Write(sourceData);
         }
 
         return output.ToArray();
+    }
+
+    private static void ResetLzwTable(long[] hashKeys, int tableCapacity, ref int nextCode, ref int codeSize)
+    {
+        Array.Fill(hashKeys, -1L, 0, tableCapacity);
+        nextCode = TiffConstants.LzwFirstCode;
+        codeSize = TiffConstants.LzwInitialCodeSize;
+    }
+
+    private static int FindOrInsertLzwCode(long[] hashKeys, int[] hashValues, int tableCapacity, ref int nextCode, int prefix, byte suffix)
+    {
+        long key = ((long)prefix << 8) | suffix;
+        int mask = tableCapacity - 1;
+        int slot = (int)((uint)(key * 2654435761L) >> 19) & mask;
+
+        while (true)
+        {
+            if (hashKeys[slot] == key)
+                return hashValues[slot];
+            if (hashKeys[slot] == -1L)
+            {
+                if (nextCode < TiffConstants.LzwMaxTableSize)
+                {
+                    hashKeys[slot] = key;
+                    hashValues[slot] = nextCode++;
+                }
+                return -1;
+            }
+            slot = (slot + 1) & mask;
+        }
     }
 }

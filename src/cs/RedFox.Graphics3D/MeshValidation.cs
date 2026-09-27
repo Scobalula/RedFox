@@ -76,12 +76,12 @@ public static class MeshValidation
             // Index range validation (always performed).
             for (int point = 0; point < 3; point++)
             {
-                int idx = faceIndices.Get<int>(face * 3 + point, 0, 0);
-                if (idx < 0 || (uint)idx >= (uint)vertexCount)
+                int vertexIndex = faceIndices.Get<int>(face * 3 + point, 0, 0);
+                if (vertexIndex < 0 || (uint)vertexIndex >= (uint)vertexCount)
                 {
                     if (messages is null) return false;
                     valid = false;
-                    messages.AppendLine($"An invalid index value ({idx}) was found on face {face}.");
+                    messages.AppendLine($"An invalid index value ({vertexIndex}) was found on face {face}.");
                 }
 
                 if (adjacency is not null)

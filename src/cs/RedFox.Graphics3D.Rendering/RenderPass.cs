@@ -4,7 +4,7 @@ namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Optional convenience base class for <see cref="IRenderPass"/> implementations that do not need
-/// resize handling or initialization. Implementations override <see cref="ExecuteCore"/>.
+/// resize handling or initialization. Implementations override <see cref="ExecutePass"/>.
 /// </summary>
 public abstract class RenderPass : IRenderPass
 {
@@ -33,14 +33,8 @@ public abstract class RenderPass : IRenderPass
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(context);
-        ExecuteCore(context);
+        ExecutePass(context);
     }
-
-    /// <summary>
-    /// Performs the pass's work. Called only when <see cref="Enabled"/> is <see langword="true"/>.
-    /// </summary>
-    /// <param name="context">The frame context.</param>
-    protected abstract void ExecuteCore(RenderFrameContext context);
 
     /// <inheritdoc/>
     public void Dispose()
@@ -50,15 +44,21 @@ public abstract class RenderPass : IRenderPass
             return;
         }
 
-        DisposeCore();
+        DisposeResources();
         _disposed = true;
         GC.SuppressFinalize(this);
     }
 
     /// <summary>
+    /// Performs the pass's work. Called only when <see cref="Enabled"/> is <see langword="true"/>.
+    /// </summary>
+    /// <param name="context">The frame context.</param>
+    protected abstract void ExecutePass(RenderFrameContext context);
+
+    /// <summary>
     /// Releases pass-owned resources. Default implementation is a no-op.
     /// </summary>
-    protected virtual void DisposeCore()
+    protected virtual void DisposeResources()
     {
     }
 

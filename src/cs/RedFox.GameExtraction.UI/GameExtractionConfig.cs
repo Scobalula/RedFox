@@ -1,4 +1,3 @@
-using Avalonia.Controls;
 using RedFox.GameExtraction;
 using RedFox.GameExtraction.UI.ViewModels;
 
@@ -114,9 +113,9 @@ public sealed class GameExtractionConfig
     public required IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; init; }
 
     /// <summary>
-    /// Gets the control selector used to build a preview surface for the current preview state.
+    /// Gets the factory used to build preview content for the current preview state.
     /// </summary>
-    public required Func<MainWindowViewModel, Control?> PreviewControlFactory { get; init; }
+    public required Func<MainWindowViewModel, object?> PreviewContentFactory { get; init; }
 
     /// <summary>
     /// Gets the optional About window configuration with description and links.

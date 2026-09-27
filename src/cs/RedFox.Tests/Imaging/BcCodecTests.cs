@@ -174,11 +174,7 @@ public sealed class BcCodecTests
         return pixels;
     }
 
-    private static void AssertBlockErrorWithinTolerance(
-        ReadOnlySpan<Vector4> expected,
-        ReadOnlySpan<Vector4> actual,
-        float maxAbsoluteError,
-        float maxAverageAbsoluteError)
+    private static void AssertBlockErrorWithinTolerance(ReadOnlySpan<Vector4> expected, ReadOnlySpan<Vector4> actual, float maxAbsoluteError, float maxAverageAbsoluteError)
     {
         float worstError = 0f;
         float totalError = 0f;

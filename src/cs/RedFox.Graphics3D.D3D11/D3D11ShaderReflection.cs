@@ -25,7 +25,7 @@ internal static unsafe class D3D11ShaderReflection
             {
                 D3D11ShaderStageFlags stageFlags = GetStageFlags(stage);
                 ShaderDesc shaderDesc = default;
-                D3D11Helpers.ThrowIfFailed(reflection.Handle->GetDesc(ref shaderDesc), "ID3D11ShaderReflection::GetDesc");
+                D3D11Support.ThrowIfFailed(reflection.Handle->GetDesc(ref shaderDesc), "ID3D11ShaderReflection::GetDesc");
                 return new D3D11ShaderReflectionResult(
                     ReflectConstantBuffers(reflection.Handle, in shaderDesc, stageFlags),
                     ReflectResourceBindings(reflection.Handle, in shaderDesc, stageFlags));
@@ -44,7 +44,7 @@ internal static unsafe class D3D11ShaderReflection
         {
             ID3D11ShaderReflectionConstantBuffer* constantBuffer = reflection->GetConstantBufferByIndex(bufferIndex);
             ShaderBufferDesc bufferDesc = default;
-            D3D11Helpers.ThrowIfFailed(constantBuffer->GetDesc(ref bufferDesc), "ID3D11ShaderReflectionConstantBuffer::GetDesc");
+            D3D11Support.ThrowIfFailed(constantBuffer->GetDesc(ref bufferDesc), "ID3D11ShaderReflectionConstantBuffer::GetDesc");
 
             string bufferName = ReadString(bufferDesc.Name);
             int slot = ResolveConstantBufferSlot(reflection, in shaderDesc, bufferName);
@@ -73,7 +73,7 @@ internal static unsafe class D3D11ShaderReflection
         for (uint resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
         {
             ShaderInputBindDesc bindDesc = default;
-            D3D11Helpers.ThrowIfFailed(reflection->GetResourceBindingDesc(resourceIndex, ref bindDesc), "ID3D11ShaderReflection::GetResourceBindingDesc");
+            D3D11Support.ThrowIfFailed(reflection->GetResourceBindingDesc(resourceIndex, ref bindDesc), "ID3D11ShaderReflection::GetResourceBindingDesc");
 
             string name = ReadString(bindDesc.Name);
             if (string.IsNullOrWhiteSpace(name))
@@ -96,11 +96,11 @@ internal static unsafe class D3D11ShaderReflection
     private static D3D11ShaderVariableLayout ReflectVariable(ID3D11ShaderReflectionVariable* shaderVariable)
     {
         ShaderVariableDesc variableDesc = default;
-        D3D11Helpers.ThrowIfFailed(shaderVariable->GetDesc(ref variableDesc), "ID3D11ShaderReflectionVariable::GetDesc");
+        D3D11Support.ThrowIfFailed(shaderVariable->GetDesc(ref variableDesc), "ID3D11ShaderReflectionVariable::GetDesc");
 
         ID3D11ShaderReflectionType* shaderType = shaderVariable->GetType();
         ShaderTypeDesc typeDesc = default;
-        D3D11Helpers.ThrowIfFailed(shaderType->GetDesc(ref typeDesc), "ID3D11ShaderReflectionType::GetDesc");
+        D3D11Support.ThrowIfFailed(shaderType->GetDesc(ref typeDesc), "ID3D11ShaderReflectionType::GetDesc");
 
         bool isMatrix = IsMatrix(typeDesc.Class);
         int componentCount = isMatrix
@@ -131,7 +131,7 @@ internal static unsafe class D3D11ShaderReflection
         for (uint resourceIndex = 0; resourceIndex < shaderDesc.BoundResources; resourceIndex++)
         {
             ShaderInputBindDesc bindDesc = default;
-            D3D11Helpers.ThrowIfFailed(reflection->GetResourceBindingDesc(resourceIndex, ref bindDesc), "ID3D11ShaderReflection::GetResourceBindingDesc");
+            D3D11Support.ThrowIfFailed(reflection->GetResourceBindingDesc(resourceIndex, ref bindDesc), "ID3D11ShaderReflection::GetResourceBindingDesc");
             if (ReadString(bindDesc.Name).Equals(bufferName, StringComparison.Ordinal))
             {
                 return checked((int)bindDesc.BindPoint);

@@ -180,8 +180,8 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             if (componentIndex < 0 || componentIndex >= TPacked.ComponentCount)
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {TPacked.ComponentCount}.");
 
-            var idx = elementIndex * _valueCount + valueIndex;
-            var value = GetScaledComponent(ref _items[idx], componentIndex);
+            var itemIndex = elementIndex * _valueCount + valueIndex;
+            var value = GetScaledComponent(ref _items[itemIndex], componentIndex);
 
             if (typeof(TResult) == typeof(float))
                 return Unsafe.As<float, TResult>(ref value);
@@ -199,10 +199,10 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             if (componentIndex < 0 || componentIndex >= TPacked.ComponentCount)
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {TPacked.ComponentCount}.");
 
-            var idx = elementIndex * _valueCount + valueIndex;
+            var itemIndex = elementIndex * _valueCount + valueIndex;
             var floatValue = typeof(TInput) == typeof(float) ? Unsafe.As<TInput, float>(ref value) : float.CreateSaturating(value);
 
-            SetComponentInternal(idx, componentIndex, floatValue);
+            SetComponentInternal(itemIndex, componentIndex, floatValue);
         }
 
         /// <inheritdoc/>
@@ -225,12 +225,12 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             if (componentIndex < 0 || componentIndex >= TPacked.ComponentCount)
                 throw new ArgumentOutOfRangeException(nameof(componentIndex), $"Component index must be between 0 and {TPacked.ComponentCount}.");
 
-            var idx = elementIndex * _valueCount + valueIndex;
-            EnsureCapacity(Math.Max(idx + 1, (elementIndex + 1) * _valueCount));
+            var itemIndex = elementIndex * _valueCount + valueIndex;
+            EnsureCapacity(Math.Max(itemIndex + 1, (elementIndex + 1) * _valueCount));
 
             var floatValue = typeof(TInput) == typeof(float) ? Unsafe.As<TInput, float>(ref value) : float.CreateSaturating(value);
 
-            SetComponentInternal(idx, componentIndex, floatValue);
+            SetComponentInternal(itemIndex, componentIndex, floatValue);
 
             if (elementIndex == _elementCount)
                 _elementCount++;

@@ -9,7 +9,9 @@ public class PackedVectorTests
 {
     private const float Epsilon = 0.001f;
 
-    private static bool ApproxEqual(Vector4 a, Vector4 b, float epsilon = Epsilon)
+    private static bool ApproxEqual(Vector4 a, Vector4 b) => ApproxEqual(a, b, Epsilon);
+
+    private static bool ApproxEqual(Vector4 a, Vector4 b, float epsilon)
     {
         return MathF.Abs(a.X - b.X) < epsilon
             && MathF.Abs(a.Y - b.Y) < epsilon
@@ -17,7 +19,9 @@ public class PackedVectorTests
             && MathF.Abs(a.W - b.W) < epsilon;
     }
 
-    private static void AssertRoundtrip<TPacked>(Vector4 input, float epsilon = Epsilon) where TPacked : unmanaged, IPackedVector<TPacked>
+    private static void AssertRoundtrip<TPacked>(Vector4 input) where TPacked : unmanaged, IPackedVector<TPacked> => AssertRoundtrip<TPacked>(input, Epsilon);
+
+    private static void AssertRoundtrip<TPacked>(Vector4 input, float epsilon) where TPacked : unmanaged, IPackedVector<TPacked>
     {
         var packed = default(TPacked);
         packed.Pack(input);

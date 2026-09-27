@@ -8,30 +8,20 @@ namespace RedFox.Imaging.Codecs;
 /// Codec for <see cref="ImageFormat.R8G8Typeless"/>, <see cref="ImageFormat.R8G8Unorm"/>, <see cref="ImageFormat.R8G8Uint"/>, <see cref="ImageFormat.R8G8Snorm"/>, and <see cref="ImageFormat.R8G8Sint"/>.
 /// Unsigned variants decode to [0, 1] and signed variants (Snorm, Sint) to [-1, 1].
 /// </summary>
-public sealed class R8G8Codec : IPixelCodec
+/// <param name="format">The image format this codec handles.</param>
+public sealed class R8G8Codec(ImageFormat format) : IPixelCodec
 {
-    private readonly ComponentKind _kind;
+    private readonly ComponentKind _kind = ComponentEncoding.GetKind(format);
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.R8G8Typeless or ImageFormat.R8G8Unorm or ImageFormat.R8G8Uint or ImageFormat.R8G8Snorm or ImageFormat.R8G8Sint => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R8G8Codec supports only R8G8Typeless, R8G8Unorm, R8G8Uint, R8G8Snorm, and R8G8Sint."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 2;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="R8G8Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec handles.</param>
-    public R8G8Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.R8G8Typeless or ImageFormat.R8G8Unorm or ImageFormat.R8G8Uint or ImageFormat.R8G8Snorm or ImageFormat.R8G8Sint => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R8G8Codec supports only R8G8Typeless, R8G8Unorm, R8G8Uint, R8G8Snorm, and R8G8Sint."),
-        };
-
-        _kind = ComponentEncoding.GetKind(format);
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)

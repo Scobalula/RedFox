@@ -18,15 +18,7 @@ public readonly ref struct GpuBufferData
     /// <param name="elementStrideBytes">The byte stride between logical source elements.</param>
     /// <param name="valueStrideBytes">The byte stride between values within a logical source element.</param>
     /// <param name="componentSizeBytes">The size of a single scalar or packed component in bytes.</param>
-    public GpuBufferData(
-        ReadOnlySpan<byte> bytes,
-        GpuBufferElementType elementType,
-        int elementCount,
-        int valueCount,
-        int componentCount,
-        int elementStrideBytes,
-        int valueStrideBytes,
-        int componentSizeBytes)
+    public GpuBufferData(ReadOnlySpan<byte> bytes, GpuBufferElementType elementType, int elementCount, int valueCount, int componentCount, int elementStrideBytes, int valueStrideBytes, int componentSizeBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(elementCount);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(valueCount);

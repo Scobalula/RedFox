@@ -15,12 +15,12 @@ internal static class TiffPixelConverter
     /// Converts decoded 8-bit TIFF sample data to interleaved RGBA8 output.
     /// Handles grayscale (1 sample), grayscale+alpha (2), RGB (3), and RGBA (4+) layouts.
     /// </summary>
-    /// <param name="src">Source pixel data in the TIFF sample layout.</param>
-    /// <param name="dst">Destination buffer for RGBA8 output (4 bytes per pixel).</param>
+    /// <param name="source">Source pixel data in the TIFF sample layout.</param>
+    /// <param name="destination">Destination buffer for RGBA8 output (4 bytes per pixel).</param>
     /// <param name="pixelCount">Total number of pixels to convert.</param>
     /// <param name="samplesPerPixel">Number of samples per pixel in the source data.</param>
     /// <param name="photometric">Photometric interpretation (0 = MinIsWhite, 1 = MinIsBlack, 2 = RGB).</param>
-    public static void ConvertToRgba8(ReadOnlySpan<byte> src, Span<byte> dst, int pixelCount, int samplesPerPixel, int photometric)
+    public static void ConvertToRgba8(ReadOnlySpan<byte> source, Span<byte> destination, int pixelCount, int samplesPerPixel, int photometric)
     {
         for (int i = 0; i < pixelCount; i++)
         {
@@ -30,30 +30,30 @@ internal static class TiffPixelConverter
             switch (samplesPerPixel)
             {
                 case 1:
-                    byte gray = photometric == 0 ? (byte)(255 - src[sourceOffset]) : src[sourceOffset];
-                    dst[destinationOffset + 0] = gray;
-                    dst[destinationOffset + 1] = gray;
-                    dst[destinationOffset + 2] = gray;
-                    dst[destinationOffset + 3] = 255;
+                    byte gray = photometric == 0 ? (byte)(255 - source[sourceOffset]) : source[sourceOffset];
+                    destination[destinationOffset + 0] = gray;
+                    destination[destinationOffset + 1] = gray;
+                    destination[destinationOffset + 2] = gray;
+                    destination[destinationOffset + 3] = 255;
                     break;
                 case 2:
-                    byte grayAlpha = photometric == 0 ? (byte)(255 - src[sourceOffset]) : src[sourceOffset];
-                    dst[destinationOffset + 0] = grayAlpha;
-                    dst[destinationOffset + 1] = grayAlpha;
-                    dst[destinationOffset + 2] = grayAlpha;
-                    dst[destinationOffset + 3] = src[sourceOffset + 1];
+                    byte grayAlpha = photometric == 0 ? (byte)(255 - source[sourceOffset]) : source[sourceOffset];
+                    destination[destinationOffset + 0] = grayAlpha;
+                    destination[destinationOffset + 1] = grayAlpha;
+                    destination[destinationOffset + 2] = grayAlpha;
+                    destination[destinationOffset + 3] = source[sourceOffset + 1];
                     break;
                 case 3:
-                    dst[destinationOffset + 0] = src[sourceOffset + 0];
-                    dst[destinationOffset + 1] = src[sourceOffset + 1];
-                    dst[destinationOffset + 2] = src[sourceOffset + 2];
-                    dst[destinationOffset + 3] = 255;
+                    destination[destinationOffset + 0] = source[sourceOffset + 0];
+                    destination[destinationOffset + 1] = source[sourceOffset + 1];
+                    destination[destinationOffset + 2] = source[sourceOffset + 2];
+                    destination[destinationOffset + 3] = 255;
                     break;
                 default:
-                    dst[destinationOffset + 0] = src[sourceOffset + 0];
-                    dst[destinationOffset + 1] = src[sourceOffset + 1];
-                    dst[destinationOffset + 2] = src[sourceOffset + 2];
-                    dst[destinationOffset + 3] = src[sourceOffset + 3];
+                    destination[destinationOffset + 0] = source[sourceOffset + 0];
+                    destination[destinationOffset + 1] = source[sourceOffset + 1];
+                    destination[destinationOffset + 2] = source[sourceOffset + 2];
+                    destination[destinationOffset + 3] = source[sourceOffset + 3];
                     break;
             }
         }
@@ -63,13 +63,13 @@ internal static class TiffPixelConverter
     /// Converts decoded 16-bit TIFF sample data to interleaved RGBA8 output
     /// by taking the high byte of each 16-bit sample.
     /// </summary>
-    /// <param name="src">Source pixel data with 16-bit samples.</param>
-    /// <param name="dst">Destination buffer for RGBA8 output (4 bytes per pixel).</param>
+    /// <param name="source">Source pixel data with 16-bit samples.</param>
+    /// <param name="destination">Destination buffer for RGBA8 output (4 bytes per pixel).</param>
     /// <param name="pixelCount">Total number of pixels to convert.</param>
     /// <param name="samplesPerPixel">Number of samples per pixel in the source data.</param>
     /// <param name="photometric">Photometric interpretation.</param>
     /// <param name="littleEndian"><see langword="true"/> for little-endian sample byte order.</param>
-    public static void ConvertToRgba16(ReadOnlySpan<byte> src, Span<byte> dst, int pixelCount, int samplesPerPixel, int photometric, bool littleEndian)
+    public static void ConvertToRgba16(ReadOnlySpan<byte> source, Span<byte> destination, int pixelCount, int samplesPerPixel, int photometric, bool littleEndian)
     {
         for (int i = 0; i < pixelCount; i++)
         {
@@ -80,42 +80,42 @@ internal static class TiffPixelConverter
             {
                 case 1:
                 {
-                    ushort gray16 = Read16(src, sourceOffset, littleEndian);
+                    ushort gray16 = Read16(source, sourceOffset, littleEndian);
                     byte gray = (byte)(gray16 >> 8);
                     if (photometric == 0)
                         gray = (byte)(255 - gray);
 
-                    dst[destinationOffset + 0] = gray;
-                    dst[destinationOffset + 1] = gray;
-                    dst[destinationOffset + 2] = gray;
-                    dst[destinationOffset + 3] = 255;
+                    destination[destinationOffset + 0] = gray;
+                    destination[destinationOffset + 1] = gray;
+                    destination[destinationOffset + 2] = gray;
+                    destination[destinationOffset + 3] = 255;
                     break;
                 }
                 case 2:
                 {
-                    ushort gray16 = Read16(src, sourceOffset, littleEndian);
-                    ushort alpha16 = Read16(src, sourceOffset + 2, littleEndian);
+                    ushort gray16 = Read16(source, sourceOffset, littleEndian);
+                    ushort alpha16 = Read16(source, sourceOffset + 2, littleEndian);
                     byte gray = (byte)(gray16 >> 8);
                     if (photometric == 0)
                         gray = (byte)(255 - gray);
 
-                    dst[destinationOffset + 0] = gray;
-                    dst[destinationOffset + 1] = gray;
-                    dst[destinationOffset + 2] = gray;
-                    dst[destinationOffset + 3] = (byte)(alpha16 >> 8);
+                    destination[destinationOffset + 0] = gray;
+                    destination[destinationOffset + 1] = gray;
+                    destination[destinationOffset + 2] = gray;
+                    destination[destinationOffset + 3] = (byte)(alpha16 >> 8);
                     break;
                 }
                 case 3:
-                    dst[destinationOffset + 0] = (byte)(Read16(src, sourceOffset, littleEndian) >> 8);
-                    dst[destinationOffset + 1] = (byte)(Read16(src, sourceOffset + 2, littleEndian) >> 8);
-                    dst[destinationOffset + 2] = (byte)(Read16(src, sourceOffset + 4, littleEndian) >> 8);
-                    dst[destinationOffset + 3] = 255;
+                    destination[destinationOffset + 0] = (byte)(Read16(source, sourceOffset, littleEndian) >> 8);
+                    destination[destinationOffset + 1] = (byte)(Read16(source, sourceOffset + 2, littleEndian) >> 8);
+                    destination[destinationOffset + 2] = (byte)(Read16(source, sourceOffset + 4, littleEndian) >> 8);
+                    destination[destinationOffset + 3] = 255;
                     break;
                 default:
-                    dst[destinationOffset + 0] = (byte)(Read16(src, sourceOffset, littleEndian) >> 8);
-                    dst[destinationOffset + 1] = (byte)(Read16(src, sourceOffset + 2, littleEndian) >> 8);
-                    dst[destinationOffset + 2] = (byte)(Read16(src, sourceOffset + 4, littleEndian) >> 8);
-                    dst[destinationOffset + 3] = (byte)(Read16(src, sourceOffset + 6, littleEndian) >> 8);
+                    destination[destinationOffset + 0] = (byte)(Read16(source, sourceOffset, littleEndian) >> 8);
+                    destination[destinationOffset + 1] = (byte)(Read16(source, sourceOffset + 2, littleEndian) >> 8);
+                    destination[destinationOffset + 2] = (byte)(Read16(source, sourceOffset + 4, littleEndian) >> 8);
+                    destination[destinationOffset + 3] = (byte)(Read16(source, sourceOffset + 6, littleEndian) >> 8);
                     break;
             }
         }

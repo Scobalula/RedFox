@@ -119,7 +119,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     }
 
     /// <inheritdoc/>
-    protected override void ReleaseCore()
+    protected override void ReleaseResources()
     {
         ReleasePipelineReference();
         _diffuseTextureSnapshot = null;

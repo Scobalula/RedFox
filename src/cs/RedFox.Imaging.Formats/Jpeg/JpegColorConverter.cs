@@ -144,11 +144,11 @@ internal static class JpegColorConverter
             int outOff = i * 4;
             for (int j = 0; j < 8; j++)
             {
-                int idx = outOff + j * 4;
-                Unsafe.Add(ref outRef, idx + 0) = (byte)ri.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 1) = (byte)gi.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 2) = (byte)bi.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 3) = 255;
+                int pixelOffset = outOff + j * 4;
+                Unsafe.Add(ref outRef, pixelOffset + 0) = (byte)ri.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 1) = (byte)gi.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 2) = (byte)bi.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 3) = 255;
             }
         }
 
@@ -193,11 +193,11 @@ internal static class JpegColorConverter
             int outOff = i * 4;
             for (int j = 0; j < 4; j++)
             {
-                int idx = outOff + j * 4;
-                Unsafe.Add(ref outRef, idx + 0) = (byte)ri.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 1) = (byte)gi.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 2) = (byte)bi.GetElement(j);
-                Unsafe.Add(ref outRef, idx + 3) = 255;
+                int pixelOffset = outOff + j * 4;
+                Unsafe.Add(ref outRef, pixelOffset + 0) = (byte)ri.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 1) = (byte)gi.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 2) = (byte)bi.GetElement(j);
+                Unsafe.Add(ref outRef, pixelOffset + 3) = 255;
             }
         }
 

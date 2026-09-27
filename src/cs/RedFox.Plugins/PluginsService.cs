@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace RedFox.Plugins;
 
@@ -260,10 +259,10 @@ public sealed class PluginsService : IDisposable
 
         foreach (string file in Directory.EnumerateFiles(PluginsDirectory, "*", SearchOption.TopDirectoryOnly))
         {
-            string ext = Path.GetExtension(file);
+            string fileExtension = Path.GetExtension(file);
             for (int i = 0; i < extensions.Count; i++)
             {
-                if (string.Equals(extensions[i], ext, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(extensions[i], fileExtension, StringComparison.OrdinalIgnoreCase))
                 {
                     yield return file;
                     break;
@@ -280,7 +279,7 @@ public sealed class PluginsService : IDisposable
         try
         {
             using FileStream stream = File.OpenRead(_statePath);
-            PluginsState? state = JsonSerializer.Deserialize<PluginsState>(stream, SerializerOptions);
+            PluginStateFile? state = JsonSerializer.Deserialize<PluginStateFile>(stream, SerializerOptions);
             if (state?.AutoLoad is null)
                 return;
 
@@ -298,7 +297,7 @@ public sealed class PluginsService : IDisposable
         try
         {
             using FileStream stream = File.Create(_statePath);
-            PluginsState state = new() { AutoLoad = [.. _autoLoadNames] };
+            PluginStateFile state = new() { AutoLoad = [.. _autoLoadNames] };
             JsonSerializer.Serialize(stream, state, SerializerOptions);
         }
         catch
@@ -309,9 +308,4 @@ public sealed class PluginsService : IDisposable
 
     private void RaiseChanged() => DescriptorsChanged?.Invoke(this, EventArgs.Empty);
 
-    private sealed class PluginsState
-    {
-        [JsonPropertyName("autoLoad")]
-        public List<string>? AutoLoad { get; set; }
-    }
 }

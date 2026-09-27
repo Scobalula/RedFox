@@ -12,30 +12,22 @@ namespace RedFox.Imaging.BlockCompression;
 /// and a 32-bit index table selecting from a 4-color interpolated palette.
 /// Supports optional 1-bit alpha via the c0 ≤ c1 transparent-black mode.
 /// </summary>
-public sealed class BC1Codec : IPixelCodec
+/// <param name="format">The image format this codec instance handles (e.g. <see cref="ImageFormat.BC1Unorm"/>).</param>
+public sealed class BC1Codec(ImageFormat format) : IPixelCodec
 {
     private const int BytesPerBlock = 8;
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.BC1Typeless => format,
+        ImageFormat.BC1Unorm => format,
+        ImageFormat.BC1UnormSrgb => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC1Codec supports only BC1Typeless, BC1Unorm, and BC1UnormSrgb."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 0;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BC1Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec instance handles (e.g. <see cref="ImageFormat.BC1Unorm"/>).</param>
-    public BC1Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.BC1Typeless => format,
-            ImageFormat.BC1Unorm => format,
-            ImageFormat.BC1UnormSrgb => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "BC1Codec supports only BC1Typeless, BC1Unorm, and BC1UnormSrgb."),
-        };
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height) => BlockProcessor.DecodeBlocks(source, destination, width, height, BytesPerBlock, DecodeBlock);
@@ -105,8 +97,8 @@ public sealed class BC1Codec : IPixelCodec
 
         for (int i = 0; i < 16; i++)
         {
-            int idx = (int)((indices >> (i * 2)) & 0x3);
-            pixels[i] = palette[idx];
+            int paletteIndex = (int)((indices >> (i * 2)) & 0x3);
+            pixels[i] = palette[paletteIndex];
         }
     }
 

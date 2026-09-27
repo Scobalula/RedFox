@@ -3,15 +3,9 @@ using System;
 
 namespace RedFox.Graphics3D.Rendering.Materials;
 
-internal sealed class MaterialTypePipelineCacheEntry
+internal sealed class MaterialTypePipelineCacheEntry(IGpuPipelineState pipeline)
 {
-    public MaterialTypePipelineCacheEntry(IGpuPipelineState pipeline)
-    {
-        Pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        ReferenceCount = 1;
-    }
+    public IGpuPipelineState Pipeline { get; } = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
 
-    public IGpuPipelineState Pipeline { get; }
-
-    public int ReferenceCount { get; set; }
+    public int ReferenceCount { get; set; } = 1;
 }

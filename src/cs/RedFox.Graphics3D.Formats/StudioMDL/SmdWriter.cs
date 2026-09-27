@@ -46,8 +46,7 @@ public sealed class SmdWriter
     /// <param name="scene">
     /// The scene to serialise.
     /// </param>
-    public void Write(Scene scene)
-        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
+    public void Write(Scene scene) => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
 
     /// <summary>
     /// Serialises the selected scene view to the output stream in SMD format.
@@ -85,9 +84,7 @@ public sealed class SmdWriter
         {
             // Animation-only path: fall back to bones from the scene if they exist,
             // otherwise synthesise placeholder bones from the track names.
-            SkeletonBone[] bonesForAnim = allBones.Length > 0
-                ? allBones
-                : SynthesiseBonesFromAnimation(skelAnim!);
+            SkeletonBone[] bonesForAnim = allBones.Length > 0 ? allBones : SynthesiseBonesFromAnimation(skelAnim!);
             SceneNode[] exportedAnimBoneNodes = Array.ConvertAll(bonesForAnim, static bone => (SceneNode)bone);
             WriteNodes(writer, bonesForAnim, exportedAnimBoneNodes);
             WriteAnimationSkeleton(writer, skelAnim!, bonesForAnim, exportedAnimBoneNodes);
@@ -142,7 +139,7 @@ public sealed class SmdWriter
         {
             SkeletonExportTransforms.GetRelativeBindTransform(bones[i], exportedBoneNodes, out Vector3 pos, out Quaternion rotQuat);
             var rot   = QuaternionToEulerXYZ(rotQuat);
-            writer.WriteLine($"  {i}  {F(pos.X)} {F(pos.Y)} {F(pos.Z)}  {F(rot.X)} {F(rot.Y)} {F(rot.Z)}");
+            writer.WriteLine($"  {i}  {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)}  {FormatFloat(rot.X)} {FormatFloat(rot.Y)} {FormatFloat(rot.Z)}");
         }
         writer.WriteLine("end");
     }
@@ -186,7 +183,7 @@ public sealed class SmdWriter
             {
                 SkeletonExportTransforms.GetRelativeAnimatedTransform(bones[i], exportedParents, trackByName, t, worldTransforms, out Vector3 pos, out Quaternion quat);
                 var euler = QuaternionToEulerXYZ(quat);
-                writer.WriteLine($"  {i}  {F(pos.X)} {F(pos.Y)} {F(pos.Z)}  {F(euler.X)} {F(euler.Y)} {F(euler.Z)}");
+                writer.WriteLine($"  {i}  {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)}  {FormatFloat(euler.X)} {FormatFloat(euler.Y)} {FormatFloat(euler.Z)}");
             }
         }
         writer.WriteLine("end");
@@ -242,12 +239,8 @@ public sealed class SmdWriter
                         int vertIdx = mesh.FaceIndices.Get<int>(f * 3 + v, 0, 0);
 
                     var pos = mesh.GetVertexPosition(vertIdx, raw: true);
-                    var nrm = mesh.Normals is not null
-                        ? mesh.GetVertexNormal(vertIdx, raw: true)
-                        : Vector3.UnitY;
-                    var uv = mesh.UVLayers is not null
-                        ? mesh.UVLayers.GetVector2(vertIdx, 0)
-                        : Vector2.Zero;
+                    var nrm = mesh.Normals is not null ? mesh.GetVertexNormal(vertIdx, raw: true) : Vector3.UnitY;
+                    var uv = mesh.UVLayers is not null ? mesh.UVLayers.GetVector2(vertIdx, 0) : Vector2.Zero;
 
                         // ---- Gather bone-weight pairs ----
                         int parentBone = 0;
@@ -262,8 +255,7 @@ public sealed class SmdWriter
                                 int localIdx  = skin.BoneIndices.Get<int>(vertIdx, j, 0);
                                 if ((uint)localIdx >= (uint)globalBoneTable.Length)
                                 {
-                                    throw new InvalidDataException(
-                                        $"Cannot write SMD: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
+                                    throw new InvalidDataException($"Cannot write SMD: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
                                 }
 
                                 int globalIdx = globalBoneTable[localIdx];
@@ -281,11 +273,11 @@ public sealed class SmdWriter
                     sb.Append("  ");
                     sb.Append(parentBone);
                     sb.Append("  ");
-                    sb.Append(F(pos.X)); sb.Append(' '); sb.Append(F(pos.Y)); sb.Append(' '); sb.Append(F(pos.Z));
+                    sb.Append(FormatFloat(pos.X)); sb.Append(' '); sb.Append(FormatFloat(pos.Y)); sb.Append(' '); sb.Append(FormatFloat(pos.Z));
                     sb.Append("  ");
-                    sb.Append(F(nrm.X)); sb.Append(' '); sb.Append(F(nrm.Y)); sb.Append(' '); sb.Append(F(nrm.Z));
+                    sb.Append(FormatFloat(nrm.X)); sb.Append(' '); sb.Append(FormatFloat(nrm.Y)); sb.Append(' '); sb.Append(FormatFloat(nrm.Z));
                     sb.Append("  ");
-                    sb.Append(F(uv.X)); sb.Append(' '); sb.Append(F(uv.Y));
+                    sb.Append(FormatFloat(uv.X)); sb.Append(' '); sb.Append(FormatFloat(uv.Y));
 
                         if (linkCount > 0)
                         {
@@ -296,7 +288,7 @@ public sealed class SmdWriter
                                 sb.Append("  ");
                                 sb.Append(pooledBoneIndices![i]);
                                 sb.Append(' ');
-                                sb.Append(F(pooledBoneWeights![i]));
+                                sb.Append(FormatFloat(pooledBoneWeights![i]));
                             }
                         }
 
@@ -373,8 +365,7 @@ public sealed class SmdWriter
 
         if (missingBones.Count > 0)
         {
-            throw new InvalidDataException(
-                $"Cannot write SMD: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+            throw new InvalidDataException($"Cannot write SMD: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
         return table;
@@ -401,8 +392,7 @@ public sealed class SmdWriter
             Material material = mats[0];
             if (!selection.Includes(material))
             {
-                throw new InvalidDataException(
-                    $"Cannot write SMD: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write SMD: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
             }
 
             if (!string.IsNullOrWhiteSpace(material.Name))
@@ -422,7 +412,7 @@ public sealed class SmdWriter
     /// A fixed precision numeric string.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string F(float v) => v.ToString("F6", CultureInfo.InvariantCulture);
+    private static string FormatFloat(float value) => value.ToString("F6", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Escapes an SMD node name by replacing embedded quotes.
@@ -439,11 +429,6 @@ public sealed class SmdWriter
     // Rotation conversion — Quaternion → Euler XYZ (radians)
     // ------------------------------------------------------------------
 
-    /// <summary>
-    /// Decomposes a quaternion into SMD Euler angles (XYZ intrinsic order, radians).
-    /// Extraction uses the standard ZYX-extrinsic (= XYZ-intrinsic) rotation matrix
-    /// decomposition; gimbal-lock situations are handled by zeroing the Z component.
-    /// </summary>
     /// <summary>
     /// Decomposes a quaternion into SMD Euler angles in XYZ intrinsic order.
     /// </summary>

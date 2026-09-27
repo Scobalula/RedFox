@@ -120,11 +120,11 @@ public static class MeshAdjacency
         if (mesh.Positions is not { } pos)
             throw new InvalidOperationException("Mesh must have position data to compute adjacency.");
 
-        if (mesh.FaceIndices is not { } idx)
+        if (mesh.FaceIndices is not { } faceIndexBuffer)
             throw new InvalidOperationException("Mesh must have face index data to compute adjacency.");
 
         positions   = pos;
-        faceIndices = idx;
+        faceIndices = faceIndexBuffer;
     }
 
     /// <summary>

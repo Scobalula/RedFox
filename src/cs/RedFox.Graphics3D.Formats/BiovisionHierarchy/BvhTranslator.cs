@@ -4,7 +4,6 @@ namespace RedFox.Graphics3D.Formats.BiovisionHierarchy;
 
 /// <summary>
 /// Provides reading and writing of Biovision Hierarchy (<c>.bvh</c>) animation files.
-/// </summary>
 /// <para>
 /// BVH files encode one skeleton hierarchy, bind-pose offsets, and a single motion clip composed of per-joint
 /// translation and rotation channels. They do not encode mesh geometry, normals, tangents, UVs, materials, or
@@ -19,6 +18,7 @@ namespace RedFox.Graphics3D.Formats.BiovisionHierarchy;
 /// content is rejected explicitly instead of being silently discarded, and the writer emits a stable default BVH
 /// channel order rather than coupling the scene graph to format-specific node types.
 /// </para>
+/// </summary>
 public sealed class BvhTranslator : SceneTranslator
 {
     /// <inheritdoc />

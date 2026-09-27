@@ -1,22 +1,14 @@
 namespace RedFox.GameExtraction.Template.Cli;
 
-internal sealed class CliArguments
+internal sealed class CliArguments(CliCommand command, string? zipPath, string? assetPath, string? outputDirectory)
 {
-    public CliCommand Command { get; }
+    public CliCommand Command { get; } = command;
 
-    public string? ZipPath { get; }
+    public string? ZipPath { get; } = zipPath;
 
-    public string? AssetPath { get; }
+    public string? AssetPath { get; } = assetPath;
 
-    public string? OutputDirectory { get; }
-
-    private CliArguments(CliCommand command, string? zipPath = null, string? assetPath = null, string? outputDirectory = null)
-    {
-        Command = command;
-        ZipPath = zipPath;
-        AssetPath = assetPath;
-        OutputDirectory = outputDirectory;
-    }
+    public string? OutputDirectory { get; } = outputDirectory;
 
     public static bool TryParse(string[] arguments, out CliArguments? parsedArguments, out string? error)
     {
@@ -27,14 +19,14 @@ internal sealed class CliArguments
 
         if (arguments.Length == 0)
         {
-            parsedArguments = new CliArguments(CliCommand.Help);
+            parsedArguments = new CliArguments(CliCommand.Help, null, null, null);
             return true;
         }
 
         string command = arguments[0];
         if (IsHelpCommand(command))
         {
-            parsedArguments = new CliArguments(CliCommand.Help);
+            parsedArguments = new CliArguments(CliCommand.Help, null, null, null);
             return true;
         }
 
@@ -83,7 +75,7 @@ internal sealed class CliArguments
             return false;
         }
 
-        parsedArguments = new CliArguments(CliCommand.Read, arguments[1], arguments[2]);
+        parsedArguments = new CliArguments(CliCommand.Read, arguments[1], arguments[2], null);
         return true;
     }
 
@@ -98,7 +90,7 @@ internal sealed class CliArguments
             return false;
         }
 
-        parsedArguments = new CliArguments(CliCommand.Export, arguments[1], outputDirectory: arguments[2]);
+        parsedArguments = new CliArguments(CliCommand.Export, arguments[1], null, arguments[2]);
         return true;
     }
 
@@ -113,7 +105,7 @@ internal sealed class CliArguments
             return false;
         }
 
-        parsedArguments = new CliArguments(command, arguments[1]);
+        parsedArguments = new CliArguments(command, arguments[1], null, null);
         return true;
     }
 

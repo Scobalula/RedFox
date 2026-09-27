@@ -102,7 +102,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
                 q = new Quaternion(-q.X, -q.Y, -q.Z, -q.W);
 
             string parentComment = parentIdx >= 0 ? bones[parentIdx].Name : string.Empty;
-            writer.Write($"\t\"{bones[i].Name}\"\t{parentIdx} ( {F(pos.X)} {F(pos.Y)} {F(pos.Z)} ) ( {F(q.X)} {F(q.Y)} {F(q.Z)} )");
+            writer.Write($"\t\"{bones[i].Name}\"\t{parentIdx} ( {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)} ) ( {FormatFloat(q.X)} {FormatFloat(q.Y)} {FormatFloat(q.Z)} )");
             if (!string.IsNullOrEmpty(parentComment))
                 writer.Write($"\t\t// {parentComment}");
             writer.WriteLine();
@@ -192,7 +192,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         {
             float u = mesh.UVLayers is not null ? mesh.UVLayers.Get<float>(v, 0, 0) : 0f;
             float uv = mesh.UVLayers is not null ? mesh.UVLayers.Get<float>(v, 0, 1) : 0f;
-            writer.WriteLine($"\tvert {v} ( {F(u)} {F(uv)} ) {vertInfos[v].WeightIndex} {vertInfos[v].WeightCount}");
+            writer.WriteLine($"\tvert {v} ( {FormatFloat(u)} {FormatFloat(uv)} ) {vertInfos[v].WeightIndex} {vertInfos[v].WeightCount}");
         }
 
         writer.WriteLine();
@@ -214,7 +214,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         for (int w = 0; w < vertexWeights.Count; w++)
         {
             var (jointIdx, bias, pos) = vertexWeights[w];
-            writer.WriteLine($"\tweight {w} {jointIdx} {F(bias)} ( {F(pos.X)} {F(pos.Y)} {F(pos.Z)} )");
+            writer.WriteLine($"\tweight {w} {jointIdx} {FormatFloat(bias)} ( {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)} )");
         }
 
         writer.WriteLine("}");
@@ -310,5 +310,5 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// </summary>
     /// <param name="v">The value to format.</param>
     /// <returns>An invariant-culture numeric string.</returns>
-    public static string F(float v) => Md5Format.F(v);
+    public static string FormatFloat(float value) => Md5Format.FormatFloat(value);
 }

@@ -9,30 +9,20 @@ namespace RedFox.Imaging.Codecs;
 /// Codec for <see cref="ImageFormat.R16G16Typeless"/>, <see cref="ImageFormat.R16G16Float"/>, <see cref="ImageFormat.R16G16Unorm"/>, <see cref="ImageFormat.R16G16Uint"/>, <see cref="ImageFormat.R16G16Snorm"/>, and <see cref="ImageFormat.R16G16Sint"/>.
 /// Unsigned variants decode to [0, 1], signed variants (Snorm, Sint) to [-1, 1], and <see cref="ImageFormat.R16G16Float"/> as half-precision floats.
 /// </summary>
-public sealed class R16G16Codec : IPixelCodec
+/// <param name="format">The image format this codec handles.</param>
+public sealed class R16G16Codec(ImageFormat format) : IPixelCodec
 {
-    private readonly ComponentKind _kind;
+    private readonly ComponentKind _kind = ComponentEncoding.GetKind(format);
 
     /// <inheritdoc/>
-    public ImageFormat Format { get; }
+    public ImageFormat Format { get; } = format switch
+    {
+        ImageFormat.R16G16Typeless or ImageFormat.R16G16Float or ImageFormat.R16G16Unorm or ImageFormat.R16G16Uint or ImageFormat.R16G16Snorm or ImageFormat.R16G16Sint => format,
+        _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R16G16Codec supports only R16G16Typeless, R16G16Float, R16G16Unorm, R16G16Uint, R16G16Snorm, and R16G16Sint."),
+    };
 
     /// <inheritdoc/>
     public int BytesPerPixel => 4;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="R16G16Codec"/> class for the specified format variant.
-    /// </summary>
-    /// <param name="format">The image format this codec handles.</param>
-    public R16G16Codec(ImageFormat format)
-    {
-        Format = format switch
-        {
-            ImageFormat.R16G16Typeless or ImageFormat.R16G16Float or ImageFormat.R16G16Unorm or ImageFormat.R16G16Uint or ImageFormat.R16G16Snorm or ImageFormat.R16G16Sint => format,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, "R16G16Codec supports only R16G16Typeless, R16G16Float, R16G16Unorm, R16G16Uint, R16G16Snorm, and R16G16Sint."),
-        };
-
-        _kind = ComponentEncoding.GetKind(format);
-    }
 
     /// <inheritdoc/>
     public void Decode(ReadOnlySpan<byte> source, Span<Vector4> destination, int width, int height)

@@ -28,9 +28,15 @@ public static class PythonResolver
     /// <summary>
     /// Returns the cached resolved Python shared library path, running discovery once if necessary.
     /// </summary>
+    /// <returns>The absolute path to a Python shared library, or <see langword="null"/> when none was found.</returns>
+    public static string? Resolve() => Resolve(false);
+
+    /// <summary>
+    /// Returns the cached resolved Python shared library path or performs a fresh probe.
+    /// </summary>
     /// <param name="refresh">When <see langword="true"/> the cache is discarded and a fresh probe runs.</param>
     /// <returns>The absolute path to a Python shared library, or <see langword="null"/> when none was found.</returns>
-    public static string? Resolve(bool refresh = false)
+    public static string? Resolve(bool refresh)
     {
         lock (_gate)
         {

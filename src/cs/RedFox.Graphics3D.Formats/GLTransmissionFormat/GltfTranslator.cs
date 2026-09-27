@@ -71,13 +71,13 @@ public sealed class GltfTranslator : SceneTranslator
     /// the extension and optionally the GLB magic bytes.
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
-    /// <param name="ext">The file extension.</param>
+    /// <param name="extension">The file extension.</param>
     /// <param name="context">The translation context.</param>
     /// <param name="startOfFile">A buffer of initial bytes from the file.</param>
     /// <returns><see langword="true"/> if the file is a valid glTF or GLB file.</returns>
-    public override bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile)
+    public override bool IsValid(string filePath, string extension, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile)
     {
-        if (IsValid(filePath, ext, context))
+        if (IsValid(filePath, extension, context))
             return true;
 
         // Check for GLB magic

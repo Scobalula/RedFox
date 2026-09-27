@@ -12,6 +12,6 @@ public abstract class ScriptableSceneTranslator : SceneTranslator
     public sealed override ReadOnlySpan<byte> MagicValue => base.MagicValue;
 
     /// <inheritdoc />
-    public sealed override bool IsValid(string filePath, string ext, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
-        IsValid(filePath, ext, context);
+    public sealed override bool IsValid(string filePath, string extension, SceneTranslationContext context, ReadOnlySpan<byte> startOfFile) =>
+        IsValid(filePath, extension, context);
 }

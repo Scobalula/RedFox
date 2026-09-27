@@ -125,12 +125,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         Flags = flags;
     }
 
-    private bool MatchesFilter(SceneNodeFlags filter) =>
-        filter == SceneNodeFlags.None || (Flags & filter) == filter;
-
-    private bool MatchesName(string namePattern) =>
-        FileSystemName.MatchesSimpleExpression(namePattern, Name);
-
     /// <summary>
     /// Moves this node to a new parent while preserving world transforms.
     /// Duplicate detection is constrained to direct siblings and throws on conflict.
@@ -215,291 +209,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         return AttachInto(newParent, scope, strategy, transformMode);
-    }
-
-    /// <summary>
-    /// Resolves duplicates in <paramref name="targetParent"/>'s hierarchy and either attaches this
-    /// node as a child of <paramref name="targetParent"/> or surrenders it according to
-    /// <paramref name="strategy"/>. When the incoming subtree is committed into the target (every
-    /// outcome except <see cref="SceneMergeStrategy.Skip"/> at this level) each descendant is also
-    /// checked against <paramref name="scope"/> so duplicates anywhere in the incoming hierarchy are
-    /// resolved by the same rules.
-    /// </summary>
-    private SceneNode AttachInto(SceneNode targetParent, SceneNodeMatchScope scope, SceneMergeStrategy strategy, ReparentTransformMode transformMode)
-    {
-        ThrowIfInvalidParent(targetParent);
-
-        SceneNode? existing = FindDuplicateInScope(targetParent, scope);
-
-        if (existing is null || ReferenceEquals(existing, this))
-        {
-            AttachAsChild(targetParent, transformMode);
-            ApplyScopeToChildren(scope, strategy, transformMode);
-            return this;
-        }
-
-        SceneNode targetRoot = targetParent.GetRoot();
-        SceneNode stagingRoot = GetRoot();
-
-        switch (strategy)
-        {
-            case SceneMergeStrategy.Throw:
-                throw new SceneNodeDuplicateException($"A node with the name: {Name} already exists in: {targetParent.Name}");
-
-            case SceneMergeStrategy.Rename:
-                Name = MakeUniqueName(targetParent, scope);
-                AttachAsChild(targetParent, transformMode);
-                ApplyScopeToChildren(scope, strategy, transformMode);
-                return this;
-
-            case SceneMergeStrategy.Skip:
-                RedirectReferences(this, existing, targetRoot, stagingRoot);
-                Detach();
-                return existing;
-
-            case SceneMergeStrategy.Replace:
-                RedirectReferences(existing, this, targetRoot, stagingRoot);
-                existing.Detach();
-                AttachAsChild(targetParent, transformMode);
-                ApplyScopeToChildren(scope, strategy, transformMode);
-                return this;
-
-            case SceneMergeStrategy.Merge:
-                ApplyMergeTransform(existing, this, transformMode);
-                foreach (SceneNode child in EnumerateChildren().ToArray())
-                {
-                    child.AttachInto(existing, scope, strategy, transformMode);
-                }
-                RedirectReferences(this, existing, targetRoot, stagingRoot);
-                Detach();
-                return existing;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown merge strategy.");
-        }
-    }
-
-    /// <summary>
-    /// After this node is committed into the target hierarchy, applies the same scope/strategy to
-    /// each of its children so the entire incoming subtree is deduplicated.
-    /// </summary>
-    private void ApplyScopeToChildren(SceneNodeMatchScope scope, SceneMergeStrategy strategy, ReparentTransformMode transformMode)
-    {
-        if (scope == SceneNodeMatchScope.None)
-        {
-            return;
-        }
-
-        foreach (SceneNode child in EnumerateChildren().ToArray())
-        {
-            if (!ReferenceEquals(child.Parent, this))
-            {
-                continue;
-            }
-            child.AttachInto(this, scope, strategy, transformMode);
-        }
-    }
-
-    /// <summary>
-    /// Reparents this node under <paramref name="newParent"/> applying the requested transform mode.
-    /// Performs no duplicate detection; callers must enforce uniqueness when required.
-    /// </summary>
-    private void AttachAsChild(SceneNode newParent, ReparentTransformMode transformMode)
-    {
-        if (ReferenceEquals(newParent, Parent))
-        {
-            return;
-        }
-
-        SceneNode? oldParent = Parent;
-        Scene? oldScene = Scene;
-        Scene? newScene = newParent.Scene;
-
-        foreach (SceneNode node in EnumerateDescendants())
-            node.StoreTransformsAsLocal();
-
-        switch (transformMode)
-        {
-            case ReparentTransformMode.PreserveLocal:
-                StoreTransformsAsLocal();
-                break;
-
-            case ReparentTransformMode.PreserveWorld:
-                StoreTransformsAsWorld();
-                break;
-
-            case ReparentTransformMode.PreserveExisting:
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
-        }
-
-        if (oldParent?._children?.Remove(this) == true)
-            oldParent.RemoveChildName(Name);
-        oldParent?.OnChildRemoved(this);
-
-        Parent = newParent;
-        newParent._children ??= [];
-        newParent._children.Add(this);
-        newParent.AddChildName(Name);
-        SetScene(newScene);
-        newParent.OnChildAdded(this);
-
-        if (oldScene is not null && !ReferenceEquals(oldScene, newScene))
-        {
-            oldScene.NotifyChanged(SceneChangeKind.NodeRemoved, this);
-        }
-
-        if (newScene is not null)
-        {
-            newScene.NotifyChanged(SceneChangeKind.NodeAdded, this);
-        }
-    }
-
-    /// <summary>
-    /// Finds the first node within <paramref name="scope"/> that matches this node's name (case
-    /// insensitive) and runtime type. Returns <see langword="null"/> when no duplicate is present.
-    /// This node itself is always skipped.
-    /// </summary>
-    private SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope) => FindDuplicateInScope(targetParent, scope, Name, StringComparison.OrdinalIgnoreCase, true);
-
-    internal SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope, string name, StringComparison nameComparison, bool matchType)
-    {
-        foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
-        {
-            if (ReferenceEquals(candidate, this))
-                continue;
-            if (!candidate.Name.Equals(name, nameComparison))
-                continue;
-            if (matchType && candidate.GetType() != GetType())
-                continue;
-            return candidate;
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Enumerates the candidate nodes implied by <paramref name="scope"/>. When the
-    /// <see cref="SceneNodeMatchScope.WholeScene"/> flag is set the entire hierarchy rooted at
-    /// <paramref name="targetParent"/> is yielded; otherwise the requested flag subsets are yielded
-    /// in order without deduplication.
-    /// </summary>
-    private static IEnumerable<SceneNode> EnumerateScopeCandidates(SceneNode targetParent, SceneNodeMatchScope scope)
-    {
-        if (scope == SceneNodeMatchScope.None)
-        {
-            yield break;
-        }
-
-        if (scope.HasFlag(SceneNodeMatchScope.WholeScene))
-        {
-            foreach (SceneNode node in targetParent.GetRoot().EnumerateHierarchy())
-            {
-                yield return node;
-            }
-            yield break;
-        }
-
-        if (scope.HasFlag(SceneNodeMatchScope.Siblings))
-        {
-            foreach (SceneNode node in targetParent.EnumerateChildren())
-            {
-                yield return node;
-            }
-        }
-
-        if (scope.HasFlag(SceneNodeMatchScope.Descendants))
-        {
-            foreach (SceneNode node in targetParent.EnumerateDescendants())
-            {
-                yield return node;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Generates a unique name based on this node's current name by appending an ascending numeric
-    /// suffix until no other node in <paramref name="scope"/> shares it.
-    /// </summary>
-    private string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope) => MakeUniqueName(targetParent, scope, StringComparison.OrdinalIgnoreCase);
-
-    internal string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope, StringComparison nameComparison)
-    {
-        string baseName = Name;
-        int index = 1;
-        string candidate;
-        do
-        {
-            candidate = $"{baseName}_{index++}";
-        }
-        while (HasNameInScope(targetParent, candidate, scope, nameComparison));
-
-        return candidate;
-    }
-
-    private bool HasNameInScope(SceneNode targetParent, string name, SceneNodeMatchScope scope, StringComparison nameComparison)
-    {
-        foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
-        {
-            if (ReferenceEquals(candidate, this))
-                continue;
-            if (candidate.Name.Equals(name, nameComparison))
-                return true;
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// Walks both the target hierarchy and the staging hierarchy invoking <see cref="Swap"/> so that
-    /// derived nodes can redirect any references they hold from <paramref name="oldNode"/> to
-    /// <paramref name="newNode"/>.
-    /// </summary>
-    internal static void RedirectReferences(SceneNode oldNode, SceneNode newNode, SceneNode targetRoot, SceneNode stagingRoot)
-    {
-        foreach (SceneNode node in targetRoot.EnumerateHierarchy())
-        {
-            node.Swap(oldNode, newNode);
-        }
-
-        if (!ReferenceEquals(stagingRoot, targetRoot))
-        {
-            foreach (SceneNode node in stagingRoot.EnumerateHierarchy())
-            {
-                node.Swap(oldNode, newNode);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Copies transforms from <paramref name="incoming"/> onto <paramref name="existing"/> when
-    /// resolving a <see cref="SceneMergeStrategy.Merge"/>. The semantics mirror
-    /// <see cref="ReparentTransformMode"/> for reparenting.
-    /// </summary>
-    internal static void ApplyMergeTransform(SceneNode existing, SceneNode incoming, ReparentTransformMode mode)
-    {
-        switch (mode)
-        {
-            case ReparentTransformMode.PreserveExisting:
-                break;
-
-            case ReparentTransformMode.PreserveLocal:
-                incoming.StoreTransformsAsLocal();
-                incoming.BindTransform.CopyTo(existing.BindTransform);
-                incoming.LiveTransform.CopyTo(existing.LiveTransform);
-                break;
-
-            case ReparentTransformMode.PreserveWorld:
-                incoming.StoreTransformsAsWorld();
-                incoming.BindTransform.CopyTo(existing.BindTransform);
-                incoming.LiveTransform.CopyTo(existing.LiveTransform);
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown reparent transform mode.");
-        }
     }
 
     /// <summary>
@@ -1272,32 +981,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         TryFindAncestor(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
-    /// Attempts to find an ancestor of the specified type and name using the provided comparison.
-    /// </summary>
-    /// <typeparam name="T">The node type.</typeparam>
-    /// <param name="name">The name to search for.</param>
-    /// <param name="comparisonType">The comparison to use.</param>
-    /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
-    /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
-    private bool TryFindAncestor<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindAncestor(name, comparisonType, SceneNodeFlags.None, out node);
-
-    /// <summary>
-    /// Attempts to find an ancestor of the specified type and name using the provided comparison and filter.
-    /// </summary>
-    /// <typeparam name="T">The node type.</typeparam>
-    /// <param name="name">The name to search for.</param>
-    /// <param name="comparisonType">The comparison to use.</param>
-    /// <param name="filter">The flags the matching ancestor must contain.</param>
-    /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
-    /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
-    private bool TryFindAncestor<T>(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
-    {
-        node = EnumerateAncestors<T>(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
-        return node is not null;
-    }
-
-    /// <summary>
     /// Finds a direct child by name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
@@ -1682,42 +1365,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         OnChildAdded(node);
         _scene?.NotifyChanged(SceneChangeKind.NodeAdded, node);
         return node;
-    }
-
-    private void AddChildName(string name)
-    {
-        if (_childNameCounts is null)
-        {
-            if (_children!.Count < ChildNameIndexThreshold)
-                return;
-
-            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.OrdinalIgnoreCase);
-            foreach (SceneNode child in _children)
-                _childNameCounts[child.Name] = _childNameCounts.GetValueOrDefault(child.Name) + 1;
-            return;
-        }
-
-        _childNameCounts[name] = _childNameCounts.GetValueOrDefault(name) + 1;
-    }
-
-    private void RemoveChildName(string name)
-    {
-        if (_childNameCounts is null || !_childNameCounts.TryGetValue(name, out int count))
-            return;
-
-        if (count == 1)
-            _childNameCounts.Remove(name);
-        else
-            _childNameCounts[name] = count - 1;
-    }
-
-    private void ChangeChildName(string oldName, string newName)
-    {
-        if (_childNameCounts is null)
-            return;
-
-        RemoveChildName(oldName);
-        _childNameCounts[newName] = _childNameCounts.GetValueOrDefault(newName) + 1;
     }
 
     /// <summary>
@@ -3358,7 +3005,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
         _disposed = true;
         Detach();
-        DisposeCore();
+        DisposeResources();
 
         if (_children is not null)
         {
@@ -3367,6 +3014,171 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         GC.SuppressFinalize(this);
+    }
+
+
+    /// <summary>
+    /// Walks both the target hierarchy and the staging hierarchy invoking <see cref="Swap"/> so that
+    /// derived nodes can redirect any references they hold from <paramref name="oldNode"/> to
+    /// <paramref name="newNode"/>.
+    /// </summary>
+    internal static void RedirectReferences(SceneNode oldNode, SceneNode newNode, SceneNode targetRoot, SceneNode stagingRoot)
+    {
+        foreach (SceneNode node in targetRoot.EnumerateHierarchy())
+        {
+            node.Swap(oldNode, newNode);
+        }
+
+        if (!ReferenceEquals(stagingRoot, targetRoot))
+        {
+            foreach (SceneNode node in stagingRoot.EnumerateHierarchy())
+            {
+                node.Swap(oldNode, newNode);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Copies transforms from <paramref name="incoming"/> onto <paramref name="existing"/> when
+    /// resolving a <see cref="SceneMergeStrategy.Merge"/>. The semantics mirror
+    /// <see cref="ReparentTransformMode"/> for reparenting.
+    /// </summary>
+    internal static void ApplyMergeTransform(SceneNode existing, SceneNode incoming, ReparentTransformMode mode)
+    {
+        switch (mode)
+        {
+            case ReparentTransformMode.PreserveExisting:
+                break;
+
+            case ReparentTransformMode.PreserveLocal:
+                incoming.StoreTransformsAsLocal();
+                incoming.BindTransform.CopyTo(existing.BindTransform);
+                incoming.LiveTransform.CopyTo(existing.LiveTransform);
+                break;
+
+            case ReparentTransformMode.PreserveWorld:
+                incoming.StoreTransformsAsWorld();
+                incoming.BindTransform.CopyTo(existing.BindTransform);
+                incoming.LiveTransform.CopyTo(existing.LiveTransform);
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown reparent transform mode.");
+        }
+    }
+
+
+    internal (Vector3 Position, Quaternion Rotation) GetActiveWorldPose()
+    {
+        if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
+            return (worldPosition, worldRotation);
+
+        Matrix4x4 parentWorldMatrix = Parent?.GetActiveWorldMatrix() ?? Matrix4x4.Identity;
+        Quaternion parentRotation = Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
+        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentWorldMatrix);
+        Quaternion rotation = LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
+
+        return (position, rotation);
+    }
+
+    internal void SetScene(Scene? scene)
+    {
+        _scene = scene;
+        if (_children is null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < _children.Count; i++)
+        {
+            _children[i].SetScene(scene);
+        }
+    }
+
+    /// <summary>
+    /// Releases node-specific resources during disposal.
+    /// </summary>
+    protected virtual void DisposeResources()
+    {
+    }
+
+    /// <summary>
+    /// Called on a freshly copied node during <see cref="Clone"/>. The copy starts as a shallow copy of the source,
+    /// so any derived type that holds mutable reference-typed state must override this to give the copy its own instance.
+    /// </summary>
+    protected virtual void OnCloned()
+    {
+    }
+
+    /// <summary>
+    /// Remaps references held by this cloned node to their cloned counterparts.
+    /// </summary>
+    protected virtual void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType().GetMethod(nameof(Swap), [typeof(SceneNode), typeof(SceneNode)])?.DeclaringType == typeof(SceneNode))
+            return;
+
+        foreach ((SceneNode source, SceneNode copy) in clones)
+            Swap(source, copy);
+    }
+
+    /// <inheritdoc/>
+    public override string ToString() => $"{GetType()}({Name})";
+
+    internal SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope, string name, StringComparison nameComparison, bool matchType)
+    {
+        foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
+        {
+            if (ReferenceEquals(candidate, this))
+                continue;
+            if (!candidate.Name.Equals(name, nameComparison))
+                continue;
+            if (matchType && candidate.GetType() != GetType())
+                continue;
+            return candidate;
+        }
+
+        return null;
+    }
+
+    internal string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope, StringComparison nameComparison)
+    {
+        string baseName = Name;
+        int index = 1;
+        string candidate;
+        do
+        {
+            candidate = $"{baseName}_{index++}";
+        }
+        while (HasNameInScope(targetParent, candidate, scope, nameComparison));
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// Attempts to find an ancestor of the specified type and name using the provided comparison.
+    /// </summary>
+    /// <typeparam name="T">The node type.</typeparam>
+    /// <param name="name">The name to search for.</param>
+    /// <param name="comparisonType">The comparison to use.</param>
+    /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+    /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+    private bool TryFindAncestor<T>(string name, StringComparison comparisonType, [NotNullWhen(true)] out T? node) where T : SceneNode =>
+        TryFindAncestor(name, comparisonType, SceneNodeFlags.None, out node);
+
+    /// <summary>
+    /// Attempts to find an ancestor of the specified type and name using the provided comparison and filter.
+    /// </summary>
+    /// <typeparam name="T">The node type.</typeparam>
+    /// <param name="name">The name to search for.</param>
+    /// <param name="comparisonType">The comparison to use.</param>
+    /// <param name="filter">The flags the matching ancestor must contain.</param>
+    /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
+    /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
+    private bool TryFindAncestor<T>(string name, StringComparison comparisonType, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode
+    {
+        node = EnumerateAncestors<T>(filter).FirstOrDefault(x => x.Name.Equals(name, comparisonType));
+        return node is not null;
     }
 
     /// <summary>
@@ -3445,6 +3257,250 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
     }
 
+    private bool MatchesFilter(SceneNodeFlags filter) => filter == SceneNodeFlags.None || (Flags & filter) == filter;
+
+    private bool MatchesName(string namePattern) => FileSystemName.MatchesSimpleExpression(namePattern, Name);
+
+    private void AddChildName(string name)
+    {
+        if (_childNameCounts is null)
+        {
+            if (_children!.Count < ChildNameIndexThreshold)
+                return;
+
+            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (SceneNode child in _children)
+                _childNameCounts[child.Name] = _childNameCounts.GetValueOrDefault(child.Name) + 1;
+            return;
+        }
+
+        _childNameCounts[name] = _childNameCounts.GetValueOrDefault(name) + 1;
+    }
+
+    private void RemoveChildName(string name)
+    {
+        if (_childNameCounts is null || !_childNameCounts.TryGetValue(name, out int count))
+            return;
+
+        if (count == 1)
+            _childNameCounts.Remove(name);
+        else
+            _childNameCounts[name] = count - 1;
+    }
+
+    private void ChangeChildName(string oldName, string newName)
+    {
+        if (_childNameCounts is null)
+            return;
+
+        RemoveChildName(oldName);
+        _childNameCounts[newName] = _childNameCounts.GetValueOrDefault(newName) + 1;
+    }
+    /// <summary>
+    /// Resolves duplicates in <paramref name="targetParent"/>'s hierarchy and either attaches this
+    /// node as a child of <paramref name="targetParent"/> or surrenders it according to
+    /// <paramref name="strategy"/>. When the incoming subtree is committed into the target (every
+    /// outcome except <see cref="SceneMergeStrategy.Skip"/> at this level) each descendant is also
+    /// checked against <paramref name="scope"/> so duplicates anywhere in the incoming hierarchy are
+    /// resolved by the same rules.
+    /// </summary>
+    private SceneNode AttachInto(SceneNode targetParent, SceneNodeMatchScope scope, SceneMergeStrategy strategy, ReparentTransformMode transformMode)
+    {
+        ThrowIfInvalidParent(targetParent);
+
+        SceneNode? existing = FindDuplicateInScope(targetParent, scope);
+
+        if (existing is null || ReferenceEquals(existing, this))
+        {
+            AttachAsChild(targetParent, transformMode);
+            ApplyScopeToChildren(scope, strategy, transformMode);
+            return this;
+        }
+
+        SceneNode targetRoot = targetParent.GetRoot();
+        SceneNode stagingRoot = GetRoot();
+
+        switch (strategy)
+        {
+            case SceneMergeStrategy.Throw:
+                throw new SceneNodeDuplicateException($"A node with the name: {Name} already exists in: {targetParent.Name}");
+
+            case SceneMergeStrategy.Rename:
+                Name = MakeUniqueName(targetParent, scope);
+                AttachAsChild(targetParent, transformMode);
+                ApplyScopeToChildren(scope, strategy, transformMode);
+                return this;
+
+            case SceneMergeStrategy.Skip:
+                RedirectReferences(this, existing, targetRoot, stagingRoot);
+                Detach();
+                return existing;
+
+            case SceneMergeStrategy.Replace:
+                RedirectReferences(existing, this, targetRoot, stagingRoot);
+                existing.Detach();
+                AttachAsChild(targetParent, transformMode);
+                ApplyScopeToChildren(scope, strategy, transformMode);
+                return this;
+
+            case SceneMergeStrategy.Merge:
+                ApplyMergeTransform(existing, this, transformMode);
+                foreach (SceneNode child in EnumerateChildren().ToArray())
+                {
+                    child.AttachInto(existing, scope, strategy, transformMode);
+                }
+                RedirectReferences(this, existing, targetRoot, stagingRoot);
+                Detach();
+                return existing;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(strategy), strategy, "Unknown merge strategy.");
+        }
+    }
+
+    /// <summary>
+    /// After this node is committed into the target hierarchy, applies the same scope/strategy to
+    /// each of its children so the entire incoming subtree is deduplicated.
+    /// </summary>
+    private void ApplyScopeToChildren(SceneNodeMatchScope scope, SceneMergeStrategy strategy, ReparentTransformMode transformMode)
+    {
+        if (scope == SceneNodeMatchScope.None)
+        {
+            return;
+        }
+
+        foreach (SceneNode child in EnumerateChildren().ToArray())
+        {
+            if (!ReferenceEquals(child.Parent, this))
+            {
+                continue;
+            }
+            child.AttachInto(this, scope, strategy, transformMode);
+        }
+    }
+
+    /// <summary>
+    /// Reparents this node under <paramref name="newParent"/> applying the requested transform mode.
+    /// Performs no duplicate detection; callers must enforce uniqueness when required.
+    /// </summary>
+    private void AttachAsChild(SceneNode newParent, ReparentTransformMode transformMode)
+    {
+        if (ReferenceEquals(newParent, Parent))
+        {
+            return;
+        }
+
+        SceneNode? oldParent = Parent;
+        Scene? oldScene = Scene;
+        Scene? newScene = newParent.Scene;
+
+        foreach (SceneNode node in EnumerateDescendants())
+            node.StoreTransformsAsLocal();
+
+        switch (transformMode)
+        {
+            case ReparentTransformMode.PreserveLocal:
+                StoreTransformsAsLocal();
+                break;
+
+            case ReparentTransformMode.PreserveWorld:
+                StoreTransformsAsWorld();
+                break;
+
+            case ReparentTransformMode.PreserveExisting:
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
+        }
+
+        if (oldParent?._children?.Remove(this) == true)
+            oldParent.RemoveChildName(Name);
+        oldParent?.OnChildRemoved(this);
+
+        Parent = newParent;
+        newParent._children ??= [];
+        newParent._children.Add(this);
+        newParent.AddChildName(Name);
+        SetScene(newScene);
+        newParent.OnChildAdded(this);
+
+        if (oldScene is not null && !ReferenceEquals(oldScene, newScene))
+        {
+            oldScene.NotifyChanged(SceneChangeKind.NodeRemoved, this);
+        }
+
+        if (newScene is not null)
+        {
+            newScene.NotifyChanged(SceneChangeKind.NodeAdded, this);
+        }
+    }
+
+    /// <summary>
+    /// Finds the first node within <paramref name="scope"/> that matches this node's name (case
+    /// insensitive) and runtime type. Returns <see langword="null"/> when no duplicate is present.
+    /// This node itself is always skipped.
+    /// </summary>
+    private SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope) => FindDuplicateInScope(targetParent, scope, Name, StringComparison.OrdinalIgnoreCase, true);
+
+    /// <summary>
+    /// Enumerates the candidate nodes implied by <paramref name="scope"/>. When the
+    /// <see cref="SceneNodeMatchScope.WholeScene"/> flag is set the entire hierarchy rooted at
+    /// <paramref name="targetParent"/> is yielded; otherwise the requested flag subsets are yielded
+    /// in order without deduplication.
+    /// </summary>
+    private static IEnumerable<SceneNode> EnumerateScopeCandidates(SceneNode targetParent, SceneNodeMatchScope scope)
+    {
+        if (scope == SceneNodeMatchScope.None)
+        {
+            yield break;
+        }
+
+        if (scope.HasFlag(SceneNodeMatchScope.WholeScene))
+        {
+            foreach (SceneNode node in targetParent.GetRoot().EnumerateHierarchy())
+            {
+                yield return node;
+            }
+            yield break;
+        }
+
+        if (scope.HasFlag(SceneNodeMatchScope.Siblings))
+        {
+            foreach (SceneNode node in targetParent.EnumerateChildren())
+            {
+                yield return node;
+            }
+        }
+
+        if (scope.HasFlag(SceneNodeMatchScope.Descendants))
+        {
+            foreach (SceneNode node in targetParent.EnumerateDescendants())
+            {
+                yield return node;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Generates a unique name based on this node's current name by appending an ascending numeric
+    /// suffix until no other node in <paramref name="scope"/> shares it.
+    /// </summary>
+    private string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope) => MakeUniqueName(targetParent, scope, StringComparison.OrdinalIgnoreCase);
+
+    private bool HasNameInScope(SceneNode targetParent, string name, SceneNodeMatchScope scope, StringComparison nameComparison)
+    {
+        foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
+        {
+            if (ReferenceEquals(candidate, this))
+                continue;
+            if (candidate.Name.Equals(name, nameComparison))
+                return true;
+        }
+
+        return false;
+    }
+
     private (Vector3 Position, Quaternion Rotation) GetBindWorldPose()
     {
         if (BindTransform.WorldPosition is { } worldPosition && BindTransform.WorldRotation is { } worldRotation)
@@ -3458,60 +3514,4 @@ public abstract class SceneNode : IUpdatable, IDisposable
         return (position, rotation);
     }
 
-    internal (Vector3 Position, Quaternion Rotation) GetActiveWorldPose()
-    {
-        if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
-            return (worldPosition, worldRotation);
-
-        Matrix4x4 parentWorldMatrix = Parent?.GetActiveWorldMatrix() ?? Matrix4x4.Identity;
-        Quaternion parentRotation = Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
-        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentWorldMatrix);
-        Quaternion rotation = LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
-
-        return (position, rotation);
-    }
-
-    internal void SetScene(Scene? scene)
-    {
-        _scene = scene;
-        if (_children is null)
-        {
-            return;
-        }
-
-        for (int i = 0; i < _children.Count; i++)
-        {
-            _children[i].SetScene(scene);
-        }
-    }
-
-    /// <summary>
-    /// Releases node-specific resources during disposal.
-    /// </summary>
-    protected virtual void DisposeCore()
-    {
-    }
-
-    /// <summary>
-    /// Called on a freshly copied node during <see cref="Clone"/>. The copy starts as a shallow copy of the source,
-    /// so any derived type that holds mutable reference-typed state must override this to give the copy its own instance.
-    /// </summary>
-    protected virtual void OnCloned()
-    {
-    }
-
-    /// <summary>
-    /// Remaps references held by this cloned node to their cloned counterparts.
-    /// </summary>
-    protected virtual void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
-    {
-        if (GetType().GetMethod(nameof(Swap), [typeof(SceneNode), typeof(SceneNode)])?.DeclaringType == typeof(SceneNode))
-            return;
-
-        foreach ((SceneNode source, SceneNode copy) in clones)
-            Swap(source, copy);
-    }
-
-    /// <inheritdoc/>
-    public override string ToString() => $"{GetType()}({Name})";
 }

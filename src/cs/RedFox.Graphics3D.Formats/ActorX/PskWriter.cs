@@ -116,11 +116,7 @@ public sealed class PskWriter
         writer.Flush();
     }
 
-    private static byte ResolveMaterialIndex(
-        Mesh mesh,
-        SceneTranslationSelection selection,
-        List<Material> materials,
-        Dictionary<Material, int> materialIndices)
+    private static byte ResolveMaterialIndex(Mesh mesh, SceneTranslationSelection selection, List<Material> materials, Dictionary<Material, int> materialIndices)
     {
         if (mesh.Materials is not [{ } material, ..])
             return 0;

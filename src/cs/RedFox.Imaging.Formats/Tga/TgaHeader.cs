@@ -85,13 +85,13 @@ internal readonly record struct TgaHeader(byte IdLength, byte ColorMapType, TgaI
         ArgumentOutOfRangeException.ThrowIfGreaterThan(width, (int)ushort.MaxValue);
         ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(height, (int)ushort.MaxValue);
-        int bpp = hasAlpha ? 32 : 24;
+        int bitsPerPixel = hasAlpha ? 32 : 24;
 
         destination.Clear();
         destination[2] = (byte)TgaImageType.TrueColor;
         BinaryPrimitives.WriteUInt16LittleEndian(destination[12..], (ushort)width);
         BinaryPrimitives.WriteUInt16LittleEndian(destination[14..], (ushort)height);
-        destination[16] = (byte)bpp;
+        destination[16] = (byte)bitsPerPixel;
         destination[17] = (byte)((hasAlpha ? 8 : 0) | 0x20); // alpha bits + top-left origin
     }
 }

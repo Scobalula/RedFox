@@ -23,7 +23,7 @@ public enum SceneNodeFlags
     NoUpdate = 2,
 
     /// <summary>
-    /// Gets or sets a value indicating whether the item is selected.
+    /// Indicates whether the item is selected.
     /// </summary>
     Selected = 4,
 

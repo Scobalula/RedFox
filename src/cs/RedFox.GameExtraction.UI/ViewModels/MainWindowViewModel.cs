@@ -1,9 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using Avalonia.Collections;
-using Avalonia.Controls;
-using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
@@ -22,88 +18,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
-    private readonly Func<MainWindowViewModel, Control?> _previewControlFactory;
+    private readonly Func<MainWindowViewModel, object?> _previewContentFactory;
     private readonly List<AssetRowViewModel> _allAssets = [];
-    private readonly DataGridCollectionView _assetsView;
+    private readonly ObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly List<AssetExplorerEntry> _explorerEntries = [];
-    private readonly DataGridCollectionView _explorerView;
-    private readonly DispatcherTimer _searchFilterTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+    private readonly ObservableCollection<AssetExplorerEntry> _explorerView = [];
+    private readonly SynchronizationContext? _uiSynchronizationContext;
+    private readonly Timer _searchFilterTimer;
     private string _assetNameFilter = string.Empty;
     private CancellationTokenSource? _currentCts;
     private CancellationTokenSource? _previewLoadCts;
     private int _previewLoadVersion;
-    private Control? _previewControl;
+    private object? _previewContent;
     private bool _isPreviewWindowOpen;
     private AssetRowViewModel[]? _pendingPreviewSelection;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
-    /// </summary>
-    /// <param name="config">The application configuration.</param>
-    public MainWindowViewModel(GameExtractionConfig config)
-    {
-        _config = config;
-        _assetManager = config.AssetManagerFactory();
-        _previewControlFactory = config.PreviewControlFactory;
-        _assetsView = new DataGridCollectionView(_allAssets)
-        {
-            Filter = FilterAssetRow,
-        };
-        _explorerView = new DataGridCollectionView(_explorerEntries)
-        {
-            Filter = FilterExplorerEntry,
-        };
-        _searchFilterTimer.Tick += OnSearchFilterTimerTick;
-        _assetManager.OperationFailed += OnOperationFailed;
-        _assetManager.AssetExportCompleted += OnAssetExportCompleted;
-
-        if (!_assetManager.TryGetService(out PluginsService? plugins))
-        {
-            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RedFox", config.AppName, "plugins");
-            plugins = new PluginsService(pluginsDirectory);
-            PythonPluginHost? pythonHost = null;
-            try
-            {
-                pythonHost = new PythonPluginHost();
-                plugins.Manager.RegisterHost(pythonHost);
-            }
-            catch
-            {
-                pythonHost?.Dispose();
-            }
-            _assetManager.RegisterService(plugins);
-        }
-
-        Plugins = plugins;
-
-        // Expose the shared SceneTranslatorManager (if any) to plugins under the well-known
-        // "scene-translators" key so scripts can register custom translators on load.
-        if (!plugins.Manager.Services.ContainsKey("scene-translators"))
-        {
-            if (!_assetManager.TryGetService(out SceneTranslatorManager? translators))
-            {
-                translators = new SceneTranslatorManager();
-                _assetManager.RegisterService(translators);
-            }
-            plugins.Manager.Services["scene-translators"] = translators;
-        }
-
-        try
-        {
-            plugins.LoadAutoLoaded();
-        }
-        catch
-        {
-            // Auto-load failures are recorded per descriptor; never crash startup.
-        }
-
-        InitializeShellState(config);
-
-        LoadedSources.CollectionChanged += (_, _) =>
-        {
-            SourceCount = LoadedSources.Count;
-        };
-    }
 
     /// <summary>
     /// Gets the application configuration.
@@ -118,12 +46,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the filtered asset view bound to the asset grid.
     /// </summary>
-    public DataGridCollectionView AssetsView => _assetsView;
+    public ObservableCollection<AssetRowViewModel> AssetsView => _assetsView;
 
     /// <summary>
     /// Gets the filtered Explorer-view rows for the currently selected directory.
     /// </summary>
-    public DataGridCollectionView ExplorerView => _explorerView;
+    public ObservableCollection<AssetExplorerEntry> ExplorerView => _explorerView;
 
     /// <summary>
     /// Gets the mounted source rows.
@@ -173,22 +101,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the active preview control selected for the current payload.
     /// </summary>
-    public Control? PreviewControl
+    public object? PreviewContent
     {
-        get => _previewControl;
+        get => _previewContent;
         private set
         {
-            if (ReferenceEquals(_previewControl, value))
+            if (ReferenceEquals(_previewContent, value))
             {
                 return;
             }
 
-            _previewControl = value;
+            _previewContent = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(HasPreviewControl));
             OnPropertyChanged(nameof(ShowPreviewPlaceholder));
         }
     }
+
+    /// <summary>
+    /// Gets or sets whether preview content is visible.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsPreviewContentVisible { get; private set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether preview data is loading.
@@ -300,7 +233,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets or sets the description displayed in the preview body.
     /// </summary>
     [ObservableProperty]
-    public partial string ContentText { get; private set; } = "Select an asset in the main window to capture data for a future preview surface.";
+    public partial string ContentText { get; private set; } = "";
 
     /// <summary>
     /// Gets the preview window title.
@@ -353,14 +286,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public bool HasPreviewBytes => PreviewBytes is not null;
 
     /// <summary>
-    /// Gets a value indicating whether a preview control is active for the current payload.
-    /// </summary>
-    public bool HasPreviewControl => PreviewControl is not null;
-
-    /// <summary>
     /// Gets a value indicating whether the placeholder content should be shown.
     /// </summary>
-    public bool ShowPreviewPlaceholder => PreviewControl is null;
+    public bool ShowPreviewPlaceholder => PreviewContent is null;
 
     /// <summary>
     /// Gets or sets a value indicating whether an operation is running.
@@ -393,17 +321,19 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the loaded sidebar icon.
     /// </summary>
-    public Bitmap? SidebarIcon { get; private set; }
+    public string? SidebarIconPath { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether an icon is available to display.
     /// </summary>
-    public bool HasSidebarIcon => SidebarIcon is not null;
+    public bool HasSidebarIcon => SidebarIconPath is not null;
 
     /// <summary>
     /// Gets a value indicating whether file sources can be loaded.
     /// </summary>
-    public bool CanLoadFiles { get; private set; }    /// <summary>
+    public bool CanLoadFiles { get; private set; }
+
+    /// <summary>
     /// Gets a value indicating whether directory sources can be loaded.
     /// </summary>
     public bool CanLoadDirectories { get; private set; }
@@ -482,6 +412,68 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public event Func<IReadOnlyList<ProcessCandidateViewModel>, Task<ProcessSelectionResult?>>? ProcessSelectionRequested;
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
+    /// </summary>
+    /// <param name="config">The application configuration.</param>
+    public MainWindowViewModel(GameExtractionConfig config)
+    {
+        _uiSynchronizationContext = SynchronizationContext.Current;
+        _searchFilterTimer = new Timer(OnSearchFilterTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+        _config = config;
+        _assetManager = config.AssetManagerFactory();
+        _previewContentFactory = config.PreviewContentFactory;
+        _assetManager.OperationFailed += OnOperationFailed;
+        _assetManager.AssetExportCompleted += OnAssetExportCompleted;
+
+        if (!_assetManager.TryGetService(out PluginsService? plugins))
+        {
+            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RedFox", config.AppName, "plugins");
+            plugins = new PluginsService(pluginsDirectory);
+            PythonPluginHost? pythonHost = null;
+            try
+            {
+                pythonHost = new PythonPluginHost();
+                plugins.Manager.RegisterHost(pythonHost);
+            }
+            catch
+            {
+                pythonHost?.Dispose();
+            }
+            _assetManager.RegisterService(plugins);
+        }
+
+        Plugins = plugins;
+
+        // Expose the shared SceneTranslatorManager (if any) to plugins under the well-known
+        // "scene-translators" key so scripts can register custom translators on load.
+        if (!plugins.Manager.Services.ContainsKey("scene-translators"))
+        {
+            if (!_assetManager.TryGetService(out SceneTranslatorManager? translators))
+            {
+                translators = new SceneTranslatorManager();
+                _assetManager.RegisterService(translators);
+            }
+            plugins.Manager.Services["scene-translators"] = translators;
+        }
+
+        try
+        {
+            plugins.LoadAutoLoaded();
+        }
+        catch
+        {
+            // Auto-load failures are recorded per descriptor; never crash startup.
+        }
+
+        InitializeShellState(config);
+
+        LoadedSources.CollectionChanged += (_, _) =>
+        {
+            SourceCount = LoadedSources.Count;
+        };
+    }
+
+    /// <summary>
     /// Loads assets from a file path.
     /// </summary>
     /// <param name="filePath">The file path to mount.</param>
@@ -542,7 +534,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             await _assetManager.UnloadAsync(source.Source).ConfigureAwait(false);
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await InvokeOnUiThreadAsync(() =>
             {
                 RemoveSource(source);
                 LoadedSources.Remove(source);
@@ -680,8 +672,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
-        _searchFilterTimer.Stop();
-        _searchFilterTimer.Tick -= OnSearchFilterTimerTick;
+        _searchFilterTimer.Dispose();
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         Plugins.Dispose();
@@ -697,14 +688,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnSearchTextChanged(string value)
     {
         _assetNameFilter = value.Trim();
-        _searchFilterTimer.Stop();
-        _searchFilterTimer.Start();
-    }
-
-    private void OnSearchFilterTimerTick(object? sender, EventArgs e)
-    {
-        _searchFilterTimer.Stop();
-        ApplyFilter();
+        _searchFilterTimer.Change(TimeSpan.FromMilliseconds(180), Timeout.InfiniteTimeSpan);
     }
 
     partial void OnPreviewAssetChanged(AssetRowViewModel? value)
@@ -1084,7 +1068,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         CanLoadDirectories = config.SupportsDirectorySources;
         CanLoadProcess = config.SupportsProcessSources;
         IsDirectoryViewEnabled = config.EnableDirectoryView;
-        SidebarIcon = LoadIcon(config.SidebarIconPath ?? config.IconPath);
+        SidebarIconPath = ResolveIconPath(config.SidebarIconPath ?? config.IconPath);
     }
 
     [RelayCommand]
@@ -1188,7 +1172,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         PreviewSelectionCount = selection.Length;
         AssetRowViewModel? asset = selection.LastOrDefault();
         PreviewAsset = asset;
-        PreviewControl?.IsVisible = false;
+        IsPreviewContentVisible = false;
 
         if (asset is null)
         {
@@ -1197,9 +1181,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PreviewReadResult = null;
             PreviewData = null;
             PreviewBytes = null;
-            PreviewControl = null;
+            PreviewContent = null;
             ContentTitle = "No asset selected";
-            ContentText = "Select an asset in the main window to capture data for a future preview surface.";
             PreviewStatusText = "Waiting for selection";
             HandlerDisplay = "-";
             PayloadTypeDisplay = "-";
@@ -1219,7 +1202,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         PreviewData = null;
         PreviewBytes = null;
         ContentTitle = "Loading asset data";
-        ContentText = "Reading the selected asset through the registered asset handler.";
+        ContentText = "";
 
         try
         {
@@ -1239,13 +1222,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PayloadTypeDisplay = payloadType?.Name ?? "Unknown";
             ReferenceCountDisplay = readResult.References.Count.ToString("N0");
             ContentTitle = PreviewBytes is not null ? "Hex preview" : PreviewData is null ? "Asset data loaded" : "Asset data captured";
-            ContentText = PreviewBytes is not null ? $"{PreviewBytes.Length:N0} bytes" : PreviewData is null ? "The asset handler returned a result without a typed payload. Future preview controls can still inspect the read result." : "No compatible preview control accepted this payload.";
-            Control? previewControl = CreatePreviewControl();
-            PreviewControl = previewControl;
-            if (previewControl is null && PreviewData is not null)
+            if (PreviewBytes is not null)
+            {
+                ContentText = $"{PreviewBytes.Length:N0} bytes";
+            }
+
+            object? previewContent = CreatePreviewContent();
+            PreviewContent = previewContent;
+            if (previewContent is null && PreviewData is not null)
             {
                 ContentTitle = "No preview available";
-                ContentText = "No compatible preview control is configured for this payload.";
             }
 
             PreviewStatusText = $"Data ready ({PayloadTypeDisplay})";
@@ -1267,7 +1253,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             PreviewReadResult = null;
             PreviewData = null;
             PreviewBytes = null;
-            PreviewControl = null;
+            PreviewContent = null;
             ContentTitle = "Preview read failed";
             ContentText = exception.Message;
             PayloadTypeDisplay = "-";
@@ -1281,7 +1267,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 IsPreviewLoading = false;
             }
 
-            PreviewControl?.IsVisible = true;
+            IsPreviewContentVisible = PreviewContent is not null;
         }
     }
 
@@ -1300,7 +1286,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnOperationFailed(object? sender, AssetOperationFailedEventArgs args)
     {
-        Dispatcher.UIThread.Post(() =>
+        PostToUiThread(() =>
         {
             StatusText = $"{args.Operation} error: {args.Exception.Message}";
         });
@@ -1314,7 +1300,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        Dispatcher.UIThread.Post(() =>
+        PostToUiThread(() =>
         {
             if (!ReferenceEquals(ProgressDialog, progressVm))
             {
@@ -1332,20 +1318,69 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         });
     }
 
+    private void OnSearchFilterTimerElapsed(object? state) => PostToUiThread(ApplyFilter);
+
+    private void PostToUiThread(Action action)
+    {
+        if (_uiSynchronizationContext is null || ReferenceEquals(SynchronizationContext.Current, _uiSynchronizationContext))
+        {
+            action();
+            return;
+        }
+
+        _uiSynchronizationContext.Post(static state => ((Action)state!).Invoke(), action);
+    }
+
+    private Task InvokeOnUiThreadAsync(Action action)
+    {
+        if (_uiSynchronizationContext is null || ReferenceEquals(SynchronizationContext.Current, _uiSynchronizationContext))
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        TaskCompletionSource<bool> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _uiSynchronizationContext.Post(static state =>
+        {
+            var request = ((Action Action, TaskCompletionSource<bool> Completion))state!;
+            try
+            {
+                request.Action();
+                request.Completion.SetResult(true);
+            }
+            catch (Exception exception)
+            {
+                request.Completion.SetException(exception);
+            }
+        }, (action, completion));
+        return completion.Task;
+    }
+
     private void ApplyFilter()
     {
-        _assetsView.Refresh();
-        _explorerView.Refresh();
+        _assetsView.Clear();
+        foreach (AssetRowViewModel asset in _allAssets)
+        {
+            if (IsVisibleAssetRow(asset))
+            {
+                _assetsView.Add(asset);
+            }
+        }
+
+        _explorerView.Clear();
+        foreach (AssetExplorerEntry entry in _explorerEntries)
+        {
+            if (IsVisibleExplorerEntry(entry))
+            {
+                _explorerView.Add(entry);
+            }
+        }
+
         FilteredCount = IsDirectoryViewActive ? _explorerView.Count : _assetsView.Count;
     }
 
-    private bool FilterAssetRow(object item)
+    private bool IsVisibleAssetRow(AssetRowViewModel asset)
     {
-        if (item is not AssetRowViewModel asset)
-        {
-            return false;
-        }
-
         if (string.IsNullOrEmpty(_assetNameFilter))
         {
             return true;
@@ -1354,13 +1389,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return asset.Name.Contains(_assetNameFilter, StringComparison.OrdinalIgnoreCase);
     }
 
-    private bool FilterExplorerEntry(object item)
+    private bool IsVisibleExplorerEntry(AssetExplorerEntry entry)
     {
-        if (item is not AssetExplorerEntry entry)
-        {
-            return false;
-        }
-
         if (string.IsNullOrEmpty(_assetNameFilter))
         {
             return true;
@@ -1556,11 +1586,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return readResult.Data;
     }
 
-    private Control? CreatePreviewControl()
+    private object? CreatePreviewContent()
     {
         try
         {
-            return _previewControlFactory(this);
+            return _previewContentFactory(this);
         }
         catch (Exception exception)
         {
@@ -1577,7 +1607,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return handler?.GetType().Name ?? "Unknown Handler";
     }
 
-    private static Bitmap? LoadIcon(string? path)
+    private static string? ResolveIconPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -1585,19 +1615,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         string fullPath = Path.IsPathRooted(path) ? path : Path.Combine(AppContext.BaseDirectory, path);
-
-        if (!File.Exists(fullPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return new Bitmap(fullPath);
-        }
-        catch
-        {
-            return null;
-        }
+        return File.Exists(fullPath) ? fullPath : null;
     }
 }

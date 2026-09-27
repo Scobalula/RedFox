@@ -81,9 +81,9 @@ public static class MeshOptimizer
         int curVertex = 0;
         for (int j = 0; j < indexCount; j++)
         {
-            int idx = faceIndices.Get<int>(j, 0, 0);
-            if ((uint)idx >= (uint)vertexCount) continue;
-            if (tempRemap[idx] < 0) tempRemap[idx] = curVertex++;
+            int vertexIndex = faceIndices.Get<int>(j, 0, 0);
+            if ((uint)vertexIndex >= (uint)vertexCount) continue;
+            if (tempRemap[vertexIndex] < 0) tempRemap[vertexIndex] = curVertex++;
         }
 
         int[] vertexRemap = new int[vertexCount];
