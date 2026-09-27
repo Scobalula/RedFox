@@ -396,6 +396,26 @@ public class Material(string name) : SceneNode(name)
         }
     }
 
+    /// <inheritdoc/>
+    protected override void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType() != typeof(Material))
+        {
+            base.RemapClonedReferences(clones);
+            return;
+        }
+
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            MaterialTextureBinding connection = _connections[i];
+            if (clones.TryGetValue(connection.Texture, out SceneNode? copy) && copy is Texture clonedTexture)
+            {
+                _connections[i] = new MaterialTextureBinding(clonedTexture, connection.Slot, connection.SamplerUniform);
+                _version++;
+            }
+        }
+    }
+
     /// <summary>
     /// Returns the texture connected at <paramref name="slotKey"/>.
     /// </summary>

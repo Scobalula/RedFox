@@ -98,4 +98,19 @@ public sealed class IKHandleNode(string name, SceneNode startNode, SceneNode end
         if (ReferenceEquals(PoleNode, oldNode))
             PoleNode = newNode;
     }
+
+    /// <inheritdoc/>
+    protected override void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (clones.TryGetValue(StartNode, out SceneNode? startCopy))
+            StartNode = startCopy;
+        if (clones.TryGetValue(EndNode, out SceneNode? endCopy))
+            EndNode = endCopy;
+        if (TargetNode is not null && clones.TryGetValue(TargetNode, out SceneNode? targetCopy))
+            TargetNode = targetCopy;
+        if (PoleVectorNode is not null && clones.TryGetValue(PoleVectorNode, out SceneNode? poleVectorCopy))
+            PoleVectorNode = poleVectorCopy;
+        if (PoleNode is not null && clones.TryGetValue(PoleNode, out SceneNode? poleCopy))
+            PoleNode = poleCopy;
+    }
 }

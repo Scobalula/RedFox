@@ -74,8 +74,12 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
                 Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["Size"] = entry.Length, ["CompressedSize"] = entry.CompressedLength, ["ArchivePath"] = location, });
 
                 assets.Add(asset);
-                progress?.Report($"Mounted {asset.Name}");
+                if (assets.Count % 128 == 0)
+                    progress?.Report($"Mounted {asset.Name}");
             }
+
+            if (assets.Count > 0 && assets.Count % 128 != 0)
+                progress?.Report($"Mounted {assets[^1].Name}");
 
             IAssetSource source = new ZipAssetSource(request.DisplayName, stream, archive, assets, archiveLock);
             return Task.FromResult(source);

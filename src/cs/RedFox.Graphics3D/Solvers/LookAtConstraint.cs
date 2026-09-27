@@ -40,10 +40,10 @@ public class LookAtConstraint(string name, SceneNode source) : AnimationSamplerS
     /// <param name="time">The current frame time (unused for static constraints).</param>
     protected override void OnSolve(float time)
     {
-        var sourcePos = Source.GetActiveWorldPosition();
+        var sourcePose = Source.GetActiveWorldPose();
         var targetPos = TargetNode is not null ? TargetNode.GetActiveWorldPosition() : TargetPosition;
 
-        var direction = Vector3.Normalize(targetPos - sourcePos);
+        var direction = Vector3.Normalize(targetPos - sourcePose.Position);
 
         // Skip if source and target overlap
         if (float.IsNaN(direction.X)) return;
@@ -67,7 +67,7 @@ public class LookAtConstraint(string name, SceneNode source) : AnimationSamplerS
             0, 0, 0, 1);
 
         var targetRotation = Quaternion.CreateFromRotationMatrix(rotMatrix);
-        var currentRotation = Source.GetActiveWorldRotation();
+        var currentRotation = sourcePose.Rotation;
 
         // Blend between current and target rotation using the solver weight
         Source.LiveTransform.WorldRotation = Quaternion.Slerp(currentRotation, targetRotation, CurrentWeight);

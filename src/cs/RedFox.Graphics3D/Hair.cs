@@ -32,5 +32,18 @@ public class Hair : SceneNode
     }
 
     /// <inheritdoc/>
+    protected override void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType() != typeof(Hair))
+        {
+            base.RemapClonedReferences(clones);
+            return;
+        }
+
+        if (Material is not null && clones.TryGetValue(Material, out SceneNode? materialCopy))
+            Material = materialCopy as Material;
+    }
+
+    /// <inheritdoc/>
     protected override void OnCloned() => StrandSegments = [.. StrandSegments];
 }

@@ -33,7 +33,7 @@ public static class DdsLoader
 
         using MemoryStream memoryStream = new();
         stream.CopyTo(memoryStream);
-        return Load(memoryStream.ToArray());
+        return Load(memoryStream.GetBuffer().AsSpan(0, checked((int)memoryStream.Length)));
     }
 
     /// <summary>

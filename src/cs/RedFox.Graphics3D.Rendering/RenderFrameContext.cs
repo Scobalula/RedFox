@@ -7,7 +7,7 @@ namespace RedFox.Graphics3D.Rendering;
 
 /// <summary>
 /// Per-frame state passed through every <see cref="IRenderPass"/> in an <see cref="IRenderPipeline"/>.
-/// Carries the immutable inputs (scene, view, viewport, delta time) plus a typed services bag
+/// Carries the frame inputs (scene, view, viewport, delta time) plus a typed services bag
 /// that backends use to publish and consume frame-scoped data.
 /// </summary>
 public sealed class RenderFrameContext
@@ -17,22 +17,22 @@ public sealed class RenderFrameContext
     /// <summary>
     /// Gets the scene being rendered.
     /// </summary>
-    public Scene Scene { get; }
+    public Scene Scene { get; private set; }
 
     /// <summary>
     /// Gets the active camera view.
     /// </summary>
-    public CameraView View { get; }
+    public CameraView View { get; private set; }
 
     /// <summary>
     /// Gets the viewport size in pixels.
     /// </summary>
-    public Vector2 ViewportSize { get; }
+    public Vector2 ViewportSize { get; private set; }
 
     /// <summary>
     /// Gets seconds elapsed since the previous frame.
     /// </summary>
-    public float DeltaTime { get; }
+    public float DeltaTime { get; private set; }
 
     /// <summary>
     /// Gets or sets the ambient color used for renderer lighting.
@@ -126,10 +126,25 @@ public sealed class RenderFrameContext
     }
 
     /// <summary>
-    /// Clears all published frame services. Called by the renderer at frame start.
+    /// Clears all published frame services.
     /// </summary>
     public void ResetServices()
     {
+        _services.Clear();
+    }
+
+    internal void ResetFrame(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
+    {
+        Scene = scene ?? throw new ArgumentNullException(nameof(scene));
+        View = view;
+        ViewportSize = viewportSize;
+        DeltaTime = deltaTime;
+        AmbientColor = default;
+        FallbackLightDirection = -Vector3.UnitY;
+        FallbackLightColor = Vector3.One;
+        FallbackLightIntensity = 1.0f;
+        UseViewBasedLighting = false;
+        SkinningMode = SkinningMode.Linear;
         _services.Clear();
     }
 }

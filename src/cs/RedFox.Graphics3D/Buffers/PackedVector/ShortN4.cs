@@ -55,4 +55,16 @@ public struct ShortN4 : IPackedVector<ShortN4>
             z == -32768 ? -1f : z / 32767f,
             w == -32768 ? -1f : w / 32767f);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => UnpackNormalized((short)_packed),
+        1 => UnpackNormalized((short)(_packed >> 16)),
+        2 => UnpackNormalized((short)(_packed >> 32)),
+        3 => UnpackNormalized((short)(_packed >> 48)),
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
+
+    private static float UnpackNormalized(short value) => value == -32768 ? -1f : value / 32767f;
 }

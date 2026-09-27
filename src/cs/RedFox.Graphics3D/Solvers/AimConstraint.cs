@@ -56,12 +56,12 @@ public class AimConstraint(string name, SceneNode source) : AnimationSamplerSolv
     /// </summary>
     protected override void OnSolve(float time)
     {
-        var sourcePos = Source.GetActiveWorldPosition();
+        var sourcePose = Source.GetActiveWorldPose();
         var targetPos = TargetNode is not null
             ? TargetNode.GetActiveWorldPosition()
             : TargetPosition;
 
-        var aimDir = Vector3.Normalize(targetPos - sourcePos);
+        var aimDir = Vector3.Normalize(targetPos - sourcePose.Position);
         if (float.IsNaN(aimDir.X)) return;
 
         // Compute the rotation that takes AimAxis to aimDir
@@ -80,8 +80,7 @@ public class AimConstraint(string name, SceneNode source) : AnimationSamplerSolv
             aimRotation = twistRotation * aimRotation;
         }
 
-        var current = Source.GetActiveWorldRotation();
-        Source.LiveTransform.WorldRotation = Quaternion.Slerp(current, Quaternion.Normalize(aimRotation), CurrentWeight);
+        Source.LiveTransform.WorldRotation = Quaternion.Slerp(sourcePose.Rotation, Quaternion.Normalize(aimRotation), CurrentWeight);
         Source.LiveTransform.LocalRotation = null;
     }
 

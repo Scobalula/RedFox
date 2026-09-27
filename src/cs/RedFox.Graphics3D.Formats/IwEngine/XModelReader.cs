@@ -178,10 +178,14 @@ internal static class XModelReader
         foreach (Material material in materials)
             material.MoveTo(model, ReparentTransformMode.PreserveExisting);
 
+        Dictionary<int, int> groupCounts = [];
+        foreach (var key in groups.Keys)
+            groupCounts[key.ObjectIndex] = groupCounts.GetValueOrDefault(key.ObjectIndex) + 1;
+
         foreach (((int objectIndex, int materialIndex), var group) in groups)
         {
             string objectName = (uint)objectIndex < (uint)objectNames.Length && !string.IsNullOrWhiteSpace(objectNames[objectIndex]) ? objectNames[objectIndex] : $"Object_{objectIndex}";
-            string meshName = groups.Keys.Count(key => key.ObjectIndex == objectIndex) > 1 && (uint)materialIndex < (uint)materials.Length ? $"{objectName}_{materials[materialIndex].Name}" : objectName;
+            string meshName = groupCounts[objectIndex] > 1 && (uint)materialIndex < (uint)materials.Length ? $"{objectName}_{materials[materialIndex].Name}" : objectName;
             Mesh mesh = model.AddNode<Mesh>(meshName);
             BuildMesh(mesh, group, bones);
             if ((uint)materialIndex < (uint)materials.Length)
@@ -240,6 +244,8 @@ internal static class XModelReader
 
         if (boneIndices is not null && boneWeights is not null)
             mesh.Skin = new Skin(bones, boneIndices, boneWeights);
+
+        MeshWelder.Weld(mesh, 0f);
     }
 
     private static string? ResolveTexturePath(string textureName, string? sourceDirectoryPath)

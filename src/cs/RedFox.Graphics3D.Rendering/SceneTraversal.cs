@@ -71,6 +71,27 @@ public static class SceneTraversal
     }
 
     internal static void Render(
+        IReadOnlyList<(SceneNode Node, IRenderHandle Handle)> handles,
+        ICommandList commandList,
+        RenderFlags phase,
+        in Matrix4x4 view,
+        in Matrix4x4 projection,
+        in Matrix4x4 sceneAxis,
+        Vector3 cameraPosition,
+        Vector2 viewportSize)
+    {
+        ArgumentNullException.ThrowIfNull(handles);
+        ArgumentNullException.ThrowIfNull(commandList);
+
+        for (int i = 0; i < handles.Count; i++)
+        {
+            (SceneNode node, IRenderHandle handle) = handles[i];
+            if ((node.Flags & SceneNodeFlags.NoDraw) == 0 && !handle.Flags.HasFlag(RenderHandleFlags.SubHandle))
+                handle.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+        }
+    }
+
+    internal static void Render(
         IReadOnlyList<SceneNode> nodes,
         ICommandList commandList,
         IGraphicsDevice graphicsDevice,

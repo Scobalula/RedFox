@@ -169,6 +169,7 @@ public static class MeshOptimizer
         }
 
         int[] lruCache = new int[lruCacheSize];
+        int[] newCache = new int[lruCacheSize];
         int   lruSize  = 0;
         int[] faceRemap = new int[faceCount];
         int   outIdx    = 0;
@@ -209,7 +210,6 @@ public static class MeshOptimizer
             if ((uint)bv1 < (uint)vertexCount) state.ActiveFaceCount[bv1]--;
             if ((uint)bv2 < (uint)vertexCount) state.ActiveFaceCount[bv2]--;
 
-            int[] newCache = new int[lruCacheSize];
             int   newSize  = 0;
 
             AddToCache(bv0, newCache, ref newSize, state);
@@ -225,7 +225,7 @@ public static class MeshOptimizer
             for (int c = 0; c < lruSize;  c++) state.CachePosition[lruCache[c]] = int.MaxValue;
             for (int c = 0; c < newSize;   c++) state.CachePosition[newCache[c]] = c;
 
-            Array.Copy(newCache, lruCache, newSize);
+            (lruCache, newCache) = (newCache, lruCache);
             lruSize = newSize;
 
             for (int c = 0; c < lruSize; c++) UpdateVertex(lruCache[c], faceIndices, state);

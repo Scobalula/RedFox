@@ -45,5 +45,13 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             var y = (ushort)(_packed >> 16);
             return new Vector4(x, y, 0f, 0f);
         }
+
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => (ushort)_packed,
+            1 => (ushort)(_packed >> 16),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
     }
 }

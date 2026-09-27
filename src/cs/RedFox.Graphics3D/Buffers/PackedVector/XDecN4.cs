@@ -60,6 +60,18 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             return new Vector4(x, y, z, rawW / 3f);
         }
 
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => UnpackNormalized(_packed & 0x3FF),
+            1 => UnpackNormalized((_packed >> 10) & 0x3FF),
+            2 => UnpackNormalized((_packed >> 20) & 0x3FF),
+            3 => (_packed >> 30) / 3f,
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
+
+        private static float UnpackNormalized(uint value) => value == 0x200 ? -1f : SignExtend10(value) / 511f;
+
         private static float SignExtend10(uint value)
         {
             return (value & 0x200) != 0 ? (int)(value | 0xFFFFFC00) : (int)value;

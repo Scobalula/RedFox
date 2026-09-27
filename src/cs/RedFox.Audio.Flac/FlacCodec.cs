@@ -344,7 +344,9 @@ public unsafe sealed class FlacCodec : AudioCodec, IDisposable
     {
         try
         {
-            _encodeOutput.AddRange(new Span<byte>(buffer, bytes).ToArray());
+            _encodeOutput.EnsureCapacity(checked(_encodeOutput.Count + bytes));
+            for (int i = 0; i < bytes; i++)
+                _encodeOutput.Add(buffer[i]);
             return FlacInterop.EncoderWriteStatus.WriteOk;
         }
         catch (Exception exception)

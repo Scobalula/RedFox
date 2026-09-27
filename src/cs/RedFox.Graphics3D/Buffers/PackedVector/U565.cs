@@ -51,4 +51,13 @@ public struct U565 : IPackedVector<U565>
         var z = (_packed >> 11) & 0x1F;
         return new Vector4(x, y, z, 0f);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => _packed & 0x1F,
+        1 => (_packed >> 5) & 0x3F,
+        2 => (_packed >> 11) & 0x1F,
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
 }

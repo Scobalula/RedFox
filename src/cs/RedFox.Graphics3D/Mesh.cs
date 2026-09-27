@@ -10,6 +10,8 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public class Mesh : SceneNode
 {
+    private Dictionary<SceneNode, Matrix4x4>? _skinWorldMatrices;
+
     /// <summary>
     /// Gets or sets the data buffer that contains vertex position information for the mesh.
     /// </summary>
@@ -121,10 +123,13 @@ public class Mesh : SceneNode
             throw new ArgumentException($"Destination span must be at least {Skin.Bones.Count} elements.", nameof(destination));
 
         Matrix4x4 meshBindWorld = GetBindWorldMatrix();
+        Dictionary<SceneNode, Matrix4x4> worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
+        worldMatrices.Clear();
 
         for (int i = 0; i < Skin.Bones.Count; i++)
-            destination[i] = Skin.GetSkinTransform(i, meshBindWorld);
+            destination[i] = Skin.GetSkinTransform(i, meshBindWorld, worldMatrices);
 
+        worldMatrices.Clear();
         return Skin.Bones.Count;
     }
 
@@ -139,9 +144,12 @@ public class Mesh : SceneNode
 
         Matrix4x4[] skinTransforms = new Matrix4x4[Skin?.Bones.Count ?? 0];
         CopySkinTransforms(skinTransforms);
+        Matrix4x4[] skinNormalTransforms = Normals is null ? [] : new Matrix4x4[skinTransforms.Length];
+        for (int i = 0; i < skinNormalTransforms.Length; i++)
+            skinNormalTransforms[i] = Matrix4x4.Invert(skinTransforms[i], out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : skinTransforms[i];
 
         Positions = BakeBuffer(Positions, vertexIndex => GetVertexPosition(vertexIndex, skinTransforms));
-        Normals = BakeBuffer(Normals, vertexIndex => GetVertexNormal(vertexIndex, skinTransforms));
+        Normals = BakeBuffer(Normals, vertexIndex => GetVertexNormal(vertexIndex, skinTransforms, skinNormalTransforms));
         Tangents = BakeBuffer(Tangents, vertexIndex => GetVertexTangent(vertexIndex, skinTransforms).AsVector3());
         BiTangents = BakeBuffer(BiTangents, vertexIndex => GetVertexBiTangent(vertexIndex, skinTransforms));
 
@@ -202,6 +210,24 @@ public class Mesh : SceneNode
         Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
         Vector3 morphedNormal = normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
         Vector3? skinnedNormal = ApplySkinning(morphedNormal, vertexIndex, static (value, transform) => Vector3.TransformNormal(value, Matrix4x4.Invert(transform, out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : transform), skinTransforms);
+        return NormalizeOrDefault(skinnedNormal ?? morphedNormal, normal);
+    }
+
+    /// <summary>
+    /// Gets a skinned vertex normal using precomputed skin and inverse-transpose matrices.
+    /// </summary>
+    /// <param name="vertexIndex">The zero-based vertex index.</param>
+    /// <param name="skinTransforms">The transforms aligned to the skin's bones.</param>
+    /// <param name="normalTransforms">The inverse-transpose transforms aligned to the skin's bones.</param>
+    /// <returns>The resolved vertex normal.</returns>
+    public Vector3 GetVertexNormal(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms, ReadOnlySpan<Matrix4x4> normalTransforms)
+    {
+        if (Skin is not null && (skinTransforms.Length < Skin.Bones.Count || normalTransforms.Length < Skin.Bones.Count))
+            throw new ArgumentException("Skin and normal transform spans must contain one matrix per skin bone.");
+
+        Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
+        Vector3 morphedNormal = normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
+        Vector3? skinnedNormal = ApplySkinning(morphedNormal, vertexIndex, Vector3.TransformNormal, skinTransforms, normalTransforms);
         return NormalizeOrDefault(skinnedNormal ?? morphedNormal, normal);
     }
 
@@ -343,9 +369,13 @@ public class Mesh : SceneNode
         if (Skin is not null)
         {
             SceneBounds[] bindSpaceBounds = Skin.GetBindSpaceBounds(Positions, GetBindWorldMatrix());
+            Dictionary<SceneNode, Matrix4x4> worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
+            worldMatrices.Clear();
 
             for (int i = 0; i < bindSpaceBounds.Length; i++)
-                bounds = bounds.Include(bindSpaceBounds[i].Expand(morphOffset).Transform(Skin.Bones[i].GetActiveWorldMatrix()));
+                bounds = bounds.Include(bindSpaceBounds[i].Expand(morphOffset).Transform(Skin.Bones[i].GetActiveWorldMatrix(worldMatrices)));
+
+            worldMatrices.Clear();
 
             if (bounds.IsValid)
                 return true;
@@ -387,20 +417,56 @@ public class Mesh : SceneNode
     }
 
     /// <inheritdoc/>
+    protected override void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType() != typeof(Mesh))
+        {
+            base.RemapClonedReferences(clones);
+            return;
+        }
+
+        if (Skin is not null)
+        {
+            Dictionary<SkeletonBone, SkeletonBone> boneRemap = [];
+            foreach (SkeletonBone bone in Skin.Bones)
+                if (clones.TryGetValue(bone, out SceneNode? boneCopy) && boneCopy is SkeletonBone clonedBone)
+                    boneRemap[bone] = clonedBone;
+            Skin.RemapBones(boneRemap);
+        }
+
+        if (Materials is not null)
+            for (int i = 0; i < Materials.Count; i++)
+                if (Materials[i] is Material material && clones.TryGetValue(material, out SceneNode? materialCopy) && materialCopy is Material clonedMaterial)
+                    Materials[i] = clonedMaterial;
+    }
+
+    /// <inheritdoc/>
     protected override void OnCloned()
     {
+        _skinWorldMatrices = null;
         Skin = Skin?.Clone();
         Morph = Morph?.Clone();
         Materials = Materials is null ? null : [.. Materials];
         MaterialIndexRanges = MaterialIndexRanges is null ? null : [.. MaterialIndexRanges];
     }
 
-    private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms)
+    private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms, ReadOnlySpan<Matrix4x4> transformOverrides = default)
     {
         if (Skin is null)
             return null;
 
-        Matrix4x4 meshBindWorld = skinTransforms.IsEmpty ? GetBindWorldMatrix() : Matrix4x4.Identity;
+        Dictionary<SceneNode, Matrix4x4>? worldMatrices = null;
+        Matrix4x4 meshBindWorld = Matrix4x4.Identity;
+        if (skinTransforms.IsEmpty)
+        {
+            meshBindWorld = GetBindWorldMatrix();
+            if (Skin.InfluenceCount > 1)
+            {
+                worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
+                worldMatrices.Clear();
+            }
+        }
+
         Vector3 result = Vector3.Zero;
         float totalWeight = 0f;
 
@@ -412,12 +478,21 @@ public class Mesh : SceneNode
                 continue;
 
             int boneIndex = Skin.GetBoneIndex(vertexIndex, influenceIndex);
-            Matrix4x4 skinTransform = skinTransforms.IsEmpty ? Skin.GetSkinTransform(boneIndex, meshBindWorld) : skinTransforms[boneIndex];
+            Matrix4x4 skinTransform;
+            if (!skinTransforms.IsEmpty)
+                skinTransform = skinTransforms[boneIndex];
+            else if (worldMatrices is not null)
+                skinTransform = Skin.GetSkinTransform(boneIndex, meshBindWorld, worldMatrices);
+            else
+                skinTransform = Skin.GetSkinTransform(boneIndex, meshBindWorld);
+            if (!transformOverrides.IsEmpty)
+                skinTransform = transformOverrides[boneIndex];
 
             result += transform(value, skinTransform) * weight;
             totalWeight += weight;
         }
 
+        worldMatrices?.Clear();
         return totalWeight > 0f ? result : null;
     }
 

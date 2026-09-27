@@ -104,7 +104,7 @@ internal static class ExrB44Compression
     /// </summary>
     private static void DecodeHalfPlane(ReadOnlySpan<byte> packedData, ref int sourceOffset, Span<byte> plane, int width, int rowsInBlock, bool isLinear)
     {
-        ushort[] block = new ushort[16];
+        Span<ushort> block = stackalloc ushort[16];
 
         for (int row = 0; row < rowsInBlock; row += 4)
         {
@@ -154,15 +154,16 @@ internal static class ExrB44Compression
     /// </summary>
     private static void EncodeHalfPlane(Stream stream, ReadOnlySpan<byte> plane, int width, int rowsInBlock, bool flatFields)
     {
-        var block = new ushort[16];
+        Span<ushort> block = stackalloc ushort[16];
+        Span<byte> encoded = stackalloc byte[14];
 
         for (int row = 0; row < rowsInBlock; row += 4)
         {
             for (int column = 0; column < width; column += 4)
             {
                 BuildHalfBlock(plane, width, rowsInBlock, row, column, block);
-                byte[] encoded = PackB44Block(block, flatFields);
-                stream.Write(encoded);
+                int encodedLength = PackB44Block(block, flatFields, encoded);
+                stream.Write(encoded[..encodedLength]);
             }
         }
     }
@@ -170,7 +171,7 @@ internal static class ExrB44Compression
     /// <summary>
     /// Builds a padded 4x4 HALF block for B44 packing.
     /// </summary>
-    private static void BuildHalfBlock(ReadOnlySpan<byte> plane, int width, int rowsInBlock, int row, int column, ushort[] block)
+    private static void BuildHalfBlock(ReadOnlySpan<byte> plane, int width, int rowsInBlock, int row, int column, Span<ushort> block)
     {
         for (int blockRow = 0; blockRow < 4; blockRow++)
         {
@@ -189,7 +190,7 @@ internal static class ExrB44Compression
     /// <summary>
     /// Converts B44 log-encoded values back to linear HALF values.
     /// </summary>
-    private static void ConvertToLinear(ushort[] block)
+    private static void ConvertToLinear(Span<ushort> block)
     {
         for (int index = 0; index < block.Length; index++)
             block[index] = ConvertToLinear(block[index]);
@@ -215,7 +216,7 @@ internal static class ExrB44Compression
     /// <summary>
     /// Unpacks the standard 14-byte B44 block representation.
     /// </summary>
-    private static void Unpack14(ReadOnlySpan<byte> block, ushort[] output)
+    private static void Unpack14(ReadOnlySpan<byte> block, Span<ushort> output)
     {
         ushort shift = (ushort)(block[2] >> 2);
         uint bias = (uint)(0x20u << shift);
@@ -252,7 +253,7 @@ internal static class ExrB44Compression
     /// <summary>
     /// Unpacks the compact 3-byte B44A flat-field representation.
     /// </summary>
-    private static void Unpack3(ReadOnlySpan<byte> block, ushort[] output)
+    private static void Unpack3(ReadOnlySpan<byte> block, Span<ushort> output)
     {
         ushort value = (ushort)((block[0] << 8) | block[1]);
         value = (value & 0x8000) != 0 ? (ushort)(value & 0x7FFF) : (ushort)~value;
@@ -264,19 +265,20 @@ internal static class ExrB44Compression
     /// <summary>
     /// Packs a single HALF block using the OpenEXR B44/B44A layout.
     /// </summary>
-    private static byte[] PackB44Block(ushort[] source, bool flatFields)
+    private static int PackB44Block(ReadOnlySpan<ushort> source, bool flatFields, Span<byte> packed)
     {
-        int[] differences = new int[16];
-        int[] runs = new int[15];
-        ushort[] transformed = new ushort[16];
+        Span<int> differences = stackalloc int[16];
+        Span<int> runs = stackalloc int[15];
+        Span<ushort> transformed = stackalloc ushort[16];
 
+        ushort maximum = 0;
         for (int index = 0; index < source.Length; index++)
         {
             ushort value = source[index];
             transformed[index] = (value & 0x7C00) == 0x7C00 ? (ushort)0x8000 : (value & 0x8000) != 0 ? (ushort)~value : (ushort)(value | 0x8000);
+            maximum = Math.Max(maximum, transformed[index]);
         }
 
-        ushort maximum = transformed.Max();
         int shift = -1;
         int minRun;
         int maxRun;
@@ -304,22 +306,24 @@ internal static class ExrB44Compression
             runs[13] = differences[10] - differences[11] + 0x20;
             runs[14] = differences[14] - differences[15] + 0x20;
 
-            minRun = runs.Min();
-            maxRun = runs.Max();
+            minRun = int.MaxValue;
+            maxRun = int.MinValue;
+            for (int index = 0; index < runs.Length; index++)
+            {
+                minRun = Math.Min(minRun, runs[index]);
+                maxRun = Math.Max(maxRun, runs[index]);
+            }
         }
         while (minRun < 0 || maxRun > 0x3F);
 
         if (flatFields && minRun == 0x20 && maxRun == 0x20)
         {
-            return
-            [
-                (byte)(transformed[0] >> 8),
-                (byte)transformed[0],
-                0xFC,
-            ];
+            packed[0] = (byte)(transformed[0] >> 8);
+            packed[1] = (byte)transformed[0];
+            packed[2] = 0xFC;
+            return 3;
         }
 
-        var packed = new byte[14];
         packed[0] = (byte)(transformed[0] >> 8);
         packed[1] = (byte)transformed[0];
         packed[2] = (byte)((shift << 2) | (runs[0] >> 4));
@@ -334,7 +338,7 @@ internal static class ExrB44Compression
         packed[11] = (byte)((runs[11] << 2) | (runs[12] >> 4));
         packed[12] = (byte)((runs[12] << 4) | (runs[13] >> 2));
         packed[13] = (byte)((runs[13] << 6) | runs[14]);
-        return packed;
+        return 14;
     }
 
     /// <summary>

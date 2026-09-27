@@ -319,6 +319,16 @@ public class SemodelTranslator : SceneTranslator
             int influences  = skin?.BoneIndices.ValueCount ?? 0;
 
             int[] globalBoneIndexTable = skin is not null ? GetExportBoneIndices(mesh, skin, boneTable) : [];
+            Matrix4x4[] skinTransforms = [];
+            Matrix4x4[] skinNormalTransforms = [];
+            if (!options.WriteRawVertices && skin is not null)
+            {
+                skinTransforms = new Matrix4x4[skin.Bones.Count];
+                mesh.CopySkinTransforms(skinTransforms);
+                skinNormalTransforms = new Matrix4x4[skinTransforms.Length];
+                for (int i = 0; i < skinTransforms.Length; i++)
+                    skinNormalTransforms[i] = Matrix4x4.Invert(skinTransforms[i], out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : skinTransforms[i];
+            }
 
             writer.Write((byte)0); // flags
             writer.Write((byte)layerCount);
@@ -328,7 +338,7 @@ public class SemodelTranslator : SceneTranslator
 
             // Positions
             for (int v = 0; v < vertexCount; v++)
-                writer.WriteStruct(mesh.GetVertexPosition(v, options.WriteRawVertices));
+                writer.WriteStruct(options.WriteRawVertices ? mesh.GetVertexPosition(v, raw: true) : mesh.GetVertexPosition(v, skinTransforms));
 
             // UVs
             if (mesh.UVLayers is not null)
@@ -360,7 +370,7 @@ public class SemodelTranslator : SceneTranslator
             if (mesh.Normals is not null)
             {
                 for (int v = 0; v < vertexCount; v++)
-                    writer.WriteStruct(mesh.GetVertexNormal(v, options.WriteRawVertices));
+                    writer.WriteStruct(options.WriteRawVertices ? mesh.GetVertexNormal(v, raw: true) : mesh.GetVertexNormal(v, skinTransforms, skinNormalTransforms));
             }
             else if (hasNormals)
             {

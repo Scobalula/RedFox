@@ -53,6 +53,15 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             return new Vector4(Float11ToFloat(ix), Float11ToFloat(iy), Float10ToFloat(iz), 0f);
         }
 
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => Float11ToFloat((int)(_packed & 0x7FF)),
+            1 => Float11ToFloat((int)((_packed >> 11) & 0x7FF)),
+            2 => Float10ToFloat((int)((_packed >> 22) & 0x3FF)),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
+
         private static uint FloatToFloat11(float value)
         {
             uint i = BitConverter.SingleToUInt32Bits(value);

@@ -12,6 +12,8 @@ internal sealed class JpegHuffmanTable
     private readonly int[] _maxCode = new int[17];
     private readonly int[] _valPtr = new int[17];
     private readonly byte[] _values;
+    private readonly byte[] _fastBitCounts = new byte[256];
+    private readonly byte[] _fastValues = new byte[256];
 
     /// <summary>Creates a Huffman decoding table from JPEG DHT segment data.</summary>
     /// <param name="codeLengths">A 16-element span giving the count of codes at each bit length (1–16).</param>
@@ -44,6 +46,21 @@ internal sealed class JpegHuffmanTable
 
             code <<= 1;
         }
+
+        for (int bits = 1; bits <= 8; bits++)
+        {
+            if (_maxCode[bits] < 0)
+                continue;
+
+            for (int codeValue = _minCode[bits]; codeValue <= _maxCode[bits]; codeValue++)
+            {
+                int firstIndex = codeValue << (8 - bits);
+                int fillCount = 1 << (8 - bits);
+                byte symbol = _values[_valPtr[bits] + codeValue - _minCode[bits]];
+                Array.Fill(_fastBitCounts, (byte)bits, firstIndex, fillCount);
+                Array.Fill(_fastValues, symbol, firstIndex, fillCount);
+            }
+        }
     }
 
     /// <summary>Attempts to decode the next Huffman symbol from the bit reader.</summary>
@@ -53,6 +70,18 @@ internal sealed class JpegHuffmanTable
     public bool TryDecode(JpegBitReader reader, out int value)
     {
         value = 0;
+
+        if (reader.TryPeekBits(8, out int prefix))
+        {
+            byte fastBitCount = _fastBitCounts[prefix];
+            if (fastBitCount > 0)
+            {
+                reader.TryReadBits(fastBitCount, out _);
+                value = _fastValues[prefix];
+                return true;
+            }
+        }
+
         int code = 0;
 
         for (int bits = 1; bits <= 16; bits++)
@@ -64,7 +93,7 @@ internal sealed class JpegHuffmanTable
 
             code = (code << 1) | bit;
 
-            if (_maxCode[bits] >= 0 && code <= _maxCode[bits])
+            if (_maxCode[bits] >= 0 && code >= _minCode[bits] && code <= _maxCode[bits])
             {
                 int index = _valPtr[bits] + (code - _minCode[bits]);
                 value = _values[index];

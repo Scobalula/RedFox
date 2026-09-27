@@ -19,6 +19,9 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 {
     private readonly List<MeshGpuBufferBinding> _buffers = [];
     private readonly IGraphicsDevice _graphicsDevice = graphicsDevice;
+    private Matrix4x4[] _skinMatrixBuffer = [];
+    private Matrix4x4[] _uploadedSkinMatrices = [];
+    private float[] _uploadedMorphWeights = [];
     private Morph? _morphSource;
 
     /// <summary>
@@ -79,11 +82,28 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 if (Owner.Skin is not { } skin)
                 {
                     binding.Release();
+                    _skinMatrixBuffer = [];
+                    _uploadedSkinMatrices = [];
                     return false;
                 }
 
-                Span<Matrix4x4> matrixBuffer = skin.Bones.Count > 128 ? new Matrix4x4[skin.Bones.Count] : stackalloc Matrix4x4[skin.Bones.Count];
+                Span<Matrix4x4> matrixBuffer;
+                if (skin.Bones.Count > 128)
+                {
+                    if (_skinMatrixBuffer.Length < skin.Bones.Count)
+                        Array.Resize(ref _skinMatrixBuffer, skin.Bones.Count);
+
+                    matrixBuffer = _skinMatrixBuffer.AsSpan(0, skin.Bones.Count);
+                }
+                else
+                {
+                    matrixBuffer = stackalloc Matrix4x4[skin.Bones.Count];
+                }
+
                 Owner.CopySkinTransforms(matrixBuffer);
+                bool unchanged = binding.HasGpuBuffer && matrixBuffer.SequenceEqual(_uploadedSkinMatrices);
+                if (unchanged)
+                    return true;
 
                 GpuBufferData transformData = new(
                     MemoryMarshal.AsBytes(matrixBuffer),
@@ -96,6 +116,13 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                     sizeof(float));
 
                 bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
+                if (updated)
+                {
+                    if (_uploadedSkinMatrices.Length != matrixBuffer.Length)
+                        Array.Resize(ref _uploadedSkinMatrices, matrixBuffer.Length);
+
+                    matrixBuffer.CopyTo(_uploadedSkinMatrices);
+                }
 
                 return updated;
             }));
@@ -106,11 +133,25 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 if (Owner.Morph is not { TargetCount: > 0 } morph)
                 {
                     binding.Release();
+                    _uploadedMorphWeights = [];
                     return false;
                 }
 
+                bool unchanged = binding.HasGpuBuffer && morph.Weights.AsSpan().SequenceEqual(_uploadedMorphWeights);
+                if (unchanged)
+                    return true;
+
                 GpuBufferData weightData = new(MemoryMarshal.AsBytes(morph.Weights.AsSpan()), GpuBufferElementType.Float32, morph.TargetCount, 1, 1, sizeof(float), sizeof(float), sizeof(float));
-                return binding.UpdateGenerated(graphicsDevice, weightData);
+                bool updated = binding.UpdateGenerated(graphicsDevice, weightData);
+                if (updated)
+                {
+                    if (_uploadedMorphWeights.Length != morph.TargetCount)
+                        Array.Resize(ref _uploadedMorphWeights, morph.TargetCount);
+
+                    morph.Weights.CopyTo(_uploadedMorphWeights, 0);
+                }
+
+                return updated;
             }));
         }
 
@@ -232,6 +273,10 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers.Clear();
         }
 
+        _skinMatrixBuffer = [];
+        _uploadedSkinMatrices = [];
+        _uploadedMorphWeights = [];
+        _morphSource = null;
         VertexCount = 0;
         IndexCount = 0;
     }

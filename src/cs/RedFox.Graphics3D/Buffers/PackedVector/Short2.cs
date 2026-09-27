@@ -45,4 +45,12 @@ public struct Short2 : IPackedVector<Short2>
         var y = (short)(_packed >> 16);
         return new Vector4(x, y, 0f, 0f);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => (short)_packed,
+        1 => (short)(_packed >> 16),
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
 }

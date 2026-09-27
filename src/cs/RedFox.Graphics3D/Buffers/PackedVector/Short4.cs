@@ -51,4 +51,14 @@ public struct Short4 : IPackedVector<Short4>
         var w = (short)((_packed >> 48) & 0xFFFF);
         return new Vector4(x, y, z, w);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => (short)_packed,
+        1 => (short)(_packed >> 16),
+        2 => (short)(_packed >> 32),
+        3 => (short)(_packed >> 48),
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
 }

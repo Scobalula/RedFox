@@ -100,13 +100,16 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
                 break;
 
             // Iterate from the joint just before the tip toward the root
+            bool tipPositionNeedsUpdate = false;
             for (int i = tipIndex - 1; i >= 0; i--)
             {
                 var joint = Chain[i];
-                var jointPos = joint.GetActiveWorldPosition();
+                var jointPose = joint.GetActiveWorldPose();
+                var jointPos = jointPose.Position;
 
                 // Current tip position (recalculated after previous joint adjustments)
-                tipPos = Chain[tipIndex].GetActiveWorldPosition();
+                if (tipPositionNeedsUpdate)
+                    tipPos = Chain[tipIndex].GetActiveWorldPosition();
 
                 // Direction from this joint to the current tip and to the target
                 var toTip    = tipPos - jointPos;
@@ -126,10 +129,11 @@ public class CCDIKSolver(string name) : AnimationSamplerSolver(name)
                 if (AngleLimit > 0f)
                     rotation = ClampRotation(rotation, AngleLimit);
 
-                var currentRot = joint.GetActiveWorldRotation();
+                var currentRot = jointPose.Rotation;
                 var desired = Quaternion.Normalize(rotation * currentRot);
                 joint.LiveTransform.WorldRotation = desired;
                 joint.LiveTransform.LocalRotation = null;
+                tipPositionNeedsUpdate = true;
             }
         }
 

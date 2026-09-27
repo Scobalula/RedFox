@@ -54,4 +54,14 @@ public struct U555 : IPackedVector<U555>
         var w = (_packed >> 15) & 0x1;
         return new Vector4(x, y, z, w);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => _packed & 0x1F,
+        1 => (_packed >> 5) & 0x1F,
+        2 => (_packed >> 10) & 0x1F,
+        3 => _packed >> 15,
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
 }

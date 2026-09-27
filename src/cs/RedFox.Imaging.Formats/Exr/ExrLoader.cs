@@ -423,13 +423,16 @@ internal static class ExrLoader
     /// </summary>
     private static ExrChannelTarget GetChannelTarget(string name)
     {
-        return name.ToUpperInvariant() switch
+        if (name.Length != 1)
+            return ExrChannelTarget.Ignore;
+
+        return char.ToUpperInvariant(name[0]) switch
         {
-            "R" => ExrChannelTarget.Red,
-            "G" => ExrChannelTarget.Green,
-            "B" => ExrChannelTarget.Blue,
-            "A" => ExrChannelTarget.Alpha,
-            "Y" => ExrChannelTarget.Luminance,
+            'R' => ExrChannelTarget.Red,
+            'G' => ExrChannelTarget.Green,
+            'B' => ExrChannelTarget.Blue,
+            'A' => ExrChannelTarget.Alpha,
+            'Y' => ExrChannelTarget.Luminance,
             _ => ExrChannelTarget.Ignore,
         };
     }

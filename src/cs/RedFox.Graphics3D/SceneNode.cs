@@ -11,14 +11,27 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public abstract class SceneNode : IUpdatable, IDisposable
 {
+    private const int ChildNameIndexThreshold = 8;
     private List<SceneNode>? _children = null;
+    private Dictionary<string, int>? _childNameCounts;
     private bool _disposed;
     private Scene? _scene = null;
+    private string _name = string.Empty;
 
     /// <summary>
     /// Gets or sets the name associated with the node.
     /// </summary>
-    public string Name { get; set; }
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (Parent is { } parent && !string.Equals(_name, value, StringComparison.CurrentCultureIgnoreCase))
+                parent.ChangeChildName(_name, value);
+
+            _name = value;
+        }
+    }
 
     /// <summary>
     /// Gets or sets the scene this this object is apart of.
@@ -322,12 +335,14 @@ public abstract class SceneNode : IUpdatable, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
         }
 
-        oldParent?._children?.Remove(this);
+        if (oldParent?._children?.Remove(this) == true)
+            oldParent.RemoveChildName(Name);
         oldParent?.OnChildRemoved(this);
 
         Parent = newParent;
         newParent._children ??= [];
         newParent._children.Add(this);
+        newParent.AddChildName(Name);
         SetScene(newScene);
         newParent.OnChildAdded(this);
 
@@ -578,15 +593,19 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (_children is null)
             yield break;
 
-        foreach (var child in _children)
-        {
-            if (child.MatchesFilter(filter))
-                yield return child;
+        Stack<SceneNode> pending = new();
+        for (int i = _children.Count - 1; i >= 0; i--)
+            pending.Push(_children[i]);
 
-            foreach (var descendant in child.EnumerateDescendants(filter))
-            {
-                yield return descendant;
-            }
+        while (pending.Count > 0)
+        {
+            SceneNode node = pending.Pop();
+            if (node._children is { Count: > 0 } children)
+                for (int i = children.Count - 1; i >= 0; i--)
+                    pending.Push(children[i]);
+
+            if (node.MatchesFilter(filter))
+                yield return node;
         }
     }
 
@@ -1563,6 +1582,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return false;
         }
 
+        RemoveChildName(node.Name);
         Scene? scene = node.Scene ?? _scene;
         node.Parent = null;
         node.SetScene(null);
@@ -1604,6 +1624,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         _children.Clear();
+        _childNameCounts = null;
         scene?.NotifyChanged(SceneChangeKind.Cleared, this);
     }
 
@@ -1638,9 +1659,18 @@ public abstract class SceneNode : IUpdatable, IDisposable
         node.ThrowIfInvalidParent(this);
 
         _children ??= [];
-        if (_children.Any(x => x.Name.Equals(node.Name, StringComparison.CurrentCultureIgnoreCase)))
+        bool duplicate = _childNameCounts?.ContainsKey(node.Name) == true;
+        if (_childNameCounts is null)
+            foreach (SceneNode child in _children)
+                if (child.Name.Equals(node.Name, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    duplicate = true;
+                    break;
+                }
+        if (duplicate)
             throw new SceneNodeDuplicateException($"A node with the name: {node.Name} already exists in: {Name}");
         _children.Add(node);
+        AddChildName(node.Name);
 
         node.Parent = this;
         node.SetScene(_scene);
@@ -1648,6 +1678,42 @@ public abstract class SceneNode : IUpdatable, IDisposable
         OnChildAdded(node);
         _scene?.NotifyChanged(SceneChangeKind.NodeAdded, node);
         return node;
+    }
+
+    private void AddChildName(string name)
+    {
+        if (_childNameCounts is null)
+        {
+            if (_children!.Count < ChildNameIndexThreshold)
+                return;
+
+            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.CurrentCultureIgnoreCase);
+            foreach (SceneNode child in _children)
+                _childNameCounts[child.Name] = _childNameCounts.GetValueOrDefault(child.Name) + 1;
+            return;
+        }
+
+        _childNameCounts[name] = _childNameCounts.GetValueOrDefault(name) + 1;
+    }
+
+    private void RemoveChildName(string name)
+    {
+        if (_childNameCounts is null || !_childNameCounts.TryGetValue(name, out int count))
+            return;
+
+        if (count == 1)
+            _childNameCounts.Remove(name);
+        else
+            _childNameCounts[name] = count - 1;
+    }
+
+    private void ChangeChildName(string oldName, string newName)
+    {
+        if (_childNameCounts is null)
+            return;
+
+        RemoveChildName(oldName);
+        _childNameCounts[newName] = _childNameCounts.GetValueOrDefault(newName) + 1;
     }
 
     /// <summary>
@@ -1763,7 +1829,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
         OnUpdate(deltaTime);
 
-        _children?.ForEach(x => x.Update(deltaTime));
+        if (_children is not null)
+            foreach (SceneNode child in _children)
+                child.Update(deltaTime);
     }
 
     /// <summary>
@@ -2055,10 +2123,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         foreach (var node in clones.Values)
-        {
-            foreach (var (source, copy) in clones)
-                node.Swap(source, copy);
-        }
+            node.RemapClonedReferences(clones);
 
         return clones[this];
     }
@@ -3111,6 +3176,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
         return Parent is not null ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix() : GetActiveLocalMatrix();
     }
 
+    internal Matrix4x4 GetActiveWorldMatrix(Dictionary<SceneNode, Matrix4x4> cache)
+    {
+        if (cache.TryGetValue(this, out Matrix4x4 worldMatrix))
+            return worldMatrix;
+
+        Matrix4x4 localMatrix = GetActiveLocalMatrix();
+        worldMatrix = Parent is not null ? localMatrix * Parent.GetActiveWorldMatrix(cache) : localMatrix;
+        cache[this] = worldMatrix;
+        return worldMatrix;
+    }
+
     /// <summary>
     /// Tries to compute world-space bounds for this node.
     /// The default implementation returns <see langword="false"/>; override in concrete node
@@ -3378,7 +3454,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         return (position, rotation);
     }
 
-    private (Vector3 Position, Quaternion Rotation) GetActiveWorldPose()
+    internal (Vector3 Position, Quaternion Rotation) GetActiveWorldPose()
     {
         if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
             return (worldPosition, worldRotation);
@@ -3418,6 +3494,18 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// </summary>
     protected virtual void OnCloned()
     {
+    }
+
+    /// <summary>
+    /// Remaps references held by this cloned node to their cloned counterparts.
+    /// </summary>
+    protected virtual void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType().GetMethod(nameof(Swap), [typeof(SceneNode), typeof(SceneNode)])?.DeclaringType == typeof(SceneNode))
+            return;
+
+        foreach ((SceneNode source, SceneNode copy) in clones)
+            Swap(source, copy);
     }
 
     /// <inheritdoc/>

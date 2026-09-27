@@ -55,5 +55,17 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
                 z == -128 ? -1f : z / 127f,
                 w == -128 ? -1f : w / 127f);
         }
+
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => UnpackNormalized((sbyte)_packed),
+            1 => UnpackNormalized((sbyte)(_packed >> 8)),
+            2 => UnpackNormalized((sbyte)(_packed >> 16)),
+            3 => UnpackNormalized((sbyte)(_packed >> 24)),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
+
+        private static float UnpackNormalized(sbyte value) => value == -128 ? -1f : value / 127f;
     }
 }

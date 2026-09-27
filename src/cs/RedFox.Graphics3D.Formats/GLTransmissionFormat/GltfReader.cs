@@ -22,6 +22,7 @@ public sealed class GltfReader
     private readonly string _name;
     private readonly SceneTranslatorOptions _options;
     private readonly string? _baseDirectory;
+    private readonly Dictionary<int, int> _parentByNode = [];
 
     /// <summary>
     /// Node-index to <see cref="SkeletonBone"/> mapping, populated during skeleton construction.
@@ -46,6 +47,11 @@ public sealed class GltfReader
         _name = name ?? throw new ArgumentNullException(nameof(name));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _baseDirectory = baseDirectory;
+
+        for (int parentIndex = 0; parentIndex < _doc.Nodes.Count; parentIndex++)
+            if (_doc.Nodes[parentIndex].Children is { } children)
+                foreach (int childIndex in children)
+                    _parentByNode.TryAdd(childIndex, parentIndex);
     }
 
     /// <summary>
@@ -659,13 +665,13 @@ public sealed class GltfReader
             }
 
             // Second pass: build parent-child hierarchy
+            HashSet<int> jointIndices = [.. skin.Joints];
             foreach (int nodeIdx in skin.Joints)
             {
-                GltfNode jointNode = _doc.Nodes[nodeIdx];
                 SkeletonBone bone = bonesByNodeIdx[nodeIdx];
 
                 // Find parent in the joint set
-                int? parentNodeIdx = FindParentJoint(nodeIdx, skin.Joints);
+                int? parentNodeIdx = FindParentJoint(nodeIdx, jointIndices);
 
                 if (parentNodeIdx.HasValue && bonesByNodeIdx.TryGetValue(parentNodeIdx.Value, out SkeletonBone? parentBone))
                 {
@@ -696,7 +702,11 @@ public sealed class GltfReader
     public int? FindParentJoint(int nodeIdx, int[] joints)
     {
         HashSet<int> jointSet = [.. joints];
+        return FindParentJoint(nodeIdx, jointSet);
+    }
 
+    private int? FindParentJoint(int nodeIdx, IReadOnlySet<int> jointSet)
+    {
         // Walk up the glTF node tree to find a parent that's also a joint
         int? parentIdx = FindParentNode(nodeIdx);
         while (parentIdx.HasValue)
@@ -716,13 +726,7 @@ public sealed class GltfReader
     /// <returns>The parent node index, or <see langword="null"/> if the node is a root node.</returns>
     public int? FindParentNode(int nodeIdx)
     {
-        for (int i = 0; i < _doc.Nodes.Count; i++)
-        {
-            int[]? children = _doc.Nodes[i].Children;
-            if (children is not null && Array.IndexOf(children, nodeIdx) >= 0)
-                return i;
-        }
-        return null;
+        return _parentByNode.TryGetValue(nodeIdx, out int parentIndex) ? parentIndex : null;
     }
 
     /// <summary>

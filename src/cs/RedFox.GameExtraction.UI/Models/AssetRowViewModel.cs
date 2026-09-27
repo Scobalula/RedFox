@@ -18,6 +18,9 @@ public sealed class AssetRowViewModel
     {
         Asset = asset;
         Source = source;
+        string fileName = Path.GetFileName(asset.Name);
+        Name = string.IsNullOrWhiteSpace(fileName) ? asset.Name : fileName;
+        Size = ResolveSize(asset);
     }
 
     /// <summary>
@@ -38,14 +41,7 @@ public sealed class AssetRowViewModel
     /// <summary>
     /// Gets the asset file or display name.
     /// </summary>
-    public string Name
-    {
-        get
-        {
-            string fileName = Path.GetFileName(Asset.Name);
-            return string.IsNullOrWhiteSpace(fileName) ? Asset.Name : fileName;
-        }
-    }
+    public string Name { get; }
 
     /// <summary>
     /// Gets the logical asset type.
@@ -55,7 +51,7 @@ public sealed class AssetRowViewModel
     /// <summary>
     /// Gets the asset size in bytes when known.
     /// </summary>
-    public long? Size => ResolveSize();
+    public long? Size { get; }
 
     /// <summary>
     /// Gets the display text for the asset size.
@@ -87,11 +83,11 @@ public sealed class AssetRowViewModel
             : string.Empty;
     }
 
-    private long? ResolveSize()
+    private static long? ResolveSize(Asset asset)
     {
         foreach (string key in SizeMetadataKeys)
         {
-            if (Asset.Metadata.TryGetValue(key, out object? value) && TryConvertToInt64(value, out long size))
+            if (asset.Metadata.TryGetValue(key, out object? value) && TryConvertToInt64(value, out long size))
             {
                 return size;
             }

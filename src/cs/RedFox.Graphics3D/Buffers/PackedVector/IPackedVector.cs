@@ -24,5 +24,27 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         /// </summary>
         /// <returns>The unpacked vector.</returns>
         Vector4 Unpack();
+
+        /// <summary>
+        /// Unpacks one component without requiring the other components.
+        /// </summary>
+        /// <param name="componentIndex">The zero-based component index.</param>
+        /// <returns>The unpacked component.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="componentIndex"/> is outside the supported component range.</exception>
+        float UnpackComponent(int componentIndex)
+        {
+            if ((uint)componentIndex >= (uint)TSelf.ComponentCount)
+                throw new ArgumentOutOfRangeException(nameof(componentIndex));
+
+            Vector4 value = Unpack();
+            return componentIndex switch
+            {
+                0 => value.X,
+                1 => value.Y,
+                2 => value.Z,
+                3 => value.W,
+                _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+            };
+        }
     }
 }

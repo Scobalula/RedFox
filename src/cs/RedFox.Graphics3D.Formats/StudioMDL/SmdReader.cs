@@ -422,6 +422,8 @@ public sealed class SmdReader
 
         if (boneIndices is not null && boneWeights is not null)
             mesh.Skin = new Skin(allBones, boneIndices, boneWeights);
+
+        MeshWelder.Weld(mesh, 0f);
     }
 
     /// <summary>

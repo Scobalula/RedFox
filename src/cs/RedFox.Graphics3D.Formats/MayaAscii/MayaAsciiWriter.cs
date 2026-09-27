@@ -579,9 +579,10 @@ public sealed class MayaAsciiWriter
         int influenceCount = skin.InfluenceCount;
 
         _writer.WriteLine($"setAttr -s {vertexCount} \".wl\";");
+        List<(int boneIndex, float weight)> weights = [];
         for (int v = 0; v < vertexCount; v++)
         {
-            var weights = new List<(int boneIndex, float weight)>();
+            weights.Clear();
             for (int w = 0; w < influenceCount; w++)
             {
                 int boneIdx = skin.BoneIndices.Get<int>(v, w, 0);

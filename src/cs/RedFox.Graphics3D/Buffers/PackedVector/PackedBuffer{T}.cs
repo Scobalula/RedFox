@@ -167,15 +167,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
 
         private float GetScaledComponent(ref TPacked packed, int componentIndex)
         {
-            var v = UnpackAndTransform(ref packed);
-            return componentIndex switch
-            {
-                0 => v.X,
-                1 => v.Y,
-                2 => v.Z,
-                3 => v.W,
-                _ => 0f
-            };
+            return packed.UnpackComponent(componentIndex) * _scaleComponents[componentIndex] + _offsetComponents[componentIndex];
         }
 
         /// <inheritdoc/>

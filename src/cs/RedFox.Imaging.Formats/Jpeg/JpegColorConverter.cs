@@ -208,19 +208,17 @@ internal static class JpegColorConverter
     private static Vector256<float> WidenToFloat8(ref byte baseRef, int offset)
     {
         ref byte ptr = ref Unsafe.Add(ref baseRef, offset);
-
-        var ints = Vector256.Create(ptr, Unsafe.Add(ref ptr, 1), Unsafe.Add(ref ptr, 2), Unsafe.Add(ref ptr, 3), Unsafe.Add(ref ptr, 4), Unsafe.Add(ref ptr, 5), Unsafe.Add(ref ptr, 6), Unsafe.Add(ref ptr, 7));
-
-        return Avx.ConvertToVector256Single(ints);
+        Vector128<byte> bytes = Vector128.CreateScalar(Unsafe.ReadUnaligned<ulong>(ref ptr)).AsByte();
+        return Avx.ConvertToVector256Single(Avx2.ConvertToVector256Int32(bytes));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Vector128<float> WidenToFloat4(ref byte baseRef, int offset)
     {
         ref byte ptr = ref Unsafe.Add(ref baseRef, offset);
-
-        var ints = Vector128.Create(ptr, Unsafe.Add(ref ptr, 1), Unsafe.Add(ref ptr, 2), Unsafe.Add(ref ptr, 3));
-
+        Vector128<byte> bytes = Vector128.CreateScalar(Unsafe.ReadUnaligned<uint>(ref ptr)).AsByte();
+        Vector128<ushort> words = Sse2.UnpackLow(bytes, Vector128<byte>.Zero).AsUInt16();
+        Vector128<int> ints = Sse2.UnpackLow(words, Vector128<ushort>.Zero).AsInt32();
         return Sse2.ConvertToVector128Single(ints);
     }
 

@@ -124,6 +124,7 @@ public sealed class Md5AnimWriter
         WriteBaseFrame(writer, localPositions, localOrientations);
 
         // Write frames
+        StringBuilder sb = new(totalComponents * 16);
         for (int f = 0; f < numFrames; f++)
         {
             float time = f;
@@ -131,7 +132,7 @@ public sealed class Md5AnimWriter
             writer.Write($"frame {f} {{");
             writer.WriteLine();
 
-            var sb = new StringBuilder(totalComponents * 16);
+            sb.Clear();
             for (int j = 0; j < allBones.Length; j++)
             {
                 int flags = perJointFlags[j];

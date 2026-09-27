@@ -65,6 +65,13 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
     /// </summary>
     public float DollySensitivity { get; set; } = 0.014f;
 
+    /// <summary>
+    /// Occurs when pointer or keyboard input changes.
+    /// </summary>
+    public event EventHandler? InputChanged;
+
+    internal bool HasActiveInput => _pressedKeys.Count > 0 || _isLeftPressed || _isMiddlePressed || _isRightPressed;
+
     /// <inheritdoc/>
     public CameraControllerInput ReadInput()
     {
@@ -132,6 +139,7 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
 
         _pointerDelta += current - _lastPointerPosition;
         _lastPointerPosition = current;
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -146,6 +154,7 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
         _isLeftPressed |= point.Properties.IsLeftButtonPressed;
         _isMiddlePressed |= point.Properties.IsMiddleButtonPressed;
         _isRightPressed |= point.Properties.IsRightButtonPressed;
+        InputChanged?.Invoke(this, EventArgs.Empty);
         e.Handled = true;
     }
 
@@ -160,24 +169,28 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
         {
             e.Pointer.Capture(null);
         }
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnPointerWheelChanged(object? sender, PointerWheelEventArgs e)
     {
         _keyModifiers = e.KeyModifiers;
         _wheelDelta += (float)e.Delta.Y;
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         _keyModifiers = e.KeyModifiers;
         _pressedKeys.Add(e.Key);
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
     {
         _keyModifiers = e.KeyModifiers;
         _pressedKeys.Remove(e.Key);
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnLostFocus(object? sender, RoutedEventArgs e)
@@ -190,6 +203,7 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
         _hasLastPointerPosition = false;
         _pointerDelta = Vector2.Zero;
         _wheelDelta = 0.0f;
+        InputChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private bool IsPointerGestureActive()

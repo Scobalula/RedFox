@@ -45,15 +45,14 @@ public class PointConstraint(string name, SceneNode constrainedNode, SceneNode s
     {
         _ = time;
 
-        Vector3 currentWorldPosition = ConstrainedNode.GetActiveWorldPosition();
-        Vector3 targetWorldPosition = SourceNode.GetActiveWorldPosition() + TranslationOffset;
+        Vector3 currentWorldPosition = ConstrainedNode.GetActiveWorldPose().Position;
+        Vector3 targetWorldPosition = SourceNode.GetActiveWorldPose().Position + TranslationOffset;
         Vector3 constrainedTarget = new(SkipX ? currentWorldPosition.X : targetWorldPosition.X, SkipY ? currentWorldPosition.Y : targetWorldPosition.Y, SkipZ ? currentWorldPosition.Z : targetWorldPosition.Z);
         Vector3 blendedWorldPosition = Vector3.Lerp(currentWorldPosition, constrainedTarget, CurrentWeight);
 
         if (ConstrainedNode.Parent is not null)
         {
-            Quaternion parentWorldRotation = ConstrainedNode.Parent.GetActiveWorldRotation();
-            Vector3 parentWorldPosition = ConstrainedNode.Parent.GetActiveWorldPosition();
+            (Vector3 parentWorldPosition, Quaternion parentWorldRotation) = ConstrainedNode.Parent.GetActiveWorldPose();
 
             ConstrainedNode.LiveTransform.LocalPosition = Vector3.Transform(blendedWorldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
             ConstrainedNode.LiveTransform.WorldPosition = null;

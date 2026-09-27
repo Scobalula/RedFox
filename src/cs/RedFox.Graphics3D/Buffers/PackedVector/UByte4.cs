@@ -51,4 +51,14 @@ public struct UByte4 : IPackedVector<UByte4>
         var w = (byte)((_packed >> 24) & 0xFF);
         return new Vector4(x, y, z, w);
     }
+
+    /// <inheritdoc/>
+    public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+    {
+        0 => (byte)_packed,
+        1 => (byte)(_packed >> 8),
+        2 => (byte)(_packed >> 16),
+        3 => (byte)(_packed >> 24),
+        _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+    };
 }

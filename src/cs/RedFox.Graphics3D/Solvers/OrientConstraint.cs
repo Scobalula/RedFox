@@ -46,14 +46,15 @@ public class OrientConstraint(string name, SceneNode constrainedNode, SceneNode 
     {
         _ = time;
 
-        Quaternion targetWorldRotation = Quaternion.Normalize(SourceNode.GetActiveWorldRotation() * RotationOffset);
-        Quaternion blendedWorldRotation = Quaternion.Slerp(ConstrainedNode.GetActiveWorldRotation(), targetWorldRotation, CurrentWeight);
-        Quaternion parentWorldRotation = ConstrainedNode.Parent?.GetActiveWorldRotation() ?? Quaternion.Identity;
+        Quaternion targetWorldRotation = Quaternion.Normalize(SourceNode.GetActiveWorldPose().Rotation * RotationOffset);
+        Quaternion constrainedWorldRotation = ConstrainedNode.GetActiveWorldPose().Rotation;
+        Quaternion parentWorldRotation = ConstrainedNode.Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
+        Quaternion blendedWorldRotation = Quaternion.Slerp(constrainedWorldRotation, targetWorldRotation, CurrentWeight);
         Quaternion localRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * blendedWorldRotation);
 
         if (SkipX || SkipY || SkipZ)
         {
-            Vector3 current = ToEulerXYZ(Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * ConstrainedNode.GetActiveWorldRotation()));
+            Vector3 current = ToEulerXYZ(Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * constrainedWorldRotation));
             Vector3 solved = ToEulerXYZ(localRotation);
 
             localRotation = FromEulerXYZ(new Vector3(SkipX ? current.X : solved.X, SkipY ? current.Y : solved.Y, SkipZ ? current.Z : solved.Z));

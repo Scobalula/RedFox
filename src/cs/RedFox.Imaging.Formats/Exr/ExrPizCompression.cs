@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
@@ -51,30 +52,39 @@ internal static class ExrPizCompression
         uint huffmanSize = ReadUInt32(packedData, ref offset);
         ReadOnlySpan<byte> huffmanData = ReadBytes(packedData, ref offset, checked((int)huffmanSize));
 
-        ushort[] words = DecodeHuffman(huffmanData, expectedSize / 2);
-
-        int wordOffset = 0;
-        foreach (var channel in channels)
+        byte[] output = new byte[expectedSize];
+        ushort[] rentedWords = ArrayPool<ushort>.Shared.Rent(expectedSize / sizeof(ushort));
+        try
         {
-            int wordsPerPixel = ExrFileLayout.GetBytesPerSample(channel.PixelType) / 2;
-            int planeWordCount = checked(width * rowsInBlock * wordsPerPixel);
+            Span<ushort> words = rentedWords.AsSpan(0, expectedSize / sizeof(ushort));
+            DecodeHuffman(huffmanData, words);
 
-            for (int component = 0; component < wordsPerPixel; component++)
-                DecodeWavelet(words, wordOffset + component, width, wordsPerPixel, rowsInBlock, wordsPerPixel * width, maxValue);
+            int wordOffset = 0;
+            foreach (var channel in channels)
+            {
+                int wordsPerPixel = ExrFileLayout.GetBytesPerSample(channel.PixelType) / 2;
+                int planeWordCount = checked(width * rowsInBlock * wordsPerPixel);
 
-            wordOffset += planeWordCount;
+                for (int component = 0; component < wordsPerPixel; component++)
+                    DecodeWavelet(words, wordOffset + component, width, wordsPerPixel, rowsInBlock, wordsPerPixel * width, maxValue);
+
+                wordOffset += planeWordCount;
+            }
+
+            ApplyLut(lut, words);
+
+            for (int index = 0; index < words.Length; index++)
+                BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(index * sizeof(ushort), sizeof(ushort)), words[index]);
+
+            if (offset != packedData.Length)
+                throw new InvalidDataException("PIZ EXR block contained trailing bytes.");
+
+            return output;
         }
-
-        ApplyLut(lut, words);
-
-        var output = new byte[expectedSize];
-        for (int index = 0; index < words.Length; index++)
-            BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(index * sizeof(ushort), sizeof(ushort)), words[index]);
-
-        if (offset != packedData.Length)
-            throw new InvalidDataException("PIZ EXR block contained trailing bytes.");
-
-        return output;
+        finally
+        {
+            ArrayPool<ushort>.Shared.Return(rentedWords);
+        }
     }
 
     /// <summary>
@@ -102,7 +112,7 @@ internal static class ExrPizCompression
     /// <summary>
     /// Applies the reverse PIZ value lookup to the decoded word stream.
     /// </summary>
-    private static void ApplyLut(ushort[] lut, ushort[] data)
+    private static void ApplyLut(ushort[] lut, Span<ushort> data)
     {
         for (int index = 0; index < data.Length; index++)
             data[index] = lut[data[index]];
@@ -111,7 +121,20 @@ internal static class ExrPizCompression
     /// <summary>
     /// Decodes the Huffman payload embedded inside a PIZ block.
     /// </summary>
-    private static ushort[] DecodeHuffman(ReadOnlySpan<byte> compressedData, int expectedWordCount)
+    private static void DecodeHuffman(ReadOnlySpan<byte> compressedData, Span<ushort> decoded)
+    {
+        ulong[] rentedEncodingTable = ArrayPool<ulong>.Shared.Rent(HufEncSize);
+        try
+        {
+            DecodeHuffman(compressedData, decoded, rentedEncodingTable.AsSpan(0, HufEncSize));
+        }
+        finally
+        {
+            ArrayPool<ulong>.Shared.Return(rentedEncodingTable);
+        }
+    }
+
+    private static void DecodeHuffman(ReadOnlySpan<byte> compressedData, Span<ushort> decoded, Span<ulong> encodingTable)
     {
         if (compressedData.Length < 20)
             throw new InvalidDataException("PIZ EXR block did not contain a complete Huffman payload.");
@@ -130,11 +153,10 @@ internal static class ExrPizCompression
         int dataByteLength = (bitLength + 7) / 8;
         ReadOnlySpan<byte> dataBytes = ReadBytes(compressedData, ref offset, dataByteLength);
 
-        var encodingTable = new ulong[HufEncSize];
+        encodingTable.Clear();
         UnpackEncodingTable(tableBytes, minSymbol, maxSymbol, encodingTable);
 
         int[] activeLengths = BuildActiveLengths(encodingTable, minSymbol, maxSymbol, out ulong[] minCodes, out int[][] symbolsByLength);
-        var decoded = new ushort[expectedWordCount];
         var reader = new ExrHuffmanBitReader(dataBytes, bitLength);
         int outputIndex = 0;
 
@@ -169,7 +191,7 @@ internal static class ExrPizCompression
                         throw new InvalidDataException("PIZ EXR block contained an invalid Huffman run length.");
 
                     ushort repeatedValue = decoded[outputIndex - 1];
-                    decoded.AsSpan(outputIndex, runLength).Fill(repeatedValue);
+                    decoded.Slice(outputIndex, runLength).Fill(repeatedValue);
                     outputIndex += runLength;
                 }
                 else
@@ -188,13 +210,12 @@ internal static class ExrPizCompression
         if (reader.BitsRemaining != 0 || offset != compressedData.Length)
             throw new InvalidDataException("PIZ EXR block Huffman stream did not terminate cleanly.");
 
-        return decoded;
     }
 
     /// <summary>
     /// Unpacks the serialized Huffman code lengths and rebuilds canonical codes.
     /// </summary>
-    private static void UnpackEncodingTable(ReadOnlySpan<byte> tableBytes, int minSymbol, int maxSymbol, ulong[] encodingTable)
+    private static void UnpackEncodingTable(ReadOnlySpan<byte> tableBytes, int minSymbol, int maxSymbol, Span<ulong> encodingTable)
     {
         var reader = new ExrHuffmanBitReader(tableBytes, checked(tableBytes.Length * 8));
 
@@ -237,7 +258,7 @@ internal static class ExrPizCompression
     /// <summary>
     /// Converts stored code lengths into canonical Huffman code pairs.
     /// </summary>
-    private static void CanonicalizeEncodingTable(ulong[] encodingTable)
+    private static void CanonicalizeEncodingTable(Span<ulong> encodingTable)
     {
         var counts = new ulong[LongestCodeLength + 1];
         for (int index = 0; index < encodingTable.Length; index++)
@@ -262,7 +283,7 @@ internal static class ExrPizCompression
     /// <summary>
     /// Builds contiguous per-length symbol tables for canonical Huffman decoding.
     /// </summary>
-    private static int[] BuildActiveLengths(ulong[] encodingTable, int minSymbol, int maxSymbol, out ulong[] minCodes, out int[][] symbolsByLength)
+    private static int[] BuildActiveLengths(ReadOnlySpan<ulong> encodingTable, int minSymbol, int maxSymbol, out ulong[] minCodes, out int[][] symbolsByLength)
     {
         minCodes = new ulong[LongestCodeLength + 1];
         symbolsByLength = new int[LongestCodeLength + 1][];
@@ -299,7 +320,7 @@ internal static class ExrPizCompression
     /// <summary>
     /// Reverses the 2D Haar transform used by PIZ.
     /// </summary>
-    private static void DecodeWavelet(ushort[] data, int baseIndex, int nx, int ox, int ny, int oy, ushort maxValue)
+    private static void DecodeWavelet(Span<ushort> data, int baseIndex, int nx, int ox, int ny, int oy, ushort maxValue)
     {
         bool use14BitTransform = maxValue < (1 << 14);
         int n = Math.Min(nx, ny);
@@ -378,7 +399,7 @@ internal static class ExrPizCompression
     /// <summary>
     /// Reverses the 14-bit wavelet transform for a 2x2 group.
     /// </summary>
-    private static void Decode14BitQuad(ushort[] data, int px, int p01, int p10, int p11)
+    private static void Decode14BitQuad(Span<ushort> data, int px, int p01, int p10, int p11)
     {
         short a = unchecked((short)data[px]);
         short b = unchecked((short)data[p10]);

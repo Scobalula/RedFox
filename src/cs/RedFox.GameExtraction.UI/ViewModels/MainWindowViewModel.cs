@@ -27,6 +27,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly DataGridCollectionView _assetsView;
     private readonly List<AssetExplorerEntry> _explorerEntries = [];
     private readonly DataGridCollectionView _explorerView;
+    private readonly DispatcherTimer _searchFilterTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
     private string _assetNameFilter = string.Empty;
     private CancellationTokenSource? _currentCts;
     private CancellationTokenSource? _previewLoadCts;
@@ -52,6 +53,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             Filter = FilterExplorerEntry,
         };
+        _searchFilterTimer.Tick += OnSearchFilterTimerTick;
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
 
@@ -678,6 +680,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
+        _searchFilterTimer.Stop();
+        _searchFilterTimer.Tick -= OnSearchFilterTimerTick;
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         Plugins.Dispose();
@@ -693,6 +697,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnSearchTextChanged(string value)
     {
         _assetNameFilter = value.Trim();
+        _searchFilterTimer.Stop();
+        _searchFilterTimer.Start();
+    }
+
+    private void OnSearchFilterTimerTick(object? sender, EventArgs e)
+    {
+        _searchFilterTimer.Stop();
         ApplyFilter();
     }
 

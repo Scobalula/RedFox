@@ -238,7 +238,7 @@ public sealed class BvhReader
                 for (int channelIndex = 0; channelIndex < channels.Length; channelIndex++)
                 {
                     BvhChannelType channel = channels[channelIndex];
-                    float value = ReadRequiredFloat(ref tokenReader, $"motion value for joint '{joint.Name}' in frame {frameIndex.ToString(CultureInfo.InvariantCulture)}");
+                    float value = ReadMotionValue(ref tokenReader, joint.Name, frameIndex);
 
                     switch (channel)
                     {
@@ -377,6 +377,14 @@ public sealed class BvhReader
         {
             throw new InvalidDataException($"Expected a finite floating-point token for {description}.");
         }
+
+        return value;
+    }
+
+    private static float ReadMotionValue(ref TextTokenReader tokenReader, string jointName, int frameIndex)
+    {
+        if (!tokenReader.TryReadFloat(out float value) || !float.IsFinite(value))
+            throw new InvalidDataException($"Expected a finite motion value for joint '{jointName}' in frame {frameIndex.ToString(CultureInfo.InvariantCulture)}.");
 
         return value;
     }

@@ -116,17 +116,32 @@ internal static class XModelWriter
         else
             writer.WriteUShort("NUMVERTS", checked((ushort)vertexCount));
 
+        Dictionary<Mesh, (Matrix4x4[] Skin, Matrix4x4[] Normal)> skinTransformsByMesh = [];
+        List<(int BoneIndex, float Weight)> weights = [];
         foreach ((Mesh mesh, int baseVertex) in meshVertices)
         {
             int[] skinBoneIndices = GetSkinBoneIndices(mesh, boneIndices);
+            Matrix4x4[] skinTransforms = [];
+            Matrix4x4[] normalTransforms = [];
+            if (!context.Options.WriteRawVertices && mesh.Skin is { } skin)
+            {
+                skinTransforms = new Matrix4x4[skin.Bones.Count];
+                mesh.CopySkinTransforms(skinTransforms);
+                normalTransforms = new Matrix4x4[skinTransforms.Length];
+                for (int i = 0; i < skinTransforms.Length; i++)
+                    normalTransforms[i] = Matrix4x4.Invert(skinTransforms[i], out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : skinTransforms[i];
+            }
+            skinTransformsByMesh[mesh] = (skinTransforms, normalTransforms);
 
             for (int vertexIndex = 0; vertexIndex < mesh.Positions!.ElementCount; vertexIndex++)
             {
                 cancellationToken?.ThrowIfCancellationRequested();
+                weights.Clear();
 
                 WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
-                writer.WriteVector3("OFFSET", mesh.GetVertexPosition(vertexIndex, context.Options.WriteRawVertices));
-                List<(int BoneIndex, float Weight)> weights = GetVertexWeights(mesh, skinBoneIndices, vertexIndex);
+                Vector3 position = context.Options.WriteRawVertices ? mesh.GetVertexPosition(vertexIndex, raw: true) : mesh.GetVertexPosition(vertexIndex, skinTransforms);
+                writer.WriteVector3("OFFSET", position);
+                GetVertexWeights(mesh, skinBoneIndices, vertexIndex, weights);
                 writer.WriteUShort("BONES", checked((ushort)weights.Count));
 
                 foreach ((int boneIndex, float weight) in weights)
@@ -138,6 +153,7 @@ internal static class XModelWriter
         for (int objectIndex = 0; objectIndex < meshVertices.Count; objectIndex++)
         {
             (Mesh mesh, int baseVertex) = meshVertices[objectIndex];
+            (Matrix4x4[] skinTransforms, Matrix4x4[] normalTransforms) = skinTransformsByMesh[mesh];
             int materialIndex = mesh.Materials is { Count: > 0 } && materialIndices.TryGetValue(mesh.Materials[0], out int mappedMaterialIndex) ? mappedMaterialIndex : 0;
             Vector2[] uvValues = new Vector2[Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1)];
             for (int faceIndex = 0; faceIndex < mesh.FaceIndices!.ElementCount; faceIndex += 3)
@@ -152,7 +168,8 @@ internal static class XModelWriter
                     if ((uint)vertexIndex >= (uint)mesh.Positions!.ElementCount)
                         throw new InvalidDataException($"Mesh '{mesh.Name}' face index {vertexIndex} is outside its vertex range.");
                     WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
-                    writer.WriteVector316Bit("NORMAL", mesh.Normals is null ? Vector3.UnitZ : mesh.GetVertexNormal(vertexIndex, context.Options.WriteRawVertices));
+                    Vector3 normal = mesh.Normals is null ? Vector3.UnitZ : context.Options.WriteRawVertices ? mesh.GetVertexNormal(vertexIndex, raw: true) : mesh.GetVertexNormal(vertexIndex, skinTransforms, normalTransforms);
+                    writer.WriteVector316Bit("NORMAL", normal);
                     writer.WriteVector48Bit("COLOR", mesh.ColorLayers is null ? Vector4.One : mesh.ColorLayers.GetVector4(vertexIndex, 0));
                     for (int layer = 0; layer < uvValues.Length; layer++)
                         uvValues[layer] = mesh.UVLayers is null ? Vector2.Zero : mesh.UVLayers.GetVector2(vertexIndex, layer);
@@ -218,10 +235,8 @@ internal static class XModelWriter
         return result;
     }
 
-    private static List<(int BoneIndex, float Weight)> GetVertexWeights(Mesh mesh, int[] skinBoneIndices, int vertexIndex)
+    private static void GetVertexWeights(Mesh mesh, int[] skinBoneIndices, int vertexIndex, List<(int BoneIndex, float Weight)> weights)
     {
-        List<(int BoneIndex, float Weight)> weights = [];
-
         if (mesh.Skin is { } skin && skinBoneIndices.Length > 0)
         {
             for (int influence = 0; influence < skin.BoneIndices.ValueCount; influence++)
@@ -243,15 +258,13 @@ internal static class XModelWriter
         if (weights.Count == 0)
         {
             weights.Add((0, 1f));
-            return weights;
+            return;
         }
 
         double totalWeight = weights.Sum(static weight => weight.Weight);
 
         for (int i = 0; i < weights.Count; i++)
             weights[i] = (weights[i].BoneIndex, (float)(weights[i].Weight / totalWeight));
-
-        return weights;
     }
 
     private static string GetDiffuseTextureName(Material material)

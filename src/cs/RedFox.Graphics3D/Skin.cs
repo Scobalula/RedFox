@@ -115,6 +115,8 @@ public class Skin(IReadOnlyList<SkeletonBone> bones, DataBuffer boneIndices, Dat
     /// <returns>The skin transform.</returns>
     public Matrix4x4 GetSkinTransform(int boneIndex, Matrix4x4 meshBindWorld) => GetInverseBindMatrix(boneIndex, meshBindWorld) * _bones[boneIndex].GetActiveWorldMatrix();
 
+    internal Matrix4x4 GetSkinTransform(int boneIndex, Matrix4x4 meshBindWorld, Dictionary<SceneNode, Matrix4x4> worldMatrices) => GetInverseBindMatrix(boneIndex, meshBindWorld) * _bones[boneIndex].GetActiveWorldMatrix(worldMatrices);
+
     /// <summary>
     /// Gets the bone index for the specified vertex influence.
     /// </summary>

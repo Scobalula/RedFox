@@ -88,11 +88,21 @@ public sealed class ObjWriter
             bool hasUVs = mesh.UVLayers is not null && mesh.UVLayerCount > 0;
             bool hasNormals = mesh.Normals is not null;
             bool useRaw = _options.WriteRawVertices;
+            Matrix4x4[] skinTransforms = [];
+            Matrix4x4[] skinNormalTransforms = [];
+            if (!useRaw && mesh.Skin is not null)
+            {
+                skinTransforms = new Matrix4x4[mesh.Skin.Bones.Count];
+                mesh.CopySkinTransforms(skinTransforms);
+                skinNormalTransforms = new Matrix4x4[skinTransforms.Length];
+                for (int i = 0; i < skinTransforms.Length; i++)
+                    skinNormalTransforms[i] = Matrix4x4.Invert(skinTransforms[i], out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : skinTransforms[i];
+            }
 
             // Write positions
             for (int i = 0; i < vertexCount; i++)
             {
-                Vector3 pos = mesh.GetVertexPosition(i, useRaw);
+                Vector3 pos = useRaw ? mesh.GetVertexPosition(i, raw: true) : mesh.GetVertexPosition(i, skinTransforms);
                 writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"v {pos.X:G9} {pos.Y:G9} {pos.Z:G9}"));
             }
 
@@ -111,7 +121,7 @@ public sealed class ObjWriter
             {
                 for (int i = 0; i < vertexCount; i++)
                 {
-                    Vector3 normal = mesh.GetVertexNormal(i, useRaw);
+                    Vector3 normal = useRaw ? mesh.GetVertexNormal(i, raw: true) : mesh.GetVertexNormal(i, skinTransforms, skinNormalTransforms);
                     writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"vn {normal.X:G9} {normal.Y:G9} {normal.Z:G9}"));
                 }
             }

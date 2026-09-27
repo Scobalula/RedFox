@@ -31,6 +31,21 @@ public abstract class ConstraintNode(string name, SceneNode constrainedNode, Sce
             SourceNode = newNode;
     }
 
+    /// <inheritdoc/>
+    protected override void RemapClonedReferences(IReadOnlyDictionary<SceneNode, SceneNode> clones)
+    {
+        if (GetType().GetMethod(nameof(Swap), [typeof(SceneNode), typeof(SceneNode)])?.DeclaringType != typeof(ConstraintNode))
+        {
+            base.RemapClonedReferences(clones);
+            return;
+        }
+
+        if (clones.TryGetValue(ConstrainedNode, out SceneNode? constrainedCopy))
+            ConstrainedNode = constrainedCopy;
+        if (clones.TryGetValue(SourceNode, out SceneNode? sourceCopy))
+            SourceNode = sourceCopy;
+    }
+
     /// <summary>
     /// Creates the runtime solver equivalent for this imported constraint node.
     /// </summary>

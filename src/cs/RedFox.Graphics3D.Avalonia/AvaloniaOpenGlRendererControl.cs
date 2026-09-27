@@ -72,6 +72,13 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     private SceneRenderer? _renderer;
     private Scene? _subscribedScene;
     private bool _loggedFramebufferSamples;
+    private uint _cachedFramebufferHandle;
+    private int _cachedExpectedWidth;
+    private int _cachedExpectedHeight;
+    private int _cachedFramebufferWidth;
+    private int _cachedFramebufferHeight;
+    private int _cachedFramebufferSamples;
+    private bool _hasCachedFramebufferInfo;
     private DateTimeOffset _lastFrameTime = DateTimeOffset.UtcNow;
 
     static AvaloniaOpenGlRendererControl()
@@ -196,6 +203,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer = RendererFactory?.Invoke(_graphicsDevice) ?? CreateDefaultRenderer(_graphicsDevice);
         _renderer.Initialize();
         _inputAdapter = new AvaloniaCameraInputAdapter(this);
+        _inputAdapter.InputChanged += OnInputChanged;
         SubscribeScene(GetActiveScene());
         ApplyRendererProperties();
         RequestFrame();
@@ -214,27 +222,37 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         }
 
         graphicsDevice.DefaultFramebufferHandle = unchecked((uint)fb);
-        int framebufferSamples = graphicsDevice.GetDefaultFramebufferSampleCount();
+        double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
+        int expectedWidth = Math.Max(1, (int)Math.Ceiling(Bounds.Width * renderScaling));
+        int expectedHeight = Math.Max(1, (int)Math.Ceiling(Bounds.Height * renderScaling));
+        uint framebufferHandle = unchecked((uint)fb);
+        if (!_hasCachedFramebufferInfo || _cachedFramebufferHandle != framebufferHandle || _cachedExpectedWidth != expectedWidth || _cachedExpectedHeight != expectedHeight)
+        {
+            _cachedFramebufferHandle = framebufferHandle;
+            _cachedExpectedWidth = expectedWidth;
+            _cachedExpectedHeight = expectedHeight;
+            _cachedFramebufferSamples = graphicsDevice.GetDefaultFramebufferSampleCount();
+            if (!graphicsDevice.TryGetDefaultFramebufferSize(out _cachedFramebufferWidth, out _cachedFramebufferHeight))
+            {
+                _cachedFramebufferWidth = expectedWidth;
+                _cachedFramebufferHeight = expectedHeight;
+            }
+            _hasCachedFramebufferInfo = true;
+        }
+
+        int framebufferSamples = _cachedFramebufferSamples;
         renderer.ExternalAntiAliasingSamples = framebufferSamples;
         if (!_loggedFramebufferSamples)
         {
             Console.WriteLine($"[AvaloniaOpenGL] defaultFramebuffer={fb} samples={framebufferSamples} requestedAA={renderer.AntiAliasingSamples} actualAA={renderer.ActualAntiAliasingSamples}");
             _loggedFramebufferSamples = true;
         }
-        ApplyRendererProperties();
         DateTimeOffset now = DateTimeOffset.UtcNow;
         float deltaTime = Math.Clamp((float)(now - _lastFrameTime).TotalSeconds, 0.0f, 0.25f);
         _lastFrameTime = now;
 
-        int width;
-        int height;
-        if (!graphicsDevice.TryGetDefaultFramebufferSize(out width, out height))
-        {
-            double renderScaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1.0;
-            width = Math.Max(1, (int)Math.Ceiling(Bounds.Width * renderScaling));
-            height = Math.Max(1, (int)Math.Ceiling(Bounds.Height * renderScaling));
-        }
-
+        int width = _cachedFramebufferWidth;
+        int height = _cachedFramebufferHeight;
         renderer.Resize(width, height);
 
         if (scene is not null)
@@ -267,19 +285,25 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
             gl.Clear(0x00004000 | 0x00000100);
         }
 
-        RequestNextFrameRendering();
+        if ((!IsAnimationPaused && scene is { AnimationPlayers.Count: > 0 }) || _inputAdapter?.HasActiveInput == true)
+            RequestNextFrameRendering();
     }
 
     /// <inheritdoc/>
     protected override void OnOpenGlDeinit(GlInterface gl)
     {
+        _hasCachedFramebufferInfo = false;
         if (_renderer is not null && _subscribedScene is not null)
         {
             _renderer.ReleaseResources(_subscribedScene);
         }
 
         UnsubscribeScene();
-        _inputAdapter?.Dispose();
+        if (_inputAdapter is not null)
+        {
+            _inputAdapter.InputChanged -= OnInputChanged;
+            _inputAdapter.Dispose();
+        }
         _inputAdapter = null;
         _renderer?.Dispose();
         _renderer = null;
@@ -375,6 +399,8 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
         RequestFrame();
     }
+
+    private void OnInputChanged(object? sender, EventArgs e) => RequestFrame();
 
     private void ApplyRendererProperties()
     {

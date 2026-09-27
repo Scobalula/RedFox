@@ -47,5 +47,15 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 16) & 0xFFFF)),
             (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 32) & 0xFFFF)),
             (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 48) & 0xFFFF)));
+
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => (float)BitConverter.UInt16BitsToHalf((ushort)_packed),
+            1 => (float)BitConverter.UInt16BitsToHalf((ushort)(_packed >> 16)),
+            2 => (float)BitConverter.UInt16BitsToHalf((ushort)(_packed >> 32)),
+            3 => (float)BitConverter.UInt16BitsToHalf((ushort)(_packed >> 48)),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
     }
 }

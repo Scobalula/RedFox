@@ -1038,15 +1038,17 @@ public sealed class AssetManager
             _sourceRequests.Remove(source);
             _sources.Remove(source);
 
-            for (int index = _assets.Count - 1; index >= 0; index--)
+            int writeIndex = 0;
+            for (int readIndex = 0; readIndex < _assets.Count; readIndex++)
             {
-                Asset asset = _assets[index];
-                if (!ReferenceEquals(asset.Source, source))
-                    continue;
-
-                asset.DetachSource();
-                _assets.RemoveAt(index);
+                Asset asset = _assets[readIndex];
+                if (ReferenceEquals(asset.Source, source))
+                    asset.DetachSource();
+                else
+                    _assets[writeIndex++] = asset;
             }
+
+            _assets.RemoveRange(writeIndex, _assets.Count - writeIndex);
         }
     }
 

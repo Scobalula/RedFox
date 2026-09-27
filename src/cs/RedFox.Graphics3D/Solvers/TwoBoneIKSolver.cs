@@ -69,9 +69,12 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
     protected override void OnSolve(float time)
     {
         // Gather current world positions
-        var rootPos = Root.GetActiveWorldPosition();
-        var midPos  = Mid.GetActiveWorldPosition();
-        var tipPos  = Tip.GetActiveWorldPosition();
+        var rootPose = Root.GetActiveWorldPose();
+        var midPose = Mid.GetActiveWorldPose();
+        var tipPose = Tip.GetActiveWorldPose();
+        Vector3 rootPos = rootPose.Position;
+        Vector3 midPos = midPose.Position;
+        Vector3 tipPos = tipPose.Position;
 
         var target = (TargetNode is not null
             ? TargetNode.GetActiveWorldPosition()
@@ -126,7 +129,7 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
         var desiredUpper = Vector3.Normalize(desiredMid - rootPos);
         var rootRotDelta = RotationFromTo(currentUpper, desiredUpper);
 
-        var currentRootRot = Root.GetActiveWorldRotation();
+        Quaternion currentRootRot = rootPose.Rotation;
         var newRootRot = Quaternion.Normalize(rootRotDelta * currentRootRot);
 
         // Mid rotation: after root rotation, recalculate mid-to-tip
@@ -135,7 +138,7 @@ public class TwoBoneIKSolver(string name, SceneNode root, SceneNode mid, SceneNo
         var desiredLower = Vector3.Normalize(target - desiredMid);
         var midRotDelta = RotationFromTo(currentLower, desiredLower);
 
-        var currentMidRot = Mid.GetActiveWorldRotation();
+        Quaternion currentMidRot = midPose.Rotation;
         var newMidRot = Quaternion.Normalize(midRotDelta * rootRotDelta * currentMidRot);
 
         // Blend with weight

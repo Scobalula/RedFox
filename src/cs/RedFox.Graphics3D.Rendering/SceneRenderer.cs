@@ -33,6 +33,8 @@ public sealed class SceneRenderer : IDisposable
     private readonly Thread _backgroundImageLoadThread;
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly List<SceneNode> _sceneTraversalNodes = [];
+    private readonly List<(SceneNode Node, IRenderHandle Handle)> _sceneTraversalHandles = [];
+    private RenderFrameContext? _frameContext;
 
     private IGpuTexture? _antiAliasingColorTexture;
     private IGpuTexture? _antiAliasingDepthTexture;
@@ -262,6 +264,7 @@ public sealed class SceneRenderer : IDisposable
 
         _clearAndStateResetPass.Execute(context);
         SceneTraversal.Update(sceneTraversalNodes, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
+        UpdateSceneRenderHandles(sceneTraversalNodes);
         UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
 
@@ -272,7 +275,7 @@ public sealed class SceneRenderer : IDisposable
         {
             RenderFlags phase = RenderPhases[i];
             RenderSkybox(scene.Skybox, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
-            SceneTraversal.Render(sceneTraversalNodes, _commandList, _graphicsDevice, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
+            SceneTraversal.Render(_sceneTraversalHandles, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
             RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
 
@@ -296,6 +299,21 @@ public sealed class SceneRenderer : IDisposable
         _sceneTraversalScene = scene;
         _sceneTraversalVersion = scene.Version;
         return _sceneTraversalNodes;
+    }
+
+    private void UpdateSceneRenderHandles(IReadOnlyList<SceneNode> nodes)
+    {
+        _sceneTraversalHandles.Clear();
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            SceneNode node = nodes[i];
+            if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
+                continue;
+
+            IRenderHandle? handle = SceneRenderResources.Get(_graphicsDevice, node);
+            if (handle is not null && !handle.Flags.HasFlag(RenderHandleFlags.SubHandle))
+                _sceneTraversalHandles.Add((node, handle));
+        }
     }
 
     private IGpuRenderTarget? EnsureAntiAliasingRenderTarget()
@@ -368,6 +386,7 @@ public sealed class SceneRenderer : IDisposable
         _sceneTraversalScene = null;
         _sceneTraversalVersion = -1;
         _sceneTraversalNodes.Clear();
+        _sceneTraversalHandles.Clear();
         ReleaseSkyboxResources(scene.Skybox);
         ReleaseGridResources(scene.Grid);
         ReleaseResources(scene.RootNode);
@@ -426,16 +445,14 @@ public sealed class SceneRenderer : IDisposable
     /// <returns>The populated frame context.</returns>
     private RenderFrameContext CreateFrameContext(Scene scene, in CameraView view, Vector2 viewportSize, float deltaTime)
     {
-        RenderFrameContext context = new(scene, view, viewportSize, deltaTime)
-        {
-            AmbientColor = AmbientColor,
-            FallbackLightDirection = FallbackLightDirection,
-            FallbackLightColor = FallbackLightColor,
-            FallbackLightIntensity = FallbackLightIntensity,
-            UseViewBasedLighting = UseViewBasedLighting,
-            SkinningMode = SkinningMode,
-        };
-
+        RenderFrameContext context = _frameContext ??= new(scene, view, viewportSize, deltaTime);
+        context.ResetFrame(scene, view, viewportSize, deltaTime);
+        context.AmbientColor = AmbientColor;
+        context.FallbackLightDirection = FallbackLightDirection;
+        context.FallbackLightColor = FallbackLightColor;
+        context.FallbackLightIntensity = FallbackLightIntensity;
+        context.UseViewBasedLighting = UseViewBasedLighting;
+        context.SkinningMode = SkinningMode;
         return context;
     }
 

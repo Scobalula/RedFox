@@ -83,7 +83,7 @@ public static class FbxSkinningMapper
 
             List<SkeletonBone> palette = [];
             List<Matrix4x4> inverseBindMatrices = [];
-            Dictionary<int, List<(int PaletteIndex, float Weight)>> vertexInfluences = [];
+            List<(int VertexIndex, int PaletteIndex, float Weight)> allInfluences = [];
 
             for (int clusterIndex = 0; clusterIndex < clusterIds.Count; clusterIndex++)
             {
@@ -120,39 +120,49 @@ public static class FbxSkinningMapper
                         continue;
                     }
 
-                    if (!vertexInfluences.TryGetValue(vertexIndex, out List<(int PaletteIndex, float Weight)>? influences))
-                    {
-                        influences = [];
-                        vertexInfluences[vertexIndex] = influences;
-                    }
-
-                    influences.Add((paletteIndex, weight));
+                    allInfluences.Add((vertexIndex, paletteIndex, weight));
                 }
             }
 
-            if (palette.Count == 0 || vertexInfluences.Count == 0)
+            if (palette.Count == 0 || allInfluences.Count == 0)
             {
                 continue;
             }
 
+            int[] influenceCounts = new int[mesh.VertexCount];
+            foreach (var influence in allInfluences)
+                influenceCounts[influence.VertexIndex]++;
+
+            int[] offsets = new int[mesh.VertexCount + 1];
+            for (int vertexIndex = 0; vertexIndex < mesh.VertexCount; vertexIndex++)
+                offsets[vertexIndex + 1] = offsets[vertexIndex] + influenceCounts[vertexIndex];
+
+            int[] nextOffsets = new int[mesh.VertexCount];
+            offsets.AsSpan(0, mesh.VertexCount).CopyTo(nextOffsets);
+            (int PaletteIndex, float Weight)[] vertexInfluences = new (int PaletteIndex, float Weight)[allInfluences.Count];
+            foreach ((int vertexIndex, int paletteIndex, float weight) in allInfluences)
+                vertexInfluences[nextOffsets[vertexIndex]++] = (paletteIndex, weight);
+
             int maxInfluenceCount = 1;
-            foreach (List<(int PaletteIndex, float Weight)> influences in vertexInfluences.Values)
-            {
-                maxInfluenceCount = Math.Max(maxInfluenceCount, influences.Count);
-            }
+            for (int vertexIndex = 0; vertexIndex < influenceCounts.Length; vertexIndex++)
+                maxInfluenceCount = Math.Max(maxInfluenceCount, influenceCounts[vertexIndex]);
 
             ushort[] boneIndices = new ushort[mesh.VertexCount * maxInfluenceCount];
             float[] boneWeights = new float[mesh.VertexCount * maxInfluenceCount];
 
-            foreach ((int vertexIndex, List<(int PaletteIndex, float Weight)> influences) in vertexInfluences)
+            for (int vertexIndex = 0; vertexIndex < influenceCounts.Length; vertexIndex++)
             {
-                influences.Sort(static (left, right) => right.Weight.CompareTo(left.Weight));
-                int writeCount = Math.Min(maxInfluenceCount, influences.Count);
+                int influenceCount = influenceCounts[vertexIndex];
+                if (influenceCount == 0)
+                    continue;
+
+                int start = offsets[vertexIndex];
+                Array.Sort(vertexInfluences, start, influenceCount, static (left, right) => right.Weight.CompareTo(left.Weight));
 
                 float totalWeight = 0f;
-                for (int i = 0; i < writeCount; i++)
+                for (int i = 0; i < influenceCount; i++)
                 {
-                    totalWeight += influences[i].Weight;
+                    totalWeight += vertexInfluences[start + i].Weight;
                 }
 
                 if (totalWeight <= 0f)
@@ -160,11 +170,11 @@ public static class FbxSkinningMapper
                     continue;
                 }
 
-                for (int i = 0; i < writeCount; i++)
+                for (int i = 0; i < influenceCount; i++)
                 {
                     int targetIndex = (vertexIndex * maxInfluenceCount) + i;
-                    boneIndices[targetIndex] = (ushort)influences[i].PaletteIndex;
-                    boneWeights[targetIndex] = influences[i].Weight / totalWeight;
+                    boneIndices[targetIndex] = (ushort)vertexInfluences[start + i].PaletteIndex;
+                    boneWeights[targetIndex] = vertexInfluences[start + i].Weight / totalWeight;
                 }
             }
 

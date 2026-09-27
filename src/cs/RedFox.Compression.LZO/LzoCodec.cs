@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace RedFox.Compression.LZO;
 
 /// <summary>
@@ -38,8 +40,21 @@ public sealed class LzoCodec : CompressionCodec
             return destinationIndex;
         }
 
-        int[] matchTable = new int[HashSize];
-        Array.Fill(matchTable, NotFound);
+        int[] matchTable = ArrayPool<int>.Shared.Rent(HashSize);
+        try
+        {
+            return Compress(source, destination, matchTable);
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(matchTable);
+        }
+    }
+
+    private static int Compress(ReadOnlySpan<byte> source, Span<byte> destination, int[] matchTable)
+    {
+        int destinationIndex = 0;
+        Array.Fill(matchTable, NotFound, 0, HashSize);
 
         int sourceIndex = 0;
         int literalStart = 0;

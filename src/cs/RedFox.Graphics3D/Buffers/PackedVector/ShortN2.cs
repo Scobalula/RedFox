@@ -48,5 +48,15 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
                 y == -32768 ? -1f : y / 32767f,
                 0f, 0f);
         }
+
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex) => componentIndex switch
+        {
+            0 => UnpackNormalized((short)_packed),
+            1 => UnpackNormalized((short)(_packed >> 16)),
+            _ => throw new ArgumentOutOfRangeException(nameof(componentIndex)),
+        };
+
+        private static float UnpackNormalized(short value) => value == -32768 ? -1f : value / 32767f;
     }
 }

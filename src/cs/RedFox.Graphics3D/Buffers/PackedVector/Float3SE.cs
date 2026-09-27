@@ -76,5 +76,17 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
 
             return new Vector4(scale * xm, scale * ym, scale * zm, 0f);
         }
+
+        /// <inheritdoc/>
+        public readonly float UnpackComponent(int componentIndex)
+        {
+            if ((uint)componentIndex >= 3u)
+                throw new ArgumentOutOfRangeException(nameof(componentIndex));
+
+            uint mantissa = (_packed >> (componentIndex * 9)) & 0x1FF;
+            uint exponent = (_packed >> 27) & 0x1F;
+            float scale = BitConverter.UInt32BitsToSingle(0x33800000 + (exponent << 23));
+            return scale * mantissa;
+        }
     }
 }

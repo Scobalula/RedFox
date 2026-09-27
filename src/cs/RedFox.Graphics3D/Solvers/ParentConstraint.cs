@@ -35,17 +35,16 @@ public class ParentConstraint(string name, SceneNode constrainedNode, SceneNode 
     {
         _ = time;
 
-        Vector3 sourceWorldPosition = SourceNode.GetActiveWorldPosition();
-        Quaternion sourceWorldRotation = SourceNode.GetActiveWorldRotation();
+        (Vector3 sourceWorldPosition, Quaternion sourceWorldRotation) = SourceNode.GetActiveWorldPose();
         Vector3 targetWorldPosition = sourceWorldPosition + Vector3.Transform(TranslationOffset, sourceWorldRotation);
         Quaternion targetWorldRotation = Quaternion.Normalize(sourceWorldRotation * RotationOffset);
-        Vector3 blendedWorldPosition = Vector3.Lerp(ConstrainedNode.GetActiveWorldPosition(), targetWorldPosition, CurrentWeight);
-        Quaternion blendedWorldRotation = Quaternion.Slerp(ConstrainedNode.GetActiveWorldRotation(), targetWorldRotation, CurrentWeight);
+        (Vector3 constrainedWorldPosition, Quaternion constrainedWorldRotation) = ConstrainedNode.GetActiveWorldPose();
+        Vector3 blendedWorldPosition = Vector3.Lerp(constrainedWorldPosition, targetWorldPosition, CurrentWeight);
+        Quaternion blendedWorldRotation = Quaternion.Slerp(constrainedWorldRotation, targetWorldRotation, CurrentWeight);
 
         if (ConstrainedNode.Parent is not null)
         {
-            Quaternion parentWorldRotation = ConstrainedNode.Parent.GetActiveWorldRotation();
-            Vector3 parentWorldPosition = ConstrainedNode.Parent.GetActiveWorldPosition();
+            (Vector3 parentWorldPosition, Quaternion parentWorldRotation) = ConstrainedNode.Parent.GetActiveWorldPose();
             Vector3 localPosition = Vector3.Transform(blendedWorldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
             Quaternion localRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * blendedWorldRotation);
             ConstrainedNode.LiveTransform.LocalPosition = localPosition;

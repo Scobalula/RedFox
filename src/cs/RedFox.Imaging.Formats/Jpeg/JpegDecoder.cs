@@ -382,7 +382,7 @@ internal sealed class JpegDecoder(Stream stream)
 
     private void DecodeBaselineScan(JpegScanHeader scan)
     {
-        var reader = new JpegBitReader(_stream);
+        using var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
 
         foreach (var sc in scan.Components)
@@ -525,7 +525,7 @@ internal sealed class JpegDecoder(Stream stream)
 
     private void DecodeProgressiveScanNonInterleaved(JpegScanHeader scan, bool isDc, bool isFirstVisit)
     {
-        var reader = new JpegBitReader(_stream);
+        using var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
 
         var sc = scan.Components[0];
@@ -563,7 +563,7 @@ internal sealed class JpegDecoder(Stream stream)
 
     private void DecodeProgressiveScanInterleaved(JpegScanHeader scan, bool isDc, bool isFirstVisit)
     {
-        var reader = new JpegBitReader(_stream);
+        using var reader = new JpegBitReader(_stream);
         int mcuCount = 0;
 
         for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
@@ -898,17 +898,17 @@ internal sealed class JpegDecoder(Stream stream)
         }
         else
         {
-            ReadRestartMarker();
+            ReadRestartMarker(reader);
             reader.Reset();
         }
 
         return true;
     }
 
-    private void ReadRestartMarker()
+    private static void ReadRestartMarker(JpegBitReader reader)
     {
-        int b1 = _stream.ReadByte();
-        int b2 = _stream.ReadByte();
+        int b1 = reader.ReadRawByte();
+        int b2 = reader.ReadRawByte();
 
         // Sometimes there's garbage between restart boundaries — skip to find 0xFF RST
         if (b1 != 0xFF)
@@ -916,7 +916,7 @@ internal sealed class JpegDecoder(Stream stream)
             while (true)
             {
                 b1 = b2;
-                b2 = _stream.ReadByte();
+                b2 = reader.ReadRawByte();
                 if (b2 < 0)
                     throw new InvalidDataException("Unexpected end of stream looking for restart marker.");
                 if (b1 == 0xFF && b2 >= 0xD0 && b2 <= 0xD7)
