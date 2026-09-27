@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text;
+using RedFox.Graphics3D.Skeletal;
 
 namespace RedFox.Graphics3D.Formats.ActorX;
 
@@ -87,4 +88,56 @@ public static class ActorXBinary
     /// <param name="boneIndex">The bone's index within the skeleton.</param>
     public static Quaternion ToStoredRotation(Quaternion local, int boneIndex)
         => boneIndex == 0 ? local : Quaternion.Conjugate(local);
+
+    internal static List<ActorXBone> ReadBones(BinaryReader reader, int count)
+    {
+        var bones = new List<ActorXBone>(count);
+        for (int i = 0; i < count; i++)
+        {
+            string name = ReadFixedString(reader, 64);
+            uint flags = reader.ReadUInt32();
+            int childCount = reader.ReadInt32();
+            int parentIndex = reader.ReadInt32();
+            Quaternion orientation = ReadQuaternion(reader);
+            Vector3 position = ReadVector3(reader);
+            float length = reader.ReadSingle();
+            var size = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            bones.Add(new ActorXBone(name, flags, childCount, parentIndex, orientation, position, length, size));
+        }
+
+        return bones;
+    }
+
+    internal static void WriteBones(BinaryWriter writer, string chunkId, SkeletonBone[] bones, SceneNode[] boneNodes)
+    {
+        var parentIndices = new int[bones.Length];
+        var childCounts = new int[bones.Length];
+
+        for (int i = 0; i < bones.Length; i++)
+            parentIndices[i] = SceneNode.GetBestParentIndex(bones[i], boneNodes);
+
+        for (int i = 0; i < bones.Length; i++)
+        {
+            int parent = parentIndices[i];
+            if (parent >= 0)
+                childCounts[parent]++;
+        }
+
+        ActorXChunkHeader.Write(writer, chunkId, Version, 120, bones.Length);
+
+        for (int i = 0; i < bones.Length; i++)
+        {
+            SkeletonBone bone = bones[i];
+            WriteFixedString(writer, bone.Name, 64);
+            writer.Write(0u);
+            writer.Write(childCounts[i]);
+            writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
+            Write(writer, ToStoredRotation(bone.GetBindLocalRotation(), i));
+            Write(writer, bone.GetBindLocalPosition());
+            writer.Write(0f);
+            writer.Write(0f);
+            writer.Write(0f);
+            writer.Write(0f);
+        }
+    }
 }

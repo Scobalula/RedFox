@@ -118,20 +118,6 @@ public sealed class BC1Codec : IPixelCodec
     /// <param name="block">The destination 8-byte block.</param>
     public static void EncodeBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block)
     {
-        BlockColorOperations.FindMinMaxColorEndpoints(pixels, out var minColor, out var maxColor);
-
-        Span<Vector4> palette = stackalloc Vector4[4];
-        BlockColorOperations.BuildFourColorPalette(minColor, maxColor, out ushort c0Raw, out ushort c1Raw, palette);
-
-        uint indices = 0;
-        for (int i = 0; i < 16; i++)
-        {
-            int bestIdx = BlockColorOperations.FindClosestColorIndex(pixels[i], palette);
-            indices |= (uint)bestIdx << (i * 2);
-        }
-
-        BinaryPrimitives.WriteUInt16LittleEndian(block, c0Raw);
-        BinaryPrimitives.WriteUInt16LittleEndian(block[2..], c1Raw);
-        BinaryPrimitives.WriteUInt32LittleEndian(block[4..], indices);
+        BlockColorOperations.EncodeFourColorBlock(pixels, block);
     }
 }

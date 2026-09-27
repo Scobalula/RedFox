@@ -178,7 +178,7 @@ public static class ObjMtlReader
 
     private static void EnsureTexture(Material material, string texturePath, string slot, string? baseDirectory)
     {
-        string? resolvedPath = ResolveTexturePath(texturePath, baseDirectory);
+        string? resolvedPath = FilePathResolver.ResolveReferencePath(texturePath, baseDirectory);
 
         if (material.TryGetTexture(slot, out Texture? existing))
         {
@@ -191,17 +191,4 @@ public static class ObjMtlReader
         material.Connect(slot, texture);
     }
 
-    private static string? ResolveTexturePath(string texturePath, string? baseDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(texturePath) || texturePath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        if (Path.IsPathRooted(texturePath))
-            return Path.GetFullPath(texturePath);
-
-        if (!string.IsNullOrWhiteSpace(baseDirectory))
-            return Path.GetFullPath(Path.Combine(baseDirectory, texturePath));
-
-        return null;
-    }
 }

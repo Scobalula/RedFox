@@ -39,7 +39,6 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
     private VulkanBcComputePipeline _bc6hEncodeBlockPipeline;
     private VulkanBcComputePipeline _bc7TryMode456Pipeline;
     private VulkanBcComputePipeline _bc7TryMode137Pipeline;
-    private VulkanBcComputePipeline _bc7TryMode02Pipeline;
     private VulkanBcComputePipeline _bc7EncodeBlockPipeline;
     private bool _disposed;
 
@@ -145,7 +144,6 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         if (_device.Handle != 0) _vk.DeviceWaitIdle(_device);
 
         VulkanBcDestroyer.DestroyPipeline(this, _bc7EncodeBlockPipeline);
-        VulkanBcDestroyer.DestroyPipeline(this, _bc7TryMode02Pipeline);
         VulkanBcDestroyer.DestroyPipeline(this, _bc7TryMode137Pipeline);
         VulkanBcDestroyer.DestroyPipeline(this, _bc7TryMode456Pipeline);
         VulkanBcDestroyer.DestroyPipeline(this, _bc6hEncodeBlockPipeline);
@@ -330,7 +328,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             new(3, DescriptorType.UniformBuffer, 1, ShaderStageFlags.ComputeBit, null),
         ];
 
-        return TryCreateComputePipeline("BcDecodeRgba8.spv", "DecodeMain", decodeBindings, out _decodeRgba8Pipeline) && TryCreateComputePipeline("BcDecodeRgba16.spv", "DecodeMain", decodeBindings, out _decodeRgba16Pipeline) && TryCreateComputePipeline("BcDecodeRgba32.spv", "DecodeMain", decodeBindings, out _decodeRgba32Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeG10CS.spv", "TryModeG10CS", encodeBindings, out _bc6hTryModeG10Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeLE10CS.spv", "TryModeLE10CS", encodeBindings, out _bc6hTryModeLE10Pipeline) && TryCreateComputePipeline("BC6HEncode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc6hEncodeBlockPipeline) && TryCreateComputePipeline("BC7Encode_TryMode456CS.spv", "TryMode456CS", encodeBindings, out _bc7TryMode456Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode137CS.spv", "TryMode137CS", encodeBindings, out _bc7TryMode137Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode02CS.spv", "TryMode02CS", encodeBindings, out _bc7TryMode02Pipeline) && TryCreateComputePipeline("BC7Encode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc7EncodeBlockPipeline);
+        return TryCreateComputePipeline("BcDecodeRgba8.spv", "DecodeMain", decodeBindings, out _decodeRgba8Pipeline) && TryCreateComputePipeline("BcDecodeRgba16.spv", "DecodeMain", decodeBindings, out _decodeRgba16Pipeline) && TryCreateComputePipeline("BcDecodeRgba32.spv", "DecodeMain", decodeBindings, out _decodeRgba32Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeG10CS.spv", "TryModeG10CS", encodeBindings, out _bc6hTryModeG10Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeLE10CS.spv", "TryModeLE10CS", encodeBindings, out _bc6hTryModeLE10Pipeline) && TryCreateComputePipeline("BC6HEncode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc6hEncodeBlockPipeline) && TryCreateComputePipeline("BC7Encode_TryMode456CS.spv", "TryMode456CS", encodeBindings, out _bc7TryMode456Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode137CS.spv", "TryMode137CS", encodeBindings, out _bc7TryMode137Pipeline) && TryCreateComputePipeline("BC7Encode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc7EncodeBlockPipeline);
     }
 
     private bool TryCreateComputePipeline(string shaderFileName, string entryPoint, ReadOnlySpan<DescriptorSetLayoutBinding> bindings, out VulkanBcComputePipeline pipeline)

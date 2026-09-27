@@ -55,8 +55,18 @@ public sealed class MayaAsciiTranslator : SceneTranslator
         ArgumentNullException.ThrowIfNull(scene);
         ArgumentNullException.ThrowIfNull(stream);
 
-        MayaAsciiWriteOptions writeOptions = WriteOptions;
-        writeOptions.WriteRawVertices = context.Options.WriteRawVertices;
+        MayaAsciiWriteOptions writeOptions = new()
+        {
+            LinearUnit = WriteOptions.LinearUnit,
+            AngularUnit = WriteOptions.AngularUnit,
+            TimeUnit = WriteOptions.TimeUnit,
+            UpAxis = WriteOptions.UpAxis,
+            WriteAnimations = WriteOptions.WriteAnimations,
+            WriteMaterials = WriteOptions.WriteMaterials,
+            WriteNormals = WriteOptions.WriteNormals,
+            WriteVertexColors = WriteOptions.WriteVertexColors,
+            WriteRawVertices = context.Options.WriteRawVertices,
+        };
 
         MayaAsciiWriter writer = new(stream, writeOptions);
         writer.Write(context.GetSelection(scene), context.Name);

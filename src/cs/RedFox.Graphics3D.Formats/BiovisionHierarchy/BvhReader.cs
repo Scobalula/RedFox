@@ -57,8 +57,6 @@ public sealed class BvhReader
             throw new IOException("The supplied BVH stream is not readable.");
         }
 
-        _ = Options;
-
         using StreamReader streamReader = new(Stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: true);
         string text = streamReader.ReadToEnd();
         if (string.IsNullOrWhiteSpace(text))

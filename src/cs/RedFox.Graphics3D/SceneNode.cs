@@ -26,7 +26,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         get => _name;
         set
         {
-            if (Parent is { } parent && !string.Equals(_name, value, StringComparison.CurrentCultureIgnoreCase))
+            if (Parent is { } parent && !string.Equals(_name, value, StringComparison.OrdinalIgnoreCase))
                 parent.ChangeChildName(_name, value);
 
             _name = value;
@@ -362,15 +362,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// insensitive) and runtime type. Returns <see langword="null"/> when no duplicate is present.
     /// This node itself is always skipped.
     /// </summary>
-    private SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope)
+    private SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope) => FindDuplicateInScope(targetParent, scope, Name, StringComparison.OrdinalIgnoreCase, true);
+
+    internal SceneNode? FindDuplicateInScope(SceneNode targetParent, SceneNodeMatchScope scope, string name, StringComparison nameComparison, bool matchType)
     {
         foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
         {
             if (ReferenceEquals(candidate, this))
                 continue;
-            if (!candidate.Name.Equals(Name, StringComparison.CurrentCultureIgnoreCase))
+            if (!candidate.Name.Equals(name, nameComparison))
                 continue;
-            if (candidate.GetType() != GetType())
+            if (matchType && candidate.GetType() != GetType())
                 continue;
             return candidate;
         }
@@ -421,7 +423,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// Generates a unique name based on this node's current name by appending an ascending numeric
     /// suffix until no other node in <paramref name="scope"/> shares it.
     /// </summary>
-    private string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope)
+    private string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope) => MakeUniqueName(targetParent, scope, StringComparison.OrdinalIgnoreCase);
+
+    internal string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope, StringComparison nameComparison)
     {
         string baseName = Name;
         int index = 1;
@@ -430,18 +434,18 @@ public abstract class SceneNode : IUpdatable, IDisposable
         {
             candidate = $"{baseName}_{index++}";
         }
-        while (HasNameInScope(targetParent, candidate, scope));
+        while (HasNameInScope(targetParent, candidate, scope, nameComparison));
 
         return candidate;
     }
 
-    private bool HasNameInScope(SceneNode targetParent, string name, SceneNodeMatchScope scope)
+    private bool HasNameInScope(SceneNode targetParent, string name, SceneNodeMatchScope scope, StringComparison nameComparison)
     {
         foreach (SceneNode candidate in EnumerateScopeCandidates(targetParent, scope))
         {
             if (ReferenceEquals(candidate, this))
                 continue;
-            if (candidate.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase))
+            if (candidate.Name.Equals(name, nameComparison))
                 return true;
         }
 
@@ -453,7 +457,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// derived nodes can redirect any references they hold from <paramref name="oldNode"/> to
     /// <paramref name="newNode"/>.
     /// </summary>
-    private static void RedirectReferences(SceneNode oldNode, SceneNode newNode, SceneNode targetRoot, SceneNode stagingRoot)
+    internal static void RedirectReferences(SceneNode oldNode, SceneNode newNode, SceneNode targetRoot, SceneNode stagingRoot)
     {
         foreach (SceneNode node in targetRoot.EnumerateHierarchy())
         {
@@ -528,21 +532,21 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
     /// <summary>
     /// Determines whether this node is a descendant of an ancestor with the specified name
-    /// using the current culture for comparison.
+    /// using an ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name of the ancestor to test for.</param>
     /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
-    public bool IsDescendantOf(string name) => IsDescendantOf(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+    public bool IsDescendantOf(string name) => IsDescendantOf(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
     /// Determines whether this node is a descendant of an ancestor with the specified name
-    /// using the current culture for comparison and the provided filter.
+    /// using an ordinal, case-insensitive comparison and the provided filter.
     /// </summary>
     /// <param name="name">The name of the ancestor to test for.</param>
     /// <param name="filter">The flags the matching ancestor must contain.</param>
     /// <returns><see langword="true"/> if an ancestor with the given name exists; otherwise <see langword="false"/>.</returns>
     public bool IsDescendantOf(string name, SceneNodeFlags filter) =>
-        IsDescendantOf(name, StringComparison.CurrentCulture, filter);
+        IsDescendantOf(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Determines whether this node is a descendant of an ancestor with the specified name
@@ -1024,23 +1028,23 @@ public abstract class SceneNode : IUpdatable, IDisposable
     public T[] GetAncestors<T>(SceneNodeFlags filter) where T : SceneNode => [.. EnumerateAncestors<T>(filter)];
 
     /// <summary>
-    /// Attempts to find a direct child with the specified name using current culture comparison.
+    /// Attempts to find a direct child with the specified name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
     public bool TryFindChild(string name, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindChild(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find a direct child with the specified name and filter using current culture comparison.
+    /// Attempts to find a direct child with the specified name and filter using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching child must contain.</param>
     /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
     public bool TryFindChild(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindChild(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindChild(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find a direct child with the specified name using the provided comparison.
@@ -1067,23 +1071,23 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Attempts to find a descendant with the specified name using current culture comparison.
+    /// Attempts to find a descendant with the specified name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
     public bool TryFindDescendant(string name, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindDescendant(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find a descendant with the specified name and filter using current culture comparison.
+    /// Attempts to find a descendant with the specified name and filter using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching descendant must contain.</param>
     /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
     public bool TryFindDescendant(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindDescendant(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindDescendant(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find a descendant with the specified name using the provided comparison.
@@ -1110,23 +1114,23 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Attempts to find an ancestor with the specified name using current culture comparison.
+    /// Attempts to find an ancestor with the specified name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
     public bool TryFindAncestor(string name, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindAncestor(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find an ancestor with the specified name and filter using current culture comparison.
+    /// Attempts to find an ancestor with the specified name and filter using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching ancestor must contain.</param>
     /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
     public bool TryFindAncestor(string name, SceneNodeFlags filter, [NotNullWhen(true)] out SceneNode? node) =>
-        TryFindAncestor(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindAncestor(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find an ancestor with the specified name using the provided comparison.
@@ -1153,17 +1157,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Attempts to find a direct child of the specified type and name using current culture comparison.
+    /// Attempts to find a direct child of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
     public bool TryFindChild<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindChild(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find a direct child of the specified type and name using current culture comparison and filter.
+    /// Attempts to find a direct child of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1171,7 +1175,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="node">The matching child node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching child was found; otherwise <c>false</c>.</returns>
     public bool TryFindChild<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindChild(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindChild(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find a direct child of the specified type and name using the provided comparison.
@@ -1200,17 +1204,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Attempts to find a descendant of the specified type and name using current culture comparison.
+    /// Attempts to find a descendant of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
     public bool TryFindDescendant<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindDescendant(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find a descendant of the specified type and name using current culture comparison and filter.
+    /// Attempts to find a descendant of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1218,7 +1222,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="node">The matching descendant node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching descendant was found; otherwise <c>false</c>.</returns>
     public bool TryFindDescendant<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindDescendant(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindDescendant(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find a descendant of the specified type and name using the provided comparison.
@@ -1247,17 +1251,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Attempts to find an ancestor of the specified type and name using current culture comparison.
+    /// Attempts to find an ancestor of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
     public bool TryFindAncestor<T>(string name, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None, out node);
+        TryFindAncestor(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None, out node);
 
     /// <summary>
-    /// Attempts to find an ancestor of the specified type and name using current culture comparison and filter.
+    /// Attempts to find an ancestor of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1265,7 +1269,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <param name="node">The matching ancestor node when found; otherwise <c>null</c>.</param>
     /// <returns><c>true</c> if a matching ancestor was found; otherwise <c>false</c>.</returns>
     public bool TryFindAncestor<T>(string name, SceneNodeFlags filter, [NotNullWhen(true)] out T? node) where T : SceneNode =>
-        TryFindAncestor(name, StringComparison.CurrentCulture, filter, out node);
+        TryFindAncestor(name, StringComparison.OrdinalIgnoreCase, filter, out node);
 
     /// <summary>
     /// Attempts to find an ancestor of the specified type and name using the provided comparison.
@@ -1294,21 +1298,21 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds a direct child by name using current culture comparison.
+    /// Finds a direct child by name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching child node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-    public SceneNode FindChild(string name) => FindChild(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+    public SceneNode FindChild(string name) => FindChild(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds a direct child by name using current culture comparison and the provided filter.
+    /// Finds a direct child by name using ordinal, case-insensitive comparison and the provided filter.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching child must contain.</param>
     /// <returns>The matching child node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
-    public SceneNode FindChild(string name, SceneNodeFlags filter) => FindChild(name, StringComparison.CurrentCulture, filter);
+    public SceneNode FindChild(string name, SceneNodeFlags filter) => FindChild(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds a direct child by name using the specified comparison.
@@ -1337,22 +1341,22 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds a descendant by name using current culture comparison.
+    /// Finds a descendant by name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching descendant node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
-    public SceneNode FindDescendant(string name) => FindDescendant(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+    public SceneNode FindDescendant(string name) => FindDescendant(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds a descendant by name using current culture comparison and the provided filter.
+    /// Finds a descendant by name using ordinal, case-insensitive comparison and the provided filter.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching descendant must contain.</param>
     /// <returns>The matching descendant node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
     public SceneNode FindDescendant(string name, SceneNodeFlags filter) =>
-        FindDescendant(name, StringComparison.CurrentCulture, filter);
+        FindDescendant(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds a descendant by name using the specified comparison.
@@ -1381,21 +1385,21 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds an ancestor by name using current culture comparison.
+    /// Finds an ancestor by name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching ancestor node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-    public SceneNode FindAncestor(string name) => FindAncestor(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+    public SceneNode FindAncestor(string name) => FindAncestor(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds an ancestor by name using current culture comparison and the provided filter.
+    /// Finds an ancestor by name using ordinal, case-insensitive comparison and the provided filter.
     /// </summary>
     /// <param name="name">The name to search for.</param>
     /// <param name="filter">The flags the matching ancestor must contain.</param>
     /// <returns>The matching ancestor node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
-    public SceneNode FindAncestor(string name, SceneNodeFlags filter) => FindAncestor(name, StringComparison.CurrentCulture, filter);
+    public SceneNode FindAncestor(string name, SceneNodeFlags filter) => FindAncestor(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds an ancestor by name using the specified comparison.
@@ -1424,17 +1428,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds a direct child of the specified type and name using current culture comparison.
+    /// Finds a direct child of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching child node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
     public T FindChild<T>(string name) where T : SceneNode =>
-        FindChild<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+        FindChild<T>(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds a direct child of the specified type and name using current culture comparison and filter.
+    /// Finds a direct child of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1442,7 +1446,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The matching child node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching child is found.</exception>
     public T FindChild<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
-        FindChild<T>(name, StringComparison.CurrentCulture, filter);
+        FindChild<T>(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds a direct child of the specified type and name using the specified comparison.
@@ -1473,17 +1477,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds a descendant of the specified type and name using current culture comparison.
+    /// Finds a descendant of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching descendant node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
     public T FindDescendant<T>(string name) where T : SceneNode =>
-        FindDescendant<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+        FindDescendant<T>(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds a descendant of the specified type and name using current culture comparison and filter.
+    /// Finds a descendant of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1491,7 +1495,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The matching descendant node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching descendant is found.</exception>
     public T FindDescendant<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
-        FindDescendant<T>(name, StringComparison.CurrentCulture, filter);
+        FindDescendant<T>(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds a descendant of the specified type and name using the specified comparison.
@@ -1522,17 +1526,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
-    /// Finds an ancestor of the specified type and name using current culture comparison.
+    /// Finds an ancestor of the specified type and name using ordinal, case-insensitive comparison.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
     /// <returns>The matching ancestor node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
     public T FindAncestor<T>(string name) where T : SceneNode =>
-        FindAncestor<T>(name, StringComparison.CurrentCulture, SceneNodeFlags.None);
+        FindAncestor<T>(name, StringComparison.OrdinalIgnoreCase, SceneNodeFlags.None);
 
     /// <summary>
-    /// Finds an ancestor of the specified type and name using current culture comparison and filter.
+    /// Finds an ancestor of the specified type and name using ordinal, case-insensitive comparison and filter.
     /// </summary>
     /// <typeparam name="T">The node type.</typeparam>
     /// <param name="name">The name to search for.</param>
@@ -1540,7 +1544,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The matching ancestor node.</returns>
     /// <exception cref="SceneNodeNotFoundException">Thrown when no matching ancestor is found.</exception>
     public T FindAncestor<T>(string name, SceneNodeFlags filter) where T : SceneNode =>
-        FindAncestor<T>(name, StringComparison.CurrentCulture, filter);
+        FindAncestor<T>(name, StringComparison.OrdinalIgnoreCase, filter);
 
     /// <summary>
     /// Finds an ancestor of the specified type and name using the specified comparison.
@@ -1598,7 +1602,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>True if the node was removed; otherwise false.</returns>
     public bool RemoveNode(string name)
     {
-        var child = EnumerateChildren().FirstOrDefault(x => x.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase));
+        var child = EnumerateChildren().FirstOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         if (child == null)
             return false;
         return RemoveNode(child);
@@ -1662,7 +1666,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         bool duplicate = _childNameCounts?.ContainsKey(node.Name) == true;
         if (_childNameCounts is null)
             foreach (SceneNode child in _children)
-                if (child.Name.Equals(node.Name, StringComparison.CurrentCultureIgnoreCase))
+                if (child.Name.Equals(node.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     duplicate = true;
                     break;
@@ -1687,7 +1691,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
             if (_children!.Count < ChildNameIndexThreshold)
                 return;
 
-            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.CurrentCultureIgnoreCase);
+            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.OrdinalIgnoreCase);
             foreach (SceneNode child in _children)
                 _childNameCounts[child.Name] = _childNameCounts.GetValueOrDefault(child.Name) + 1;
             return;
@@ -1939,11 +1943,11 @@ public abstract class SceneNode : IUpdatable, IDisposable
             throw new SceneNodeNotFoundException($"Node at path '{path}' not found.");
 
         SceneNode? current = this;
-        if (!segments[0].Equals(Name, StringComparison.CurrentCultureIgnoreCase))
+        if (!segments[0].Equals(Name, StringComparison.OrdinalIgnoreCase))
             throw new SceneNodeNotFoundException($"Path root '{segments[0]}' does not match node '{Name}'.");
         for (int i = 1; i < segments.Length && current != null; i++)
         {
-            current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.CurrentCultureIgnoreCase));
+            current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.OrdinalIgnoreCase));
         }
         if (current == null || !current.MatchesFilter(filter))
             throw new SceneNodeNotFoundException($"Node at path '{path}' not found.");
@@ -1976,11 +1980,11 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return false;
 
         SceneNode? current = this;
-        if (!segments[0].Equals(Name, StringComparison.CurrentCultureIgnoreCase))
+        if (!segments[0].Equals(Name, StringComparison.OrdinalIgnoreCase))
             return false;
         for (int i = 1; i < segments.Length && current != null; i++)
         {
-            current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.CurrentCultureIgnoreCase));
+            current = current.EnumerateChildren().FirstOrDefault(n => n.Name.Equals(segments[i], StringComparison.OrdinalIgnoreCase));
         }
         if (current == null || !current.MatchesFilter(filter))
             return false;

@@ -30,9 +30,9 @@ public sealed class SceneMergeOptions
     public ReparentTransformMode TransformMode { get; set; } = ReparentTransformMode.PreserveExisting;
 
     /// <summary>
-    /// Gets the comparison used to match node names. Defaults to <see cref="StringComparison.CurrentCultureIgnoreCase"/>.
+    /// Gets the comparison used to match node names. Defaults to <see cref="StringComparison.OrdinalIgnoreCase"/>.
     /// </summary>
-    public StringComparison NameComparison { get; set; } = StringComparison.CurrentCultureIgnoreCase;
+    public StringComparison NameComparison { get; set; } = StringComparison.OrdinalIgnoreCase;
 
     /// <summary>
     /// Gets a value indicating whether a duplicate must be of the same runtime type as the incoming node.

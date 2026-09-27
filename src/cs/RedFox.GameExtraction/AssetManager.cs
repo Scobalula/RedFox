@@ -784,7 +784,10 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <param name="userData">Optional user-defined data attached to the export operation.</param>
-    public async Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
+    public Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData) =>
+        ExportAssetAsync(asset, null, relativeOutputDirectory, configuration, progress, cancellationToken, userData);
+
+    private async Task ExportAssetAsync(Asset asset, AssetReadResult? result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -808,13 +811,13 @@ public sealed class AssetManager
             return;
         }
 
-        AssetReadResult result = await ReadAsync(asset, userData, cancellationToken).ConfigureAwait(false);
+        AssetReadResult exportResult = result ?? await ReadAsync(asset, userData, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
 
         try
         {
-            await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
+            await handler.ExportAsync(exportResult, exportContext, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -851,68 +854,24 @@ public sealed class AssetManager
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <param name="userData">Optional user-defined data attached to the export operation.</param>
-    public async Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
+    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(configuration);
-
-        cancellationToken.ThrowIfCancellationRequested();
-
-        IAssetSource source = GetRequiredSource(asset);
-        string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
-        IAssetHandler handler = GetRequiredHandler(asset);
-        AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
-        AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken, userData);
-
-        AssetExportStarting?.Invoke(this, new AssetExportEventArgs(asset, source, configuration, normalizedDir));
-
-        bool shouldExport = await handler.ShouldExportAsync(asset, exportContext, cancellationToken).ConfigureAwait(false);
-
-        if (!shouldExport)
-        {
-            progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Skipped {asset.Name}" : $"Skipped {asset.Name} -> {normalizedDir}");
-            AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: true));
-            return;
-        }
-
-        progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
-
-        try
-        {
-            await handler.ExportAsync(result, exportContext, cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Export, ex, source, asset, normalizedDir));
-            throw;
-        }
-
-        AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: false));
+        return ExportAssetAsync(asset, result, relativeOutputDirectory, configuration, progress, cancellationToken, userData);
     }
 
     internal static string NormalizeVirtualPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        if (Path.IsPathRooted(path))
-            throw new ArgumentException("Asset paths must be relative.", nameof(path));
-
-        string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (parts.Any(part => part is "." or ".."))
-            throw new ArgumentException("Asset paths cannot contain dot segments.", nameof(path));
+        string[] parts = SplitAndValidateRelativePath(path, nameof(path), "Asset paths");
 
         if (parts.Length == 0)
         {
             throw new ArgumentException("The supplied path does not contain any valid segments.", nameof(path));
         }
 
-        return string.Join(Path.DirectorySeparatorChar, parts);
+        return Path.Combine(parts);
     }
 
     internal static string NormalizeRelativeOutputDirectory(string? relativeOutputDirectory)
@@ -922,17 +881,21 @@ public sealed class AssetManager
             return string.Empty;
         }
 
-        if (Path.IsPathRooted(relativeOutputDirectory))
-        {
-            throw new ArgumentException("Output directories must be relative.", nameof(relativeOutputDirectory));
-        }
-
-        string[] parts = relativeOutputDirectory.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (parts.Any(part => part is "." or ".."))
-            throw new ArgumentException("Output directories cannot contain dot segments.", nameof(relativeOutputDirectory));
+        string[] parts = SplitAndValidateRelativePath(relativeOutputDirectory, nameof(relativeOutputDirectory), "Output directories");
 
         return parts.Length == 0 ? string.Empty : Path.Combine(parts);
+    }
+
+    private static string[] SplitAndValidateRelativePath(string path, string argumentName, string pathKind)
+    {
+        if (Path.IsPathRooted(path))
+            throw new ArgumentException($"{pathKind} must be relative.", argumentName);
+
+        string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Any(part => part is "." or ".."))
+            throw new ArgumentException($"{pathKind} cannot contain dot segments.", argumentName);
+
+        return parts;
     }
 
     internal static string CombineRelativePaths(string first, string second)

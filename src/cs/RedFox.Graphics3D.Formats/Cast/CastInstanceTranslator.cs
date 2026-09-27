@@ -13,7 +13,7 @@ internal static class CastInstanceTranslator
         var name = CastTranslator.GetUniqueName(scene.RootNode, instanceNode.Name ?? Path.GetFileNameWithoutExtension(file.Path));
         var reference = scene.RootNode.AddNode(new SceneReference(name, file.Path));
 
-        reference.ResolvedFilePath = Path.IsPathRooted(file.Path) ? Path.GetFullPath(file.Path) : sceneRoot is null ? null : Path.GetFullPath(Path.Combine(sceneRoot, file.Path));
+        reference.ResolvedFilePath = FilePathResolver.ResolveReferencePath(file.Path, sceneRoot);
         reference.BindTransform.LocalPosition = instanceNode.Position;
         reference.BindTransform.LocalRotation = instanceNode.Rotation;
         reference.BindTransform.Scale = instanceNode.Scale;

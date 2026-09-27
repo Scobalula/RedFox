@@ -124,7 +124,7 @@ internal static class ExrLoader
             if (attributeName.Length == 0)
                 break;
 
-            string attributeType = ReadNullTerminatedString(source, ref offset);
+            ReadNullTerminatedString(source, ref offset);
             int attributeSize = ReadInt32(source, ref offset);
             ReadOnlySpan<byte> attributeValue = ReadBytes(source, ref offset, attributeSize);
 
@@ -144,10 +144,6 @@ internal static class ExrLoader
 
                 case "tiles":
                     hasTilesAttribute = true;
-                    break;
-
-                default:
-                    _ = attributeType;
                     break;
             }
         }

@@ -154,7 +154,7 @@ internal static class XModelReader
                 Texture texture = material.AddNode(new Texture(textureName)
                 {
                     FilePath = textureName,
-                    ResolvedFilePath = ResolveTexturePath(textureName, context.SourceDirectoryPath),
+                    ResolvedFilePath = FilePathResolver.ResolveReferencePath(textureName, context.SourceDirectoryPath),
                 });
                 material.Connect("diffuse", texture);
                 material.DiffuseMapName = "diffuse";
@@ -246,13 +246,6 @@ internal static class XModelReader
             mesh.Skin = new Skin(bones, boneIndices, boneWeights);
 
         MeshWelder.Weld(mesh, 0f);
-    }
-
-    private static string? ResolveTexturePath(string textureName, string? sourceDirectoryPath)
-    {
-        if (Path.IsPathRooted(textureName))
-            return Path.GetFullPath(textureName);
-        return string.IsNullOrWhiteSpace(sourceDirectoryPath) ? null : Path.GetFullPath(Path.Combine(sourceDirectoryPath, textureName));
     }
 
     private static void ValidateIndex(int index, int count, string description)

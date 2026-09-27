@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 namespace RedFox.Graphics3D;
@@ -45,10 +44,10 @@ public static class SceneMerger
 
     private static SceneNode MergeNode(SceneNode targetParent, SceneNode incoming, SceneMergeOptions options, SceneNode stagingRoot)
     {
-        var existing = FindDuplicate(targetParent, incoming, options);
+        var existing = incoming.FindDuplicateInScope(targetParent, options.DuplicateScope, incoming.Name, options.NameComparison, options.MatchType);
         if (existing is null)
         {
-            Attach(targetParent, incoming, options.TransformMode);
+            incoming.MoveTo(targetParent, options.TransformMode, SceneNodeMatchScope.None, SceneMergeStrategy.Throw);
             return incoming;
         }
 
@@ -58,26 +57,26 @@ public static class SceneMerger
                 throw new SceneNodeDuplicateException($"A node with the name: {incoming.Name} already exists in: {targetParent.Name}");
 
             case SceneMergeStrategy.Rename:
-                incoming.Name = MakeUniqueName(targetParent, incoming, options);
-                Attach(targetParent, incoming, options.TransformMode);
+                incoming.Name = incoming.MakeUniqueName(targetParent, SceneNodeMatchScope.Siblings, options.NameComparison);
+                incoming.MoveTo(targetParent, options.TransformMode, SceneNodeMatchScope.None, SceneMergeStrategy.Throw);
                 return incoming;
 
             case SceneMergeStrategy.Skip:
-                RedirectReferences(incoming, existing, targetParent.GetRoot(), stagingRoot);
+                SceneNode.RedirectReferences(incoming, existing, targetParent.GetRoot(), stagingRoot);
                 incoming.Detach();
                 return existing;
 
             case SceneMergeStrategy.Replace:
-                RedirectReferences(existing, incoming, targetParent.GetRoot(), stagingRoot);
+                SceneNode.RedirectReferences(existing, incoming, targetParent.GetRoot(), stagingRoot);
                 existing.Detach();
-                Attach(targetParent, incoming, options.TransformMode);
+                incoming.MoveTo(targetParent, options.TransformMode, SceneNodeMatchScope.None, SceneMergeStrategy.Throw);
                 return incoming;
 
             case SceneMergeStrategy.Merge:
                 SceneNode.ApplyMergeTransform(existing, incoming, options.TransformMode);
                 foreach (var child in incoming.EnumerateChildren().ToArray())
                     MergeNode(existing, child, options, stagingRoot);
-                RedirectReferences(incoming, existing, targetParent.GetRoot(), stagingRoot);
+                SceneNode.RedirectReferences(incoming, existing, targetParent.GetRoot(), stagingRoot);
                 incoming.Detach();
                 return existing;
 
@@ -86,69 +85,4 @@ public static class SceneMerger
         }
     }
 
-    private static void Attach(SceneNode targetParent, SceneNode incoming, ReparentTransformMode transformMode)
-    {
-        incoming.MoveTo(targetParent, transformMode, SceneNodeMatchScope.None, SceneMergeStrategy.Throw);
-    }
-
-    private static SceneNode? FindDuplicate(SceneNode targetParent, SceneNode incoming, SceneMergeOptions options)
-    {
-        var scope = options.DuplicateScope;
-        if (scope == SceneNodeMatchScope.None)
-            return null;
-
-        IEnumerable<SceneNode> candidates;
-        if (scope.HasFlag(SceneNodeMatchScope.WholeScene))
-        {
-            candidates = targetParent.GetRoot().EnumerateHierarchy();
-        }
-        else
-        {
-            candidates = Enumerable.Empty<SceneNode>();
-            if (scope.HasFlag(SceneNodeMatchScope.Siblings))
-                candidates = candidates.Concat(targetParent.EnumerateChildren());
-            if (scope.HasFlag(SceneNodeMatchScope.Descendants))
-                candidates = candidates.Concat(targetParent.EnumerateDescendants());
-        }
-
-        foreach (var candidate in candidates)
-        {
-            if (ReferenceEquals(candidate, incoming))
-                continue;
-            if (!candidate.Name.Equals(incoming.Name, options.NameComparison))
-                continue;
-            if (options.MatchType && candidate.GetType() != incoming.GetType())
-                continue;
-
-            return candidate;
-        }
-
-        return null;
-    }
-
-    private static string MakeUniqueName(SceneNode targetParent, SceneNode incoming, SceneMergeOptions options)
-    {
-        var baseName = incoming.Name;
-        var index = 1;
-        string candidate;
-        do
-        {
-            candidate = $"{baseName}_{index++}";
-        }
-        while (targetParent.EnumerateChildren().Any(x => x.Name.Equals(candidate, options.NameComparison)));
-
-        return candidate;
-    }
-
-    private static void RedirectReferences(SceneNode oldNode, SceneNode newNode, SceneNode targetRoot, SceneNode stagingRoot)
-    {
-        foreach (var node in targetRoot.EnumerateHierarchy())
-            node.Swap(oldNode, newNode);
-
-        if (!ReferenceEquals(stagingRoot, targetRoot))
-        {
-            foreach (var node in stagingRoot.EnumerateHierarchy())
-                node.Swap(oldNode, newNode);
-        }
-    }
 }

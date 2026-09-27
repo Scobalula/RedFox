@@ -51,8 +51,6 @@ public sealed class FbxTranslator : SceneTranslator
     /// <returns>The selected <see cref="FbxFormat"/>.</returns>
     public static FbxFormat ResolveWriteFormat(string name, Stream stream)
     {
-        _ = stream;
-
         if (name.EndsWith(".ascii.fbx", StringComparison.OrdinalIgnoreCase)
             || name.EndsWith(".fbxascii", StringComparison.OrdinalIgnoreCase))
         {

@@ -103,7 +103,7 @@ public sealed class PskWriter
         WriteWedges(writer, wedges, extended);
         WriteFaces(writer, faces, extended);
         WriteMaterials(writer, materials);
-        WriteBones(writer, bones, boneNodes);
+        ActorXBinary.WriteBones(writer, ActorXChunkId.Bones, bones, boneNodes);
 
         ActorXChunkHeader.Write(writer, ActorXChunkId.Weights, ActorXBinary.Version, 12, influences.Count);
         foreach (var influence in influences)
@@ -232,39 +232,4 @@ public sealed class PskWriter
         writer.Write(0);  // LodStyle
     }
 
-    private static void WriteBones(BinaryWriter writer, SkeletonBone[] bones, SceneNode[] boneNodes)
-    {
-        var parentIndices = new int[bones.Length];
-        var childCounts = new int[bones.Length];
-
-        for (int i = 0; i < bones.Length; i++)
-            parentIndices[i] = SceneNode.GetBestParentIndex(bones[i], boneNodes);
-
-        for (int i = 0; i < bones.Length; i++)
-        {
-            int parent = parentIndices[i];
-            if (parent >= 0)
-                childCounts[parent]++;
-        }
-
-        ActorXChunkHeader.Write(writer, ActorXChunkId.Bones, ActorXBinary.Version, 120, bones.Length);
-
-        for (int i = 0; i < bones.Length; i++)
-        {
-            var bone = bones[i];
-            ActorXBinary.WriteFixedString(writer, bone.Name, 64);
-            writer.Write(0u);                         // Flags
-            writer.Write(childCounts[i]);             // NumChildren
-            writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
-
-            Quaternion stored = ActorXBinary.ToStoredRotation(bone.GetBindLocalRotation(), i);
-            ActorXBinary.Write(writer, stored);
-            ActorXBinary.Write(writer, bone.GetBindLocalPosition());
-
-            writer.Write(0f); // Length
-            writer.Write(0f); // XSize
-            writer.Write(0f); // YSize
-            writer.Write(0f); // ZSize
-        }
-    }
 }

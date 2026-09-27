@@ -75,10 +75,10 @@ public class Texture(string filePath) : SceneNode(filePath)
             && System.IO.Path.IsPathRooted(effective)
             && !string.IsNullOrWhiteSpace(targetDirectory))
         {
-            return System.IO.Path.GetRelativePath(targetDirectory, effective);
+            return System.IO.Path.GetRelativePath(targetDirectory, effective).Replace('\\', '/');
         }
 
-        return FilePath;
+        return FilePath.Replace('\\', '/');
     }
 
     /// <summary>

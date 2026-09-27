@@ -57,8 +57,7 @@ public sealed class ObjTranslator : SceneTranslator
             Dictionary<string, Material> existingMaterials = BuildMaterialDictionary(scene);
             foreach (string mtlRelativePath in mtlPaths)
             {
-                string mtlFullPath = Path.GetFullPath(Path.Combine(baseDir, mtlRelativePath));
-                if (File.Exists(mtlFullPath))
+                if (FilePathResolver.ResolveReferencePath(mtlRelativePath, baseDir) is string mtlFullPath && File.Exists(mtlFullPath))
                 {
                     using FileStream mtlStream = new(mtlFullPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
                     ObjMtlReader.Read(mtlStream, existingMaterials, baseDir);

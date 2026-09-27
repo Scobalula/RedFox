@@ -12,6 +12,9 @@
     <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="RedFox.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="CallOfFile" Version="2026.9.26.2" />
     <PackageReference Include="Cast.NET" Version="2026.9.26.1" />
   </ItemGroup>

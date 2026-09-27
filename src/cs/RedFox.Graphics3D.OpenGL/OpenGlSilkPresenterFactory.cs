@@ -36,7 +36,6 @@ public sealed class OpenGlSilkPresenterFactory : ISilkGraphicsPresenterFactory
         ArgumentNullException.ThrowIfNull(window);
         GL gl = GL.GetApi(window);
         ValidateOpenGlVersion(gl);
-        Console.WriteLine($"[OpenGL] Context: {RequiredOpenGlMajorVersion}.{RequiredOpenGlMinorVersion}+ ready.");
         return new OpenGlSilkPresenter(new OpenGlGraphicsDevice(gl));
     }
 

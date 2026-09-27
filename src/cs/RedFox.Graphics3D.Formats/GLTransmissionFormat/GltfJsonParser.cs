@@ -70,7 +70,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing scene definitions.</param>
     /// <param name="doc">The document to populate with parsed scenes.</param>
-    public static void ParseScenes(JsonElement array, GltfDocument doc)
+    private static void ParseScenes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -88,7 +88,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing node definitions.</param>
     /// <param name="doc">The document to populate with parsed nodes.</param>
-    public static void ParseNodes(JsonElement array, GltfDocument doc)
+    private static void ParseNodes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -122,7 +122,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing mesh definitions.</param>
     /// <param name="doc">The document to populate with parsed meshes.</param>
-    public static void ParseMeshes(JsonElement array, GltfDocument doc)
+    private static void ParseMeshes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -178,7 +178,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing accessor definitions.</param>
     /// <param name="doc">The document to populate with parsed accessors.</param>
-    public static void ParseAccessors(JsonElement array, GltfDocument doc)
+    private static void ParseAccessors(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -210,7 +210,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing buffer view definitions.</param>
     /// <param name="doc">The document to populate with parsed buffer views.</param>
-    public static void ParseBufferViews(JsonElement array, GltfDocument doc)
+    private static void ParseBufferViews(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -236,7 +236,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing buffer definitions.</param>
     /// <param name="doc">The document to populate with parsed buffers.</param>
-    public static void ParseBuffers(JsonElement array, GltfDocument doc)
+    private static void ParseBuffers(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -256,7 +256,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing material definitions.</param>
     /// <param name="doc">The document to populate with parsed materials.</param>
-    public static void ParseMaterials(JsonElement array, GltfDocument doc)
+    private static void ParseMaterials(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -328,7 +328,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing texture definitions.</param>
     /// <param name="doc">The document to populate with parsed textures.</param>
-    public static void ParseTextures(JsonElement array, GltfDocument doc)
+    private static void ParseTextures(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -348,7 +348,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing image definitions.</param>
     /// <param name="doc">The document to populate with parsed images.</param>
-    public static void ParseImages(JsonElement array, GltfDocument doc)
+    private static void ParseImages(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -370,7 +370,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing sampler definitions.</param>
     /// <param name="doc">The document to populate with parsed samplers.</param>
-    public static void ParseSamplers(JsonElement array, GltfDocument doc)
+    private static void ParseSamplers(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -394,7 +394,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing skin definitions.</param>
     /// <param name="doc">The document to populate with parsed skins.</param>
-    public static void ParseSkins(JsonElement array, GltfDocument doc)
+    private static void ParseSkins(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -416,7 +416,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing animation definitions.</param>
     /// <param name="doc">The document to populate with parsed animations.</param>
-    public static void ParseAnimations(JsonElement array, GltfDocument doc)
+    private static void ParseAnimations(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -466,7 +466,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing camera definitions.</param>
     /// <param name="doc">The document to populate with parsed cameras.</param>
-    public static void ParseCameras(JsonElement array, GltfDocument doc)
+    private static void ParseCameras(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
@@ -509,7 +509,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing numeric values.</param>
     /// <returns>A float array with the parsed values.</returns>
-    public static float[] ReadFloatArray(JsonElement array)
+    private static float[] ReadFloatArray(JsonElement array)
     {
         float[] result = new float[array.GetArrayLength()];
         int i = 0;
@@ -523,7 +523,7 @@ public static class GltfJsonParser
     /// </summary>
     /// <param name="array">The JSON array element containing integer values.</param>
     /// <returns>An int array with the parsed values.</returns>
-    public static int[] ReadIntArray(JsonElement array)
+    private static int[] ReadIntArray(JsonElement array)
     {
         int[] result = new int[array.GetArrayLength()];
         int i = 0;

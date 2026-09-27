@@ -167,7 +167,7 @@ public sealed class PngImageTranslator : ImageTranslator
         int height = slice.Height;
         int pixelCount = checked(width * height);
 
-        var rgba = PngPixelEncoder.ExtractRgba8(slice, image.Format);
+        var rgba = Rgba8PixelConverter.Extract(slice, image.Format, "PNG");
 
         if (pixelCount >= PngConstants.FastWriteModeMinPixels)
         {

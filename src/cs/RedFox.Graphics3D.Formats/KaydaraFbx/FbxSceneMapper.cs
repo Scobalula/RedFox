@@ -2480,32 +2480,6 @@ public static class FbxSceneMapper
     }
 
     /// <summary>
-    /// Walks a mesh's skinned-bone parent chain to locate the owning armature root.
-    /// </summary>
-    /// <param name="mesh">The skinned mesh to inspect.</param>
-    /// <returns>The owning skeleton node, or <see langword="null"/> when not found.</returns>
-    public static SkeletonBone? FindBindPoseArmature(Mesh mesh)
-    {
-        if (mesh.Skin?.Bones is not { Count: > 0 } bones)
-        {
-            return null;
-        }
-
-        SceneNode? current = bones[0].Parent;
-        while (current is not null)
-        {
-            if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
-            {
-                return rootBone;
-            }
-
-            current = current.Parent;
-        }
-
-        return null;
-    }
-
-    /// <summary>
     /// Appends a Vector3-typed Properties70 entry to the given properties node.
     /// </summary>
     /// <param name="properties">The Properties70 node to append to.</param>

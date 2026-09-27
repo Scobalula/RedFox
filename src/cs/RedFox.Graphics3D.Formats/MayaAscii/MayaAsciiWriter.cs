@@ -1121,7 +1121,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="q">The quaternion to convert.</param>
     /// <returns>A <see cref="Vector3"/> containing rotation angles in degrees as (X, Y, Z).</returns>
-    public static Vector3 QuaternionToEulerDegrees(Quaternion q)
+    private static Vector3 QuaternionToEulerDegrees(Quaternion q)
     {
         q = Quaternion.Normalize(q);
 
@@ -1161,7 +1161,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="name">The raw name to sanitize.</param>
     /// <returns>A Maya-safe node name string.</returns>
-    public static string SanitizeMayaName(string name)
+    private static string SanitizeMayaName(string name)
     {
         if (string.IsNullOrEmpty(name))
         {
@@ -1190,7 +1190,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="value">The string value to escape.</param>
     /// <returns>The escaped string suitable for Maya ASCII output.</returns>
-    public static string EscapeMayaString(string value)
+    private static string EscapeMayaString(string value)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -1206,7 +1206,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="value">The float value to format.</param>
     /// <returns>A string representation of the value using '.' as the decimal separator.</returns>
-    public static string FormatFloat(float value) =>
+    private static string FormatFloat(float value) =>
         value.ToString("G9", CultureInfo.InvariantCulture);
 
     /// <summary>
@@ -1214,7 +1214,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="unit">The linear unit to format.</param>
     /// <returns>The corresponding Maya unit string (e.g., "cm", "m", "in").</returns>
-    public static string FormatLinearUnit(MayaLinearUnit unit) => unit switch
+    private static string FormatLinearUnit(MayaLinearUnit unit) => unit switch
     {
         MayaLinearUnit.Millimeter => "mm",
         MayaLinearUnit.Centimeter => "cm",
@@ -1230,7 +1230,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="unit">The angular unit to format.</param>
     /// <returns>The corresponding Maya unit string (e.g., "deg", "rad").</returns>
-    public static string FormatAngularUnit(MayaAngularUnit unit) => unit switch
+    private static string FormatAngularUnit(MayaAngularUnit unit) => unit switch
     {
         MayaAngularUnit.Degree => "deg",
         MayaAngularUnit.Radian => "rad",
@@ -1242,7 +1242,7 @@ public sealed class MayaAsciiWriter
     /// </summary>
     /// <param name="unit">The time unit to format.</param>
     /// <returns>The corresponding Maya time keyword (e.g., "film", "ntsc", "pal").</returns>
-    public static string FormatTimeUnit(MayaTimeUnit unit) => unit switch
+    private static string FormatTimeUnit(MayaTimeUnit unit) => unit switch
     {
         MayaTimeUnit.Film => "film",
         MayaTimeUnit.Game => "game",

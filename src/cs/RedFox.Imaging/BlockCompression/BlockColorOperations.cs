@@ -264,4 +264,35 @@ public static class BlockColorOperations
         palette[2] = Lerp(c0, c1, 1.0f / 3.0f);
         palette[3] = Lerp(c0, c1, 2.0f / 3.0f);
     }
+
+    internal static void DecodeFourColorBlock(ReadOnlySpan<byte> block, ReadOnlySpan<float> alphas, Span<Vector4> pixels)
+    {
+        ushort c0Raw = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(block);
+        ushort c1Raw = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(block[2..]);
+        uint indices = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(block[4..]);
+        var c0 = DecodeRgb565(c0Raw);
+        var c1 = DecodeRgb565(c1Raw);
+        Span<Vector4> palette = stackalloc Vector4[4] { c0, c1, Lerp(c0, c1, 1.0f / 3.0f), Lerp(c0, c1, 2.0f / 3.0f) };
+
+        for (int i = 0; i < 16; i++)
+        {
+            var color = palette[(int)((indices >> (i * 2)) & 0x3)];
+            pixels[i] = new Vector4(color.X, color.Y, color.Z, alphas[i]);
+        }
+    }
+
+    internal static void EncodeFourColorBlock(ReadOnlySpan<Vector4> pixels, Span<byte> block)
+    {
+        FindMinMaxColorEndpoints(pixels, out var minColor, out var maxColor);
+        Span<Vector4> palette = stackalloc Vector4[4];
+        BuildFourColorPalette(minColor, maxColor, out ushort c0Raw, out ushort c1Raw, palette);
+
+        uint indices = 0;
+        for (int i = 0; i < 16; i++)
+            indices |= (uint)FindClosestColorIndex(pixels[i], palette) << (i * 2);
+
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(block, c0Raw);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(block[2..], c1Raw);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(block[4..], indices);
+    }
 }

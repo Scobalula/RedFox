@@ -61,7 +61,7 @@ public sealed class PskReader
             else if (chunk.ChunkId.StartsWith(ActorXChunkId.Materials, StringComparison.Ordinal))
                 materials = ReadMaterials(reader, chunk.DataCount);
             else if (chunk.ChunkId.StartsWith(ActorXChunkId.Bones, StringComparison.Ordinal))
-                boneRecords = ReadBones(reader, chunk.DataCount);
+                boneRecords = ActorXBinary.ReadBones(reader, chunk.DataCount);
             else if (chunk.ChunkId.StartsWith(ActorXChunkId.Weights, StringComparison.Ordinal))
                 influences = ReadInfluences(reader, chunk.DataCount);
             else
@@ -142,26 +142,6 @@ public sealed class PskReader
         }
 
         return materials;
-    }
-
-    private static List<ActorXBone> ReadBones(BinaryReader reader, int count)
-    {
-        var bones = new List<ActorXBone>(count);
-        for (int i = 0; i < count; i++)
-        {
-            string name = ActorXBinary.ReadFixedString(reader, 64);
-            uint flags = reader.ReadUInt32();
-            int childCount = reader.ReadInt32();
-            int parentIndex = reader.ReadInt32();
-            Quaternion orientation = ActorXBinary.ReadQuaternion(reader);
-            Vector3 position = ActorXBinary.ReadVector3(reader);
-            float length = reader.ReadSingle();
-            var size = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-
-            bones.Add(new ActorXBone(name, flags, childCount, parentIndex, orientation, position, length, size));
-        }
-
-        return bones;
     }
 
     private static List<ActorXInfluence> ReadInfluences(BinaryReader reader, int count)

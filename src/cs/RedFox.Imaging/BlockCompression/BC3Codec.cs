@@ -1,5 +1,4 @@
 using System;
-using System.Buffers.Binary;
 using System.Numerics;
 using RedFox.Imaging.Codecs;
 using RedFox.Imaging.Primitives;
@@ -84,28 +83,7 @@ public sealed class BC3Codec : IPixelCodec
         Span<float> alphas = stackalloc float[16];
         BlockColorOperations.DecodeAlphaBlock(block, alphas, signed: false);
 
-        var colorBlock = block[8..];
-        ushort c0Raw = BinaryPrimitives.ReadUInt16LittleEndian(colorBlock);
-        ushort c1Raw = BinaryPrimitives.ReadUInt16LittleEndian(colorBlock[2..]);
-        uint indices = BinaryPrimitives.ReadUInt32LittleEndian(colorBlock[4..]);
-
-        var c0 = BlockColorOperations.DecodeRgb565(c0Raw);
-        var c1 = BlockColorOperations.DecodeRgb565(c1Raw);
-
-        Span<Vector4> palette =
-        [
-            c0,
-            c1,
-            BlockColorOperations.Lerp(c0, c1, 1.0f / 3.0f),
-            BlockColorOperations.Lerp(c0, c1, 2.0f / 3.0f),
-        ];
-
-        for (int i = 0; i < 16; i++)
-        {
-            int idx = (int)((indices >> (i * 2)) & 0x3);
-            var color = palette[idx];
-            pixels[i] = new Vector4(color.X, color.Y, color.Z, alphas[i]);
-        }
+        BlockColorOperations.DecodeFourColorBlock(block[8..], alphas, pixels);
     }
 
     /// <summary>
@@ -122,21 +100,6 @@ public sealed class BC3Codec : IPixelCodec
 
         BlockColorOperations.EncodeAlphaBlock(alphaValues, block[..8], signed: false);
 
-        var colorBlock = block[8..];
-
-        BlockColorOperations.FindMinMaxColorEndpoints(pixels, out var minColor, out var maxColor);
-        Span<Vector4> palette = stackalloc Vector4[4];
-        BlockColorOperations.BuildFourColorPalette(minColor, maxColor, out ushort c0Raw, out ushort c1Raw, palette);
-
-        uint colorIndices = 0;
-        for (int i = 0; i < 16; i++)
-        {
-            int bestIdx = BlockColorOperations.FindClosestColorIndex(pixels[i], palette);
-            colorIndices |= (uint)bestIdx << (i * 2);
-        }
-
-        BinaryPrimitives.WriteUInt16LittleEndian(colorBlock, c0Raw);
-        BinaryPrimitives.WriteUInt16LittleEndian(colorBlock[2..], c1Raw);
-        BinaryPrimitives.WriteUInt32LittleEndian(colorBlock[4..], colorIndices);
+        BlockColorOperations.EncodeFourColorBlock(pixels, block[8..]);
     }
 }

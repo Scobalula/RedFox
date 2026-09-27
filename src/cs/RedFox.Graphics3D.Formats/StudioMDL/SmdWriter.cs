@@ -109,7 +109,7 @@ public sealed class SmdWriter
     /// <param name="bones">
     /// The ordered bone array.</param>
     /// <param name="exportedBoneNodes">The exported nodes used to resolve each bone's parent index.</param>
-    public static void WriteNodes(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
+    private static void WriteNodes(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
     {
         writer.WriteLine("nodes");
         for (int i = 0; i < bones.Length; i++)
@@ -134,13 +134,13 @@ public sealed class SmdWriter
     /// The ordered bone array.
     /// </param>
     /// <param name="exportedBoneNodes">The exported nodes used to resolve bind-pose transforms.</param>
-    public static void WriteBindPoseSkeleton(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
+    private static void WriteBindPoseSkeleton(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
     {
         writer.WriteLine("skeleton");
         writer.WriteLine("  time 0");
         for (int i = 0; i < bones.Length; i++)
         {
-            GetRelativeBindTransform(bones[i], exportedBoneNodes, out Vector3 pos, out Quaternion rotQuat);
+            SkeletonExportTransforms.GetRelativeBindTransform(bones[i], exportedBoneNodes, out Vector3 pos, out Quaternion rotQuat);
             var rot   = QuaternionToEulerXYZ(rotQuat);
             writer.WriteLine($"  {i}  {F(pos.X)} {F(pos.Y)} {F(pos.Z)}  {F(rot.X)} {F(rot.Y)} {F(rot.Z)}");
         }
@@ -164,7 +164,7 @@ public sealed class SmdWriter
     /// The ordered bone array.
     /// </param>
     /// <param name="exportedBoneNodes">The exported nodes used to resolve animated transforms.</param>
-    public static void WriteAnimationSkeleton(StreamWriter writer, SkeletonAnimation anim, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
+    private static void WriteAnimationSkeleton(StreamWriter writer, SkeletonAnimation anim, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
     {
         var trackByName = new Dictionary<string, SkeletonAnimationTrack>(StringComparer.OrdinalIgnoreCase);
         foreach (var track in anim.Tracks)
@@ -172,7 +172,7 @@ public sealed class SmdWriter
 
         var (_, maxFrameF) = anim.GetAnimationFrameRange();
         int frameCount = maxFrameF > float.MinValue ? (int)MathF.Ceiling(maxFrameF) + 1 : 1;
-        Dictionary<SkeletonBone, SkeletonBone?> exportedParents = BuildExportedParentMap(bones, exportedBoneNodes);
+        Dictionary<SkeletonBone, SkeletonBone?> exportedParents = SkeletonExportTransforms.BuildExportedParentMap(bones, exportedBoneNodes);
         Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldTransforms = [];
 
         writer.WriteLine("skeleton");
@@ -184,7 +184,7 @@ public sealed class SmdWriter
 
             for (int i = 0; i < bones.Length; i++)
             {
-                GetRelativeAnimatedTransform(bones[i], exportedParents, trackByName, t, worldTransforms, out Vector3 pos, out Quaternion quat);
+                SkeletonExportTransforms.GetRelativeAnimatedTransform(bones[i], exportedParents, trackByName, t, worldTransforms, out Vector3 pos, out Quaternion quat);
                 var euler = QuaternionToEulerXYZ(quat);
                 writer.WriteLine($"  {i}  {F(pos.X)} {F(pos.Y)} {F(pos.Z)}  {F(euler.X)} {F(euler.Y)} {F(euler.Z)}");
             }
@@ -209,7 +209,7 @@ public sealed class SmdWriter
     /// The full skeleton bone array.
     /// </param>
     /// <param name="selection">The scene selection used to resolve material names.</param>
-    public static void WriteTriangles(StreamWriter writer, Mesh[] meshes, SkeletonBone[] allBones, SceneTranslationSelection selection)
+    private static void WriteTriangles(StreamWriter writer, Mesh[] meshes, SkeletonBone[] allBones, SceneTranslationSelection selection)
     {
         var boneIndexMap = BuildBoneIndexMap(allBones);
 
@@ -329,7 +329,7 @@ public sealed class SmdWriter
     /// <returns>
     /// A dictionary mapping each bone to its index.
     /// </returns>
-    public static Dictionary<SkeletonBone, int> BuildBoneIndexMap(SkeletonBone[] bones)
+    private static Dictionary<SkeletonBone, int> BuildBoneIndexMap(SkeletonBone[] bones)
     {
         var map = new Dictionary<SkeletonBone, int>(bones.Length);
         for (int i = 0; i < bones.Length; i++)
@@ -352,7 +352,7 @@ public sealed class SmdWriter
     /// <returns>
     /// A local index to global index mapping array.
     /// </returns>
-    public static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap)
+    private static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap)
     {
         _ = allBones;
         var skinnedBones = mesh.Skin?.Bones;
@@ -389,106 +389,9 @@ public sealed class SmdWriter
     /// <returns>
     /// An array of synthetic bones.
     /// </returns>
-    public static SkeletonBone[] SynthesiseBonesFromAnimation(SkeletonAnimation anim)
+    private static SkeletonBone[] SynthesiseBonesFromAnimation(SkeletonAnimation anim)
     {
         return [.. anim.Tracks.Select(t => new SkeletonBone(t.Name))];
-    }
-
-    private static void GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes, out Vector3 position, out Quaternion rotation)
-    {
-        Vector3 worldPosition = bone.GetBindWorldPosition();
-        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
-
-        if (SceneNode.GetBestParent(bone, exportedBoneNodes) is SkeletonBone exportedParent)
-        {
-            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
-            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
-            position = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
-            rotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation);
-            return;
-        }
-
-        position = worldPosition;
-        rotation = worldRotation;
-    }
-
-    private static void GetRelativeAnimatedTransform(
-        SkeletonBone bone,
-        IReadOnlyDictionary<SkeletonBone, SkeletonBone?> exportedParents,
-        IReadOnlyDictionary<string, SkeletonAnimationTrack> trackByName,
-        float time,
-        Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldTransforms,
-        out Vector3 position,
-        out Quaternion rotation)
-    {
-        ComputeAnimatedWorldTransform(bone, trackByName, time, worldTransforms, out Vector3 worldPosition, out Quaternion worldRotation);
-
-        if (exportedParents.TryGetValue(bone, out SkeletonBone? exportedParent) && exportedParent is not null)
-        {
-            ComputeAnimatedWorldTransform(exportedParent, trackByName, time, worldTransforms, out Vector3 parentWorldPosition, out Quaternion parentWorldRotation);
-            position = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation));
-            rotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation);
-            return;
-        }
-
-        position = worldPosition;
-        rotation = worldRotation;
-    }
-
-    private static void ComputeAnimatedWorldTransform(
-        SkeletonBone bone,
-        IReadOnlyDictionary<string, SkeletonAnimationTrack> trackByName,
-        float time,
-        Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldTransforms,
-        out Vector3 worldPosition,
-        out Quaternion worldRotation)
-    {
-        if (worldTransforms.TryGetValue(bone, out (Vector3 Position, Quaternion Rotation) cached))
-        {
-            worldPosition = cached.Position;
-            worldRotation = cached.Rotation;
-            return;
-        }
-
-        Vector3 localPosition = bone.GetBindLocalPosition();
-        Quaternion localRotation = Quaternion.Normalize(bone.GetBindLocalRotation());
-
-        if (trackByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
-        {
-            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
-                localPosition = translationCurve.SampleVector3(time);
-            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
-                localRotation = rotationCurve.SampleQuaternion(time);
-        }
-
-        if (bone.Parent is SkeletonBone parentBone)
-        {
-            ComputeAnimatedWorldTransform(parentBone, trackByName, time, worldTransforms, out Vector3 parentWorldPosition, out Quaternion parentWorldRotation);
-            worldRotation = Quaternion.Normalize(parentWorldRotation * localRotation);
-            worldPosition = parentWorldPosition + Vector3.Transform(localPosition, parentWorldRotation);
-        }
-        else
-        {
-            worldPosition = localPosition;
-            worldRotation = localRotation;
-        }
-
-        worldTransforms[bone] = (worldPosition, worldRotation);
-    }
-
-    private static Dictionary<SkeletonBone, SkeletonBone?> BuildExportedParentMap(SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
-    {
-        HashSet<SceneNode> exported = [.. exportedBoneNodes];
-        Dictionary<SkeletonBone, SkeletonBone?> parents = new(bones.Length);
-        foreach (SkeletonBone bone in bones)
-        {
-            SceneNode? parent = bone.Parent;
-            while (parent is not null && !exported.Contains(parent))
-                parent = parent.Parent;
-            parents[bone] = parent as SkeletonBone;
-        }
-
-        return parents;
     }
 
     private static string ResolveMaterialName(Mesh mesh, SceneTranslationSelection selection)
@@ -519,7 +422,7 @@ public sealed class SmdWriter
     /// A fixed precision numeric string.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string F(float v) => v.ToString("F6", CultureInfo.InvariantCulture);
+    private static string F(float v) => v.ToString("F6", CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Escapes an SMD node name by replacing embedded quotes.
@@ -530,7 +433,7 @@ public sealed class SmdWriter
     /// <returns>
     /// The escaped name.
     /// </returns>
-    public static string EscapeName(string name) => name.Replace("\"", "'");
+    private static string EscapeName(string name) => name.Replace("\"", "'");
 
     // ------------------------------------------------------------------
     // Rotation conversion — Quaternion → Euler XYZ (radians)
@@ -551,7 +454,7 @@ public sealed class SmdWriter
     /// A vector containing X, Y, and Z Euler rotations in radians.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector3 QuaternionToEulerXYZ(Quaternion q)
+    private static Vector3 QuaternionToEulerXYZ(Quaternion q)
     {
         float w = q.W, x = q.X, y = q.Y, z = q.Z;
 

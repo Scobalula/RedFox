@@ -372,34 +372,13 @@ namespace RedFox.IO
         public string ReadNullTerminatedString(Encoding encoding)
         {
             int terminatorSize = encoding.GetByteCount("\0");
+            int end = ReaderOperations.FindNullTerminator(_buffer, _position, terminatorSize);
+            if (end < 0)
+                end = _buffer.Length;
 
-            for (int end = _position; end <= _buffer.Length - terminatorSize; end += terminatorSize)
-            {
-                bool isTerminator = true;
-
-                for (int i = 0; i < terminatorSize; i++)
-                {
-                    if (_buffer[end + i] != 0)
-                    {
-                        isTerminator = false;
-                        break;
-                    }
-                }
-
-                if (isTerminator)
-                {
-                    string value = encoding.GetString(_buffer[_position..end]);
-                    _position = end + terminatorSize;
-                    return value;
-                }
-            }
-
-            var end2 = _buffer.Length;
-            string value2 = encoding.GetString(_buffer[_position..end2]);
-            _position = _buffer.Length;
-            return value2;
-
-            // throw new EndOfStreamException("Null terminator was not found.");
+            string value = encoding.GetString(_buffer[_position..end]);
+            _position = end == _buffer.Length ? end : end + terminatorSize;
+            return value;
         }
 
         public ReadOnlySpan<byte> ReadNullTerminatedSpan()
@@ -434,27 +413,11 @@ namespace RedFox.IO
         public readonly string ReadNullTerminatedString(Encoding encoding, int position)
         {
             int terminatorSize = encoding.GetByteCount("\0");
+            int end = ReaderOperations.FindNullTerminator(_buffer, position, terminatorSize);
+            if (end < 0)
+                throw new EndOfStreamException("Null terminator was not found.");
 
-            for (int end = position; end <= _buffer.Length - terminatorSize; end += terminatorSize)
-            {
-                bool isTerminator = true;
-
-                for (int i = 0; i < terminatorSize; i++)
-                {
-                    if (_buffer[end + i] != 0)
-                    {
-                        isTerminator = false;
-                        break;
-                    }
-                }
-
-                if (isTerminator)
-                {
-                    return encoding.GetString(_buffer[position..end]);
-                }
-            }
-
-            throw new EndOfStreamException("Null terminator was not found.");
+            return encoding.GetString(_buffer[position..end]);
         }
 
         /// <summary>

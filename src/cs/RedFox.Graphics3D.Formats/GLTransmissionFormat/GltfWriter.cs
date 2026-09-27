@@ -91,7 +91,7 @@ public sealed class GltfWriter
         List<int> meshNodeIndices = [];
         foreach (Mesh mesh in meshes)
         {
-            int nodeIdx = WriteMesh(mesh, skinIndices, selection);
+            int nodeIdx = WriteMesh(mesh, skinIndices);
             if (nodeIdx >= 0)
                 meshNodeIndices.Add(nodeIdx);
         }
@@ -231,24 +231,12 @@ public sealed class GltfWriter
 
         if (material.TryGetTexture(mapName, out Texture? texture))
         {
-            imagePath = GetPortableTexturePath(texture);
+            imagePath = texture.GetPortableFilePath(_targetDirectoryPath);
             return !string.IsNullOrWhiteSpace(imagePath);
         }
 
         imagePath = NormalizePath(mapName);
         return true;
-    }
-
-    private string GetPortableTexturePath(Texture texture)
-    {
-        string effectivePath = texture.EffectiveFilePath;
-        if (string.IsNullOrWhiteSpace(effectivePath))
-            return NormalizePath(texture.FilePath);
-
-        if (Path.IsPathRooted(effectivePath) && !string.IsNullOrWhiteSpace(_targetDirectoryPath))
-            return NormalizePath(Path.GetRelativePath(_targetDirectoryPath, effectivePath));
-
-        return NormalizePath(texture.FilePath);
     }
 
     private static string NormalizePath(string path) => path.Replace('\\', '/');
@@ -258,11 +246,9 @@ public sealed class GltfWriter
     /// </summary>
     /// <param name="mesh">The mesh to write.</param>
     /// <param name="skinIndices">A mapping from skeleton names to their glTF skin indices.</param>
-    /// <param name="selection">The filtered scene selection being exported.</param>
     /// <returns>The index of the glTF node created for this mesh.</returns>
-    public int WriteMesh(Mesh mesh, Dictionary<string, int> skinIndices, SceneTranslationSelection selection)
+    public int WriteMesh(Mesh mesh, Dictionary<string, int> skinIndices)
     {
-        _ = selection;
         GltfMeshPrimitive prim = new();
 
         // Positions

@@ -264,47 +264,6 @@ public sealed class Md5AnimWriter
     }
 
     // ------------------------------------------------------------------
-    // World-space reconstruction for animation
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Computes the world-space transform of a bone at a given animation time
-    /// by walking up the full parent chain in the scene graph.
-    /// </summary>
-    /// <param name="bone">The bone to evaluate.</param>
-    /// <param name="trackByName">Animation track lookup by bone name.</param>
-    /// <param name="time">The animation time.</param>
-    /// <param name="worldPosition">Receives the sampled world-space position.</param>
-    /// <param name="worldOrientation">Receives the sampled world-space orientation.</param>
-    public static void ComputeAnimWorldTransform(SkeletonBone bone, IReadOnlyDictionary<string, SkeletonAnimationTrack> trackByName, float time, out Vector3 worldPosition, out Quaternion worldOrientation)
-    {
-        ArgumentNullException.ThrowIfNull(bone);
-        ArgumentNullException.ThrowIfNull(trackByName);
-
-        Vector3 localPosition = bone.GetBindLocalPosition();
-        Quaternion localRotation = Quaternion.Normalize(bone.GetBindLocalRotation());
-
-        if (trackByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track))
-        {
-            if (track.TranslationCurve is { KeyFrameCount: > 0 } translationCurve)
-                localPosition = translationCurve.SampleVector3(time);
-            if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
-                localRotation = rotationCurve.SampleQuaternion(time);
-        }
-
-        if (bone.Parent is SkeletonBone parentBone)
-        {
-            ComputeAnimWorldTransform(parentBone, trackByName, time, out Vector3 parentWorldPosition, out Quaternion parentWorldOrientation);
-            worldOrientation = Quaternion.Normalize(parentWorldOrientation * localRotation);
-            worldPosition = parentWorldPosition + Vector3.Transform(localPosition, parentWorldOrientation);
-            return;
-        }
-
-        worldPosition = localPosition;
-        worldOrientation = localRotation;
-    }
-
-    // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 

@@ -45,7 +45,7 @@ public sealed class PsaReader
             var chunk = ActorXChunkHeader.Read(reader);
 
             if (chunk.ChunkId.StartsWith(ActorXChunkId.BoneNames, StringComparison.Ordinal))
-                boneRecords = ReadBones(reader, chunk.DataCount);
+                boneRecords = ActorXBinary.ReadBones(reader, chunk.DataCount);
             else if (chunk.ChunkId.StartsWith(ActorXChunkId.AnimationInfo, StringComparison.Ordinal))
                 sequences = ReadSequences(reader, chunk.DataCount);
             else if (chunk.ChunkId.StartsWith(ActorXChunkId.AnimationKeys, StringComparison.Ordinal))
@@ -56,26 +56,6 @@ public sealed class PsaReader
 
         foreach (var sequence in sequences)
             scene.RootNode.AddNode(BuildAnimation(sequence, boneRecords, keys));
-    }
-
-    private static List<ActorXBone> ReadBones(BinaryReader reader, int count)
-    {
-        var bones = new List<ActorXBone>(count);
-        for (int i = 0; i < count; i++)
-        {
-            string name = ActorXBinary.ReadFixedString(reader, 64);
-            uint flags = reader.ReadUInt32();
-            int childCount = reader.ReadInt32();
-            int parentIndex = reader.ReadInt32();
-            Quaternion orientation = ActorXBinary.ReadQuaternion(reader);
-            Vector3 position = ActorXBinary.ReadVector3(reader);
-            float length = reader.ReadSingle();
-            var size = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
-
-            bones.Add(new ActorXBone(name, flags, childCount, parentIndex, orientation, position, length, size));
-        }
-
-        return bones;
     }
 
     private static List<ActorXAnimInfo> ReadSequences(BinaryReader reader, int count)

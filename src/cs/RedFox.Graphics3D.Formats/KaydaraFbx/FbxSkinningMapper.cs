@@ -360,28 +360,6 @@ public static class FbxSkinningMapper
     }
 
     /// <summary>
-    /// Returns the world bind matrix of the skeleton (armature) that owns the specified bone.
-    /// </summary>
-    /// <param name="bone">The bone whose armature bind matrix is needed.</param>
-    /// <returns>The armature world bind matrix, or <see cref="Matrix4x4.Identity"/> when not found.</returns>
-    public static Matrix4x4 GetArmatureBindWorldMatrix(SkeletonBone bone)
-    {
-        SceneNode? current = bone.Parent;
-        while (current is not null)
-        {
-                if (current is SkeletonBone rootBone && rootBone.Parent is not SkeletonBone)
-            {
-                    // For root bones, return identity since the armature itself has no parent transform
-                    return Matrix4x4.Identity;
-            }
-
-            current = current.Parent;
-        }
-
-        return Matrix4x4.Identity;
-    }
-
-    /// <summary>
     /// Returns the export-time world bind matrix of the skeleton (armature) that owns the specified bone,
     /// including any coordinate-system basis rotations added during FBX export.
     /// </summary>

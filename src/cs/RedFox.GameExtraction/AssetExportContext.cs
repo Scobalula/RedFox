@@ -69,7 +69,7 @@ public sealed class AssetExportContext
         Source = source ?? throw new ArgumentNullException(nameof(source));
         Request = request ?? throw new ArgumentNullException(nameof(request));
         ExportConfiguration = exportConfiguration ?? throw new ArgumentNullException(nameof(exportConfiguration));
-        RelativeOutputDirectory = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
+        RelativeOutputDirectory = AssetManager.NormalizeRelativeOutputDirectory(relativeOutputDirectory);
         _progress = progress;
         _cancellationToken = cancellationToken;
         UserData = userData;
@@ -130,7 +130,7 @@ public sealed class AssetExportContext
     public string ResolveOutputPath(string relativePath)
     {
         string outputRoot = Path.GetFullPath(ExportConfiguration.OutputDirectory);
-        string outputPath = Path.GetFullPath(Path.Combine(OutputDirectory, NormalizeRelativePath(relativePath)));
+        string outputPath = Path.GetFullPath(Path.Combine(OutputDirectory, AssetManager.NormalizeRelativeOutputDirectory(relativePath)));
         EnsurePathIsWithinRoot(outputRoot, outputPath);
         return outputPath;
     }
@@ -149,7 +149,7 @@ public sealed class AssetExportContext
     public string ResolveOutputDirectory(string relativePath)
     {
         string outputRoot = Path.GetFullPath(ExportConfiguration.OutputDirectory);
-        string combinedRelativePath = CombineRelativePaths(RelativeOutputDirectory, relativePath);
+        string combinedRelativePath = AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativePath);
         string outputPath = string.IsNullOrWhiteSpace(combinedRelativePath) ? outputRoot : Path.GetFullPath(Path.Combine(outputRoot, combinedRelativePath));
         EnsurePathIsWithinRoot(outputRoot, outputPath);
         return outputPath;
@@ -206,7 +206,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(Asset asset, string relativeOutputDirectory)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return AssetManager.ExportAsync(asset, CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -235,7 +235,7 @@ public sealed class AssetExportContext
         ArgumentNullException.ThrowIfNull(result);
         if (!ReferenceEquals(result.Asset, asset))
             throw new ArgumentException($"The result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.", nameof(result));
-        return AssetManager.ExportAsync(asset, result, CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -256,55 +256,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return AssetManager.ExportAsync(result, CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
-    }
-
-    private static string CombineRelativePaths(string first, string second)
-    {
-        string normalizedFirst = NormalizeRelativeOutputDirectory(first);
-        string normalizedSecond = NormalizeRelativeOutputDirectory(second);
-
-        if (string.IsNullOrWhiteSpace(normalizedFirst))
-        {
-            return normalizedSecond;
-        }
-
-        if (string.IsNullOrWhiteSpace(normalizedSecond))
-        {
-            return normalizedFirst;
-        }
-
-        return Path.Combine(normalizedFirst, normalizedSecond);
-    }
-
-    private static string NormalizeRelativeOutputDirectory(string? relativeOutputDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(relativeOutputDirectory))
-        {
-            return string.Empty;
-        }
-
-        return NormalizeRelativePath(relativeOutputDirectory);
-    }
-
-    private static string NormalizeRelativePath(string relativePath)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            return string.Empty;
-        }
-
-        if (Path.IsPathRooted(relativePath))
-        {
-            throw new ArgumentException("Output paths must be relative.", nameof(relativePath));
-        }
-
-        string[] parts = relativePath.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        if (parts.Any(part => part is "." or ".."))
-            throw new ArgumentException("Output paths cannot contain dot segments.", nameof(relativePath));
-
-        return parts.Length == 0 ? string.Empty : Path.Combine(parts);
+        return AssetManager.ExportAsync(result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
     }
 
     private static void EnsurePathIsWithinRoot(string root, string path)

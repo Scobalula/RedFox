@@ -589,7 +589,7 @@ public sealed class GltfReader
 
         GltfImage image = _doc.Images[tex.Source];
         string imagePath = image.Uri ?? image.Name ?? $"image_{tex.Source}";
-        string? resolvedPath = ResolveTexturePath(imagePath);
+        string? resolvedPath = FilePathResolver.ResolveReferencePath(imagePath, _baseDirectory);
 
         setMapName(slot);
 
@@ -603,20 +603,6 @@ public sealed class GltfReader
             mat.AddNode(texture);
             mat.Connect(slot, texture);
         }
-    }
-
-    private string? ResolveTexturePath(string imagePath)
-    {
-        if (string.IsNullOrWhiteSpace(imagePath) || imagePath.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        if (Path.IsPathRooted(imagePath))
-            return Path.GetFullPath(imagePath);
-
-        if (!string.IsNullOrWhiteSpace(_baseDirectory))
-            return Path.GetFullPath(Path.Combine(_baseDirectory, imagePath));
-
-        return null;
     }
 
     /// <summary>

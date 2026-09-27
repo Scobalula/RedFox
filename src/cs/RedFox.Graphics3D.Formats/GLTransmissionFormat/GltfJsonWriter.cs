@@ -62,7 +62,7 @@ public static class GltfJsonWriter
     /// Writes the glTF asset metadata block to the JSON writer.
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
-    public static void WriteAsset(Utf8JsonWriter w)
+    private static void WriteAsset(Utf8JsonWriter w)
     {
         w.WriteStartObject("asset");
         w.WriteString("version", "2.0");
@@ -75,7 +75,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing scenes to serialize.</param>
-    public static void WriteScenes(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteScenes(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("scenes");
         foreach (GltfScene scene in doc.Scenes)
@@ -95,7 +95,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing nodes to serialize.</param>
-    public static void WriteNodes(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteNodes(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("nodes");
         foreach (GltfNode node in doc.Nodes)
@@ -131,7 +131,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing meshes to serialize.</param>
-    public static void WriteMeshes(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteMeshes(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("meshes");
         foreach (GltfMesh mesh in doc.Meshes)
@@ -199,7 +199,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing accessors to serialize.</param>
-    public static void WriteAccessors(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteAccessors(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("accessors");
         foreach (GltfAccessor acc in doc.Accessors)
@@ -230,7 +230,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing buffer views to serialize.</param>
-    public static void WriteBufferViews(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteBufferViews(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("bufferViews");
         foreach (GltfBufferView bv in doc.BufferViews)
@@ -256,7 +256,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing buffers to serialize.</param>
-    public static void WriteBuffers(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteBuffers(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("buffers");
         foreach (GltfBuffer buf in doc.Buffers)
@@ -277,7 +277,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing materials to serialize.</param>
-    public static void WriteMaterials(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteMaterials(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("materials");
         foreach (GltfMaterial mat in doc.Materials)
@@ -354,7 +354,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing textures to serialize.</param>
-    public static void WriteTextures(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteTextures(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("textures");
         foreach (GltfTexture tex in doc.Textures)
@@ -376,7 +376,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing images to serialize.</param>
-    public static void WriteImages(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteImages(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("images");
         foreach (GltfImage img in doc.Images)
@@ -400,7 +400,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing samplers to serialize.</param>
-    public static void WriteSamplers(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteSamplers(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("samplers");
         foreach (GltfSampler sampler in doc.Samplers)
@@ -424,7 +424,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing skins to serialize.</param>
-    public static void WriteSkins(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteSkins(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("skins");
         foreach (GltfSkin skin in doc.Skins)
@@ -447,7 +447,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing animations to serialize.</param>
-    public static void WriteAnimations(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteAnimations(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("animations");
         foreach (GltfAnimation anim in doc.Animations)
@@ -492,7 +492,7 @@ public static class GltfJsonWriter
     /// </summary>
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="doc">The document containing cameras to serialize.</param>
-    public static void WriteCameras(Utf8JsonWriter w, GltfDocument doc)
+    private static void WriteCameras(Utf8JsonWriter w, GltfDocument doc)
     {
         w.WriteStartArray("cameras");
         foreach (GltfCamera cam in doc.Cameras)
@@ -534,7 +534,7 @@ public static class GltfJsonWriter
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="name">The JSON property name.</param>
     /// <param name="values">The float values to write.</param>
-    public static void WriteFloatArray(Utf8JsonWriter w, string name, float[] values)
+    private static void WriteFloatArray(Utf8JsonWriter w, string name, float[] values)
     {
         w.WriteStartArray(name);
         foreach (float v in values)
@@ -548,7 +548,7 @@ public static class GltfJsonWriter
     /// <param name="w">The JSON writer to write to.</param>
     /// <param name="name">The JSON property name.</param>
     /// <param name="values">The integer values to write.</param>
-    public static void WriteIntArray(Utf8JsonWriter w, string name, int[] values)
+    private static void WriteIntArray(Utf8JsonWriter w, string name, int[] values)
     {
         w.WriteStartArray(name);
         foreach (int v in values)

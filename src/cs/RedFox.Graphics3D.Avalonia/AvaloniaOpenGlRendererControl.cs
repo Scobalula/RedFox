@@ -71,7 +71,6 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     private OpenGlGraphicsDevice? _graphicsDevice;
     private SceneRenderer? _renderer;
     private Scene? _subscribedScene;
-    private bool _loggedFramebufferSamples;
     private uint _cachedFramebufferHandle;
     private int _cachedExpectedWidth;
     private int _cachedExpectedHeight;
@@ -242,11 +241,6 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
         int framebufferSamples = _cachedFramebufferSamples;
         renderer.ExternalAntiAliasingSamples = framebufferSamples;
-        if (!_loggedFramebufferSamples)
-        {
-            Console.WriteLine($"[AvaloniaOpenGL] defaultFramebuffer={fb} samples={framebufferSamples} requestedAA={renderer.AntiAliasingSamples} actualAA={renderer.ActualAntiAliasingSamples}");
-            _loggedFramebufferSamples = true;
-        }
         DateTimeOffset now = DateTimeOffset.UtcNow;
         float deltaTime = Math.Clamp((float)(now - _lastFrameTime).TotalSeconds, 0.0f, 0.25f);
         _lastFrameTime = now;
@@ -322,7 +316,6 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer = null;
         _graphicsDevice?.Dispose();
         _graphicsDevice = null;
-        _loggedFramebufferSamples = false;
         base.OnOpenGlLost();
     }
 

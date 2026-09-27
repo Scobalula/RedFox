@@ -71,7 +71,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         var worldOrientations = new Quaternion[allBones.Length];
         var boneIndexMap = BuildBoneIndexMap(allBones);
 
-        ComputeWorldBindTransforms(allBones, boneIndexMap, worldPositions, worldOrientations);
+        ComputeWorldBindTransforms(allBones, worldPositions, worldOrientations);
         WriteJoints(writer, allBones, exportedBoneNodes, worldPositions, worldOrientations);
 
         foreach (var mesh in meshes)
@@ -276,14 +276,12 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// Computes world-space bind transforms for all bones by traversing the hierarchy.
     /// </summary>
     /// <param name="bones">The ordered bone array.</param>
-    /// <param name="boneIndexMap">Maps each bone to its index.</param>
     /// <param name="worldPositions">Output array for world-space positions.</param>
     /// <param name="worldOrientations">Output array for world-space orientations.</param>
-    public static void ComputeWorldBindTransforms(SkeletonBone[] bones, Dictionary<SkeletonBone, int> boneIndexMap, Vector3[] worldPositions, Quaternion[] worldOrientations)
+    public static void ComputeWorldBindTransforms(SkeletonBone[] bones, Vector3[] worldPositions, Quaternion[] worldOrientations)
     {
         for (int i = 0; i < bones.Length; i++)
         {
-            _ = boneIndexMap;
             worldPositions[i] = bones[i].GetBindWorldPosition();
             worldOrientations[i] = Quaternion.Normalize(bones[i].GetBindWorldRotation());
         }

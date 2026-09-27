@@ -403,26 +403,26 @@ public sealed class FbxAsciiTokenizer
     /// </summary>
     /// <param name="c">The character to test.</param>
     /// <returns><see langword="true"/> when the character can start an identifier.</returns>
-    public static bool IsIdentifierStartChar(char c) => char.IsLetter(c) || c == '_' || c == '|';
+    private static bool IsIdentifierStartChar(char c) => char.IsLetter(c) || c == '_' || c == '|';
 
     /// <summary>
     /// Determines whether the specified character is a valid continuation character for an FBX ASCII identifier.
     /// </summary>
     /// <param name="c">The character to test.</param>
     /// <returns><see langword="true"/> when the character can continue an identifier.</returns>
-    public static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '|';
+    private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '|';
 
     /// <summary>
     /// Determines whether the specified character is a valid first character for an FBX ASCII numeric token.
     /// </summary>
     /// <param name="c">The character to test.</param>
     /// <returns><see langword="true"/> when the character can start a numeric token.</returns>
-    public static bool IsNumberStartChar(char c) => char.IsDigit(c) || c == '-' || c == '+';
+    private static bool IsNumberStartChar(char c) => char.IsDigit(c) || c == '-' || c == '+';
 
     /// <summary>
     /// Determines whether the specified character is a valid continuation character for an FBX ASCII numeric token.
     /// </summary>
     /// <param name="c">The character to test.</param>
     /// <returns><see langword="true"/> when the character can continue a numeric token.</returns>
-    public static bool IsNumberChar(char c) => char.IsLetterOrDigit(c) || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E';
+    private static bool IsNumberChar(char c) => char.IsLetterOrDigit(c) || c == '.' || c == '-' || c == '+' || c == 'e' || c == 'E';
 }

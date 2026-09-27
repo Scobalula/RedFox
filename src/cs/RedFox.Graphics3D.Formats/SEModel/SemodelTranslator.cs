@@ -483,7 +483,7 @@ public class SemodelTranslator : SceneTranslator
         if (string.IsNullOrWhiteSpace(textureReference))
             return null;
 
-        string? resolvedPath = ResolveTexturePath(textureReference, sourceDirectoryPath);
+        string? resolvedPath = FilePathResolver.ResolveReferencePath(textureReference, sourceDirectoryPath);
 
         if (material.TryGetTexture(slot, out Texture? existing))
         {
@@ -500,35 +500,15 @@ public class SemodelTranslator : SceneTranslator
         return slot;
     }
 
-    private static string? ResolveTexturePath(string textureReference, string? sourceDirectoryPath)
-    {
-        if (Path.IsPathRooted(textureReference))
-            return Path.GetFullPath(textureReference);
-
-        if (!string.IsNullOrWhiteSpace(sourceDirectoryPath))
-            return Path.GetFullPath(Path.Combine(sourceDirectoryPath, textureReference));
-
-        return null;
-    }
-
     private static string? ResolveMaterialTextureName(Material material, string? slotKey, string? targetDirectoryPath)
     {
         if (slotKey is null)
             return null;
 
         if (material.TryGetTexture(slotKey, out Texture? texture))
-            return GetPortableTextureReference(texture, targetDirectoryPath);
+            return texture.GetPortableFilePath(targetDirectoryPath);
 
         return null;
-    }
-
-    private static string GetPortableTextureReference(Texture texture, string? targetDirectoryPath)
-    {
-        string effectivePath = texture.EffectiveFilePath;
-        if (Path.IsPathRooted(effectivePath) && !string.IsNullOrWhiteSpace(targetDirectoryPath))
-            return Path.GetRelativePath(targetDirectoryPath, effectivePath);
-
-        return texture.FilePath;
     }
 
     private static int[] GetExportBoneIndices(Mesh mesh, Skin skin, Dictionary<SkeletonBone, int> boneTable)

@@ -46,47 +46,11 @@ public sealed class PsaWriter
 
         ActorXChunkHeader.Write(writer, ActorXChunkId.AnimationHeader, ActorXBinary.Version, 0, 0);
 
-        WriteBoneNames(writer, bones, boneNodes);
+        ActorXBinary.WriteBones(writer, ActorXChunkId.BoneNames, bones, boneNodes);
         WriteSequence(writer, animation, bones.Length, frameCount);
         WriteKeys(writer, bones, trackByName, frameCount);
 
         writer.Flush();
-    }
-
-    private static void WriteBoneNames(BinaryWriter writer, SkeletonBone[] bones, SceneNode[] boneNodes)
-    {
-        var parentIndices = new int[bones.Length];
-        var childCounts = new int[bones.Length];
-
-        for (int i = 0; i < bones.Length; i++)
-            parentIndices[i] = SceneNode.GetBestParentIndex(bones[i], boneNodes);
-
-        for (int i = 0; i < bones.Length; i++)
-        {
-            int parent = parentIndices[i];
-            if (parent >= 0)
-                childCounts[parent]++;
-        }
-
-        ActorXChunkHeader.Write(writer, ActorXChunkId.BoneNames, ActorXBinary.Version, 120, bones.Length);
-
-        for (int i = 0; i < bones.Length; i++)
-        {
-            var bone = bones[i];
-            ActorXBinary.WriteFixedString(writer, bone.Name, 64);
-            writer.Write(0u);
-            writer.Write(childCounts[i]);
-            writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
-
-            Quaternion stored = ActorXBinary.ToStoredRotation(bone.GetBindLocalRotation(), i);
-            ActorXBinary.Write(writer, stored);
-            ActorXBinary.Write(writer, bone.GetBindLocalPosition());
-
-            writer.Write(0f);
-            writer.Write(0f);
-            writer.Write(0f);
-            writer.Write(0f);
-        }
     }
 
     private static void WriteSequence(BinaryWriter writer, SkeletonAnimation animation, int boneCount, int frameCount)

@@ -148,7 +148,7 @@ public sealed class SmdReader
     /// <param name="boneInfos">
     /// The destination list of parsed node entries.
     /// </param>
-    public static void ParseNodes(StreamReader reader, List<(int Index, string Name, int ParentIndex)> boneInfos)
+    private static void ParseNodes(StreamReader reader, List<(int Index, string Name, int ParentIndex)> boneInfos)
     {
         string? line;
         while ((line = reader.ReadLine()) is not null)
@@ -177,7 +177,7 @@ public sealed class SmdReader
     /// <param name="frameData">
     /// The destination frame map.
     /// </param>
-    public static void ParseSkeleton(StreamReader reader, Dictionary<int, List<(int, Vector3, Quaternion)>> frameData)
+    private static void ParseSkeleton(StreamReader reader, Dictionary<int, List<(int, Vector3, Quaternion)>> frameData)
     {
         int currentFrame = -1;
 
@@ -231,7 +231,7 @@ public sealed class SmdReader
     /// <param name="groups">
     /// The destination material to vertex list map.
     /// </param>
-    public static void ParseTriangles(StreamReader reader, Dictionary<string, List<SmdVertex>> groups)
+    internal static void ParseTriangles(StreamReader reader, Dictionary<string, List<SmdVertex>> groups)
     {
         string currentMaterial = "default";
 
@@ -329,7 +329,7 @@ public sealed class SmdReader
     /// <returns>
     /// The highest number of bone influences needed for mesh buffers.
     /// </returns>
-    public static int ComputeMaxInfluences(Dictionary<string, List<SmdVertex>> groups)
+    private static int ComputeMaxInfluences(Dictionary<string, List<SmdVertex>> groups)
     {
         int max = 0;
         foreach (var verts in groups.Values)
@@ -358,7 +358,7 @@ public sealed class SmdReader
     /// <param name="maxInfluences">
     /// The maximum number of influences per vertex.
     /// </param>
-    public static void BuildMesh(Mesh mesh, List<SmdVertex> vertices, SkeletonBone[] allBones, int maxInfluences)
+    private static void BuildMesh(Mesh mesh, List<SmdVertex> vertices, SkeletonBone[] allBones, int maxInfluences)
     {
         int vertCount = vertices.Count;
 
@@ -438,7 +438,7 @@ public sealed class SmdReader
     /// <returns>
     /// A populated skeleton animation.
     /// </returns>
-    public static SkeletonAnimation BuildAnimation(Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>> frameData, SkeletonBone[] bones)
+    private static SkeletonAnimation BuildAnimation(Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>> frameData, SkeletonBone[] bones)
     {
         var anim = new SkeletonAnimation("Animation", bones.Length, TransformType.Absolute)
         {
@@ -475,7 +475,7 @@ public sealed class SmdReader
     /// </summary>
     /// <param name="span">The span to trim.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void SkipWhitespace(ref ReadOnlySpan<char> span)
+    private static void SkipWhitespace(ref ReadOnlySpan<char> span)
     {
         span = span.TrimStart();
     }
@@ -486,7 +486,7 @@ public sealed class SmdReader
     /// <param name="span">The source span.</param>
     /// <param name="value">The parsed integer value when successful.</param>
     /// <returns><see langword="true"/> when an integer token is parsed; otherwise <see langword="false"/>.</returns>
-    public static bool TryParseInt(ref ReadOnlySpan<char> span, out int value)
+    private static bool TryParseInt(ref ReadOnlySpan<char> span, out int value)
     {
         int end = 0;
         if (end < span.Length && span[end] == '-')
@@ -520,7 +520,7 @@ public sealed class SmdReader
     /// <returns>
     /// <see langword="true"/> when a float token is parsed; otherwise <see langword="false"/>.
     /// </returns>
-    public static bool TryParseFloat(ref ReadOnlySpan<char> span, out float value)
+    private static bool TryParseFloat(ref ReadOnlySpan<char> span, out float value)
     {
         int end = 0;
         if (end < span.Length && span[end] == '-') end++;
@@ -551,7 +551,7 @@ public sealed class SmdReader
     /// <returns>
     /// <see langword="true"/> when a quoted token is parsed; otherwise <see langword="false"/>.
     /// </returns>
-    public static bool TryParseQuotedString(ReadOnlySpan<char> span, out string name, out int charsConsumed)
+    private static bool TryParseQuotedString(ReadOnlySpan<char> span, out string name, out int charsConsumed)
     {
         if (span.IsEmpty || span[0] != '"')
         {
@@ -597,7 +597,7 @@ public sealed class SmdReader
     /// The normalized quaternion equivalent to the input Euler angles.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Quaternion EulerXYZToQuaternion(float rx, float ry, float rz)
+    private static Quaternion EulerXYZToQuaternion(float rx, float ry, float rz)
     {
         var qx = Quaternion.CreateFromAxisAngle(Vector3.UnitX, rx);
         var qy = Quaternion.CreateFromAxisAngle(Vector3.UnitY, ry);
