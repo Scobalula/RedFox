@@ -45,11 +45,14 @@ public sealed class ImaAdpcmCodec : AudioCodec
     /// <returns>The number of interleaved samples produced per block.</returns>
     public static int GetSamplesPerBlock(AudioFormat format)
     {
+        if (format.Channels is not (1 or 2))
+            throw new ArgumentOutOfRangeException(nameof(format), "IMA ADPCM supports mono and stereo audio.");
+
         var headerSize = 4 * format.Channels;
 
         return format.Channels == 1
             ? 1 + (format.BlockAlign - headerSize) * 2
-            : (1 + (format.BlockAlign - headerSize)) * format.Channels;
+            : (1 + (format.BlockAlign - headerSize) / 8 * 8) * format.Channels;
     }
 
     /// <inheritdoc/>
@@ -123,7 +126,7 @@ public sealed class ImaAdpcmCodec : AudioCodec
         {
             var remaining = source.Length - samplePos;
             var blockSamples = Math.Min(remaining, samplesPerBlock);
-            var blockOffset = written * blockAlign / blockAlign * blockAlign;
+            var blockOffset = written;
 
             if (blockOffset + blockAlign > destination.Length)
                 break;
@@ -179,10 +182,23 @@ public sealed class ImaAdpcmCodec : AudioCodec
         output[1] = rightPredictor;
 
         var outPos = 2;
-        for (var i = headerSize; i < block.Length && outPos + 1 < output.Length; i++)
+        Span<short> leftSamples = stackalloc short[8];
+        Span<short> rightSamples = stackalloc short[8];
+        for (var chunk = headerSize; chunk + 7 < block.Length; chunk += 8)
         {
-            output[outPos++] = DecodeNibble((byte)(block[i] & 0x0F), ref leftPredictor, ref leftStepIndex);
-            output[outPos++] = DecodeNibble((byte)((block[i] >> 4) & 0x0F), ref rightPredictor, ref rightStepIndex);
+            for (var i = 0; i < 4; i++)
+            {
+                leftSamples[i * 2] = DecodeNibble((byte)(block[chunk + i] & 0x0F), ref leftPredictor, ref leftStepIndex);
+                leftSamples[i * 2 + 1] = DecodeNibble((byte)(block[chunk + i] >> 4), ref leftPredictor, ref leftStepIndex);
+                rightSamples[i * 2] = DecodeNibble((byte)(block[chunk + 4 + i] & 0x0F), ref rightPredictor, ref rightStepIndex);
+                rightSamples[i * 2 + 1] = DecodeNibble((byte)(block[chunk + 4 + i] >> 4), ref rightPredictor, ref rightStepIndex);
+            }
+
+            for (var i = 0; i < 8 && outPos + 1 < output.Length; i++)
+            {
+                output[outPos++] = leftSamples[i];
+                output[outPos++] = rightSamples[i];
+            }
         }
     }
 
@@ -246,6 +262,7 @@ public sealed class ImaAdpcmCodec : AudioCodec
 
     private static void EncodeMonoBlock(ReadOnlySpan<short> samples, Span<byte> block, int headerSize)
     {
+        block.Clear();
         var predictor = samples[0];
         var stepIndex = 0;
 
@@ -272,7 +289,7 @@ public sealed class ImaAdpcmCodec : AudioCodec
         var leftPredictor = samples[0];
         var leftStepIndex = 0;
 
-        var rightPredictor = samples[1];
+        var rightPredictor = samples.Length > 1 ? samples[1] : (short)0;
         var rightStepIndex = 0;
 
         block[0] = (byte)(leftPredictor & 0xFF);
@@ -285,13 +302,32 @@ public sealed class ImaAdpcmCodec : AudioCodec
         block[6] = 0;
         block[7] = 0;
 
-        var inPos = 2;
-        for (var i = headerSize; i < block.Length && inPos + 1 < samples.Length; i++)
+        block[headerSize..].Clear();
+        var frame = 1;
+        var outputPos = headerSize;
+        while (outputPos + 7 < block.Length && frame < samples.Length / 2)
         {
-            var left = EncodeNibble(samples[inPos++], ref leftPredictor, ref leftStepIndex);
-            var right = EncodeNibble(samples[inPos++], ref rightPredictor, ref rightStepIndex);
+            for (var i = 0; i < 4; i++)
+            {
+                var low = frame < samples.Length / 2 ? EncodeNibble(samples[frame * 2], ref leftPredictor, ref leftStepIndex) : (byte)0;
+                frame++;
+                var high = frame < samples.Length / 2 ? EncodeNibble(samples[frame * 2], ref leftPredictor, ref leftStepIndex) : (byte)0;
+                frame++;
+                block[outputPos + i] = (byte)(low | (high << 4));
+            }
 
-            block[i] = (byte)(left | (right << 4));
+            outputPos += 4;
+            var rightFrame = frame - 8;
+            for (var i = 0; i < 4; i++)
+            {
+                var lowFrame = rightFrame + i * 2;
+                var highFrame = lowFrame + 1;
+                var low = highFrame < samples.Length / 2 ? EncodeNibble(samples[lowFrame * 2 + 1], ref rightPredictor, ref rightStepIndex) : (byte)0;
+                var high = highFrame < samples.Length / 2 ? EncodeNibble(samples[highFrame * 2 + 1], ref rightPredictor, ref rightStepIndex) : (byte)0;
+                block[outputPos + i] = (byte)(low | (high << 4));
+            }
+
+            outputPos += 4;
         }
     }
 }

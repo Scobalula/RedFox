@@ -7,6 +7,8 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 using System.Security.Cryptography;
+using System.Buffers.Binary;
+using System.Numerics;
 
 namespace RedFox.Cryptography.MurMur3;
 
@@ -28,12 +30,14 @@ public class MurMur3Hash : HashAlgorithm
     /// <summary>
     /// Gets or Sets the current length. This is required for <see cref="HashCore(byte[], int, int)"/>.
     /// </summary>
-    private int Length { get; set; }
+    private uint Length { get; set; }
 
     /// <summary>
     /// Gets or Sets the current tail value.
     /// </summary>
     private uint Tail { get; set; }
+
+    private int TailLength { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MurMur3Hash"/> class with a seed of 0.
@@ -60,26 +64,66 @@ public class MurMur3Hash : HashAlgorithm
         Value = Seed;
         HashSizeValue = 32;
         Length = 0;
+        Tail = 0;
+        TailLength = 0;
     }
 
     /// <inheritdoc/>
     protected override void HashCore(byte[] array, int ibStart, int cbSize)
     {
-        Length += cbSize;
-        Value = MurMur3.CalculateBlock32(array, Value);
+        int position = ibStart;
+        int end = checked(ibStart + cbSize);
+        Length = unchecked(Length + (uint)cbSize);
+
+        if (TailLength > 0)
+        {
+            while (TailLength < 4 && position < end)
+            {
+                Tail |= (uint)array[position++] << (TailLength * 8);
+                TailLength++;
+            }
+
+            if (TailLength == 4)
+            {
+                MixBlock(Tail);
+                Tail = 0;
+                TailLength = 0;
+            }
+        }
+
+        while (position + 4 <= end)
+        {
+            MixBlock(BinaryPrimitives.ReadUInt32LittleEndian(array.AsSpan(position, 4)));
+            position += 4;
+        }
+
+        while (position < end)
+        {
+            Tail |= (uint)array[position++] << (TailLength * 8);
+            TailLength++;
+        }
     }
 
     /// <inheritdoc/>
     protected override byte[] HashFinal()
     {
-        Value ^= (uint)Length;
+        if (TailLength > 0)
+        {
+            uint tail = Tail * 0xcc9e2d51;
+            tail = BitOperations.RotateLeft(tail, 15) * 0x1b873593;
+            Value ^= tail;
+        }
 
-        Value ^= Value >> 16;
-        Value *= 0x85ebca6b;
-        Value ^= Value >> 13;
-        Value *= 0xc2b2ae35;
-        Value ^= Value >> 16;
-
+        Value = MurMur3.CalculateFinal32(Value, unchecked((int)Length));
         return BitConverter.GetBytes(Value);
+    }
+
+    private void MixBlock(uint block)
+    {
+        block *= 0xcc9e2d51;
+        block = BitOperations.RotateLeft(block, 15);
+        block *= 0x1b873593;
+        Value ^= block;
+        Value = BitOperations.RotateLeft(Value, 13) * 5 + 0xe6546b64;
     }
 }

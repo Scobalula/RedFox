@@ -272,7 +272,7 @@ namespace RedFox.IO.FileSystem
 
             if (searchOption == SearchOption.AllDirectories)
             {
-                foreach (var dir in EnumerateDirectories(null, "*", searchOption))
+                foreach (var dir in directory.EnumerateDirectories(null, "*", searchOption))
                 {
                     foreach (var file in dir._files)
                     {
@@ -334,7 +334,7 @@ namespace RedFox.IO.FileSystem
         /// <inheritdoc/>
         public override int GetHashCode()
         {
-            return Name.ToLower().GetHashCode();
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(Name);
         }
 
         /// <inheritdoc/>

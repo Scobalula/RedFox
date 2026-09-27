@@ -27,8 +27,7 @@ public static class BinaryReaderExtensions
     public static T ReadStruct<T>(this BinaryReader reader) where T : unmanaged
     {
         Span<byte> buf = stackalloc byte[Unsafe.SizeOf<T>()];
-        if (reader.Read(buf) < buf.Length)
-            throw new IOException();
+        reader.BaseStream.ReadExactly(buf);
         return MemoryMarshal.Cast<byte, T>(buf)[0];
     }
 
@@ -63,11 +62,11 @@ public static class BinaryReaderExtensions
     /// <returns>A structure array of the given type from the current stream</returns>
     public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count) where T : unmanaged
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
         if (count == 0)
             return new Span<T>();
-        Span<byte> buf = new byte[count * Unsafe.SizeOf<T>()];
-        if (reader.Read(buf) < buf.Length)
-            throw new IOException(); 
+        Span<byte> buf = new byte[checked(count * Unsafe.SizeOf<T>())];
+        reader.BaseStream.ReadExactly(buf);
         return MemoryMarshal.Cast<byte, T>(buf);
     }
 
@@ -102,8 +101,7 @@ public static class BinaryReaderExtensions
 
         var asBytes = MemoryMarshal.Cast<T, byte>(input);
 
-        if (reader.Read(asBytes) < asBytes.Length)
-            throw new IOException();
+        reader.BaseStream.ReadExactly(asBytes);
     }
 
     /// <summary>

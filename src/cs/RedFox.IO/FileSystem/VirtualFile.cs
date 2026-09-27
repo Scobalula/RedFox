@@ -97,7 +97,7 @@ public abstract class VirtualFile
     /// <inheritdoc/>
     public override int GetHashCode()
     {
-        return Name.ToLower().GetHashCode();
+        return StringComparer.OrdinalIgnoreCase.GetHashCode(Name);
     }
 
     /// <inheritdoc/>

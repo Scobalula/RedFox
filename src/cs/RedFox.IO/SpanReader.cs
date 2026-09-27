@@ -93,7 +93,7 @@ namespace RedFox.IO
         /// <param name="count">The number of elements to read.</param>
         /// <returns>A read-only span of <typeparamref name="T"/> values reinterpreted from the buffer.</returns>
         public ReadOnlySpan<T> ReadArray<T>(int count) where T : unmanaged =>
-            MemoryMarshal.Cast<byte, T>(Read(Unsafe.SizeOf<T>() * count));
+            MemoryMarshal.Cast<byte, T>(Read(checked(Unsafe.SizeOf<T>() * count)));
 
         /// <summary>
         /// Reads a span of <paramref name="count"/> values of type <typeparamref name="T"/> from the
@@ -104,7 +104,7 @@ namespace RedFox.IO
         /// <param name="count">The number of elements to read.</param>
         /// <returns>A read-only span of <typeparamref name="T"/> values reinterpreted from the buffer.</returns>
         public readonly ReadOnlySpan<T> ReadArray<T>(int count, int position) where T : unmanaged =>
-            MemoryMarshal.Cast<byte, T>(Read(Unsafe.SizeOf<T>() * count, position));
+            MemoryMarshal.Cast<byte, T>(Read(checked(Unsafe.SizeOf<T>() * count), position));
 
         /// <summary>
         /// Reads a 64-bit signed integer from the current position and advances the position by 8 bytes.
@@ -474,26 +474,20 @@ namespace RedFox.IO
         /// </exception>
         public long Seek(int offset, SeekOrigin origin)
         {
-            switch (origin)
+            var position = origin switch
             {
-                case SeekOrigin.Begin:
-                    _position = offset;
-                    break;
-                case SeekOrigin.Current:
-                    _position += offset;
-                    break;
-                case SeekOrigin.End:
-                    _position = _buffer.Length - offset;
-                    break;
-                default:
-                    throw new NotImplementedException(origin.ToString());
-            }
+                SeekOrigin.Begin => (long)offset,
+                SeekOrigin.Current => (long)_position + offset,
+                SeekOrigin.End => (long)_buffer.Length + offset,
+                _ => throw new ArgumentOutOfRangeException(nameof(origin))
+            };
 
-            if (_position > _buffer.Length)
+            if (position > _buffer.Length)
                 throw new EndOfStreamException("Attempted to seek past the end of the buffer.");
-            if (_position < 0)
+            if (position < 0)
                 throw new IOException("Attempted to seek before the start of the buffer.");
 
+            _position = (int)position;
             return _position;
         }
 

@@ -182,7 +182,7 @@ namespace RedFox.IO.ProcessMemory
                 return [];
             }
 
-            byte[] buffer = new byte[count * Unsafe.SizeOf<T>()];
+            byte[] buffer = new byte[checked(count * Unsafe.SizeOf<T>())];
             _backend.Read(address, buffer);
             return MemoryMarshal.Cast<byte, T>(buffer.AsSpan()).ToArray();
         }

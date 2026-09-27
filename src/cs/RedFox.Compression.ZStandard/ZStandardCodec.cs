@@ -58,5 +58,15 @@ public class ZStandardCodec : CompressionCodec
     public override int GetMaxCompressedSize(int inputSize) => (int)ZStandardInterop.GetMaxCompressedSize((nuint)inputSize);
 
     /// <inheritdoc/>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer) => (int)ZStandardInterop.GetDecompressedSize(compressedBuffer, (nuint)compressedBuffer.Length);
+    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer)
+    {
+        nuint size = ZStandardInterop.GetDecompressedSize(compressedBuffer, (nuint)compressedBuffer.Length);
+        if (size == nuint.MaxValue)
+            return -1;
+        if (size == nuint.MaxValue - 1)
+            throw new InvalidDataException("The Zstandard frame content size is invalid.");
+        if (size > int.MaxValue)
+            throw new InvalidDataException("The Zstandard frame content size exceeds the supported range.");
+        return (int)size;
+    }
 }

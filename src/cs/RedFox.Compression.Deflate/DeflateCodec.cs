@@ -27,8 +27,8 @@ public unsafe class DeflateCodec : CompressionCodec
     {
         DeflateInterop.MZStream stream = new();
 
-        fixed (byte* pSource = &source[0])
-        fixed (byte* pDest = &destination[0])
+        fixed (byte* pSource = source)
+        fixed (byte* pDest = destination)
         {
             int status = 0;
 
@@ -63,8 +63,8 @@ public unsafe class DeflateCodec : CompressionCodec
     {
         DeflateInterop.MZStream stream = new();
 
-        fixed(byte* pSource = &source[0])
-        fixed(byte* pDest = &destination[0])
+        fixed (byte* pSource = source)
+        fixed (byte* pDest = destination)
         {
             int status = 0;
 

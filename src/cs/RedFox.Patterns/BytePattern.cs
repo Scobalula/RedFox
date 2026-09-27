@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RedFox.Patterns;
 
@@ -19,30 +16,23 @@ public static class BytePattern
     /// <returns>The resulting pattern.</returns>
     public static Pattern<byte> Parse(string hexString)
     {
-        Span<char> buffer = stackalloc char[2];
+        ArgumentNullException.ThrowIfNull(hexString);
+        var pattern = new List<byte>();
+        var mask = new List<byte>();
 
-        var pattern = new List<byte>(hexString.Length);
-        var mask = new List<byte>(hexString.Length);
-
-        for (int i = 0, j = 0; i < 2 && j < hexString.Length; j++)
+        foreach (string token in hexString.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
-            if (char.IsWhiteSpace(hexString[j]))
-                continue;
-            buffer[i++] = hexString[j];
-
-            if (i == 2)
+            for (int index = 0; index < token.Length; index += 2)
             {
-                i = 0;
-
-                // Check if unknown vs hex
-                if (buffer[0] == '?' || buffer[1] == '?')
+                int length = Math.Min(2, token.Length - index);
+                if (token[index] == '?' || length == 2 && token[index + 1] == '?')
                 {
                     pattern.Add(0);
                     mask.Add(0xFF);
                 }
-                else if (byte.TryParse(buffer, NumberStyles.HexNumber, null, out byte b))
+                else if (length == 2 && byte.TryParse(token.AsSpan(index, length), NumberStyles.HexNumber, null, out byte value))
                 {
-                    pattern.Add(b);
+                    pattern.Add(value);
                     mask.Add(0);
                 }
             }

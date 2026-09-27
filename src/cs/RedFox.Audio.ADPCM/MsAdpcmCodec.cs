@@ -41,11 +41,14 @@ public sealed class MsAdpcmCodec : AudioCodec
     /// <returns>The number of interleaved samples produced per block.</returns>
     public static int GetSamplesPerBlock(AudioFormat format)
     {
+        if (format.Channels is not (1 or 2))
+            throw new ArgumentOutOfRangeException(nameof(format), "MS-ADPCM supports mono and stereo audio.");
+
         var headerSize = 7 * format.Channels;
         var dataBytes = format.BlockAlign - headerSize;
-        var samplesPerChannel = 2 + dataBytes * 2;
-
-        return samplesPerChannel * format.Channels;
+        return format.Channels == 1
+            ? 2 + dataBytes * 2
+            : (2 + dataBytes) * 2;
     }
 
     /// <inheritdoc/>
@@ -148,14 +151,14 @@ public sealed class MsAdpcmCodec : AudioCodec
 
         while (pos < block.Length && written < output.Length)
         {
-            var nibble = block[pos] & 0x0F;
+            var nibble = (block[pos] >> 4) & 0x0F;
             DecodeSample(nibble, coeff1, coeff2, ref sample1, ref sample2, ref delta);
             if (written < output.Length)
                 output[written++] = sample1;
 
             if (pos < block.Length && written < output.Length)
             {
-                nibble = (block[pos] >> 4) & 0x0F;
+                nibble = block[pos] & 0x0F;
                 DecodeSample(nibble, coeff1, coeff2, ref sample1, ref sample2, ref delta);
                 if (written < output.Length)
                     output[written++] = sample1;
@@ -171,14 +174,13 @@ public sealed class MsAdpcmCodec : AudioCodec
     {
         var leftPredIdx = Math.Clamp((int)block[0], 0, 6);
         var (leftCoeff1, leftCoeff2) = CoefficientSets[leftPredIdx];
-        var leftDelta = (short)(block[1] | (block[2] << 8));
-        var leftSample1 = (short)(block[3] | (block[4] << 8));
-        var leftSample2 = (short)(block[5] | (block[6] << 8));
-
-        var rightPredIdx = Math.Clamp((int)block[7], 0, 6);
+        var rightPredIdx = Math.Clamp((int)block[1], 0, 6);
         var (rightCoeff1, rightCoeff2) = CoefficientSets[rightPredIdx];
-        var rightDelta = (short)(block[8] | (block[9] << 8));
-        var rightSample1 = (short)(block[10] | (block[11] << 8));
+        var leftDelta = (short)(block[2] | (block[3] << 8));
+        var rightDelta = (short)(block[4] | (block[5] << 8));
+        var leftSample1 = (short)(block[6] | (block[7] << 8));
+        var rightSample1 = (short)(block[8] | (block[9] << 8));
+        var leftSample2 = (short)(block[10] | (block[11] << 8));
         var rightSample2 = (short)(block[12] | (block[13] << 8));
 
         var written = 0;
@@ -193,11 +195,11 @@ public sealed class MsAdpcmCodec : AudioCodec
         {
             var byteVal = block[pos];
 
-            var leftNibble = byteVal & 0x0F;
+            var leftNibble = (byteVal >> 4) & 0x0F;
             DecodeSample(leftNibble, leftCoeff1, leftCoeff2, ref leftSample1, ref leftSample2, ref leftDelta);
             output[written++] = leftSample1;
 
-            var rightNibble = (byteVal >> 4) & 0x0F;
+            var rightNibble = byteVal & 0x0F;
             DecodeSample(rightNibble, rightCoeff1, rightCoeff2, ref rightSample1, ref rightSample2, ref rightDelta);
             output[written++] = rightSample1;
 
@@ -255,13 +257,9 @@ public sealed class MsAdpcmCodec : AudioCodec
 
         while (outPos < block.Length && inPos < samples.Length)
         {
-            var low = EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta);
-
-            var high = (byte)0;
-            if (inPos < samples.Length)
-                high = EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta);
-
-            block[outPos++] = (byte)(low | (high << 4));
+            var high = EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta);
+            var low = inPos < samples.Length ? EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta) : (byte)0;
+            block[outPos++] = (byte)((high << 4) | low);
         }
 
         while (outPos < block.Length)
@@ -281,18 +279,17 @@ public sealed class MsAdpcmCodec : AudioCodec
         var rightSample2 = samples.Length > 1 ? samples[1] : (short)0;
 
         block[0] = 0;
-        block[1] = (byte)(leftDelta & 0xFF);
-        block[2] = (byte)((leftDelta >> 8) & 0xFF);
-        block[3] = (byte)(leftSample1 & 0xFF);
-        block[4] = (byte)((leftSample1 >> 8) & 0xFF);
-        block[5] = (byte)(leftSample2 & 0xFF);
-        block[6] = (byte)((leftSample2 >> 8) & 0xFF);
-
-        block[7] = 0;
-        block[8] = (byte)(rightDelta & 0xFF);
-        block[9] = (byte)((rightDelta >> 8) & 0xFF);
-        block[10] = (byte)(rightSample1 & 0xFF);
-        block[11] = (byte)((rightSample1 >> 8) & 0xFF);
+        block[1] = 0;
+        block[2] = (byte)(leftDelta & 0xFF);
+        block[3] = (byte)((leftDelta >> 8) & 0xFF);
+        block[4] = (byte)(rightDelta & 0xFF);
+        block[5] = (byte)((rightDelta >> 8) & 0xFF);
+        block[6] = (byte)(leftSample1 & 0xFF);
+        block[7] = (byte)((leftSample1 >> 8) & 0xFF);
+        block[8] = (byte)(rightSample1 & 0xFF);
+        block[9] = (byte)((rightSample1 >> 8) & 0xFF);
+        block[10] = (byte)(leftSample2 & 0xFF);
+        block[11] = (byte)((leftSample2 >> 8) & 0xFF);
         block[12] = (byte)(rightSample2 & 0xFF);
         block[13] = (byte)((rightSample2 >> 8) & 0xFF);
 
@@ -303,7 +300,7 @@ public sealed class MsAdpcmCodec : AudioCodec
         {
             var left = EncodeNibble(samples[inPos++], leftCoeff1, leftCoeff2, ref leftSample1, ref leftSample2, ref leftDelta);
             var right = EncodeNibble(samples[inPos++], rightCoeff1, rightCoeff2, ref rightSample1, ref rightSample2, ref rightDelta);
-            block[outPos++] = (byte)(left | (right << 4));
+            block[outPos++] = (byte)((left << 4) | right);
         }
 
         while (outPos < block.Length)
