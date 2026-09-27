@@ -52,7 +52,7 @@ internal static class DdsHeaderFactory
             Flags = BuildHeaderFlags(hasMipmaps, isVolume, isBlockCompressed),
             Height = (uint)image.Height,
             Width = (uint)image.Width,
-            PitchOrLinearSize = DdsPitchCalculator.GetTopLevelPitchOrLinearSize(image.Width, image.Format, isBlockCompressed),
+            PitchOrLinearSize = DdsPitchCalculator.GetTopLevelPitchOrLinearSize(image.Width, image.Height, image.Format, isBlockCompressed),
             Depth = (uint)image.Depth,
             MipMapCount = (uint)image.MipLevels,
             PixelFormat = new DdsPixelFormat

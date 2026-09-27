@@ -13,7 +13,8 @@ namespace RedFox.Imaging.Vulkan;
 /// <param name="outputBuffer">The output storage buffer.</param>
 /// <param name="constants">The encode constants for this pass.</param>
 /// <param name="groupCount">The number of dispatch groups.</param>
-public readonly struct VulkanBcEncodePass(VulkanBcComputePipeline pipeline, VulkanBcBuffer inputBuffer, VulkanBcBuffer outputBuffer, VulkanBcEncodeConstants constants, uint groupCount)
+/// <param name="blocksPerGroup">The number of blocks processed by each group.</param>
+public readonly struct VulkanBcEncodePass(VulkanBcComputePipeline pipeline, VulkanBcBuffer inputBuffer, VulkanBcBuffer outputBuffer, VulkanBcEncodeConstants constants, uint groupCount, uint blocksPerGroup)
 {
     /// <summary>
     /// Gets the compute pipeline for a encode pass.
@@ -39,4 +40,21 @@ public readonly struct VulkanBcEncodePass(VulkanBcComputePipeline pipeline, Vulk
     /// Gets the number of dispatch groups.
     /// </summary>
     public uint GroupCount { get; } = groupCount;
+
+    /// <summary>
+    /// Gets the number of blocks handled by each dispatch group.
+    /// </summary>
+    public uint BlocksPerGroup { get; } = blocksPerGroup;
+
+    /// <summary>
+    /// Creates an encode pass that processes one block per dispatch group.
+    /// </summary>
+    /// <param name="pipeline">The compute pipeline for this encode pass.</param>
+    /// <param name="inputBuffer">The input storage buffer.</param>
+    /// <param name="outputBuffer">The output storage buffer.</param>
+    /// <param name="constants">The encode constants for this pass.</param>
+    /// <param name="groupCount">The number of dispatch groups.</param>
+    public VulkanBcEncodePass(VulkanBcComputePipeline pipeline, VulkanBcBuffer inputBuffer, VulkanBcBuffer outputBuffer, VulkanBcEncodeConstants constants, uint groupCount) : this(pipeline, inputBuffer, outputBuffer, constants, groupCount, 1)
+    {
+    }
 }

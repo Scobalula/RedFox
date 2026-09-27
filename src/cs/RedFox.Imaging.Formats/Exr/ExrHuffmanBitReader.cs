@@ -84,7 +84,7 @@ internal ref struct ExrHuffmanBitReader(ReadOnlySpan<byte> data, int totalBits)
             if (streamBitsRemaining <= 0 || _byteOffset >= _data.Length)
                 throw new InvalidDataException("Unexpected end of Huffman data.");
 
-            int bitsToAppend = Math.Min(8, streamBitsRemaining);
+            int bitsToAppend = Math.Min(Math.Min(8, streamBitsRemaining), bitCount - _bufferedBits);
             byte nextByte = _data[_byteOffset++];
 
             if (bitsToAppend < 8)

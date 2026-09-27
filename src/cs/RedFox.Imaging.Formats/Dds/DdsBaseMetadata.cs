@@ -21,5 +21,5 @@ internal readonly record struct DdsBaseMetadata(int Width, int Height, int MipLe
     /// <param name="isCubemap">Whether the image is a cubemap.</param>
     /// <param name="dataOffset">Byte offset to the start of the pixel payload.</param>
     /// <returns>A fully populated <see cref="DdsMetadata"/>.</returns>
-    public DdsMetadata ToMetadata(int depth, int arraySize, ImageFormat format, bool isCubemap, int dataOffset) => new(Width, Height, depth, arraySize, MipLevels, format, isCubemap, dataOffset);
+    public DdsMetadata ToMetadata(int depth, int arraySize, ImageFormat format, bool isCubemap, int dataOffset, bool isLegacyRgb24) => new(Width, Height, depth, arraySize, MipLevels, format, isCubemap, dataOffset, isLegacyRgb24);
 }

@@ -19,6 +19,7 @@ internal sealed class JpegDecoder(Stream stream)
     private JpegFrame? _frame;
     private int _restartInterval;
     private JpegMarker? _pendingMarker;
+    private int _adobeTransform = -1;
     private int _eobRun;
 
     /// <summary>Decodes the JPEG bitstream and returns the resulting image.</summary>
@@ -54,6 +55,10 @@ internal sealed class JpegDecoder(Stream stream)
 
                 case JpegMarker.DRI:
                     ParseRestartInterval();
+                    break;
+
+                case JpegMarker.APP14:
+                    ParseAdobeMarker();
                     break;
 
                 case JpegMarker.SOS:
@@ -152,6 +157,13 @@ internal sealed class JpegDecoder(Stream stream)
         }
     }
 
+    private void ParseAdobeMarker()
+    {
+        byte[] data = ReadSegment();
+        if (data.Length >= 12 && data.AsSpan(0, 5).SequenceEqual("Adobe"u8))
+            _adobeTransform = data[11];
+    }
+
     private static bool HasSegmentLength(JpegMarker marker)
     {
         byte m = (byte)marker;
@@ -176,15 +188,21 @@ internal sealed class JpegDecoder(Stream stream)
 
         new ImageInfo((data[3] << 8) | data[4], (data[1] << 8) | data[2], ImageFormat.R8G8B8A8Unorm).Validate();
 
+        byte precision = data[offset++];
+        if (precision != 8)
+            throw new NotSupportedException($"JPEG sample precision {precision} is not supported. Only 8-bit images are supported.");
+
         _frame = new JpegFrame
         {
-            Precision = data[offset++],
+            Precision = precision,
             Height = (data[offset++] << 8) | data[offset++],
             Width = (data[offset++] << 8) | data[offset++],
             Progressive = progressive,
         };
 
         int componentCount = data[offset++];
+        if (componentCount == 2)
+            throw new NotSupportedException("JPEG images with two components are not supported.");
 
         int maxHorizontalSample = 1;
         int maxVerticalSample = 1;
@@ -370,7 +388,12 @@ internal sealed class JpegDecoder(Stream stream)
         foreach (var sc in scan.Components)
             _frame!.Components[sc.ComponentId].PreviousDc = 0;
 
-        for (int mcuIndex = 0; mcuIndex < _frame!.McuCount; mcuIndex++)
+        bool nonInterleaved = scan.Components.Length == 1;
+        var singleComponent = nonInterleaved ? _frame!.Components[scan.Components[0].ComponentId] : null;
+        int scanUnitCount = nonInterleaved ? singleComponent!.BlocksPerRow * singleComponent.BlocksPerColumn : _frame!.McuCount;
+        int scanWidth = nonInterleaved ? singleComponent!.BlocksPerRow : _frame!.McuWidth;
+
+        for (int mcuIndex = 0; mcuIndex < scanUnitCount; mcuIndex++)
         {
             if (!TryHandleRestartMarker(reader, ref mcuCount))
             {
@@ -383,8 +406,8 @@ internal sealed class JpegDecoder(Stream stream)
                     _frame.Components[sc.ComponentId].PreviousDc = 0;
             }
 
-            int mcuRow = mcuIndex / _frame.McuWidth;
-            int mcuCol = mcuIndex % _frame.McuWidth;
+            int mcuRow = mcuIndex / scanWidth;
+            int mcuCol = mcuIndex % scanWidth;
 
             foreach (var sc in scan.Components)
             {
@@ -392,12 +415,14 @@ internal sealed class JpegDecoder(Stream stream)
                 var dcTable = _dcTables[sc.DcTableId] ?? throw new InvalidDataException($"Missing DC Huffman table {sc.DcTableId}.");
                 var acTable = _acTables[sc.AcTableId] ?? throw new InvalidDataException($"Missing AC Huffman table {sc.AcTableId}.");
 
-                for (int v = 0; v < comp.VSample; v++)
+                int verticalBlocks = nonInterleaved ? 1 : comp.VSample;
+                int horizontalBlocks = nonInterleaved ? 1 : comp.HSample;
+                for (int v = 0; v < verticalBlocks; v++)
                 {
-                    for (int h = 0; h < comp.HSample; h++)
+                    for (int h = 0; h < horizontalBlocks; h++)
                     {
-                        int blockRow = mcuRow * comp.VSample + v;
-                        int blockCol = mcuCol * comp.HSample + h;
+                        int blockRow = nonInterleaved ? mcuRow : mcuRow * comp.VSample + v;
+                        int blockCol = nonInterleaved ? mcuCol : mcuCol * comp.HSample + h;
                         int blockIndex = blockRow * comp.BlocksPerRow + blockCol;
 
                         if (!TryDecodeBlock(reader, comp.Blocks![blockIndex], dcTable, acTable, comp))
@@ -971,6 +996,7 @@ internal sealed class JpegDecoder(Stream stream)
         {
             1 => JpegColorSpace.Grayscale,
             3 => JpegColorSpace.YCbCr,
+            4 when _adobeTransform == 2 => JpegColorSpace.Ycck,
             4 => JpegColorSpace.Cmyk,
             _ => JpegColorSpace.YCbCr,
         };
@@ -988,6 +1014,7 @@ internal sealed class JpegDecoder(Stream stream)
             ComponentVSamples = componentVSamples,
             MaxHSample = _frame.MaxHSample,
             MaxVSample = _frame.MaxVSample,
+            IsAdobeCmyk = _adobeTransform == 0,
         };
     }
 }

@@ -68,7 +68,7 @@ internal static class JpegIdct
         // Check for all-zero AC coefficients (common case optimization)
         if ((s1 | s2 | s3 | s4 | s5 | s6 | s7) == 0)
         {
-            int dc = s0 << IdctScaleBits;
+            int dc = s0 << 2;
             dst[col + 0 * 8] = dc;
             dst[col + 1 * 8] = dc;
             dst[col + 2 * 8] = dc;
@@ -142,7 +142,7 @@ internal static class JpegIdct
         // All-zero AC shortcut
         if ((s1 | s2 | s3 | s4 | s5 | s6 | s7) == 0)
         {
-            int dc = Clamp((s0 + (1 << 17)) >> 18);
+            int dc = Clamp((s0 + 16) >> 5);
             dst[offset + 0] = dc;
             dst[offset + 1] = dc;
             dst[offset + 2] = dc;

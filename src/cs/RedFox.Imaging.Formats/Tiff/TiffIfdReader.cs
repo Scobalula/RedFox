@@ -84,9 +84,9 @@ internal static class TiffIfdReader
             {
                 return entry.Type switch
                 {
-                    TiffConstants.TypeShort => (int)(entry.ValueOrOffset & 0xFFFF),
+                    TiffConstants.TypeShort => ReadUInt16Inline(entry.ValueOrOffset, 0, littleEndian),
                     TiffConstants.TypeLong => (int)entry.ValueOrOffset,
-                    TiffConstants.TypeByte => (int)(entry.ValueOrOffset & 0xFF),
+                    TiffConstants.TypeByte => (int)((entry.ValueOrOffset >> (littleEndian ? 0 : 24)) & 0xFF),
                     _ => (int)entry.ValueOrOffset
                 };
             }
@@ -125,12 +125,28 @@ internal static class TiffIfdReader
 
             if (entry.Count == 1)
             {
-                uint value = entry.Type == TiffConstants.TypeShort ? entry.ValueOrOffset & 0xFFFF : entry.ValueOrOffset;
+                uint value = entry.Type switch
+                {
+                    TiffConstants.TypeByte => (entry.ValueOrOffset >> (littleEndian ? 0 : 24)) & 0xFF,
+                    TiffConstants.TypeShort => ReadUInt16Inline(entry.ValueOrOffset, 0, littleEndian),
+                    _ => entry.ValueOrOffset,
+                };
                 return [value];
             }
 
             if (entry.Type == TiffConstants.TypeShort && entry.Count == 2)
                 return [ReadUInt16Inline(entry.ValueOrOffset, 0, littleEndian), ReadUInt16Inline(entry.ValueOrOffset, 1, littleEndian)];
+
+            if (entry.Type == TiffConstants.TypeByte && entry.Count <= 4)
+            {
+                var inlineValues = new uint[(int)entry.Count];
+                for (int index = 0; index < inlineValues.Length; index++)
+                {
+                    int shift = littleEndian ? index * 8 : (3 - index) * 8;
+                    inlineValues[index] = (entry.ValueOrOffset >> shift) & 0xFF;
+                }
+                return inlineValues;
+            }
 
             if (entry.Count > Array.MaxLength || entry.ValueOrOffset > int.MaxValue)
                 throw new InvalidDataException("The TIFF tag array is too large.");

@@ -47,6 +47,7 @@ public sealed class JpegImageTranslator : ImageTranslator
             throw new InvalidDataException("Invalid JPEG: missing SOI marker.");
 
         Span<byte> segment = stackalloc byte[7];
+        Span<byte> skipped = stackalloc byte[256];
 
         while (true)
         {
@@ -71,7 +72,13 @@ public sealed class JpegImageTranslator : ImageTranslator
                 return info;
             }
 
-            stream.Seek(length - 2, SeekOrigin.Current);
+            int bytesRemaining = length - 2;
+            while (bytesRemaining > 0)
+            {
+                int count = Math.Min(bytesRemaining, skipped.Length);
+                stream.ReadExactly(skipped[..count]);
+                bytesRemaining -= count;
+            }
         }
     }
 
@@ -178,6 +185,14 @@ public sealed class JpegImageTranslator : ImageTranslator
                 ConvertYCbCr(decoded, pixels, width, height);
                 break;
 
+            case JpegColorSpace.Cmyk:
+                ConvertCmyk(decoded, pixels, width, height, ycck: false);
+                break;
+
+            case JpegColorSpace.Ycck:
+                ConvertCmyk(decoded, pixels, width, height, ycck: true);
+                break;
+
             default:
                 ConvertYCbCr(decoded, pixels, width, height);
                 break;
@@ -234,5 +249,54 @@ public sealed class JpegImageTranslator : ImageTranslator
             source.AsSpan(y * sourceWidth, copyLength).CopyTo(result.AsSpan(y * planeWidth));
 
         return result;
+    }
+
+    private static void ConvertCmyk(DecodedJpegImage decoded, byte[] pixels, int width, int height, bool ycck)
+    {
+        byte[][] planes = new byte[4][];
+        int[] planeWidths = new int[4];
+        for (int i = 0; i < planes.Length; i++)
+        {
+            planes[i] = ExtractPlane(decoded.ComponentData[i], decoded.ComponentWidths[i], width, height, decoded.MaxHSample, decoded.MaxVSample, decoded.ComponentHSamples[i], decoded.ComponentVSamples[i]);
+            planeWidths[i] = (width * decoded.ComponentHSamples[i] + decoded.MaxHSample - 1) / decoded.MaxHSample;
+        }
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int offset = (y * width + x) * 4;
+                int c = SampleCmykPlane(planes[0], planeWidths[0], decoded, 0, x, y);
+                int m = SampleCmykPlane(planes[1], planeWidths[1], decoded, 1, x, y);
+                int yellow = SampleCmykPlane(planes[2], planeWidths[2], decoded, 2, x, y);
+                int black = SampleCmykPlane(planes[3], planeWidths[3], decoded, 3, x, y);
+
+                if (ycck)
+                {
+                    int red = Math.Clamp((int)(c + 1.402 * (yellow - 128)), 0, 255);
+                    int green = Math.Clamp((int)(c - 0.344136 * (m - 128) - 0.714136 * (yellow - 128)), 0, 255);
+                    int blue = Math.Clamp((int)(c + 1.772 * (m - 128)), 0, 255);
+                    c = 255 - red;
+                    m = 255 - green;
+                    yellow = 255 - blue;
+                }
+
+                bool adobeCmyk = decoded.IsAdobeCmyk || ycck;
+                int redOut = adobeCmyk ? c * black / 255 : (255 - c) * (255 - black) / 255;
+                int greenOut = adobeCmyk ? m * black / 255 : (255 - m) * (255 - black) / 255;
+                int blueOut = adobeCmyk ? yellow * black / 255 : (255 - yellow) * (255 - black) / 255;
+                pixels[offset] = (byte)redOut;
+                pixels[offset + 1] = (byte)greenOut;
+                pixels[offset + 2] = (byte)blueOut;
+                pixels[offset + 3] = 255;
+            }
+        }
+    }
+
+    private static byte SampleCmykPlane(byte[] plane, int planeWidth, DecodedJpegImage decoded, int component, int x, int y)
+    {
+        int sampleX = x * decoded.ComponentHSamples[component] / decoded.MaxHSample;
+        int sampleY = y * decoded.ComponentVSamples[component] / decoded.MaxVSample;
+        return plane[sampleY * planeWidth + sampleX];
     }
 }

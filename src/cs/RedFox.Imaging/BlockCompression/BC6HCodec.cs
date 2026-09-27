@@ -818,9 +818,8 @@ public sealed class BC6HCodec : IPixelCodec
             rdx = rE1 - rBase;
             gdx = gE1 - gBase;
             bdx = bE1 - bBase;
-            rdx = Math.Clamp(rdx, deltaMin, deltaMax);
-            gdx = Math.Clamp(gdx, deltaMin, deltaMax);
-            bdx = Math.Clamp(bdx, deltaMin, deltaMax);
+            if (rdx < deltaMin || rdx > deltaMax || gdx < deltaMin || gdx > deltaMax || bdx < deltaMin || bdx > deltaMax)
+                return float.PositiveInfinity;
         }
         else
         {

@@ -80,85 +80,67 @@ public sealed class R11G11B10FloatCodec : IPixelCodec
 
     private static float DecodeFloat11(uint value)
     {
-        uint exponent = (value >> 6) & 0x1F;
-        uint mantissa = value & 0x3F;
-
-        if (exponent == 0)
-        {
-            if (mantissa == 0) return 0f;
-            return (float)(mantissa * Math.Pow(2, -10) * Math.Pow(2, -14));
-        }
-        else if (exponent == 31)
-        {
-            return mantissa == 0 ? float.PositiveInfinity : float.NaN;
-        }
-
-        return (float)((1.0 + mantissa / 64.0) * Math.Pow(2, exponent - 15));
+        return DecodeUnsignedFloat(value, 6);
     }
 
     private static float DecodeFloat10(uint value)
     {
-        uint exponent = (value >> 5) & 0x1F;
-        uint mantissa = value & 0x1F;
-
-        if (exponent == 0)
-        {
-            if (mantissa == 0) return 0f;
-            return (float)(mantissa * Math.Pow(2, -9) * Math.Pow(2, -14));
-        }
-        else if (exponent == 31)
-        {
-            return mantissa == 0 ? float.PositiveInfinity : float.NaN;
-        }
-
-        return (float)((1.0 + mantissa / 32.0) * Math.Pow(2, exponent - 15));
+        return DecodeUnsignedFloat(value, 5);
     }
 
     private static uint EncodeFloat11(float value)
     {
-        if (value <= 0f) return 0;
-        if (float.IsPositiveInfinity(value)) return 0x7C0;
-        if (float.IsNaN(value)) return 0x7FF;
-
-        int exponent = 0;
-        float mantissa = value;
-        while (mantissa >= 2f && exponent < 30)
-        {
-            mantissa *= 0.5f;
-            exponent++;
-        }
-        while (mantissa < 1f && exponent > -15)
-        {
-            mantissa *= 2f;
-            exponent--;
-        }
-
-        uint encodedExp = (uint)(exponent + 15);
-        uint encodedMant = (uint)((mantissa - 1f) * 64f);
-        return (encodedExp << 6) | (encodedMant & 0x3F);
+        return EncodeUnsignedFloat(value, 6);
     }
 
     private static uint EncodeFloat10(float value)
     {
-        if (value <= 0f) return 0;
-        if (float.IsPositiveInfinity(value)) return 0x7C0;
-        if (float.IsNaN(value)) return 0x7FF;
+        return EncodeUnsignedFloat(value, 5);
+    }
 
-        int exponent = 0;
-        float mantissa = value;
-        while (mantissa >= 2f && exponent < 30)
+    private static float DecodeUnsignedFloat(uint value, int mantissaBits)
+    {
+        uint mantissaMask = (1u << mantissaBits) - 1;
+        uint exponent = value >> mantissaBits;
+        uint mantissa = value & mantissaMask;
+        if (exponent == 0)
+            return MathF.ScaleB(mantissa, 1 - 15 - mantissaBits);
+        if (exponent == 31)
+            return mantissa == 0 ? float.PositiveInfinity : float.NaN;
+        return MathF.ScaleB(1f + mantissa / (float)(1u << mantissaBits), (int)exponent - 15);
+    }
+
+    private static uint EncodeUnsignedFloat(float value, int mantissaBits)
+    {
+        int maxExponent = (1 << 5) - 1;
+        uint mantissaMask = (1u << mantissaBits) - 1;
+        if (float.IsNaN(value))
+            return (uint)(maxExponent << mantissaBits) | 1;
+        if (float.IsPositiveInfinity(value))
+            return (uint)(maxExponent << mantissaBits);
+        if (value <= 0f)
+            return 0;
+
+        int exponent = Math.ILogB(value);
+        if (exponent < -14)
         {
-            mantissa *= 0.5f;
+            uint mantissa = (uint)MathF.Round(MathF.ScaleB(value, 14 + mantissaBits));
+            return mantissa >= 1u << mantissaBits ? 1u << mantissaBits : mantissa;
+        }
+
+        if (exponent > 15)
+            return (uint)((maxExponent - 1) << mantissaBits) | mantissaMask;
+
+        float normalized = MathF.ScaleB(value, -exponent) - 1f;
+        uint encodedMantissa = (uint)MathF.Round(normalized * (1u << mantissaBits));
+        if (encodedMantissa > mantissaMask)
+        {
             exponent++;
+            encodedMantissa = 0;
         }
-        while (mantissa < 1f && exponent > -15)
-        {
-            mantissa *= 2f;
-            exponent--;
-        }
+        if (exponent > 15)
+            return (uint)((maxExponent - 1) << mantissaBits) | mantissaMask;
 
-        uint encodedExp = (uint)(exponent + 15);
-        uint encodedMant = (uint)((mantissa - 1f) * 32f);
-        return (encodedExp << 5) | (encodedMant & 0x1F);
+        return (uint)(exponent + 15) << mantissaBits | encodedMantissa;
     }
 }

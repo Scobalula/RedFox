@@ -52,25 +52,30 @@ public sealed class BmpImageTranslator : ImageTranslator
         if (bitsPerPixel is not (1 or 4 or 8 or 16 or 24 or 32))
             throw new NotSupportedException($"Unsupported BMP bits per pixel: {bitsPerPixel}.");
 
-        uint rMask = 0x00FF0000, gMask = 0x0000FF00, bMask = 0x000000FF, aMask = 0xFF000000;
+        uint rMask = 0x00FF0000, gMask = 0x0000FF00, bMask = 0x000000FF, aMask = 0;
 
         if (compression == BI_BITFIELDS)
         {
             if (bitsPerPixel is not (16 or 32))
                 throw new NotSupportedException($"BI_BITFIELDS requires 16 or 32 bpp, got {bitsPerPixel}.");
 
-            // Masks follow the DIB header (or are embedded in V4/V5 headers)
-            Span<byte> masks = stackalloc byte[12];
-            stream.ReadExactly(masks);
-            rMask = BinaryPrimitives.ReadUInt32LittleEndian(masks);
-            gMask = BinaryPrimitives.ReadUInt32LittleEndian(masks[4..]);
-            bMask = BinaryPrimitives.ReadUInt32LittleEndian(masks[8..]);
+            if (headerSize >= 52)
+            {
+                rMask = BinaryPrimitives.ReadUInt32LittleEndian(dibHeader.AsSpan(36));
+                gMask = BinaryPrimitives.ReadUInt32LittleEndian(dibHeader.AsSpan(40));
+                bMask = BinaryPrimitives.ReadUInt32LittleEndian(dibHeader.AsSpan(44));
+            }
+            else
+            {
+                Span<byte> masks = stackalloc byte[12];
+                stream.ReadExactly(masks);
+                rMask = BinaryPrimitives.ReadUInt32LittleEndian(masks);
+                gMask = BinaryPrimitives.ReadUInt32LittleEndian(masks[4..]);
+                bMask = BinaryPrimitives.ReadUInt32LittleEndian(masks[8..]);
+            }
 
-            // V4/V5 headers (headerSize >= 56) include an alpha mask
             if (headerSize >= 56)
                 aMask = BinaryPrimitives.ReadUInt32LittleEndian(dibHeader.AsSpan(48));
-            else
-                aMask = ~(rMask | gMask | bMask);
         }
 
         byte[]? palette = null;
@@ -370,16 +375,18 @@ public sealed class BmpImageTranslator : ImageTranslator
             dst[d + 0] = palette[paletteOffset + 2];
             dst[d + 1] = palette[paletteOffset + 1];
             dst[d + 2] = palette[paletteOffset + 0];
-            dst[d + 3] = palette[paletteOffset + 3];
+            dst[d + 3] = 255;
         }
     }
 
     private static byte ScaleChannel(uint value, int bits)
     {
+        if (bits == 0)
+            return 0;
         if (bits >= 8)
             return (byte)(value >> (bits - 8));
-        // Replicate upper bits into lower bits for accuracy
-        return (byte)((value << (8 - bits)) | (value >> (2 * bits - 8)));
+        uint maxValue = (1u << bits) - 1;
+        return (byte)((value * 255 + maxValue / 2) / maxValue);
     }
 
     /// <summary>

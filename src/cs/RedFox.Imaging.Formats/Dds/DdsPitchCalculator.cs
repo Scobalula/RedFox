@@ -16,13 +16,14 @@ internal static class DdsPitchCalculator
     /// <param name="format">The pixel format of the image.</param>
     /// <param name="isBlockCompressed"><see langword="true"/> if the format uses block compression.</param>
     /// <returns>The pitch or linear size in bytes.</returns>
-    public static uint GetTopLevelPitchOrLinearSize(int width, ImageFormat format, bool isBlockCompressed)
+    public static uint GetTopLevelPitchOrLinearSize(int width, int height, ImageFormat format, bool isBlockCompressed)
     {
         if (isBlockCompressed)
         {
-            int blockCount = Math.Max(1, (width + 3) / 4);
+            int blockCountX = Math.Max(1, (width + 3) / 4);
+            int blockCountY = Math.Max(1, (height + 3) / 4);
             int blockSize = ImageFormatInfo.GetBlockSize(format);
-            return checked((uint)(blockCount * blockSize));
+            return checked((uint)(blockCountX * blockCountY * blockSize));
         }
 
         int bitsPerPixel = ImageFormatInfo.GetBitsPerPixel(format);

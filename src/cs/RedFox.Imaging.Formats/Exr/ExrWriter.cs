@@ -209,6 +209,9 @@ internal static class ExrWriter
     private static byte[] CreateChunk(ImageSlice slice, int firstRow, int rowsInBlock, ExrCompressionType compression, IReadOnlyList<ExrChannel> channels, Vector4[]? decodedPixels)
     {
         byte[] rawBlock = BuildBlockData(slice, firstRow, rowsInBlock, channels, decodedPixels);
+        if (compression is ExrCompressionType.Pxr24 or ExrCompressionType.B44 or ExrCompressionType.B44A)
+            rawBlock = ToChannelMajor(rawBlock, channels, slice.Width, rowsInBlock);
+
         byte[] packedBlock = compression switch
         {
             ExrCompressionType.None => rawBlock,
@@ -226,6 +229,33 @@ internal static class ExrWriter
         WriteInt32(stream, packedBlock.Length);
         stream.Write(packedBlock);
         return stream.ToArray();
+    }
+
+    private static byte[] ToChannelMajor(ReadOnlySpan<byte> scanlineData, IReadOnlyList<ExrChannel> channels, int width, int rowsInBlock)
+    {
+        var result = new byte[scanlineData.Length];
+        int rowSize = 0;
+        foreach (var channel in channels)
+            rowSize = checked(rowSize + width * ExrFileLayout.GetBytesPerSample(channel.PixelType));
+
+        int planeOffset = 0;
+        int scanlineChannelOffset = 0;
+        for (int channelIndex = 0; channelIndex < channels.Count; channelIndex++)
+        {
+            var channel = channels[channelIndex];
+            int bytesPerSample = ExrFileLayout.GetBytesPerSample(channel.PixelType);
+            int channelRowSize = checked(width * bytesPerSample);
+            for (int row = 0; row < rowsInBlock; row++)
+            {
+                int sourceOffset = row * rowSize + scanlineChannelOffset;
+                scanlineData.Slice(sourceOffset, channelRowSize).CopyTo(result.AsSpan(planeOffset + row * channelRowSize));
+            }
+
+            scanlineChannelOffset += channelRowSize;
+            planeOffset += channelRowSize * rowsInBlock;
+        }
+
+        return result;
     }
 
     /// <summary>

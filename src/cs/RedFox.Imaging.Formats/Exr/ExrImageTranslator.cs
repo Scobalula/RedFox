@@ -76,7 +76,7 @@ public sealed class ExrImageTranslator : ImageTranslator
             ImageCompressionPreference.None => ExrWriteCompression.None,
             ImageCompressionPreference.Fast => ExrWriteCompression.Rle,
             ImageCompressionPreference.Balanced => ExrWriteCompression.Zip,
-            ImageCompressionPreference.SmallestSize => ExrWriteCompression.Pxr24,
+            ImageCompressionPreference.SmallestSize => ExrWriteCompression.Zip,
             _ => defaultCompression,
         };
     }

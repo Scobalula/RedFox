@@ -60,8 +60,13 @@ internal sealed class JpegEncoder
     /// <param name="image">The source image to encode.</param>
     public void Encode(Image image)
     {
+        ArgumentNullException.ThrowIfNull(image);
         int width = image.Width;
         int height = image.Height;
+        if (width is < 1 or > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(image), "JPEG width must be between 1 and 65535 pixels.");
+        if (height is < 1 or > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(image), "JPEG height must be between 1 and 65535 pixels.");
         var rgba = ExtractRgba8(image.GetSlice(), image.Format);
         ReadOnlySpan<byte> pixels = rgba;
 

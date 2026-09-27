@@ -92,7 +92,7 @@ internal static class ExrCompression
             int runLength = CountRunLength(transformed, offset);
             if (runLength >= 2)
             {
-                output.WriteByte(unchecked((byte)(1 - runLength)));
+                output.WriteByte(unchecked((byte)(runLength - 1)));
                 output.WriteByte(transformed[offset]);
                 offset += runLength;
                 continue;
@@ -110,7 +110,7 @@ internal static class ExrCompression
             }
 
             int literalLength = offset - literalStart;
-            output.WriteByte((byte)(literalLength - 1));
+            output.WriteByte(unchecked((byte)-literalLength));
             output.Write(transformed.Slice(literalStart, literalLength));
         }
 
@@ -164,9 +164,9 @@ internal static class ExrCompression
         {
             int count = (sbyte)packedData[sourceOffset++];
 
-            if (count < 0)
+            if (count > 0)
             {
-                int runLength = -count + 1;
+                int runLength = count + 1;
 
                 if (sourceOffset >= packedData.Length)
                     throw new InvalidDataException("EXR RLE block ended before the repeated byte value was available.");
@@ -181,7 +181,7 @@ internal static class ExrCompression
                 continue;
             }
 
-            int literalLength = count + 1;
+            int literalLength = -count;
 
             if (sourceOffset + literalLength > packedData.Length)
                 throw new InvalidDataException("EXR RLE block ended before the literal run was complete.");

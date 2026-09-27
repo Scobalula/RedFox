@@ -75,7 +75,7 @@ public static class BlockColorOperations
         palette[0] = alpha0;
         palette[1] = alpha1;
 
-        if (block[0] > block[1])
+        if (signed ? (sbyte)block[0] > (sbyte)block[1] : block[0] > block[1])
         {
             palette[2] = (6 * alpha0 + 1 * alpha1) / 7.0f;
             palette[3] = (5 * alpha0 + 2 * alpha1) / 7.0f;

@@ -17,6 +17,9 @@ internal sealed class DecodedJpegImage
     /// <summary>Detected color space.</summary>
     public JpegColorSpace ColorSpace { get; init; }
 
+    /// <summary>Indicates whether Adobe's inverted CMYK convention is used.</summary>
+    public bool IsAdobeCmyk { get; init; }
+
     /// <summary>
     /// Per-component sample planes. Each byte array contains one sample per pixel
     /// for the given component at its native (possibly subsampled) resolution,

@@ -58,11 +58,62 @@ public static class DdsLoader
         ImageInfo info = metadata.Info;
         info.Validate();
 
+        if (metadata.IsLegacyRgb24)
+            return LoadLegacyRgb24(data, metadata, info);
+
         long requiredBytes = info.CalculateTotalByteCount();
         if (data.Length - metadata.DataOffset < requiredBytes)
             throw new InvalidDataException($"DDS pixel data is truncated. Expected {requiredBytes} bytes but found {Math.Max(0, data.Length - metadata.DataOffset)}.");
 
         return new Image(info, data.Slice(metadata.DataOffset, (int)requiredBytes).ToArray());
+    }
+
+    private static Image LoadLegacyRgb24(ReadOnlySpan<byte> data, DdsMetadata metadata, ImageInfo info)
+    {
+        long requiredSourceBytes = CalculateLegacyRgb24ByteCount(info);
+        long requiredDestinationBytes = info.CalculateTotalByteCount();
+        if (data.Length - metadata.DataOffset < requiredSourceBytes)
+            throw new InvalidDataException($"DDS pixel data is truncated. Expected {requiredSourceBytes} bytes but found {Math.Max(0, data.Length - metadata.DataOffset)}.");
+
+        var pixels = new byte[checked((int)requiredDestinationBytes)];
+        int sourceOffset = metadata.DataOffset;
+        int destinationOffset = 0;
+        for (int arrayIndex = 0; arrayIndex < info.ArraySize; arrayIndex++)
+        {
+            for (int mipLevel = 0; mipLevel < info.MipLevels; mipLevel++)
+            {
+                int width = Math.Max(1, info.Width >> mipLevel);
+                int height = Math.Max(1, info.Height >> mipLevel);
+                int depth = Math.Max(1, info.Depth >> mipLevel);
+                int pixelCount = checked(width * height * depth);
+                for (int pixel = 0; pixel < pixelCount; pixel++)
+                {
+                    pixels[destinationOffset++] = data[sourceOffset++];
+                    pixels[destinationOffset++] = data[sourceOffset++];
+                    pixels[destinationOffset++] = data[sourceOffset++];
+                    pixels[destinationOffset++] = 255;
+                }
+            }
+        }
+
+        return new Image(info, pixels);
+    }
+
+    private static long CalculateLegacyRgb24ByteCount(ImageInfo info)
+    {
+        long byteCount = 0;
+        for (int arrayIndex = 0; arrayIndex < info.ArraySize; arrayIndex++)
+        {
+            for (int mipLevel = 0; mipLevel < info.MipLevels; mipLevel++)
+            {
+                long width = Math.Max(1, info.Width >> mipLevel);
+                long height = Math.Max(1, info.Height >> mipLevel);
+                long depth = Math.Max(1, info.Depth >> mipLevel);
+                byteCount = checked(byteCount + width * height * depth * 3);
+            }
+        }
+
+        return byteCount;
     }
 
     /// <summary>

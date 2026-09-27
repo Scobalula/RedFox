@@ -40,10 +40,8 @@ public sealed class TgaImageTranslator : ImageTranslator
     {
         TgaHeader header = ReadHeader(stream);
 
-        if (header.IdLength > 0)
-        {
-            stream.Seek(header.IdLength, SeekOrigin.Current);
-        }
+        Span<byte> imageId = stackalloc byte[header.IdLength];
+        stream.ReadExactly(imageId);
 
         int bytesPerPixel = header.BytesPerPixel;
         int pixelCount = header.Width * header.Height;

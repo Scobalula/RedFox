@@ -81,6 +81,10 @@ internal readonly record struct TgaHeader(byte IdLength, byte ColorMapType, TgaI
     /// </param>
     public static void WriteTrueColor(Span<byte> destination, int width, int height, bool hasAlpha)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(width, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, (int)ushort.MaxValue);
+        ArgumentOutOfRangeException.ThrowIfLessThan(height, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, (int)ushort.MaxValue);
         int bpp = hasAlpha ? 32 : 24;
 
         destination.Clear();

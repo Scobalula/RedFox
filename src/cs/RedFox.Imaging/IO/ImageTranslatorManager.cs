@@ -71,7 +71,7 @@ public class ImageTranslatorManager
     /// <returns><c>true</c> when a matching translator is found; otherwise, <c>false</c>.</returns>
     public bool TryGetTranslator(string filePath, string extension, [NotNullWhen(true)] out ImageTranslator? translator)
     {
-        translator = _translators.Find(t => t.IsValid(filePath, extension));
+        translator = _translators.Find(t => t.CanRead && t.IsValid(filePath, extension));
         return translator is not null;
     }
 
@@ -87,7 +87,7 @@ public class ImageTranslatorManager
     {
         foreach (ImageTranslator candidate in _translators)
         {
-            if (candidate.IsValid(header, filePath, extension))
+            if (candidate.CanRead && candidate.IsValid(header, filePath, extension))
             {
                 translator = candidate;
                 return true;
@@ -238,7 +238,9 @@ public class ImageTranslatorManager
 
     private ImageTranslator GetWriteTranslator(string filePath)
     {
-        if (!TryGetTranslator(filePath, Path.GetExtension(filePath), out ImageTranslator? translator))
+        string extension = Path.GetExtension(filePath);
+        ImageTranslator? translator = _translators.Find(candidate => candidate.CanWrite && candidate.IsValid(filePath, extension));
+        if (translator is null)
             throw new NotSupportedException($"No suitable image translator found for file: {filePath}");
 
         return translator;

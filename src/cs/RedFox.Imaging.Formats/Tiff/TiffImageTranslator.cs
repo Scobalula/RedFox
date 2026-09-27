@@ -69,7 +69,7 @@ public sealed class TiffImageTranslator : ImageTranslator
         int photometric = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPhotometric, data, littleEndian, TiffConstants.PhotometricRGB);
         int samplesPerPixel = TiffIfdReader.GetTagInt(tags, TiffConstants.TagSamplesPerPixel, data, littleEndian, 1);
         uint[] rowsPerStripValues = TiffIfdReader.GetTagUintArray(tags, TiffConstants.TagRowsPerStrip, data, littleEndian);
-        int rowsPerStrip = rowsPerStripValues.Length == 0 || rowsPerStripValues[0] == uint.MaxValue ? height : checked((int)rowsPerStripValues[0]);
+        int rowsPerStrip = rowsPerStripValues.Length == 0 || rowsPerStripValues[0] >= (uint)height ? height : (int)rowsPerStripValues[0];
         int fillOrder = TiffIfdReader.GetTagInt(tags, TiffConstants.TagFillOrder, data, littleEndian, 1);
         int predictor = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPredictor, data, littleEndian, (int)TiffPredictor.None);
         int planarConfiguration = TiffIfdReader.GetTagInt(tags, TiffConstants.TagPlanarConfiguration, data, littleEndian, 1);

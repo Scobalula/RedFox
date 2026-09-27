@@ -89,7 +89,11 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
 
         try
         {
-            return context.Initialize() ? context : null;
+            if (context.Initialize())
+                return context;
+
+            context.Dispose();
+            return null;
         }
         catch
         {
@@ -340,11 +344,12 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             return false;
         }
 
-        byte[] shaderBytes = LoadEmbeddedShader(shaderFileName);
         ShaderModule module = default;
         byte* entryPtr = null;
+        bool transferred = false;
         try
         {
+            byte[] shaderBytes = LoadEmbeddedShader(shaderFileName);
             fixed (byte* ptr = shaderBytes)
             {
                 ShaderModuleCreateInfo modInfo = new()
@@ -373,14 +378,24 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             };
 
             if (_vk.CreateComputePipelines(_device, default, 1, in pipeInfo, null, out Pipeline handle) != Result.Success)
+            {
+                if (handle.Handle != 0)
+                    _vk.DestroyPipeline(_device, handle, null);
                 return false;
+            }
             pipeline = new VulkanBcComputePipeline(layout, pipelineLayout, handle);
+            transferred = true;
             return true;
         }
         finally
         {
             if (module.Handle != 0) _vk.DestroyShaderModule(_device, module, null);
             SilkMarshal.Free((nint)entryPtr);
+            if (!transferred)
+            {
+                _vk.DestroyPipelineLayout(_device, pipelineLayout, null);
+                _vk.DestroyDescriptorSetLayout(_device, layout, null);
+            }
         }
     }
 
@@ -558,6 +573,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             List<VulkanBcEncodePass> stages = BuildEncodeStages(isBc7, request.Flags, stageParams, err1Buffer, err2Buffer, outputBuffer);
             if (stages.Count == 0)
                 return false;
+            stages = SplitEncodeStages(stages);
 
             constantBuffers = new VulkanBcBuffer[stages.Count];
             DescriptorPoolSize[] poolSizes = [new(DescriptorType.SampledImage, (uint)stages.Count), new(DescriptorType.StorageBuffer, (uint)stages.Count * 2), new(DescriptorType.UniformBuffer, (uint)stages.Count)];
@@ -625,7 +641,8 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
 
             _vk.CmdBindPipeline(cmd, PipelineBindPoint.Compute, pass.Pipeline.Pipeline);
             _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Compute, pass.Pipeline.PipelineLayout, 0, 1, in set, 0, null);
-            _vk.CmdDispatch(cmd, Math.Max(pass.GroupCount, 1u), 1, 1);
+            uint groupCount = Math.Max(pass.GroupCount, 1u);
+            _vk.CmdDispatch(cmd, groupCount, 1, 1);
 
             AccessFlags nextAccess = isLast ? AccessFlags.TransferReadBit : AccessFlags.ShaderReadBit | AccessFlags.ShaderWriteBit;
             PipelineStageFlags nextStage = isLast ? PipelineStageFlags.TransferBit : PipelineStageFlags.ComputeShaderBit;
@@ -656,31 +673,48 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         if (isBc7)
         {
             bool quickMode = (flags & ImageConvertFlags.PreferFastBc7Encoding) != 0;
-            stages.Add(new(_bc7TryMode456Pipeline, _dummyStorageBuffer, err1Buffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4)));
+            stages.Add(new(_bc7TryMode456Pipeline, _dummyStorageBuffer, err1Buffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4), 4));
 
             if (!quickMode)
             {
-                stages.Add(new(_bc7TryMode137Pipeline, err1Buffer, err2Buffer, CreateConstants(1), p.TotalBlockCount));
-                stages.Add(new(_bc7TryMode137Pipeline, err2Buffer, err1Buffer, CreateConstants(3), p.TotalBlockCount));
-                stages.Add(new(_bc7TryMode137Pipeline, err1Buffer, err2Buffer, CreateConstants(7), p.TotalBlockCount));
+                stages.Add(new(_bc7TryMode137Pipeline, err1Buffer, err2Buffer, CreateConstants(1), p.TotalBlockCount, 1));
+                stages.Add(new(_bc7TryMode137Pipeline, err2Buffer, err1Buffer, CreateConstants(3), p.TotalBlockCount, 1));
+                stages.Add(new(_bc7TryMode137Pipeline, err1Buffer, err2Buffer, CreateConstants(7), p.TotalBlockCount, 1));
             }
 
             VulkanBcBuffer finalInput = quickMode ? err1Buffer : err2Buffer;
-            stages.Add(new(_bc7EncodeBlockPipeline, finalInput, outputBuffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4)));
+            stages.Add(new(_bc7EncodeBlockPipeline, finalInput, outputBuffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4), 4));
             return stages;
         }
 
-        stages.Add(new(_bc6hTryModeG10Pipeline, _dummyStorageBuffer, err1Buffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4)));
+        stages.Add(new(_bc6hTryModeG10Pipeline, _dummyStorageBuffer, err1Buffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 4), 4));
         for (uint modeId = 0; modeId < 10; modeId++)
         {
             bool writeToErr1 = (modeId & 1u) != 0;
             VulkanBcBuffer input = writeToErr1 ? err2Buffer : err1Buffer;
             VulkanBcBuffer output = writeToErr1 ? err1Buffer : err2Buffer;
-            stages.Add(new(_bc6hTryModeLE10Pipeline, input, output, CreateConstants(modeId), DivideRoundUp(p.TotalBlockCount, 2)));
+            stages.Add(new(_bc6hTryModeLE10Pipeline, input, output, CreateConstants(modeId), DivideRoundUp(p.TotalBlockCount, 2), 2));
         }
 
-        stages.Add(new(_bc6hEncodeBlockPipeline, err1Buffer, outputBuffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 2)));
+        stages.Add(new(_bc6hEncodeBlockPipeline, err1Buffer, outputBuffer, CreateConstants(0), DivideRoundUp(p.TotalBlockCount, 2), 2));
         return stages;
+    }
+
+    private static List<VulkanBcEncodePass> SplitEncodeStages(List<VulkanBcEncodePass> stages)
+    {
+        List<VulkanBcEncodePass> batches = [];
+        foreach (VulkanBcEncodePass stage in stages)
+        {
+            for (uint startGroup = 0; startGroup < stage.GroupCount; startGroup += 65535)
+            {
+                uint groupCount = Math.Min(65535, stage.GroupCount - startGroup);
+                VulkanBcEncodeConstants constants = stage.Constants;
+                constants.StartBlockId += startGroup * stage.BlocksPerGroup;
+                batches.Add(new(stage.Pipeline, stage.InputBuffer, stage.OutputBuffer, constants, groupCount, stage.BlocksPerGroup));
+            }
+        }
+
+        return batches;
     }
 
     private VulkanBcComputePipeline GetDecodePipeline(ImageFormat format)

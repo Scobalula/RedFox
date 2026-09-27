@@ -81,7 +81,7 @@ internal static class DdsMetadataReader
             throw new InvalidDataException("DDS 3D textures with DX10 headers must declare an array size of 1.");
         }
 
-        return baseMetadata.ToMetadata(depth, arraySize, format, isCubemap, dataOffset);
+        return baseMetadata.ToMetadata(depth, arraySize, format, isCubemap, dataOffset, false);
     }
 
     private static DdsMetadata ReadLegacyMetadata(in DdsHeader header, DdsBaseMetadata baseMetadata, int dataOffset)
@@ -100,7 +100,8 @@ internal static class DdsMetadataReader
         bool isVolume = (header.Flags & DdsHeaderFlags.Depth) != 0 || (header.Caps2 & DdsCaps2.Volume) != 0;
         int depth = isVolume ? ReadPositiveInt(header.Depth, "depth") : 1;
 
-        return baseMetadata.ToMetadata(depth, arraySize, format, isCubemap, dataOffset);
+        bool isLegacyRgb24 = header.PixelFormat.RgbBitCount == 24 && (header.PixelFormat.Flags & DdsPixelFormatFlags.Rgb) != 0;
+        return baseMetadata.ToMetadata(depth, arraySize, format, isCubemap, dataOffset, isLegacyRgb24);
     }
 
     private static void ValidateHeader(in DdsHeader header)
