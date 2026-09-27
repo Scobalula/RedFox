@@ -44,7 +44,22 @@ jobs:
         with:
           user: ${{ secrets.NUGET_USER }}
 
-      - name: Publish unlisted packages to NuGet
+      - name: Publish packages to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          shopt -s nullglob
+          packages=(artifacts/*.nupkg)
+          if ((${#packages[@]} == 0)); then
+            echo "Pack step produced no .nupkg files in artifacts/." >&2
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+
+      - name: Unlist packages from NuGet search
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
@@ -60,8 +75,10 @@ jobs:
             package_id="${package##*/}"
             package_id="${package_id%.$version.nupkg}"
 
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-            dotnet nuget delete "$package_id" "$version" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --non-interactive
+            if ! dotnet nuget delete "$package_id" "$version" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --non-interactive; then
+              echo "Could not unlist $package_id $version. Check that the NuGet trusted-publishing policy grants unlist permission for this package." >&2
+              exit 1
+            fi
           done
 
       - name: Create GitHub Release
