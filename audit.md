@@ -75,105 +75,144 @@ Suggested order: native interop and security, then format data corruption (one f
 - [x] `FpsCamera.cs:590-599` — dolly discarded by `Normalize(move)`.
 
 ### Imaging
-- [ ] `Jpeg/JpegIdct.cs:71,143` — zero-AC shortcuts use `<<12`/`>>18` instead of `<<2`/`>>5`; wrong on every non-AVX2 CPU.
-- [ ] `Tiff/TiffIfdReader.cs:81,83` — inline SHORT/BYTE masked instead of `ReadUInt16Inline`; big-endian TIFFs read as 0.
-- [ ] `Exr/ExrCompression.cs:95,113` (+165-189) — RLE sign convention inverted vs OpenEXR.
-- [ ] `Exr/ExrWriter.cs:218-220` — PXR24/B44 get scanline-interleaved input instead of channel-major (and `SmallestSize` picks PXR24).
-- [ ] `Jpeg/JpegDecoder.cs:492-496,373-393` — single-component scans walk the MCU grid, corrupting subsampled images.
-- [ ] `Tiff/TiffImageTranslator.cs:71,127` — RowsPerStrip `0xFFFFFFFF` cast to -1.
-- [ ] `Bmp/BmpImageTranslator.cs` — indexed alpha from palette reserved byte (370-373); V4/V5 masks read from stream (62-67); `aMask = ~(r|g|b)` for 40-byte header (73); negative shift in `ScaleChannel` (382).
-- [ ] `Dds/DdsLegacyFormatMapper.cs:98` — 24-bpp mapped to 32-bpp format; `Dds/DdsPitchCalculator.cs:23-25` BC `LinearSize` is one row pitch.
-- [ ] `Jpeg/JpegDecoder.cs:954-960` — CMYK treated as YCbCr, K dropped; 2-component crashes; 12-bit not rejected.
-- [ ] `Jpeg/JpegEncoder.cs:566`, `Tga/TgaHeader.cs:88` — silent ushort truncation; `Tga/TgaImageTranslator.cs:45`, `Jpeg/JpegImageTranslator.cs:74` seek non-seekable streams.
-- [ ] `Exr/ExrHuffmanBitReader.cs:80-93` — 58-bit peek can overflow the 64-bit buffer.
-- [ ] `RedFox.Imaging/BlockColorOperations.cs:78,147` — BC4/BC5 SNORM endpoints compared unsigned.
-- [ ] `R11G11B10FloatCodec.cs:89,107,117-162` — denormals 16× small; no max-finite clamp; float10 Inf wrong.
-- [ ] `BC6HCodec.cs:737-756` — swapped delta clamped; endpoint/index mismatch.
-- [ ] `ImageTranslatorManager.cs:86-99` — selection ignores CanRead/CanWrite.
-- [ ] `RedFox.Imaging.Vulkan/VulkanBcContext.cs:659-682` — single dispatch with `StartBlockId = 0`; exceeds 65535 groups at 1024² for BC7 modes 1/3/7. Batch.
-- [ ] `VulkanBcContext.cs:92` — `Initialize()` false leaks instance/device; `:356,375` failed pipeline creation leaks layouts.
+- [x] `Jpeg/JpegIdct.cs:71,143` — zero-AC shortcuts use the corrected `<<2`/`>>5` fixed-point scale.
+- [x] `Tiff/TiffIfdReader.cs:81,83` — inline SHORT/BYTE values now respect TIFF byte order.
+- [x] `Exr/ExrCompression.cs:95,113` (+165-189) — RLE control-byte signs match OpenEXR.
+- [x] `Exr/ExrWriter.cs:218-220` — PXR24/B44 input is channel-major; `SmallestSize` uses lossless ZIP compression.
+- [x] `Jpeg/JpegDecoder.cs:492-496,373-393` — single-component baseline scans walk the component block grid.
+- [x] `Tiff/TiffImageTranslator.cs:71,127` — RowsPerStrip values are bounded by image height before conversion.
+- [x] `Bmp/BmpImageTranslator.cs` — indexed alpha is opaque; V4/V5 masks are read from the header; absent alpha masks stay zero; channel scaling avoids negative shifts.
+- [x] `Dds/DdsLegacyFormatMapper.cs:98` — legacy RGB24 pixels expand to B8G8R8X8; `Dds/DdsPitchCalculator.cs:23-25` BC `LinearSize` includes block rows.
+- [x] `Jpeg/JpegDecoder.cs:954-960` — CMYK/YCCK conversion uses all four channels; 2-component and non-8-bit JPEGs are rejected.
+- [x] `Jpeg/JpegEncoder.cs:566`, `Tga/TgaHeader.cs:88` — dimensions are range-checked; TGA/JPEG metadata reads support non-seekable streams.
+- [x] `Exr/ExrHuffmanBitReader.cs:80-93` — peeks fill only the requested bits and stay within the 64-bit buffer.
+- [x] `RedFox.Imaging/BlockColorOperations.cs:78,147` — BC4/BC5 SNORM endpoints are compared as signed bytes.
+- [x] `R11G11B10FloatCodec.cs:89,107,117-162` — subnormal scaling, finite clamping, and 10-bit infinity encoding are corrected.
+- [x] `BC6HCodec.cs:737-756` — unrepresentable swapped deltas are rejected to preserve endpoint/index correspondence.
+- [x] `ImageTranslatorManager.cs:86-99` — read and write selection honors CanRead and CanWrite.
+- [x] `RedFox.Imaging.Vulkan/VulkanBcContext.cs:659-682` — dispatch passes are split into at most 65535 groups with correct StartBlockId values.
+- [x] `VulkanBcContext.cs:92` — failed initialization disposes the context; failed pipeline creation releases layouts.
 
 ### Audio / IO / Patterns
-- [ ] `ImaAdpcmCodec.cs:126` — second block offset is blockAlign²; only one block encoded.
-- [ ] `ImaAdpcmCodec.cs:182-186` — stereo layout wrong (WAV IMA interleaves 4-byte chunks); >2 channels decoded as stereo; mono tail uninitialised.
-- [ ] `MsAdpcmCodec.cs:46-48` — stereo samples-per-block doubled; `:151,158,196-200` nibble order low-first; `:172-182` stereo header layout wrong.
-- [ ] `MurMur3Hash.cs:66-70` — ignores `ibStart`/`cbSize`, mixes tail per chunk; streaming hashes wrong.
-- [ ] `ZStandardCodec.cs:61` — UNKNOWN/ERROR content size returned as -1/-2; `DeflateCodec.cs:30,66` `&span[0]` throws on empty input.
-- [ ] `BytePattern.cs:27-48` — single `?` or bad hex pair misaligns the pattern.
-- [ ] `VirtualDirectory.cs:275` — recursion into `this` instead of `directory`; `:335` / `VirtualFile.cs:98` `GetHashCode` uses culture `ToLower` vs ordinal `Equals`.
-- [ ] `SpanReader.cs:475-497` / `MemoryReader.cs:514-537` — Seek assigns before validating; `End` uses `Length - offset`. `SpanReader.cs:65` vs `MemoryReader.cs:76` argument order differs.
-- [ ] `BinaryReaderExtensions.cs:30,69,105` — legal short reads throw.
-- [ ] `ProcessReader.cs:185`, `SpanReader.cs:96` — `count*SizeOf` overflow.
+- [x] `ImaAdpcmCodec.cs:126` — each block is written at the next block-aligned offset.
+- [x] `ImaAdpcmCodec.cs:182-186` — stereo data follows WAV IMA's channel chunks; unsupported channel counts are rejected and encoded block tails are cleared.
+- [x] `MsAdpcmCodec.cs:46-48` — stereo sample counts, high-first nibble order, and interleaved channel headers match WAV MS-ADPCM layout.
+- [x] `MurMur3Hash.cs:66-70` — hashes only the requested array segment and carries incomplete words across streaming updates.
+- [x] `ZStandardCodec.cs:61` — unknown frame sizes return -1 and invalid sizes throw; `DeflateCodec.cs:30,66` pins empty spans safely.
+- [x] `BytePattern.cs:27-48` — wildcard and malformed byte pairs retain their token boundaries.
+- [x] `VirtualDirectory.cs:275` — recursive enumeration starts from the selected directory; virtual file and directory hashes use ordinal case-insensitive comparison.
+- [x] `SpanReader.cs:475-497` / `MemoryReader.cs:514-537` — Seek validates before assignment and uses standard end-relative offsets; positional read argument order is consistent.
+- [x] `BinaryReaderExtensions.cs:30,69,105` — structure reads fill buffers despite legal short reads.
+- [x] `ProcessReader.cs:185`, `SpanReader.cs:96` — array byte counts are checked for overflow.
 
 ### Rendering
-- [ ] `SceneRenderResources.cs:10` — static `ConditionalWeakTable` keyed by scene only; handles reused across devices/contexts, never disposed. Make per-device.
-- [ ] `AvaloniaOpenGlRendererControl.cs:277-280,315-357` — renders `ViewportController.Scene ?? Scene` but only releases/subscribes `Scene`.
-- [ ] `Handles/MaterialRenderHandle.cs:219-233` — `HasDiffuseMap=1` without a GPU texture; samples previous material's texture.
-- [ ] `Handles/MeshRenderHandle.cs:388-453`, `MeshGpuBufferBinding.cs:149` — replaced buffers never re-uploaded.
-- [ ] `AvaloniaCameraInputAdapter.cs:34-39` — handlers registered Tunnel|Bubble; events processed twice (explains 0.25 zoom sensitivity).
-- [ ] `SkeletonAnimationCurveViewer.cs:671-672` — local writes replace brush bindings.
-- [ ] `SceneRenderer.cs:440` — disposes an injected device it doesn't own.
-- [ ] `Handles/MeshRenderHandle.cs:483-521` — whole mesh drawn once per material, no index ranges.
+- [x] `SceneRenderResources.cs:10` — render handles are isolated by graphics device and released with that device's renderer.
+- [x] `AvaloniaOpenGlRendererControl.cs:277-280,315-357` — scene subscriptions and resource release follow the active `ViewportController.Scene ?? Scene`.
+- [x] `Handles/MaterialRenderHandle.cs:219-233` — `HasDiffuseMap` is cleared first and enabled only after a valid texture binds.
+- [x] `Handles/MeshRenderHandle.cs:388-453`, `MeshGpuBufferBinding.cs:149` — bindings detect replaced source buffers and upload the new data.
+- [x] `AvaloniaCameraInputAdapter.cs:34-39` — handlers use Bubble routing once.
+- [x] `SkeletonAnimationCurveViewer.cs:671-672` — brush updates preserve existing property bindings.
+- [x] `SceneRenderer.cs:440` — the renderer releases its resources without disposing the injected graphics device.
+- [x] `Handles/MeshRenderHandle.cs:483-521` — explicit material index ranges select each material's indices; layered meshes use their corresponding UV layer.
 
 ### GameExtraction / Plugins / Zenith
-- [ ] `RedFox.GameExtraction.Template/ModelHandler.cs:89`, `AnimationHandler.cs:91` — store `Scene` but export `GetData<byte[]>()`; every export throws. Same in `Template.Cli/Program.cs:106`.
-- [ ] `NameTableManager.cs:189` — inverted `!string.Equals`.
-- [ ] `AssetExportContext.cs:39,207,349` — null `ExportOptions` throws; `:116-118` `PreserveDirectoryStructure=false` does nothing.
-- [ ] `AssetHandlers/ModelHandler.cs:47` — `Split('.')[0]` collapses dotted names.
-- [ ] `RedFox.Zenith/DataStorages/LocalDataStorage.cs:57` vs `:33` — keys written Base64, read raw. *(N/A: project not in repo.)*
-- [ ] `RedFox.GameExtraction.HashBuilder/Program.cs:10-11` vs `34-39` — usage text and parser disagree.
-- [ ] `RedFox.Plugins/PluginManager.cs:123-129` — failed initialize never runs `Unloading`.
-- [ ] `RedFox.Plugins.Python/PythonResolver.cs:207-208` — `ReadToEnd` before `WaitForExit` (timeout ineffective), stderr unread (deadlock); `:172` misses Python 3.14.
-- [ ] `PythonPluginHost.cs:118-120` — evicts stdlib modules matching plugin names.
-- [ ] `MainWindowViewModel.cs:883-970` — process scan runs on the UI thread; `:967,1059,1145` finally disposes shared `_currentCts`.
-- [ ] `ZipAssetSourceReader.cs:92` + `AssetManager.cs:434-438` — entries added before validation; stale on cancel. `AssetManager`/`ZipArchive` not thread-safe.
-- [ ] `Template.Avalonia/Program.cs:93-112` — group named "Fuck"; duplicate `ExportReferences` / `PreserveDirectoryStructure` entries.
-- [ ] `MainWindowViewModel.cs:1231` — `ReferenceCountDisplay` always "0".
+- [x] `RedFox.GameExtraction.Template/ModelHandler.cs:89`, `AnimationHandler.cs:91` — handlers export the stored `Scene`; `Template.Cli/Program.cs` displays the read result payload.
+- [x] `NameTableManager.cs:189` — table names are matched with `StringComparison.OrdinalIgnoreCase`.
+- [x] `AssetExportContext.cs:39,207,349` — export options default to an empty dictionary; `PreserveDirectoryStructure=false` resolves files at the output root.
+- [x] `AssetHandlers/ModelHandler.cs:47` — model paths preserve dotted names without splitting at the first period.
+- [x] `RedFox.Zenith/DataStorages/LocalDataStorage.cs:57` vs `:33` — *(N/A: project not in repo.)*
+- [x] `RedFox.GameExtraction.HashBuilder/Program.cs` — `--algorithm` and `--compress` now match the usage text; compression is opt-in.
+- [x] `RedFox.Plugins/PluginManager.cs:123-129` — failed initialization raises `Unloading` and tears down the host.
+- [x] `RedFox.Plugins.Python/PythonResolver.cs` — stdout and stderr are drained concurrently, timeout is enforced, and common-location probing includes Python 3.14.
+- [x] `PythonPluginHost.cs:118-120` — unload removes only the plugin's own module from `sys.modules`.
+- [x] `MainWindowViewModel.cs:883-970` — process discovery runs on a worker task; each operation clears `_currentCts` only when it still owns it.
+- [x] `ZipAssetSourceReader.cs` + `AssetManager.cs` — entries are staged before mount, cancellation disposes the archive, and ZIP access is synchronized.
+- [x] `Template.Avalonia/Program.cs` — setting groups use "Export" and each option is declared once.
+- [x] `MainWindowViewModel.cs` — preview reference count displays the read result's direct reference count.
 
 ## 3. Performance
-- [ ] `SceneNode.cs:2034-2038` — `Clone` O(n²) via per-pair `Swap`.
-- [ ] `SceneNode.cs:1749` — closure per node per frame in `Update`.
-- [ ] `SceneNode.cs:3077,3351` — world pose/matrix recomputed recursively per call (per bone per frame in skinning, solvers, bounds).
-- [ ] `SceneNode.cs:557` — nested recursive `yield`; `:1624` `AddNode` linear scan.
-- [ ] `SceneNode.GetBestParent` builds a HashSet per call; Smd/Bvh/Fbx writers call it per bone per frame (O(frames·bones²)). Precompute parent arrays.
-- [ ] Smd/Bvh/Md5 writers recompute animated world transforms per bone, frame and ancestor. One top-down pass per frame.
-- [ ] `Mesh.cs:199` matrix inverse per influence per vertex; `MeshOptimizer.cs:203` per-face allocation; `PackedBuffer.Get` unpacks the full vector per component.
-- [ ] `IwEngine/XModelReader.cs:117-184` — no vertex welding, O(n²) group count; `SmdReader` 3 vertices per triangle.
-- [ ] Per-vertex `List` allocations: `XModelWriter.cs:221`, `MayaAsciiWriter.cs:584`, `FbxSkinningMapper.cs:86`; `BvhReader.cs:241` string per value; `GltfReader.cs:245,528,696-726` O(n²) lookups.
-- [ ] Exr: PIZ ~640 KB per chunk, B44 arrays + LINQ per 4×4 block, `ToUpperInvariant` per row, string switch per pixel.
-- [ ] JPEG Huffman bit-at-a-time with `Stream.ReadByte`; fake SIMD colour conversion.
-- [ ] `Dds/DdsLoader.cs:34-38,65` — payload copied 3×.
-- [ ] `FlacCodec.cs:237` — `BitConverter.GetBytes` per sample into `List<byte>`; `LzoCodec.cs:41` 128 KB table per call; `R11G11B10FloatCodec` `Math.Pow` per channel.
-- [ ] Rendering: per-frame `glGet`s and unconditional `RequestNextFrameRendering`; per-frame `Dictionary`/context allocation; 4 CWT lookups per node per frame; D3D11 constant buffers rebuilt per draw; skin/morph uploaded twice; one draw per bone.
-- [ ] GameExtraction: `RemoveAt` loop in `AssetManager.cs:1011-1021`; no filter debounce; `AssetRowViewModel.Name`/`Size` recomputed per sort; progress per ZIP entry; `x:CompileBindings="False"` on DataGrids.
+- [x] `SceneNode.cs:2034-2066` — built-in nodes remap cloned references in one pass; legacy `Swap` overrides keep their pairwise fallback.
+- [x] `SceneNode.cs:1759-1769` — `Update` visits children without allocating a closure per node.
+- [x] Mesh and bounds batches reuse world matrices, and solvers share combined pose reads; direct getters still compose live transforms recursively because `Transform` setters have no cache invalidation signal.
+- [x] `SceneNode.cs:576` — descendant enumeration uses one iterative traversal instead of nested recursive iterators.
+- [x] `SceneNode.cs:1624` — sibling-name counts are indexed once a parent has eight children; the small-child path avoids a LINQ closure.
+- [x] `SceneNode.GetBestParent` — SMD and BVH animation output precomputes exported parents once instead of rebuilding a candidate set per bone and frame.
+- [x] SMD/BVH animated world transforms are memoized for each frame; MD5 already writes local transforms directly.
+- [x] Mesh baking plus OBJ, SEModel, and XModel exports precompute inverse-transpose skin matrices once per bone and share them across vertices.
+- [x] Mesh baking and bulk exporters pass precomputed inverse-transpose transforms to `GetVertexNormal`; the convenience overload retains its per-influence fallback for individual queries.
+- [x] `MeshOptimizer.cs:203` — reuse two LRU cache arrays instead of allocating one per face.
+- [x] `PackedBuffer.Get` reads components directly for every built-in packed vector type; custom implementations retain the compatible full-vector fallback.
+- [x] `IwEngine/XModelReader.cs` — object/material group counts are accumulated once rather than recounted for every output mesh.
+- [x] XModel and SMD imports weld exact duplicate vertices after building each mesh, preserving all vertex attributes and rewriting face indices.
+- [x] `XModelWriter` and `MayaAsciiWriter` reuse one skin-weight list while writing vertices.
+- [x] `FbxSkinningMapper.cs:86` — FBX influences use one flat buffer with per-vertex ranges instead of a dictionary and one list per vertex.
+- [x] `BvhReader.cs:241` builds motion-value error text only when parsing fails.
+- [x] `GltfReader.cs:696-726` — parent-node lookups use a cached parent index and each skin builds its joint set once.
+- [x] `ExrPizCompression.cs` rents the large Huffman codebook and decoded-word workspaces for each chunk.
+- [x] `ExrB44Compression.cs` reuses stack buffers and scalar min/max for each 4×4 block.
+- [x] `ExrLoader.cs` — channel names are matched without allocating an uppercase string.
+- [x] JPEG Huffman decoding uses an 8-bit prefix table for short codes and retains the bitwise fallback for longer codes.
+- [x] JPEG entropy input reads exposable `MemoryStream`s directly and uses a pooled read buffer for `FileStream`s and non-exposable `MemoryStream`s; other streams keep the byte-read fallback.
+- [x] JPEG YCbCr SIMD paths widen contiguous bytes with unaligned vector loads instead of scalar gathers.
+- [x] `Dds/DdsLoader.cs:34-38` — stream loading reads from the `MemoryStream` buffer directly and avoids the full-file `ToArray` copy.
+- [x] `FlacCodec.cs:347` — encoder callbacks append bytes without allocating a temporary array.
+- [x] `LzoCodec.cs:41` rents the 128 KB match table from `ArrayPool<int>` and returns it after compression.
+- [x] `R11G11B10FloatCodec` uses `ScaleB` instead of `Math.Pow` per channel.
+- [x] `SceneRenderer` resolves scene render handles once per frame and reuses them across render phases, removing repeated CWT lookups.
+- [x] `AvaloniaOpenGlRendererControl` requests another frame only while animation or input remains active, and input changes request a frame.
+- [x] `AvaloniaOpenGlRendererControl` caches default-framebuffer size and sample queries until its handle or expected dimensions change.
+- [x] `MeshRenderHandle` reuses the heap matrix buffer for skins with more than 128 bones instead of allocating it on every update.
+- [x] `SceneRenderer` reuses its `RenderFrameContext` and service dictionary across frames.
+- [x] `MeshRenderHandle` skips skin and morph GPU uploads while their values are unchanged; shader skinning draws per material/range, not per bone.
+- [x] Rendering review: OpenGL queries are limited to setup and texture uploads; D3D11 reuses constant buffers and staging arrays per shader slot, updating contents per draw.
+- [x] GameExtraction: `AssetManager` compacts removed assets in one pass; `AssetRowViewModel.Name`/`Size` are cached; ZIP mount progress is reported in batches.
+- [x] GameExtraction filter changes are debounced.
+- [x] GameExtraction DataGrids use compiled bindings with explicit item types on text columns and the Explorer icon template.
 
 ## 4. Cleanup / dead code / duplication
-- [ ] `SceneNode.cs` — 256 public members, 74 `Action`/predicate wrappers (~2000 lines). Keep `IEnumerable` forms.
-- [ ] `SceneMerger.cs` duplicates `AttachInto`, `FindDuplicateInScope`, `MakeUniqueName`, `RedirectReferences`.
-- [ ] Name comparison: `CurrentCultureIgnoreCase` vs case-sensitive `CurrentCulture` across `SceneNode`. Standardise on `OrdinalIgnoreCase`.
-- [ ] Dead: `SceneRenderType`, `SceneNodeFlags.Disabled`, `Scene.RootNode`, `AnimationHelper`, `IValueManipulator` + interpolators, `FaceNormalDot`, `FbxArrayFactory`, `AttachNullNodeAttributes`, `FbxSceneMapper.FindBindPoseArmature`, `FbxSkinningMapper.GetArmatureBindWorldMatrix`, `OodleInterop`, `NameList`, `NameListService`, `HardwareLicenseVerifier`, render pipeline/pass layer, compute skinning path (shaders + `GlComputeProgram`), `_bc7TryMode02Pipeline`, `JpegIdct.TransformSse2`, `JpegEncoderOptions.OptimizeHuffmanTables`.
-- [ ] Unused-value hacks: `_ = selection` (`GltfWriter.cs:251`), `_ = Options` (Bvh reader/writer), `_ = stream` (`FbxTranslator.cs:54`), `_ = boneIndexMap`, `_ = attributeType` (`ExrLoader.cs:150`); variable `fuck` in `GDeflateCodec.cs:52`.
-- [ ] Duplicated: Bvh/Fbx hill-climb Euler solvers (use closed form); Smd/Bvh/Md5 relative-transform code; Psa/Psk bone IO; `ResolveTexturePath`; `SpanReader`/`MemoryReader`; `ProcessReader`/`ProcessWriter`; BC codec pixel code; JPEG/PNG pixel encoders; GL/D3D11 light logic; two GameExtraction export pipelines; three path normalisers.
-- [ ] `CastSkeletonTranslator.Read` — once unused `name` parameter; confirm behaviour now that it creates a `Skeleton`.
-- [ ] ~90 internal steps declared `public static` in Formats (e.g. `SmdReader.TryParseInt`, `GltfJsonParser.Parse*`).
-- [ ] `IwEngine/XAssetWriter.cs` — delete the buffer once CallOfFile's leave-open stream behaviour is published.
-- [ ] `MayaAsciiTranslator.cs:58`, `SceneTranslator.cs:219` — mutate shared options.
-- [ ] Library code writing to `Console.WriteLine` (`OpenGlSilkPresenterFactory.cs:72`, `AvaloniaOpenGlRendererControl.cs:221`).
-- [ ] UI project references unused AvaloniaEdit 11.4.1 and Silk.NET.OpenGLES.
+- [x] Reviewed the 74 `SceneNode` `Action`/predicate wrappers: retain them as a public convenience API because they execute immediately while the `IEnumerable` forms are deferred. They are repetitive, but removing them would break downstream callers and eliminate the eager traversal form.
+- [x] `SceneMerger` shares `SceneNode`'s duplicate search, unique-name generation, and reference redirection instead of maintaining duplicate helpers.
+- [x] Reviewed `SceneMerger.MergeNode` and `SceneNode.AttachInto`; retain their parallel strategy handling because their cycle validation, recursive scope, match-type, and staging-root semantics differ.
+- [x] Name comparison: `SceneNode` defaults and `SceneMergeOptions.NameComparison` use `OrdinalIgnoreCase`; explicit `StringComparison` overloads retain caller control.
+- [x] Removed unused `SceneRenderType` and the BC7 TryMode02 pipeline that was created and destroyed but never dispatched. Several original candidates are live, including `Scene.RootNode`, `FaceNormalDot`, `FbxArrayFactory`, `AttachNullNodeAttributes`, `OodleInterop`, `IValueManipulator` and its interpolators, `JpegIdct.TransformSse2`, `JpegEncoderOptions.OptimizeHuffmanTables`, and the OpenGL compute program.
+- [x] Reviewed public API candidates with no in-repo callers: removed `FbxSceneMapper.FindBindPoseArmature` and `FbxSkinningMapper.GetArmatureBindWorldMatrix` (the latter only returned identity); retained `SceneNodeFlags.Disabled`, `AnimationHelper`, `NameList` / `NameListService`, and the render pipeline/pass abstractions as public API surface. `ClearAndStateResetPass` is used by `SceneRenderer`.
+- [x] Unused-value hacks: removed the unused glTF selection and MD5 bone-map parameters, the BVH/FBX discard statements, and the EXR discard; the reported `fuck` variable is absent.
+- [x] `AssetExportContext` reuses `AssetManager`'s relative-path validation and combination methods.
+- [x] OBJ, SEModel, XModel, glTF, and CAST reference paths share `FilePathResolver` for rooted, relative, and data URI references.
+- [x] Portable texture references reuse `Texture.GetPortableFilePath` across glTF, SEModel, OBJ, and CAST; the shared method writes forward-slash paths.
+- [x] `AssetManager.NormalizeVirtualPath` and `NormalizeRelativeOutputDirectory` share rooted-path, segment splitting, and dot-segment validation.
+- [x] BC1/BC2/BC3 share their four-color RGB block encode/decode operations through `BlockColorOperations`; BC1's transparent three-color decode remains format-specific, and BC2/BC3 retain their own alpha encodings.
+- [x] JPEG and PNG share RGBA8 extraction for direct RGBA/BGRA data and decoded pixel codecs in `Rgba8PixelConverter`.
+- [x] Reviewed Euler conversion: FBX's closed-form seed and refinement and BVH's arbitrary channel-order search with continuity handling solve different input and stability requirements, so remain separate.
+- [x] Reviewed GL/D3D11 light logic: the shader implementations are tied to their respective shader languages, while command lists apply the equivalent data through different GPU APIs; no shared state abstraction is warranted for the small duplicated transform logic.
+- [x] `AssetManager` now shares the export event, skip, progress, and error pipeline for fresh reads and pre-read results; only obtaining the result differs.
+- [x] SMD and BVH writers share bind-pose and animated relative-transform reconstruction in `SkeletonExportTransforms`.
+- [x] Removed unused `Md5AnimWriter.ComputeAnimWorldTransform`, which had no callers beyond itself.
+- [x] `SpanReader` and `MemoryReader` share null-terminator scanning in `ReaderOperations` while preserving their existing end-of-buffer behavior.
+- [x] `ProcessReader` / `ProcessWriter` share the process-memory backend, validation, process discovery, and module lookup; the remaining read and write members stay separate because their operations differ.
+- [x] PSA and PSK share ActorX bone record reading and writing in `ActorXBinary`; each writer still supplies its format-specific chunk ID.
+- [x] `CastSkeletonTranslator.Read` uses `name` when it creates the skeleton node.
+- [x] Reviewed remaining implementation helpers declared `public static` in Formats: glTF JSON parse/write entry points, `BvhReader` / `BvhWriter` operations, and `BvhRotation` are exposed format APIs; retained those public members. SMD reader/writer, Maya writer, and FBX tokenizer implementation helpers are private, with `ParseTriangles` internal to the test assembly.
+- [x] `IwEngine/XAssetWriter.cs` — CallOfFile 2026.9.26.2 documents that `BinaryTokenWriter(Stream)` leaves the stream open; write directly to the destination and remove the staging buffer.
+- [x] `MayaAsciiTranslator.cs:58`, `SceneTranslator.cs:219` — Maya writes from a per-call options copy; read-context creation retains the supplied options without mutation.
+- [x] Library code writing to `Console.WriteLine` (`OpenGlSilkPresenterFactory.cs:72`, `AvaloniaOpenGlRendererControl.cs:221`) — removed both graphics library diagnostic writes.
+- [x] UI project references unused AvaloniaEdit 11.4.1 and Silk.NET.OpenGLES — removed both references.
 
 ## 5. CLAUDE.md violations
-- [ ] Split statements/arguments: ~500+ lines (worst: `FbxSceneMapper`, `D3D11GraphicsDevice`, `ObjReader`, `SmdWriter`, `SceneRenderer`, camera classes).
-- [ ] Primary constructors not used: ~60 classes.
-- [ ] Member order: ~40 files (worst `SceneNode.cs`, `MainWindowViewModel.cs`, `OpenGlGraphicsDevice.cs`, `GltfReader/Writer`).
-- [ ] "Core"/"Helper" names: `SceneNode.DisposeCore`, `MeshTangentFrame.GenerateCore`, `AnimationHelper`, `WriteCore` (Bmp/Png/Jpeg/Exr), `EncodeBlockCore` (BC6H/BC7), `D3D11Helpers`, `ReleaseCore`/`ExecuteCore`/`UpdateCore`.
-- [ ] Nested types: `ObjReader.MeshMergeBucket`, `SceneRenderResources.ResourceSlot`, `BytePatternScanner.ByteChunkReader`, `NullTerminatedStringReader.ReadChunk`/`.ExceptionFactory`, `PluginsService.PluginsState`, `AssetDirectoryTreeBuilder.MutableNode`, `HexBytesPreviewControl.ViewportControl`, sample types. `MayaUnits.cs` holds 4 enums.
-- [ ] Default parameters: ~17 (`DataBuffer{T}.cs:109`, `Animation.cs:115`, `AnimationTrack.cs:82-115`, `GltfReader.cs:43`, `GltfWriter.cs:44`, `MayaAsciiWriter.cs:309`, `PythonResolver.cs:33`, …).
-- [ ] Local functions: `AnimationTrack.cs:170`, `PskReader.cs:225`, `VulkanBcContext.cs:644`, `TiffCompressor.cs:100,107`.
-- [ ] Abbreviations: widespread (`idx`, `kf`, `ext`, `cmd`, `buf`, `src`/`dst`, `le`, `bpp`, `cts`, `F()`).
-- [ ] Block-scoped namespaces: ~20 files in Graphics3D, GDeflate, LZ4, Oodle.
-- [ ] Invalid XML docs: duplicate `<summary>` (`Material.cs:17-21`, `SmdReader.cs:556`, `SmdWriter.cs:509`); `<para>` outside summary (`BvhTranslator.cs:8-21`); "Gets or sets" on get-only/enum members; missing docs across Zenith, Oodle enums, `ProgressDialogViewModel`.
-- [ ] Avalonia: `SkeletonAnimationCurveViewer` code-behind UI with no view model; `MainWindowViewModel` holds Avalonia types; Samples hand-roll `RelayCommand`; UI chatter in `MainWindowViewModel.cs:297,1213,1236`, `PluginsWindow.axaml:105`, `AboutWindow.axaml:67`, `PreviewWindow.axaml:96`, tooltip `MainWindow.axaml:177`.
-- [ ] CLIs use raw `Console` instead of Spectre.Console: `Template.Cli`, `HashBuilder`, Samples.
+- [ ] Split statements/arguments: ~500+ lines (worst: `FbxSceneMapper`, `D3D11GraphicsDevice`, `ObjReader`, `SmdWriter`, `SceneRenderer`, camera classes). Collapsed multiline signatures/calls in `ObjReader`, `ObjWriter`, `OpenGlGraphicsDevice`, `FbxSceneMapper`, `SceneTraversal`, GPU render handles/bindings, D3D11 resource/pipeline types, `GpuBufferData`, `D3D11UniformValue`, and ActorX records/readers/writers; collapsed `FbxSceneMapper` continuations, `ObjReader` ternaries, D3D11 null guards, camera projection/movement expressions, and SMD writer conditionals/call. Also collapsed remaining signatures in process memory, sample, UI, material descriptor, animation sampling, and asset-directory code; collapsed multiline glTF constructor/call and FBX/SMD exception arguments. Focused scans now find no multiline invocation argument lists in the named worst files. A Roslyn trivia-only pass then collapsed 166 safe argument/parameter lists across 78 files; lists with comments, directives, block lambdas, initializers, collection expressions, or parse diagnostics were skipped.
+- [ ] Primary constructors not used: ~60 classes. Converted the asset event argument types (`SourceEventArgs`, `AssetOperationEventArgs`, `AssetReadCompletedEventArgs`, `AssetExportEventArgs`, `AssetExportCompletedEventArgs`, `AssetOperationFailedEventArgs`), `ProcessSelectionResult`, `FrameStatsReporter`, `MaterialTypePipelineCacheEntry`, `AssetDirectoryNode`, `TiffEncodedPixelData`, `TiffLzwDecoder`, BCn bit readers/writers/codecs, simple pixel codecs, single-constructor plugin/D3D11 exceptions where constructor work was property/field initialization or base forwarding, `SceneChangedEventArgs`, `CameraView`, `SceneBounds`, `FbxNode`, `FbxAsciiTokenizer`, `AvaloniaRenderFrameEventArgs`, D3D11 shader reflection layout/result types, `MaterialTextureBinding`, `Light`, `ProcessModuleInfo`, `BytePatternScanBufferSet`, `MeshSampleSceneContext`, and the imaging test `TestConverterEngine`.
+- [ ] Member order: ~40 files (worst `SceneNode.cs`, `OpenGlGraphicsDevice.cs`, `GltfReader/Writer`). Moved the `MainWindowViewModel` constructor after its public properties and events, moved `OpenGlGraphicsDevice` constructors after its public properties and all private texture helpers after public methods, placed `GltfReader`'s private joint lookup after its public methods, moved all `GltfWriter` private helpers after its public methods, moved `SceneNode`'s filter, name-index, reparent, duplicate-resolution, and ancestor-lookup helpers after its public methods, moved all `FbxSceneMapper` private helpers after its public methods, moved `Scene.ResolveSkeletonBoneRoot`, `SkeletonAnimationSampler` curve helpers, `MeshTangentFrame` generation helpers, `SceneRenderer` traversal and anti-aliasing helpers, and D3D11 texture creation helpers after public methods, and moved `RenderPass.ExecutePass` after its public methods.
+- [x] Renamed `SceneNode.DisposeCore`, `MeshTangentFrame.GenerateCore`, `AnimationHelper`, `WriteCore`, `EncodeBlockCore`, `ReleaseCore`, `ExecuteCore`, and `UpdateCore` to descriptive names.
+- [x] Renamed `D3D11Helpers` and `D3D11Helpers.cs` to `D3D11Support` and `D3D11Support.cs`.
+- [x] Split `MayaUnits.cs` into one file per public enum; extract `MeshMergeBucket`, the byte-reader delegates, `HexBytesViewportControl`, plugin persistence, asset-directory builder state, and sample types into separate files; remove the nested per-device resource holder.
+- [x] Replaced API defaults in `DataBuffer<T>`, `Animation`, `AnimationTrack`, `GltfReader`/`Writer`, `MayaAsciiWriter`, `PythonResolver`, and the other listed APIs with overloads; kept caller-info defaults where the compiler must supply the caller value.
+- [x] Local functions in `AnimationTrack`, `PskReader`, `VulkanBcContext`, and `TiffCompressor` are private class methods with explicit inputs.
+- [x] Abbreviations: expanded the SMD/MD5 float formatter to `FormatFloat()`, TIFF compressor/decompressor names, Vulkan command buffers, parser and mesh indices, image buffers and pixel widths, source/destination spans, and translator extensions. The audited short identifiers (`idx`, `kf`, `ext`, `cmd`, `buf`, `src`/`dst`, `le`, `bpp`, `cts`) no longer occur as code identifiers.
+- [x] Reviewed the reported block-scoped namespaces: `CLAUDE.md` does not require file-scoped namespaces, so this is not a guideline violation and no namespace edits are needed.
+- [x] Removed duplicate `<summary>` elements in `Material`, `SmdReader`, and `SmdWriter`; moved `BvhTranslator` paragraphs inside its summary; corrected the `SceneNodeFlags.Selected` description.
+- [x] Added XML documentation for the Oodle enum members and `ProgressDialogViewModel`; Zenith sources are not present in this repository.
+- [x] Avalonia: `MainWindowViewModel` uses framework-neutral observable collections and `SynchronizationContext`, exposes preview content as `object` with a separate visibility property, and leaves bitmap loading to the view. The `SkeletonAnimationCurveViewer` is a compositional `UserControl` with bindable properties and does not need a separate view model. Replaced the hand-rolled Samples `RelayCommand` with CommunityToolkit.Mvvm and removed the cited explanatory UI copy and redundant `MainWindow` tooltip.
+- [x] Migrated `Template.Cli`, `HashBuilder`, and Samples output to Spectre.Console; error output retains stderr routing and uses red styling. Removed the two stray `Console.WriteLine("Executing")` messages from template handlers.
 
 ## 6. Verbose docs and comments
 Roughly 600 multi-line/multi-sentence summaries, 110 `<remarks>` blocks (about a dozen say "Initializes a new instance…"), 700 inline comments including ~60 section banners. Target: one short sentence per summary, no narrating remarks, no banners.

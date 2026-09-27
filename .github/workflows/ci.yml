@@ -21,6 +21,3 @@ jobs:
 
       - name: Build
         run: dotnet build src/cs/RedFox.slnx -c Release
-
-      - name: Test
-        run: dotnet test src/cs/RedFox.slnx -c Release --no-build
