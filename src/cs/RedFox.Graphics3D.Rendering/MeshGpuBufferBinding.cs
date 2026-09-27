@@ -46,7 +46,7 @@ public sealed class MeshGpuBufferBinding
     /// <summary>
     /// Gets the mesh data source associated with this binding.
     /// </summary>
-    public DataBuffer? Data { get; }
+    public DataBuffer? Data { get; private set; }
 
     /// <summary>
     /// Gets the GPU usage flags used when the backing buffer is created.
@@ -152,6 +152,17 @@ public sealed class MeshGpuBufferBinding
         }
 
         return UpdateFromSource(graphicsDevice, Data);
+    }
+
+    internal bool Update(IGraphicsDevice graphicsDevice, DataBuffer? sourceData)
+    {
+        if (!ReferenceEquals(Data, sourceData))
+        {
+            Data = sourceData;
+            Release();
+        }
+
+        return Update(graphicsDevice);
     }
 
     private bool UpdateFromSource(IGraphicsDevice graphicsDevice, DataBuffer? sourceData)

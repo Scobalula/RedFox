@@ -202,6 +202,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             }
 
             TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(
+                _graphicsDevice,
                 binding.Texture,
                 () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
 
@@ -224,6 +225,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         }
 
         TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(
+            _graphicsDevice,
             texture,
             () => new TextureRenderHandle(_graphicsDevice, texture));
 

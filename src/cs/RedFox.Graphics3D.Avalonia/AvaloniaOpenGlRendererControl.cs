@@ -78,7 +78,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         SceneProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, e) => control.OnScenePropertyChanged(e));
         CameraProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.RequestFrame());
-        ViewportControllerProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.RequestFrame());
+        ViewportControllerProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, e) => control.OnViewportControllerPropertyChanged(e));
         ClearColorProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         UseViewBasedLightingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         SkinningModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
@@ -196,7 +196,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer = RendererFactory?.Invoke(_graphicsDevice) ?? CreateDefaultRenderer(_graphicsDevice);
         _renderer.Initialize();
         _inputAdapter = new AvaloniaCameraInputAdapter(this);
-        SubscribeScene(Scene);
+        SubscribeScene(GetActiveScene());
         ApplyRendererProperties();
         RequestFrame();
     }
@@ -273,16 +273,17 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     /// <inheritdoc/>
     protected override void OnOpenGlDeinit(GlInterface gl)
     {
-        UnsubscribeScene();
-        if (_renderer is not null && Scene is not null)
+        if (_renderer is not null && _subscribedScene is not null)
         {
-            _renderer.ReleaseResources(Scene);
+            _renderer.ReleaseResources(_subscribedScene);
         }
 
+        UnsubscribeScene();
         _inputAdapter?.Dispose();
         _inputAdapter = null;
         _renderer?.Dispose();
         _renderer = null;
+        _graphicsDevice?.Dispose();
         _graphicsDevice = null;
         base.OnOpenGlDeinit(gl);
     }
@@ -293,7 +294,9 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         UnsubscribeScene();
         _inputAdapter?.Dispose();
         _inputAdapter = null;
+        _renderer?.Dispose();
         _renderer = null;
+        _graphicsDevice?.Dispose();
         _graphicsDevice = null;
         _loggedFramebufferSamples = false;
         base.OnOpenGlLost();
@@ -314,15 +317,32 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
     private void OnScenePropertyChanged(AvaloniaPropertyChangedEventArgs e)
     {
-        if (_renderer is not null && e.OldValue is Scene oldScene)
+        Scene? oldScene = e.OldValue as Scene;
+        if (_renderer is not null && oldScene is not null && !ReferenceEquals(oldScene, GetActiveScene()))
         {
             _renderer.ReleaseResources(oldScene);
         }
 
         UnsubscribeScene();
-        SubscribeScene(Scene);
+        SubscribeScene(GetActiveScene());
         RequestFrame();
     }
+
+    private void OnViewportControllerPropertyChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        Scene? oldScene = (e.OldValue as SceneViewportController)?.Scene ?? Scene;
+        Scene? newScene = GetActiveScene();
+        if (_renderer is not null && oldScene is not null && !ReferenceEquals(oldScene, newScene))
+        {
+            _renderer.ReleaseResources(oldScene);
+        }
+
+        UnsubscribeScene();
+        SubscribeScene(newScene);
+        RequestFrame();
+    }
+
+    private Scene? GetActiveScene() => ViewportController?.Scene ?? Scene;
 
     private void SubscribeScene(Scene? scene)
     {

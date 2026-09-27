@@ -7,52 +7,84 @@ namespace RedFox.Graphics3D.Rendering;
 /// <summary>Owns renderer resources associated with scene objects.</summary>
 internal static class SceneRenderResources
 {
-    private static readonly ConditionalWeakTable<object, ResourceSlot> Resources = [];
+    private static readonly ConditionalWeakTable<IGraphicsDevice, DeviceResources> Resources = [];
 
-    public static IRenderHandle? Get(object owner) => Resources.TryGetValue(owner, out ResourceSlot? slot) ? slot.Handle : null;
-
-    public static T GetOrCreate<T>(object owner, Func<T> factory) where T : class, IRenderHandle
+    public static IRenderHandle? Get(IGraphicsDevice graphicsDevice, object owner)
     {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        ArgumentNullException.ThrowIfNull(owner);
+        return Resources.TryGetValue(graphicsDevice, out DeviceResources? resources) && resources.Handles.TryGetValue(owner, out IRenderHandle? handle) ? handle : null;
+    }
+
+    public static T GetOrCreate<T>(IGraphicsDevice graphicsDevice, object owner, Func<T> factory) where T : class, IRenderHandle
+    {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(factory);
-        ResourceSlot slot = Resources.GetOrCreateValue(owner);
-        if (slot.Handle is T existing)
+        DeviceResources resources = Resources.GetOrCreateValue(graphicsDevice);
+        if (resources.Handles.TryGetValue(owner, out IRenderHandle? existingHandle) && existingHandle is T existing)
         {
             return existing;
         }
 
-        Release(owner);
-        T handle = factory();
-        Resources.GetOrCreateValue(owner).Handle = handle;
-        return handle;
+        Release(resources, owner);
+        T newHandle = factory();
+        resources.Handles.Add(owner, newHandle);
+        return newHandle;
     }
 
     public static IRenderHandle? GetOrCreate(SceneNode node, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return Get(node) ?? node switch
+        return Get(graphicsDevice, node) ?? node switch
         {
-            Mesh mesh => GetOrCreate(mesh, () => new MeshRenderHandle(graphicsDevice, mesh)),
-            Material material => GetOrCreate(material, () => new MaterialRenderHandle(graphicsDevice, material)),
-            Texture texture => GetOrCreate(texture, () => new TextureRenderHandle(graphicsDevice, texture)),
-            SkeletonBone bone => GetOrCreate(bone, () => new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, bone)),
-            Light light => GetOrCreate(light, () => new LightRenderHandle(light)),
+            Mesh mesh => GetOrCreate(graphicsDevice, mesh, () => new MeshRenderHandle(graphicsDevice, mesh)),
+            Material material => GetOrCreate(graphicsDevice, material, () => new MaterialRenderHandle(graphicsDevice, material)),
+            Texture texture => GetOrCreate(graphicsDevice, texture, () => new TextureRenderHandle(graphicsDevice, texture)),
+            SkeletonBone bone => GetOrCreate(graphicsDevice, bone, () => new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, bone)),
+            Light light => GetOrCreate(graphicsDevice, light, () => new LightRenderHandle(light)),
             _ => null,
         };
     }
 
-    public static void Release(object owner)
+    public static void Release(IGraphicsDevice graphicsDevice, object owner)
     {
-        if (Resources.TryGetValue(owner, out ResourceSlot? slot) && slot.Handle is IRenderHandle handle)
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Resources.TryGetValue(graphicsDevice, out DeviceResources? resources))
         {
-            handle.Release();
-            handle.Dispose();
-            slot.Handle = null;
+            Release(resources, owner);
         }
     }
 
-    private sealed class ResourceSlot
+    public static void ReleaseAll(IGraphicsDevice graphicsDevice)
     {
-        public IRenderHandle? Handle { get; set; }
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        if (!Resources.TryGetValue(graphicsDevice, out DeviceResources? resources))
+        {
+            return;
+        }
+
+        foreach (IRenderHandle handle in resources.Handles.Values)
+        {
+            handle.Release();
+            handle.Dispose();
+        }
+
+        resources.Handles.Clear();
+    }
+
+    private static void Release(DeviceResources resources, object owner)
+    {
+        if (resources.Handles.Remove(owner, out IRenderHandle? handle))
+        {
+            handle.Release();
+            handle.Dispose();
+        }
+    }
+
+    private sealed class DeviceResources
+    {
+        public Dictionary<object, IRenderHandle> Handles { get; } = new(ReferenceEqualityComparer.Instance);
     }
 }

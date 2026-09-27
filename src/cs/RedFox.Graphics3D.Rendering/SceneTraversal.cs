@@ -73,6 +73,7 @@ public static class SceneTraversal
     internal static void Render(
         IReadOnlyList<SceneNode> nodes,
         ICommandList commandList,
+        IGraphicsDevice graphicsDevice,
         RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
@@ -82,6 +83,7 @@ public static class SceneTraversal
     {
         ArgumentNullException.ThrowIfNull(nodes);
         ArgumentNullException.ThrowIfNull(commandList);
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
 
         for (int i = 0; i < nodes.Count; i++)
         {
@@ -91,7 +93,7 @@ public static class SceneTraversal
                 continue;
             }
 
-            IRenderHandle? graphicsHandle = SceneRenderResources.Get(node);
+            IRenderHandle? graphicsHandle = SceneRenderResources.Get(graphicsDevice, node);
             
             if (graphicsHandle is null || graphicsHandle.Flags.HasFlag(RenderHandleFlags.SubHandle))
             {
@@ -137,6 +139,7 @@ public static class SceneTraversal
     /// </summary>
     /// <param name="node">The root node to render.</param>
     /// <param name="commandList">The active command list.</param>
+    /// <param name="graphicsDevice">The graphics device that owns the render handles.</param>
     /// <param name="phase">The render phase to execute.</param>
     /// <param name="view">The active view matrix.</param>
     /// <param name="projection">The active projection matrix.</param>
@@ -146,6 +149,7 @@ public static class SceneTraversal
     public static void Render(
         SceneNode node,
         ICommandList commandList,
+        IGraphicsDevice graphicsDevice,
         RenderFlags phase,
         in Matrix4x4 view,
         in Matrix4x4 projection,
@@ -155,12 +159,13 @@ public static class SceneTraversal
     {
         ArgumentNullException.ThrowIfNull(node);
         ArgumentNullException.ThrowIfNull(commandList);
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
 
         if (node.Children is not null)
         {
             foreach (SceneNode child in node.Children)
             {
-                Render(child, commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+                Render(child, commandList, graphicsDevice, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
             }
         }
 
@@ -169,7 +174,7 @@ public static class SceneTraversal
             return;
         }
 
-        SceneRenderResources.Get(node)?.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
+        SceneRenderResources.Get(graphicsDevice, node)?.Render(commandList, phase, view, projection, sceneAxis, cameraPosition, viewportSize);
     }
 
     private static void UpdateNode(

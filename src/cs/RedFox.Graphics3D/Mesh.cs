@@ -53,6 +53,11 @@ public class Mesh : SceneNode
     public List<Material>? Materials { get; set; }
 
     /// <summary>
+    /// Gets or sets the index-buffer ranges associated with <see cref="Materials"/>.
+    /// </summary>
+    public List<(int StartIndex, int IndexCount)>? MaterialIndexRanges { get; set; }
+
+    /// <summary>
     /// Gets or sets the skin that deforms this mesh.
     /// </summary>
     public Skin? Skin { get; set; }
@@ -387,6 +392,7 @@ public class Mesh : SceneNode
         Skin = Skin?.Clone();
         Morph = Morph?.Clone();
         Materials = Materials is null ? null : [.. Materials];
+        MaterialIndexRanges = MaterialIndexRanges is null ? null : [.. MaterialIndexRanges];
     }
 
     private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms)

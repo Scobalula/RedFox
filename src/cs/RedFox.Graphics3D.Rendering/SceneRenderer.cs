@@ -272,7 +272,7 @@ public sealed class SceneRenderer : IDisposable
         {
             RenderFlags phase = RenderPhases[i];
             RenderSkybox(scene.Skybox, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
-            SceneTraversal.Render(sceneTraversalNodes, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
+            SceneTraversal.Render(sceneTraversalNodes, _commandList, _graphicsDevice, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
             RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
 
@@ -381,7 +381,7 @@ public sealed class SceneRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        SceneRenderResources.Release(node);
+        SceneRenderResources.Release(_graphicsDevice, node);
 
         if (node.Children is null)
         {
@@ -410,7 +410,7 @@ public sealed class SceneRenderer : IDisposable
         _backgroundImageLoadSignal.Dispose();
         ReleaseAntiAliasingResources();
         _clearAndStateResetPass.Dispose();
-        _graphicsDevice.Dispose();
+        SceneRenderResources.ReleaseAll(_graphicsDevice);
         _initialized = false;
         _disposed = true;
         GC.SuppressFinalize(this);
@@ -446,7 +446,7 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        SceneRenderResources.GetOrCreate(grid, () => new GridRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, grid)).Update(_commandList);
+        SceneRenderResources.GetOrCreate(_graphicsDevice, grid, () => new GridRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, grid)).Update(_commandList);
     }
 
     private void UpdateSkybox(Skybox skybox, Scene scene)
@@ -456,12 +456,12 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        SceneRenderResources.GetOrCreate(skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene)).Update(_commandList);
+        SceneRenderResources.GetOrCreate(_graphicsDevice, skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene)).Update(_commandList);
     }
 
     private void RenderSkybox(Skybox skybox, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)
     {
-        IRenderHandle? graphicsHandle = SceneRenderResources.Get(skybox);
+        IRenderHandle? graphicsHandle = SceneRenderResources.Get(_graphicsDevice, skybox);
         if (!skybox.Enabled || graphicsHandle is null)
         {
             return;
@@ -472,7 +472,7 @@ public sealed class SceneRenderer : IDisposable
 
     private void RenderGrid(Grid grid, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)
     {
-        IRenderHandle? graphicsHandle = SceneRenderResources.Get(grid);
+        IRenderHandle? graphicsHandle = SceneRenderResources.Get(_graphicsDevice, grid);
         if (!grid.Enabled || graphicsHandle is null)
         {
             return;
@@ -481,14 +481,14 @@ public sealed class SceneRenderer : IDisposable
         graphicsHandle.Render(_commandList, phase, view, projection, Matrix4x4.Identity, cameraPosition, viewportSize);
     }
 
-    private static void ReleaseGridResources(Grid grid)
+    private void ReleaseGridResources(Grid grid)
     {
-        SceneRenderResources.Release(grid);
+        SceneRenderResources.Release(_graphicsDevice, grid);
     }
 
-    private static void ReleaseSkyboxResources(Skybox skybox)
+    private void ReleaseSkyboxResources(Skybox skybox)
     {
-        SceneRenderResources.Release(skybox);
+        SceneRenderResources.Release(_graphicsDevice, skybox);
     }
 
     private void ThrowIfDisposed()

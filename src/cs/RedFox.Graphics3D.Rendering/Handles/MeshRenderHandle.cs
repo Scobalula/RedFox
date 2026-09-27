@@ -19,6 +19,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 {
     private readonly List<MeshGpuBufferBinding> _buffers = [];
     private readonly IGraphicsDevice _graphicsDevice = graphicsDevice;
+    private Morph? _morphSource;
 
     /// <summary>
     /// Gets the mesh that owns this handle.
@@ -45,11 +46,11 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ArgumentNullException.ThrowIfNull(commandList);
 
 
+        VertexCount = Owner.Positions?.ElementCount ?? 0;
+        IndexCount = Owner.FaceIndices?.TotalComponentCount ?? 0;
+
         if (_buffers.Count == 0)
         {
-            VertexCount = Owner.Positions?.ElementCount ?? 0;
-            IndexCount = Owner.FaceIndices?.TotalComponentCount ?? 0;
-
             if (VertexCount <= 0)
             {
                 ReleaseBuffers();
@@ -99,6 +100,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 return updated;
             }));
             _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(CreateMorphDeltaBuffer(Owner.Morph), "MorphDeltaBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
+            _morphSource = Owner.Morph;
             _buffers.Add(MeshGpuBufferBinding.CreateShaderResource("MorphWeightBuffer", BufferUsage.Sampled | BufferUsage.DynamicWrite, normalizeIndexElementType: false, (binding, graphicsDevice) =>
             {
                 if (Owner.Morph is not { TargetCount: > 0 } morph)
@@ -118,10 +120,23 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             return;
         }
 
-        foreach (MeshGpuBufferBinding buffer in _buffers)
+        _buffers[0].Update(_graphicsDevice, Owner.Positions);
+        _buffers[1].Update(_graphicsDevice, Owner.Normals);
+        _buffers[2].Update(_graphicsDevice, Owner.FaceIndices);
+        _buffers[3].Update(_graphicsDevice, Owner.UVLayers);
+        _buffers[4].Update(_graphicsDevice, Owner.Skin?.BoneIndices);
+        _buffers[5].Update(_graphicsDevice, Owner.Skin?.BoneWeights);
+        _buffers[6].Update(_graphicsDevice);
+        if (!ReferenceEquals(_morphSource, Owner.Morph))
         {
-            buffer.Update(_graphicsDevice);
+            _morphSource = Owner.Morph;
+            _buffers[7].Update(_graphicsDevice, CreateMorphDeltaBuffer(_morphSource));
         }
+        else
+        {
+            _buffers[7].Update(_graphicsDevice);
+        }
+        _buffers[8].Update(_graphicsDevice);
     }
 
     /// <inheritdoc/>
@@ -135,16 +150,25 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             return;
         }
 
-        if (Owner.Materials is not { Count: > 0 })
+        List<Material>? materials = Owner.Materials;
+        if (materials is not { Count: > 0 })
         {
             return;
         }
 
-        for (int i = 0; i < Owner.Materials.Count; i++)
+        List<(int StartIndex, int IndexCount)>? materialRanges = Owner.MaterialIndexRanges;
+        if (materialRanges is not null && (materialRanges.Count != materials.Count || IndexCount <= 0)
+            || materialRanges is null && materials.Count > 1 && Owner.UVLayerCount < materials.Count)
         {
-            Material material = Owner.Materials[i];
+            throw new InvalidOperationException($"Mesh '{Owner.Name}' needs one index range per material or one UV layer per material.");
+        }
+
+        for (int i = 0; i < materials.Count; i++)
+        {
+            Material material = materials[i];
 
             MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(
+                _graphicsDevice,
                 material,
                 () => new MaterialRenderHandle(_graphicsDevice, material));
 
@@ -161,7 +185,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
             commandList.SetUniformVector3("CameraPosition", cameraPosition);
             commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
-            commandList.SetUniformInt("UVLayerIndex", 0);
+            commandList.SetUniformInt("UVLayerIndex", materialRanges is null ? i : 0);
             commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin?.BoneIndices.ValueCount ?? 0);
             commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
             commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
@@ -173,7 +197,15 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
             if (IndexCount > 0)
             {
-                commandList.DrawIndexed(IndexCount, 0, 0);
+                (int startIndex, int indexCount) = materialRanges is not null
+                    ? materialRanges[i]
+                    : (0, IndexCount);
+                if (startIndex < 0 || indexCount < 0 || startIndex > IndexCount - indexCount)
+                {
+                    throw new InvalidOperationException($"Mesh '{Owner.Name}' has an invalid material index range.");
+                }
+
+                commandList.DrawIndexed(indexCount, startIndex, 0);
             }
             else
             {

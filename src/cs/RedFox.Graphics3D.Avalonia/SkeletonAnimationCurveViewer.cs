@@ -668,8 +668,8 @@ public sealed class SkeletonAnimationCurveViewer : UserControl
         if (component is not null)
         {
             IBrush componentBrush = GetCurveBrush(component.CurveName);
-            _graph.CurveBrush = componentBrush;
-            _graph.KeyBrush = componentBrush;
+            _graph.SetCurrentValue(SkeletonAnimationCurveGraphControl.CurveBrushProperty, componentBrush);
+            _graph.SetCurrentValue(SkeletonAnimationCurveGraphControl.KeyBrushProperty, componentBrush);
         }
 
         RebuildKeyList(component);
