@@ -87,7 +87,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                     return false;
                 }
 
-                Span<Matrix4x4> matrixBuffer;
+                scoped Span<Matrix4x4> matrixBuffer;
                 if (skin.Bones.Count > 128)
                 {
                     if (_skinMatrixBuffer.Length < skin.Bones.Count)
@@ -105,15 +105,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 if (unchanged)
                     return true;
 
-                GpuBufferData transformData = new(
-                    MemoryMarshal.AsBytes(matrixBuffer),
-                    GpuBufferElementType.Float32,
-                    matrixBuffer.Length,
-                    4,
-                    4,
-                    16 * sizeof(float),
-                    4 * sizeof(float),
-                    sizeof(float));
+                GpuBufferData transformData = new(MemoryMarshal.AsBytes(matrixBuffer), GpuBufferElementType.Float32, matrixBuffer.Length, 4, 4, 16 * sizeof(float), 4 * sizeof(float), sizeof(float));
 
                 bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
                 if (updated)
@@ -208,10 +200,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         {
             Material material = materials[i];
 
-            MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(
-                _graphicsDevice,
-                material,
-                () => new MaterialRenderHandle(_graphicsDevice, material));
+            MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
 
             materialHandle.BindResources(commandList);
 

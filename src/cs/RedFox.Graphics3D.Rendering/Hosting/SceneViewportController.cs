@@ -281,17 +281,13 @@ public sealed class SceneViewportController
     {
         float radius = MathF.Max(bounds.Radius, MinimumSceneRadius);
         float distanceToCenter = Vector3.Distance(camera.Position, bounds.Center);
-        float farPlane = MathF.Max(
-            distanceToCenter + (radius * DynamicFarDistanceScale),
-            MathF.Max(radius * DynamicFarBoundsScale, MinimumFarPlane));
+        float farPlane = MathF.Max(distanceToCenter + (radius * DynamicFarDistanceScale), MathF.Max(radius * DynamicFarBoundsScale, MinimumFarPlane));
 
         float distanceOutsideBounds = distanceToCenter - (radius * DynamicNearSafetyBoundsScale);
         float nearFromDistance = distanceOutsideBounds > 0.0f ? distanceOutsideBounds * DynamicNearDistanceScale : 0.0f;
         float nearFromScale = radius * DynamicNearBoundsScale;
         float nearFromDepthRatio = farPlane / TargetDepthRatio;
-        float nearPlane = MathF.Max(
-            MinimumClipPlane,
-            MathF.Max(nearFromDistance, MathF.Max(nearFromScale, nearFromDepthRatio)));
+        float nearPlane = MathF.Max(MinimumClipPlane, MathF.Max(nearFromDistance, MathF.Max(nearFromScale, nearFromDepthRatio)));
         nearPlane = MathF.Min(nearPlane, farPlane * 0.0005f);
 
         camera.NearPlane = nearPlane;

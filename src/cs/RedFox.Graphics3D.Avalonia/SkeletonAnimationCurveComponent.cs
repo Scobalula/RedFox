@@ -16,13 +16,7 @@ public sealed class SkeletonAnimationCurveComponent
     /// <param name="curve">The source curve.</param>
     /// <param name="componentIndex">The zero-based component index.</param>
     /// <param name="componentName">The display component name.</param>
-    public SkeletonAnimationCurveComponent(
-        SkeletonAnimation animation,
-        SkeletonAnimationTrack track,
-        string curveName,
-        AnimationCurve curve,
-        int componentIndex,
-        string componentName)
+    public SkeletonAnimationCurveComponent(SkeletonAnimation animation, SkeletonAnimationTrack track, string curveName, AnimationCurve curve, int componentIndex, string componentName)
     {
         ArgumentNullException.ThrowIfNull(animation);
         ArgumentNullException.ThrowIfNull(track);

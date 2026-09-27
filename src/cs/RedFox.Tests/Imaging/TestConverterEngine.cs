@@ -4,14 +4,9 @@ using RedFox.Imaging.Processing;
 
 namespace RedFox.Tests.Imaging;
 
-public sealed class TestConverterEngine : ConverterEngine
+public sealed class TestConverterEngine(bool result) : ConverterEngine
 {
-    private readonly bool _result;
-
-    public TestConverterEngine(bool result)
-    {
-        _result = result;
-    }
+    private readonly bool _result = result;
 
     public override string Name => "TestEngine";
 

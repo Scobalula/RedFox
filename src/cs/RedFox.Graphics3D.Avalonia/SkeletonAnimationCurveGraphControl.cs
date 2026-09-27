@@ -104,18 +104,7 @@ public sealed class SkeletonAnimationCurveGraphControl : Control
 
     static SkeletonAnimationCurveGraphControl()
     {
-        AffectsRender<SkeletonAnimationCurveGraphControl>(
-            ShowGridProperty,
-            GraphBackgroundProperty,
-            PlotBackgroundProperty,
-            GridBrushProperty,
-            MajorGridBrushProperty,
-            AxisBrushProperty,
-            PlotBorderBrushProperty,
-            CurveBrushProperty,
-            KeyBrushProperty,
-            SelectedKeyBrushProperty,
-            SelectedKeyOutlineBrushProperty);
+        AffectsRender<SkeletonAnimationCurveGraphControl>(ShowGridProperty, GraphBackgroundProperty, PlotBackgroundProperty, GridBrushProperty, MajorGridBrushProperty, AxisBrushProperty, PlotBorderBrushProperty, CurveBrushProperty, KeyBrushProperty, SelectedKeyBrushProperty, SelectedKeyOutlineBrushProperty);
         ComponentProperty.Changed.AddClassHandler<SkeletonAnimationCurveGraphControl>((control, _) => control.OnComponentChanged());
         SelectedKeyProperty.Changed.AddClassHandler<SkeletonAnimationCurveGraphControl>((control, _) => control.OnSelectedKeyChanged());
     }
@@ -429,11 +418,7 @@ public sealed class SkeletonAnimationCurveGraphControl : Control
 
     private static Rect GetPlotClipArea(Rect plotArea)
     {
-        return new Rect(
-            plotArea.X + 1.0,
-            plotArea.Y + 1.0,
-            Math.Max(1.0, plotArea.Width - 2.0),
-            Math.Max(1.0, plotArea.Height - 2.0));
+        return new Rect(plotArea.X + 1.0, plotArea.Y + 1.0, Math.Max(1.0, plotArea.Width - 2.0), Math.Max(1.0, plotArea.Height - 2.0));
     }
 
     private static bool IsSameKey(SkeletonAnimationCurveKey? first, SkeletonAnimationCurveKey? second)

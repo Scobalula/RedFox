@@ -34,14 +34,7 @@ public interface IRenderHandle : IDisposable
     /// <param name="sceneAxis">The scene-axis transform matrix.</param>
     /// <param name="cameraPosition">The active camera position.</param>
     /// <param name="viewportSize">The active viewport size in pixels.</param>
-    void Render(
-        ICommandList commandList,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize);
+    void Render(ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize);
 
     /// <summary>
     /// Releases GPU resources owned by the handle.

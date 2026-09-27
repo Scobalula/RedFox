@@ -131,6 +131,10 @@ namespace RedFox.IO.FileSystem
             return current;
         }
 
+        /// <summary>Finds a directory by its path, ignoring name casing.</summary>
+        /// <param name="fullPath">The path relative to this directory.</param>
+        /// <param name="directory">Receives the matching directory when found.</param>
+        /// <returns><see langword="true"/> if the directory exists; otherwise, <see langword="false"/>.</returns>
         public bool TryGetDirectory(string fullPath, [NotNullWhen(true)] out VirtualDirectory? directory)
         {
             directory = null;
@@ -283,6 +287,10 @@ namespace RedFox.IO.FileSystem
             }
         }
 
+        /// <summary>Gets a file by its path.</summary>
+        /// <param name="path">The path relative to this directory.</param>
+        /// <returns>The matching file.</returns>
+        /// <exception cref="FileNotFoundException">The path does not identify a file.</exception>
         public VirtualFile GetFile(string path)
         {
             if (!TryGetFile(path, out var file))
@@ -291,6 +299,11 @@ namespace RedFox.IO.FileSystem
             return file;
         }
 
+        /// <summary>Attempts to get a file of the requested type by its path.</summary>
+        /// <typeparam name="T">The file type to find.</typeparam>
+        /// <param name="path">The path relative to this directory.</param>
+        /// <param name="file">Receives the matching file when found.</param>
+        /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
         public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile
         {
             file = null;
@@ -302,6 +315,10 @@ namespace RedFox.IO.FileSystem
             return false;
         }
 
+        /// <summary>Attempts to get a file by its path.</summary>
+        /// <param name="path">The path relative to this directory.</param>
+        /// <param name="file">Receives the matching file when found.</param>
+        /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
         public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file)
         {
             file = null;

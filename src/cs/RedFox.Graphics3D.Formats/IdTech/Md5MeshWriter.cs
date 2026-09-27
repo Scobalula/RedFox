@@ -140,10 +140,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
         for (int v = 0; v < vertCount; v++)
         {
             int weightStart = vertexWeights.Count;
-            var vertPos = new Vector3(
-                mesh.Positions.Get<float>(v, 0, 0),
-                mesh.Positions.Get<float>(v, 0, 1),
-                mesh.Positions.Get<float>(v, 0, 2));
+            var vertPos = new Vector3(mesh.Positions.Get<float>(v, 0, 0), mesh.Positions.Get<float>(v, 0, 1), mesh.Positions.Get<float>(v, 0, 2));
 
             int addedWeights = 0;
             if (skin is not null)
@@ -155,8 +152,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
                     int localIdx = skin.BoneIndices.Get<int>(v, j, 0);
                     if ((uint)localIdx >= (uint)globalBoneTable.Length)
                     {
-                        throw new InvalidDataException(
-                            $"Cannot write MD5 mesh: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
+                        throw new InvalidDataException($"Cannot write MD5 mesh: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
                     }
 
                     int globalIdx = globalBoneTable[localIdx];
@@ -265,8 +261,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
 
         if (missingBones.Count > 0)
         {
-            throw new InvalidDataException(
-                $"Cannot write MD5 mesh: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+            throw new InvalidDataException($"Cannot write MD5 mesh: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
         return table;
@@ -294,8 +289,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
             Material material = mats[0];
             if (!selection.Includes(material))
             {
-                throw new InvalidDataException(
-                    $"Cannot write MD5 mesh: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write MD5 mesh: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
             }
 
             if (!string.IsNullOrWhiteSpace(material.Name))
@@ -308,7 +302,7 @@ public sealed class Md5MeshWriter(Stream stream, string name, SceneTranslatorOpt
     /// <summary>
     /// Formats a float value for MD5 file output.
     /// </summary>
-    /// <param name="v">The value to format.</param>
+    /// <param name="value">The value to format.</param>
     /// <returns>An invariant-culture numeric string.</returns>
     public static string FormatFloat(float value) => Md5Format.FormatFloat(value);
 }

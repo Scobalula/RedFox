@@ -35,9 +35,7 @@ public sealed record class MaterialTypeRequirements
     /// <param name="textures">The texture inputs used by the material type.</param>
     /// <param name="uniforms">The uniform inputs used by the material type.</param>
     [JsonConstructor]
-    public MaterialTypeRequirements(
-        IReadOnlyList<MaterialTextureRequirement>? textures,
-        IReadOnlyList<MaterialUniformRequirement>? uniforms)
+    public MaterialTypeRequirements(IReadOnlyList<MaterialTextureRequirement>? textures, IReadOnlyList<MaterialUniformRequirement>? uniforms)
     {
         _textures = CopyTextures(textures ?? EmptyTextures);
         _uniforms = CopyUniforms(uniforms ?? EmptyUniforms);

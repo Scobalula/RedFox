@@ -117,15 +117,11 @@ public sealed class MsAdpcmCodec : AudioCodec
 
             if (channels == 1)
             {
-                EncodeMonoBlock(
-                    source.Slice(samplePos, blockSamples),
-                    destination.Slice(written, blockAlign));
+                EncodeMonoBlock(source.Slice(samplePos, blockSamples), destination.Slice(written, blockAlign));
             }
             else
             {
-                EncodeStereoBlock(
-                    source.Slice(samplePos, blockSamples),
-                    destination.Slice(written, blockAlign));
+                EncodeStereoBlock(source.Slice(samplePos, blockSamples), destination.Slice(written, blockAlign));
             }
 
             samplePos += blockSamples;

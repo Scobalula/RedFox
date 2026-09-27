@@ -13,7 +13,7 @@ internal static class Program
     {
         if (!CliArguments.TryParse(arguments, out CliArguments? parsedArguments, out string? error))
         {
-            ErrorConsole.WriteLine(error, ErrorStyle);
+            ErrorConsole.WriteLine(error ?? "Invalid command line.", ErrorStyle);
             WriteUsage();
             return 1;
         }

@@ -63,9 +63,7 @@ public sealed class DdsImageTranslatorTests
     [Fact]
     public void DdsSamples_ReadAcrossCorpus_DoesNotThrowAndProducesImageData()
     {
-        string[] ddsFiles = ImageTranslatorTestHarness.GetInputFiles("DDS", ".dds");
-        if (ddsFiles.Length == 0)
-            return;
+        string[] ddsFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("DDS", ".dds");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new DdsImageTranslator());
         List<string> failures = [];
@@ -76,6 +74,7 @@ public sealed class DdsImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(ddsFile);
                 Image image = manager.Read(inputFileStream, ddsFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, ddsFile, "Dds");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{ddsFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{ddsFile}'.");

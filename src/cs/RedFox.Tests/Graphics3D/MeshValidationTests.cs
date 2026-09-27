@@ -72,10 +72,7 @@ public sealed class MeshValidationTests
     public void Validate_DegenerateTriangle_FailsWithDegenerateFlag()
     {
         StringBuilder sb = new();
-        bool ok = MeshValidation.Validate(
-            CreateDegenerateTriangle(),
-            MeshValidationFlags.Degenerate,
-            sb);
+        bool ok = MeshValidation.Validate(CreateDegenerateTriangle(), MeshValidationFlags.Degenerate, sb);
 
         Assert.False(ok);
         Assert.False(string.IsNullOrEmpty(sb.ToString()));
@@ -85,10 +82,7 @@ public sealed class MeshValidationTests
     public void Validate_DegenerateTriangle_PassesWithNoFlags()
     {
         // Without the Degenerate flag, degenerate faces are not checked.
-        bool ok = MeshValidation.Validate(
-            CreateDegenerateTriangle(),
-            MeshValidationFlags.None,
-            null);
+        bool ok = MeshValidation.Validate(CreateDegenerateTriangle(), MeshValidationFlags.None, null);
 
         // Index range check still applies, but degenerate check (repeated index) does not.
         // All indices are within bounds, so it should pass.

@@ -26,9 +26,7 @@ public sealed class TgaImageTranslatorTests
     [Fact]
     public void TgaSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] tgaFiles = ImageTranslatorTestHarness.GetInputFiles("Tga", ".tga");
-        if (tgaFiles.Length == 0)
-            return;
+        string[] tgaFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Tga", ".tga");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new TgaImageTranslator());
         List<string> failures = [];
@@ -39,6 +37,7 @@ public sealed class TgaImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(tgaFile);
                 Image image = manager.Read(inputFileStream, tgaFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, tgaFile, "Tga");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{tgaFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{tgaFile}'.");

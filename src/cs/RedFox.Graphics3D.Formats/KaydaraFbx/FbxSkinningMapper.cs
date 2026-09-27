@@ -157,7 +157,7 @@ public static class FbxSkinningMapper
                     continue;
 
                 int start = offsets[vertexIndex];
-                Array.Sort(vertexInfluences, start, influenceCount, static (left, right) => right.Weight.CompareTo(left.Weight));
+                Array.Sort(vertexInfluences, start, influenceCount, Comparer<(int PaletteIndex, float Weight)>.Create(static (left, right) => right.Weight.CompareTo(left.Weight)));
 
                 float totalWeight = 0f;
                 for (int i = 0; i < influenceCount; i++)
@@ -352,11 +352,7 @@ public static class FbxSkinningMapper
             return Matrix4x4.Identity;
         }
 
-        return new Matrix4x4(
-            (float)values[0],   (float)values[1],   (float)values[2],   (float)values[3],
-            (float)values[4],   (float)values[5],   (float)values[6],   (float)values[7],
-            (float)values[8],   (float)values[9],   (float)values[10],  (float)values[11],
-            (float)values[12],  (float)values[13],  (float)values[14],  (float)values[15]);
+        return new Matrix4x4((float)values[0],   (float)values[1],   (float)values[2],   (float)values[3], (float)values[4],   (float)values[5],   (float)values[6],   (float)values[7], (float)values[8],   (float)values[9],   (float)values[10],  (float)values[11], (float)values[12],  (float)values[13],  (float)values[14],  (float)values[15]);
     }
 
     /// <summary>

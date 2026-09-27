@@ -13,6 +13,7 @@ internal static class DdsPitchCalculator
     /// Computes the top-level pitch (uncompressed) or linear size (compressed) for the given format.
     /// </summary>
     /// <param name="width">The image width in pixels.</param>
+    /// <param name="height">The image height in pixels.</param>
     /// <param name="format">The pixel format of the image.</param>
     /// <param name="isBlockCompressed"><see langword="true"/> if the format uses block compression.</param>
     /// <returns>The pitch or linear size in bytes.</returns>

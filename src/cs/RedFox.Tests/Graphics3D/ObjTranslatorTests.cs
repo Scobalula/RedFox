@@ -36,20 +36,11 @@ public sealed class ObjTranslatorTests
 
         for (int i = 0; i < sourceMeshes[0].VertexCount; i++)
         {
-            AssertVector3Equal(
-                sourceMeshes[0].Positions!.GetVector3(i, 0),
-                loadedMeshes[0].Positions!.GetVector3(i, 0),
-                1e-5f);
+            AssertVector3Equal(sourceMeshes[0].Positions!.GetVector3(i, 0), loadedMeshes[0].Positions!.GetVector3(i, 0), 1e-5f);
 
-            AssertVector3Equal(
-                sourceMeshes[0].Normals!.GetVector3(i, 0),
-                loadedMeshes[0].Normals!.GetVector3(i, 0),
-                1e-5f);
+            AssertVector3Equal(sourceMeshes[0].Normals!.GetVector3(i, 0), loadedMeshes[0].Normals!.GetVector3(i, 0), 1e-5f);
 
-            AssertVector2Equal(
-                sourceMeshes[0].UVLayers!.GetVector2(i, 0),
-                loadedMeshes[0].UVLayers!.GetVector2(i, 0),
-                1e-5f);
+            AssertVector2Equal(sourceMeshes[0].UVLayers!.GetVector2(i, 0), loadedMeshes[0].UVLayers!.GetVector2(i, 0), 1e-5f);
         }
     }
 
@@ -735,10 +726,7 @@ public sealed class ObjTranslatorTests
 
             for (int v = 0; v < expected.VertexCount; v++)
             {
-                AssertVector3Equal(
-                    expected.Positions!.GetVector3(v, 0),
-                    actual.Positions!.GetVector3(v, 0),
-                    1e-5f);
+                AssertVector3Equal(expected.Positions!.GetVector3(v, 0), actual.Positions!.GetVector3(v, 0), 1e-5f);
             }
         }
 

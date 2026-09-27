@@ -122,8 +122,7 @@ public sealed class PskWriter
             return 0;
 
         if (!selection.Includes(material))
-            throw new InvalidDataException(
-                $"Cannot write PSK: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+            throw new InvalidDataException($"Cannot write PSK: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
 
         if (!materialIndices.TryGetValue(material, out int index))
         {
@@ -144,8 +143,7 @@ public sealed class PskWriter
         for (int i = 0; i < skinnedBones.Count; i++)
         {
             if (!boneIndexMap.TryGetValue(skinnedBones[i], out int global))
-                throw new InvalidDataException(
-                    $"Cannot write PSK: mesh '{mesh.Name}' references skinned bone '{skinnedBones[i].Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write PSK: mesh '{mesh.Name}' references skinned bone '{skinnedBones[i].Name}' that is not included in the export selection.");
 
             table[i] = global;
         }

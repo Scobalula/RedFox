@@ -175,6 +175,9 @@ public sealed class NameTableManager
         return false;
     }
 
+    /// <summary>Creates and registers a name table.</summary>
+    /// <param name="name">The name assigned to the table.</param>
+    /// <returns>The created name table.</returns>
     public NameTable CreateNameTable(string name)
     {
         var table = new NameTable(name);
@@ -182,6 +185,10 @@ public sealed class NameTableManager
         return table;
     }
 
+    /// <summary>Attempts to find a registered name table by name.</summary>
+    /// <param name="name">The table name to find.</param>
+    /// <param name="nameTable">Receives the matching table when found.</param>
+    /// <returns><see langword="true"/> if the table exists; otherwise, <see langword="false"/>.</returns>
     public bool TryGetTable(string name, [NotNullWhen(true)] out NameTable? nameTable)
     {
         foreach (var table in _tables)

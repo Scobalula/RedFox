@@ -486,9 +486,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         };
 
         ComPtr<ID3D11Buffer> buffer = default;
-        D3D11Support.ThrowIfFailed(
-            _context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer),
-            "ID3D11Device::CreateBuffer(constant)");
+        D3D11Support.ThrowIfFailed(_context.Device.Get().CreateBuffer(ref desc, (SubresourceData*)null, ref buffer), "ID3D11Device::CreateBuffer(constant)");
         return buffer;
     }
 

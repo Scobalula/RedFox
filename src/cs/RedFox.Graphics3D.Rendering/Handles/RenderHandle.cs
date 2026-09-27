@@ -20,13 +20,7 @@ internal abstract class RenderHandle : IRenderHandle
     public abstract void Update(ICommandList commandList);
 
     /// <inheritdoc/>
-    public abstract void Render(ICommandList commandList,
-        RenderFlags phase,
-        in Matrix4x4 view,
-        in Matrix4x4 projection,
-        in Matrix4x4 sceneAxis,
-        Vector3 cameraPosition,
-        Vector2 viewportSize);
+    public abstract void Render(ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize);
 
     /// <inheritdoc/>
     public void Release()

@@ -5,10 +5,16 @@ using Avalonia.Media;
 
 namespace RedFox.GameExtraction.UI;
 
+/// <summary>
+/// Initializes the GameExtraction Avalonia application and its configured theme resources.
+/// </summary>
 public class App : Application
 {
     internal static GameExtractionConfig? CurrentConfig { get; set; }
 
+    /// <summary>
+    /// Loads the application resources and applies configuration-specific theme values.
+    /// </summary>
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -20,18 +26,10 @@ public class App : Application
             var accentBrush = new SolidColorBrush(accent);
 
             // Lighter variant for hover
-            var hoverColor = Color.FromArgb(
-                accent.A,
-                (byte)Math.Min(accent.R + 30, 255),
-                (byte)Math.Min(accent.G + 30, 255),
-                (byte)Math.Min(accent.B + 30, 255));
+            var hoverColor = Color.FromArgb(accent.A, (byte)Math.Min(accent.R + 30, 255), (byte)Math.Min(accent.G + 30, 255), (byte)Math.Min(accent.B + 30, 255));
 
             // Darker variant for pressed
-            var pressedColor = Color.FromArgb(
-                accent.A,
-                (byte)Math.Max(accent.R - 30, 0),
-                (byte)Math.Max(accent.G - 30, 0),
-                (byte)Math.Max(accent.B - 30, 0));
+            var pressedColor = Color.FromArgb(accent.A, (byte)Math.Max(accent.R - 30, 0), (byte)Math.Max(accent.G - 30, 0), (byte)Math.Max(accent.B - 30, 0));
 
             // Subtle glow (low opacity accent)
             var glowColor = Color.FromArgb(40, accent.R, accent.G, accent.B);
@@ -84,6 +82,9 @@ public class App : Application
         }
     }
 
+    /// <summary>
+    /// Creates the main window when the application is running with a desktop lifetime.
+    /// </summary>
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && CurrentConfig is not null)

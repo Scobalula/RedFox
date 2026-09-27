@@ -35,7 +35,7 @@
                 Classes="search-container"
                 Margin="0,0,0,10">
             <TextBox Classes="search-box"
-                     Watermark="Search plugins..."
+                     PlaceholderText="Search plugins..."
                      Text="{Binding SearchText, Mode=TwoWay}"/>
         </Border>
 

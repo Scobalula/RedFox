@@ -74,9 +74,7 @@ public class AimConstraint(string name, SceneNode source) : AnimationSamplerSolv
 
         if (!float.IsNaN(projectedUp.X) && !float.IsNaN(rotatedUp.X))
         {
-            var twistRotation = RotationBetween(
-                Vector3.Normalize(rotatedUp - Vector3.Dot(rotatedUp, aimDir) * aimDir),
-                projectedUp);
+            var twistRotation = RotationBetween(Vector3.Normalize(rotatedUp - Vector3.Dot(rotatedUp, aimDir) * aimDir), projectedUp);
             aimRotation = twistRotation * aimRotation;
         }
 

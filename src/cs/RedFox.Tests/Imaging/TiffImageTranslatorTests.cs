@@ -176,11 +176,7 @@ public sealed class TiffImageTranslatorTests
     [Fact]
     public void TiffSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] tiffFiles = GetRequiredTiffFiles();
-        if (tiffFiles.Length == 0)
-        {
-            return;
-        }
+        string[] tiffFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Tiff", ".tif", ".tiff");
 
         ImageTranslatorManager manager = CreateManagerWithTiffTranslator(TiffCompression.None);
         List<string> failures = [];
@@ -191,6 +187,7 @@ public sealed class TiffImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(tiffFile);
                 Image image = manager.Read(inputFileStream, tiffFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, tiffFile, "Tiff");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{tiffFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{tiffFile}'.");
@@ -238,27 +235,6 @@ public sealed class TiffImageTranslatorTests
     {
         using MemoryStream stream = new(data, false);
         return manager.Read(stream, sourcePath);
-    }
-
-    private static string[] GetRequiredTiffFiles()
-    {
-        string? testsRoot = Environment.GetEnvironmentVariable("REDFOX_TESTS_DIR");
-        if (string.IsNullOrWhiteSpace(testsRoot))
-        {
-            return [];
-        }
-
-        string tiffDirectory = Path.Combine(testsRoot, "Input", "Tiff");
-        if (!Directory.Exists(tiffDirectory))
-        {
-            return [];
-        }
-
-        List<string> tiffFiles = [];
-        tiffFiles.AddRange(Directory.GetFiles(tiffDirectory, "*.tif", SearchOption.AllDirectories));
-        tiffFiles.AddRange(Directory.GetFiles(tiffDirectory, "*.tiff", SearchOption.AllDirectories));
-        tiffFiles.Sort(StringComparer.OrdinalIgnoreCase);
-        return [.. tiffFiles];
     }
 
     private static string DescribeFailureContext(string tiffFile)

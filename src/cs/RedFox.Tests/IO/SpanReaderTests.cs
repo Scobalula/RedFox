@@ -64,7 +64,7 @@ public sealed class SpanReaderTests
 
         Assert.Equal(5L, reader.Seek(5, SeekOrigin.Begin));
         Assert.Equal(8L, reader.Seek(3, SeekOrigin.Current));
-        Assert.Equal(24L, reader.Seek(8, SeekOrigin.End));
+        Assert.Equal(24L, reader.Seek(-8, SeekOrigin.End));
     }
 
     [Fact]
@@ -95,24 +95,34 @@ public sealed class SpanReaderTests
         byte[] data = new byte[8];
         SpanReader reader = new(data);
 
-        bool threwNotImplemented = false;
+        bool threwInvalidOrigin = false;
         try
         {
             _ = SeekValue(ref reader, 0, (SeekOrigin)999);
         }
-        catch (NotImplementedException)
+        catch (ArgumentOutOfRangeException)
         {
-            threwNotImplemented = true;
+            threwInvalidOrigin = true;
         }
 
-        bool threwIOException = false;
+        bool threwPastEnd = false;
         try
         {
             _ = SeekValue(ref reader, 9, SeekOrigin.End);
         }
+        catch (EndOfStreamException)
+        {
+            threwPastEnd = true;
+        }
+
+        bool threwBeforeStart = false;
+        try
+        {
+            _ = SeekValue(ref reader, -1, SeekOrigin.Begin);
+        }
         catch (IOException)
         {
-            threwIOException = true;
+            threwBeforeStart = true;
         }
 
         bool threwEndOfStream = false;
@@ -125,8 +135,9 @@ public sealed class SpanReaderTests
             threwEndOfStream = true;
         }
 
-        Assert.True(threwNotImplemented);
-        Assert.True(threwIOException);
+        Assert.True(threwInvalidOrigin);
+        Assert.True(threwPastEnd);
+        Assert.True(threwBeforeStart);
         Assert.True(threwEndOfStream);
     }
 }

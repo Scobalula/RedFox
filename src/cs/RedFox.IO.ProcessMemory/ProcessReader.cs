@@ -527,13 +527,7 @@ namespace RedFox.IO.ProcessMemory
                 throw new ArgumentOutOfRangeException(nameof(chunkSize), chunkSize, "Chunk size must be greater than zero.");
             }
 
-            long[] matches = BytePatternScanner.Scan(
-                pattern,
-                startAddress,
-                endAddress,
-                chunkSize,
-                firstOnly: true,
-                readChunk: (offset, destination) => ReadScanChunk((nint)offset, destination));
+            long[] matches = BytePatternScanner.Scan(pattern, startAddress, endAddress, chunkSize, firstOnly: true, readChunk: (offset, destination) => ReadScanChunk((nint)offset, destination));
 
             return matches.Length == 0 ? IntPtr.Zero : (nint)matches[0];
         }
@@ -832,10 +826,7 @@ namespace RedFox.IO.ProcessMemory
             ProcessMemoryValidation.ThrowIfInvalidAddress(endAddress);
             if (endAddress <= startAddress)
             {
-                throw new ArgumentOutOfRangeException(
-                    nameof(endAddress),
-                    endAddress,
-                    "End address must be greater than start address.");
+                throw new ArgumentOutOfRangeException(nameof(endAddress), endAddress, "End address must be greater than start address.");
             }
 
             if (chunkSize <= 0)
@@ -843,13 +834,7 @@ namespace RedFox.IO.ProcessMemory
                 throw new ArgumentOutOfRangeException(nameof(chunkSize), chunkSize, "Chunk size must be greater than zero.");
             }
 
-            long[] matches = BytePatternScanner.Scan(
-                pattern,
-                startAddress,
-                endAddress,
-                chunkSize,
-                firstOnly: false,
-                readChunk: (offset, destination) => ReadScanChunk((nint)offset, destination));
+            long[] matches = BytePatternScanner.Scan(pattern, startAddress, endAddress, chunkSize, firstOnly: false, readChunk: (offset, destination) => ReadScanChunk((nint)offset, destination));
 
             nint[] result = new nint[matches.Length];
 

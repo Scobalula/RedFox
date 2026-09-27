@@ -61,13 +61,7 @@ public sealed class AssetSourceRequest
         _ => DisplayName,
     };
 
-    private AssetSourceRequest(
-        AssetSourceKind kind,
-        string? location,
-        int? processId,
-        string? processName,
-        string displayName,
-        IReadOnlyDictionary<string, object?>? options)
+    private AssetSourceRequest(AssetSourceKind kind, string? location, int? processId, string? processName, string displayName, IReadOnlyDictionary<string, object?>? options)
     {
         Kind = kind;
         Location = location;
@@ -97,13 +91,7 @@ public sealed class AssetSourceRequest
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         string fullPath = Path.GetFullPath(path);
-        return new AssetSourceRequest(
-            AssetSourceKind.File,
-            fullPath,
-            processId: null,
-            processName: null,
-            Path.GetFileName(fullPath),
-            options);
+        return new AssetSourceRequest(AssetSourceKind.File, fullPath, processId: null, processName: null, Path.GetFileName(fullPath), options);
     }
 
     /// <summary>
@@ -126,13 +114,7 @@ public sealed class AssetSourceRequest
         string fullPath = Path.GetFullPath(path);
         string trimmedPath = fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        return new AssetSourceRequest(
-            AssetSourceKind.Directory,
-            fullPath,
-            processId: null,
-            processName: null,
-            Path.GetFileName(trimmedPath),
-            options);
+        return new AssetSourceRequest(AssetSourceKind.Directory, fullPath, processId: null, processName: null, Path.GetFileName(trimmedPath), options);
     }
 
     /// <summary>
@@ -152,13 +134,7 @@ public sealed class AssetSourceRequest
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(processId);
 
-        return new AssetSourceRequest(
-            AssetSourceKind.Process,
-            location: null,
-            processId,
-            processName: null,
-            $"PID {processId}",
-            options);
+        return new AssetSourceRequest(AssetSourceKind.Process, location: null, processId, processName: null, $"PID {processId}", options);
     }
 
     /// <summary>
@@ -179,12 +155,6 @@ public sealed class AssetSourceRequest
         ArgumentException.ThrowIfNullOrWhiteSpace(processName);
 
         string trimmedName = processName.Trim();
-        return new AssetSourceRequest(
-            AssetSourceKind.Process,
-            location: null,
-            processId: null,
-            trimmedName,
-            trimmedName,
-            options);
+        return new AssetSourceRequest(AssetSourceKind.Process, location: null, processId: null, trimmedName, trimmedName, options);
     }
 }

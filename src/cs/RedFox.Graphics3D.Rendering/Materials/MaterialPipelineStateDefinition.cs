@@ -76,18 +76,7 @@ public sealed record class MaterialPipelineStateDefinition
     /// <param name="depthWrite">Whether depth writes are enabled.</param>
     /// <param name="depthCompareFunc">The depth comparison function.</param>
     /// <param name="primitiveTopology">The primitive topology.</param>
-    public MaterialPipelineStateDefinition(
-        CullMode cullMode,
-        FaceWinding faceWinding,
-        bool wireframe,
-        bool blend,
-        BlendFactor sourceBlendFactor,
-        BlendFactor destinationBlendFactor,
-        BlendOp blendOperation,
-        bool depthTest,
-        bool depthWrite,
-        CompareFunc depthCompareFunc,
-        PrimitiveTopology primitiveTopology)
+    public MaterialPipelineStateDefinition(CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
     {
         CullMode = cullMode;
         FaceWinding = faceWinding;

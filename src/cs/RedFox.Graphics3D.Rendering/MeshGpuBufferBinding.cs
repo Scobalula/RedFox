@@ -263,8 +263,7 @@ public sealed class MeshGpuBufferBinding
             throw new NotSupportedException($"Buffer '{bufferName}' has unsupported component type '{data.ComponentType.FullName}'.");
         }
 
-        return new GpuBufferData(data.Bytes, elementType, data.ElementCount, data.ValueCount, data.ComponentCount,
-            data.ElementStrideBytes, data.ValueStrideBytes, data.ComponentSizeBytes);
+        return new GpuBufferData(data.Bytes, elementType, data.ElementCount, data.ValueCount, data.ComponentCount, data.ElementStrideBytes, data.ValueStrideBytes, data.ComponentSizeBytes);
     }
 
     private static GpuBufferData NormalizeIndexElementType(GpuBufferData data)
@@ -279,15 +278,7 @@ public sealed class MeshGpuBufferBinding
 
         return elementType == data.ElementType
             ? data
-            : new GpuBufferData(
-                data.Bytes,
-                elementType,
-                data.ElementCount,
-                data.ValueCount,
-                data.ComponentCount,
-                data.ElementStrideBytes,
-                data.ValueStrideBytes,
-                data.ComponentSizeBytes);
+            : new GpuBufferData(data.Bytes, elementType, data.ElementCount, data.ValueCount, data.ComponentCount, data.ElementStrideBytes, data.ValueStrideBytes, data.ComponentSizeBytes);
     }
 
     private int GetStride(GpuBufferData data)

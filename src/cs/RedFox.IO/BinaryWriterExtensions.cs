@@ -28,11 +28,11 @@ namespace RedFox.IO
         }
 
         /// <summary>
-        /// Reads a native data structure from the current stream and advances the current position of the stream by the size of the structure
+        /// Writes a native data structure to the current stream.
         /// </summary>
         /// <typeparam name="T">The structure type to read</typeparam>
-        /// <param name="reader">Current <see cref="BinaryReader"/></param>
-        /// <returns>A structure of the given type from the current stream</returns>
+        /// <param name="writer">The writer that receives the data.</param>
+        /// <param name="obj">The unmanaged value to write.</param>
         public static void WriteStruct<T>(this BinaryWriter writer, T obj) where T : unmanaged
         {
             writer.Write(MemoryMarshal.Cast<T, byte>(stackalloc T[1]
@@ -42,13 +42,11 @@ namespace RedFox.IO
         }
 
         /// <summary>
-        /// Reads a native data structure from the current stream and advances the current position of the stream by the size of the array
+        /// Writes an array of native data structures to the current stream.
         /// </summary>
         /// <typeparam name="T">The structure type to read</typeparam>
-        /// <param name="reader">Current <see cref="BinaryReader"/></param>
-        /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
-        /// <param name="position">Position of the data</param>
-        /// <returns>A structure array of the given type from the current stream</returns>
+        /// <param name="writer">The writer that receives the data.</param>
+        /// <param name="obj">The unmanaged values to write.</param>
         public static void WriteStructArray<T>(this BinaryWriter writer, T[] obj) where T : unmanaged
         {
             writer.Write(MemoryMarshal.Cast<T, byte>(obj));

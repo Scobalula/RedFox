@@ -70,17 +70,7 @@ internal sealed unsafe class D3D11Context : IDisposable
         {
             ID3D11Device* devicePointer = null;
             ID3D11DeviceContext* deviceContextPointer = null;
-            int result = d3d.CreateDevice(
-                (IDXGIAdapter*)null,
-                D3DDriverType.Hardware,
-                IntPtr.Zero,
-                (uint)CreateDeviceFlag.BgraSupport,
-                requestedFeatureLevelsPointer,
-                (uint)requestedFeatureLevels.Length,
-                (uint)D3D11Api.SdkVersion,
-                &devicePointer,
-                &featureLevel,
-                &deviceContextPointer);
+            int result = d3d.CreateDevice((IDXGIAdapter*)null, D3DDriverType.Hardware, IntPtr.Zero, (uint)CreateDeviceFlag.BgraSupport, requestedFeatureLevelsPointer, (uint)requestedFeatureLevels.Length, (uint)D3D11Api.SdkVersion, &devicePointer, &featureLevel, &deviceContextPointer);
             D3D11Support.ThrowIfFailed(result, "D3D11CreateDevice");
             device = new ComPtr<ID3D11Device>(devicePointer);
             deviceContext = new ComPtr<ID3D11DeviceContext>(deviceContextPointer);
@@ -89,9 +79,7 @@ internal sealed unsafe class D3D11Context : IDisposable
         ComPtr<IDXGIFactory1> factory = dxgi.CreateDXGIFactory1<IDXGIFactory1>();
         SwapChainDesc swapChainDesc = CreateSwapChainDesc(window, outputWindowHandle);
         ComPtr<IDXGISwapChain> swapChain = default;
-        D3D11Support.ThrowIfFailed(
-            factory.Get().CreateSwapChain(device, ref swapChainDesc, ref swapChain),
-            "IDXGIFactory1::CreateSwapChain");
+        D3D11Support.ThrowIfFailed(factory.Get().CreateSwapChain(device, ref swapChainDesc, ref swapChain), "IDXGIFactory1::CreateSwapChain");
         factory.Get().MakeWindowAssociation(outputWindowHandle, 2u);
 
         D3D11Context context = new(window, d3d, dxgi, device, deviceContext, factory, swapChain);
@@ -107,9 +95,7 @@ internal sealed unsafe class D3D11Context : IDisposable
         int safeHeight = Math.Max(1, height);
 
         ReleaseDefaultTargets();
-        D3D11Support.ThrowIfFailed(
-            _swapChain.Get().ResizeBuffers(DefaultSwapChainBufferCount, (uint)safeWidth, (uint)safeHeight, Format.FormatB8G8R8A8Unorm, 0),
-            "IDXGISwapChain::ResizeBuffers");
+        D3D11Support.ThrowIfFailed(_swapChain.Get().ResizeBuffers(DefaultSwapChainBufferCount, (uint)safeWidth, (uint)safeHeight, Format.FormatB8G8R8A8Unorm, 0), "IDXGISwapChain::ResizeBuffers");
         CreateDefaultTargets(safeWidth, safeHeight);
     }
 
@@ -184,9 +170,7 @@ internal sealed unsafe class D3D11Context : IDisposable
     private void CreateDefaultTargets(int width, int height)
     {
         _defaultBackBuffer = _swapChain.Get().GetBuffer<ID3D11Texture2D>(0);
-        D3D11Support.ThrowIfFailed(
-            Device.Get().CreateRenderTargetView(_defaultBackBuffer, (RenderTargetViewDesc*)null, ref _defaultRenderTargetView),
-            "ID3D11Device::CreateRenderTargetView");
+        D3D11Support.ThrowIfFailed(Device.Get().CreateRenderTargetView(_defaultBackBuffer, (RenderTargetViewDesc*)null, ref _defaultRenderTargetView), "ID3D11Device::CreateRenderTargetView");
 
         Texture2DDesc depthDesc = new()
         {
@@ -202,12 +186,8 @@ internal sealed unsafe class D3D11Context : IDisposable
             MiscFlags = 0,
         };
 
-        D3D11Support.ThrowIfFailed(
-            Device.Get().CreateTexture2D(ref depthDesc, (SubresourceData*)null, ref _defaultDepthTexture),
-            "ID3D11Device::CreateTexture2D(depth)");
-        D3D11Support.ThrowIfFailed(
-            Device.Get().CreateDepthStencilView(_defaultDepthTexture, (DepthStencilViewDesc*)null, ref _defaultDepthStencilView),
-            "ID3D11Device::CreateDepthStencilView");
+        D3D11Support.ThrowIfFailed(Device.Get().CreateTexture2D(ref depthDesc, (SubresourceData*)null, ref _defaultDepthTexture), "ID3D11Device::CreateTexture2D(depth)");
+        D3D11Support.ThrowIfFailed(Device.Get().CreateDepthStencilView(_defaultDepthTexture, (DepthStencilViewDesc*)null, ref _defaultDepthStencilView), "ID3D11Device::CreateDepthStencilView");
     }
 
     private void ReleaseDefaultTargets()

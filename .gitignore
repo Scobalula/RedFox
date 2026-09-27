@@ -409,3 +409,6 @@ launchSettings.json
 CLAUDE.MD
 PROMPT.MD
 NEXTAGENT.MD
+
+# Generated translator test previews
+/src/cs/RedFox.Tests/OUTPUT/

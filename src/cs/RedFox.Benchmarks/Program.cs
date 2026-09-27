@@ -69,11 +69,7 @@ static Vector4[] CreateLdrPattern(int width, int height)
             float stripe = ((x / 7) % 2 == 0) ? 0.18f : 0.82f;
             float alpha = ((x + y) % 19 == 0) ? 0.65f : 1.0f;
 
-            pixels[(y * width) + x] = new Vector4(
-                Math.Clamp((fx * 0.65f) + (wave * 0.35f), 0f, 1f),
-                Math.Clamp((fy * 0.55f) + (stripe * 0.45f), 0f, 1f),
-                Math.Clamp((wave * 0.60f) + (fy * 0.30f), 0f, 1f),
-                alpha);
+            pixels[(y * width) + x] = new Vector4(Math.Clamp((fx * 0.65f) + (wave * 0.35f), 0f, 1f), Math.Clamp((fy * 0.55f) + (stripe * 0.45f), 0f, 1f), Math.Clamp((wave * 0.60f) + (fy * 0.30f), 0f, 1f), alpha);
         }
     }
 
@@ -93,11 +89,7 @@ static Vector4[] CreateHdrPattern(int width, int height)
             float wave = MathF.Sin((fx * 11.0f) - (fy * 7.0f));
             float ridge = MathF.Cos((fx * 5.0f) + (fy * 3.5f));
 
-            pixels[(y * width) + x] = new Vector4(
-                (-0.9f + (fx * 2.6f)) + (wave * 0.45f),
-                (-0.6f + (fy * 2.1f)) + (ridge * 0.35f),
-                (-0.3f + ((fx + fy) * 1.5f)) + ((wave - ridge) * 0.25f),
-                1f);
+            pixels[(y * width) + x] = new Vector4((-0.9f + (fx * 2.6f)) + (wave * 0.45f), (-0.6f + (fy * 2.1f)) + (ridge * 0.35f), (-0.3f + ((fx + fy) * 1.5f)) + ((wave - ridge) * 0.25f), 1f);
         }
     }
 

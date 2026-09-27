@@ -25,8 +25,6 @@ internal sealed class ZipEntryStream(Stream stream, SemaphoreSlim archiveLock) :
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _stream.ReadAsync(buffer, offset, count, cancellationToken);
 
-    public override ValueTask<int> ReadAsync(Memory<byte> buffer) => _stream.ReadAsync(buffer, CancellationToken.None);
-
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken) => _stream.ReadAsync(buffer, cancellationToken);
 
     public override long Seek(long offset, SeekOrigin origin) => _stream.Seek(offset, origin);

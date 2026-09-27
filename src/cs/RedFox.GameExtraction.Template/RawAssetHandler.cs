@@ -99,8 +99,7 @@ public sealed class RawAssetHandler : IAssetHandler
         {
             VirtualFile file => file.Open(),
             ZipArchiveEntry entry => entry.Open(),
-            _ => throw new InvalidOperationException(
-                $"RawAssetHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
+            _ => throw new InvalidOperationException($"RawAssetHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
         };
     }
 }

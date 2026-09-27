@@ -108,11 +108,7 @@ namespace RedFox.IO.ProcessMemory
             ProcessModule? mainModule =
                 process.MainModule ?? throw new InvalidOperationException($"Process {processId} does not expose a main module.");
 
-            return new ProcessModuleInfo(
-                mainModule.ModuleName,
-                mainModule.FileName,
-                mainModule.BaseAddress,
-                mainModule.ModuleMemorySize);
+            return new ProcessModuleInfo(mainModule.ModuleName, mainModule.FileName, mainModule.BaseAddress, mainModule.ModuleMemorySize);
         }
 
         private static string NormalizeProcessName(string processName)

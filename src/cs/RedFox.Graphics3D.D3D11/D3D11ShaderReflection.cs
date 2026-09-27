@@ -26,9 +26,7 @@ internal static unsafe class D3D11ShaderReflection
                 D3D11ShaderStageFlags stageFlags = GetStageFlags(stage);
                 ShaderDesc shaderDesc = default;
                 D3D11Support.ThrowIfFailed(reflection.Handle->GetDesc(ref shaderDesc), "ID3D11ShaderReflection::GetDesc");
-                return new D3D11ShaderReflectionResult(
-                    ReflectConstantBuffers(reflection.Handle, in shaderDesc, stageFlags),
-                    ReflectResourceBindings(reflection.Handle, in shaderDesc, stageFlags));
+                return new D3D11ShaderReflectionResult(ReflectConstantBuffers(reflection.Handle, in shaderDesc, stageFlags), ReflectResourceBindings(reflection.Handle, in shaderDesc, stageFlags));
             }
             finally
             {
@@ -55,12 +53,7 @@ internal static unsafe class D3D11ShaderReflection
                 variables.Add(ReflectVariable(shaderVariable));
             }
 
-            layouts[bufferIndex] = new D3D11ShaderConstantBufferLayout(
-                bufferName,
-                slot,
-                stage,
-                checked((int)bufferDesc.Size),
-                variables);
+            layouts[bufferIndex] = new D3D11ShaderConstantBufferLayout(bufferName, slot, stage, checked((int)bufferDesc.Size), variables);
         }
 
         return layouts;
@@ -115,15 +108,7 @@ internal static unsafe class D3D11ShaderReflection
                 ? D3D11ShaderVariableKind.Int
                 : D3D11ShaderVariableKind.Float;
 
-        return new D3D11ShaderVariableLayout(
-            ReadString(variableDesc.Name),
-            kind,
-            checked((int)variableDesc.StartOffset),
-            componentCount,
-            sizeBytes,
-            typeDesc.Elements > 0,
-            arrayLength,
-            typeDesc.Elements > 0 ? sizeBytes / arrayLength : 0);
+        return new D3D11ShaderVariableLayout(ReadString(variableDesc.Name), kind, checked((int)variableDesc.StartOffset), componentCount, sizeBytes, typeDesc.Elements > 0, arrayLength, typeDesc.Elements > 0 ? sizeBytes / arrayLength : 0);
     }
 
     private static int ResolveConstantBufferSlot(ID3D11ShaderReflection* reflection, in ShaderDesc shaderDesc, string bufferName)

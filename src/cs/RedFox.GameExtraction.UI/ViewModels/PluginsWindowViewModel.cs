@@ -48,12 +48,12 @@ public sealed partial class PluginsWindowViewModel : ObservableObject, IDisposab
     /// <summary>
     /// Gets the directory backing the plugin service.
     /// </summary>
+    public string PluginsDirectory => _service.PluginsDirectory;
 
     /// <summary>
     /// Gets a value indicating whether there are no discovered plugins.
     /// </summary>
     public bool IsEmpty => _rows.Count == 0;
-    public string PluginsDirectory => _service.PluginsDirectory;
 
     /// <summary>
     /// Raised when the window should close.

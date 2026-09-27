@@ -154,6 +154,7 @@ public static class FbxSceneMapper
     public static void StripImportedRootBasisTransforms(SceneNode rootNode) => StripImportedRootBasisTransforms(rootNode, null);
 
     /// <inheritdoc cref="StripImportedRootBasisTransforms(SceneNode)"/>
+    /// <param name="rootNode">The scene root whose direct children should be inspected.</param>
     /// <param name="boneBindWorldHints">Optional imported bind-world matrices keyed by skeleton bone.</param>
     public static void StripImportedRootBasisTransforms(SceneNode rootNode, IReadOnlyDictionary<SkeletonBone, Matrix4x4>? boneBindWorldHints)
     {
@@ -411,7 +412,7 @@ public static class FbxSceneMapper
         Dictionary<SkeletonBone, long> boneAttributeIds = [];
 
         MeshGroup[] models = selection.GetDescendants<MeshGroup>();
-        SceneNode[] groups = [.. selection.GetDescendants<Group>(), .. selection.GetDescendants<Skeleton>()];
+        SceneNode[] groups = [.. selection.GetDescendants<Group>().Where(static group => group is not MeshGroup), .. selection.GetDescendants<Skeleton>()];
         Mesh[] meshes = selection.GetDescendants<Mesh>();
         Material[] materials = selection.GetDescendants<Material>();
         SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();

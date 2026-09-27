@@ -14,9 +14,7 @@ public sealed class ImageTranslatorManagerCodecResolutionTests
     [Fact]
     public void WritePng_WithBc7Image_UsesPixelCodecSwitchResolution()
     {
-        Image bc7Image = CreateBlockCompressedImage(
-            ImageTranslatorTestHarness.CreatePatternImage(8, 8, includeTransparency: true),
-            ImageFormat.BC7Unorm);
+        Image bc7Image = CreateBlockCompressedImage(ImageTranslatorTestHarness.CreatePatternImage(8, 8, includeTransparency: true), ImageFormat.BC7Unorm);
 
         ImageTranslatorManager manager = new();
         manager.Register(new PngImageTranslator());
@@ -32,9 +30,7 @@ public sealed class ImageTranslatorManagerCodecResolutionTests
     [Fact]
     public void WriteExr_WithBc6HImage_UsesPixelCodecSwitchResolution()
     {
-        Image bc6Image = CreateBlockCompressedImage(
-            ImageTranslatorTestHarness.CreateFloatPatternImage(8, 8),
-            ImageFormat.BC6HUF16);
+        Image bc6Image = CreateBlockCompressedImage(ImageTranslatorTestHarness.CreateFloatPatternImage(8, 8), ImageFormat.BC6HUF16);
 
         ImageTranslatorManager manager = new();
         manager.Register(new ExrImageTranslator());

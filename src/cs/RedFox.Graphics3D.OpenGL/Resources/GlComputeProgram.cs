@@ -70,15 +70,7 @@ internal sealed class GlComputeProgram : GlProgramBase
         int bindingValue = 0;
         int propertyCount = 1;
         ProgramResourceProperty property = ProgramResourceProperty.BufferBinding;
-        Gl.GetProgramResource(
-            Handle,
-            ProgramInterface.ShaderStorageBlock,
-            resourceIndex,
-            (uint)propertyCount,
-            &property,
-            (uint)propertyCount,
-            null,
-            &bindingValue);
+        Gl.GetProgramResource(Handle, ProgramInterface.ShaderStorageBlock, resourceIndex, (uint)propertyCount, &property, (uint)propertyCount, null, &bindingValue);
 
         if (bindingValue < 0)
         {

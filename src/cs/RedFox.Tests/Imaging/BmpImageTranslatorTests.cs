@@ -26,9 +26,7 @@ public sealed class BmpImageTranslatorTests
     [Fact]
     public void BmpSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] bmpFiles = ImageTranslatorTestHarness.GetInputFiles("Bmp", ".bmp", ".dib");
-        if (bmpFiles.Length == 0)
-            return;
+        string[] bmpFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Bmp", ".bmp", ".dib");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new BmpImageTranslator());
         List<string> failures = [];
@@ -39,6 +37,7 @@ public sealed class BmpImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(bmpFile);
                 Image image = manager.Read(inputFileStream, bmpFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, bmpFile, "Bmp");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{bmpFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{bmpFile}'.");

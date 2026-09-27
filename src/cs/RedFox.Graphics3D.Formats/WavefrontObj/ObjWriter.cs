@@ -132,8 +132,7 @@ public sealed class ObjWriter
                 Material mat = mesh.Materials[0];
                 if (!selection.Includes(mat))
                 {
-                    throw new InvalidDataException(
-                        $"Cannot write OBJ: mesh '{mesh.Name}' references material '{mat.Name}' that is not included in the export selection.");
+                    throw new InvalidDataException($"Cannot write OBJ: mesh '{mesh.Name}' references material '{mat.Name}' that is not included in the export selection.");
                 }
 
                 writer.WriteLine($"usemtl {mat.Name}");

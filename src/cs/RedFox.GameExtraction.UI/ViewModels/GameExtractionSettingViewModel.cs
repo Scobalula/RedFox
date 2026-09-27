@@ -17,10 +17,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// <param name="setting">The setting definition.</param>
     /// <param name="settings">The persisted settings object.</param>
     /// <param name="browseRequested">The browse callback.</param>
-    public GameExtractionSettingViewModel(
-        GameExtractionSetting setting,
-        GameExtractionSettings settings,
-        Func<GameExtractionSettingViewModel, Task<string?>> browseRequested)
+    public GameExtractionSettingViewModel(GameExtractionSetting setting, GameExtractionSettings settings, Func<GameExtractionSettingViewModel, Task<string?>> browseRequested)
     {
         _setting = setting ?? throw new ArgumentNullException(nameof(setting));
         ArgumentNullException.ThrowIfNull(settings);

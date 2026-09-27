@@ -1,4 +1,4 @@
-﻿namespace RedFox.Graphics3D;
+namespace RedFox.Graphics3D;
 
 /// <summary>
 /// Abstract base class for post-animation solvers that run after all
@@ -60,8 +60,7 @@ public abstract class AnimationSamplerSolver(string name) : SceneNode(name)
             {
                 CurrentWeight = i0 == i1
                     ? Weights[i0].Value
-                    : float.Lerp(Weights[i0].Value, Weights[i1].Value,
-                        (time - Weights[i0].Frame) / (Weights[i1].Frame - Weights[i0].Frame));
+                    : float.Lerp(Weights[i0].Value, Weights[i1].Value, (time - Weights[i0].Frame) / (Weights[i1].Frame - Weights[i0].Frame));
             }
         }
 

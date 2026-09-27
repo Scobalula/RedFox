@@ -49,11 +49,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
             var y = (sbyte)((_packed >> 8) & 0xFF);
             var z = (sbyte)((_packed >> 16) & 0xFF);
             var w = (sbyte)((_packed >> 24) & 0xFF);
-            return new Vector4(
-                x == -128 ? -1f : x / 127f,
-                y == -128 ? -1f : y / 127f,
-                z == -128 ? -1f : z / 127f,
-                w == -128 ? -1f : w / 127f);
+            return new Vector4(x == -128 ? -1f : x / 127f, y == -128 ? -1f : y / 127f, z == -128 ? -1f : z / 127f, w == -128 ? -1f : w / 127f);
         }
 
         /// <inheritdoc/>

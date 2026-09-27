@@ -44,9 +44,7 @@ public static class MeshRemap
         int compCount  = faceIndices.ComponentCount;
 
         if (faceRemap.Length != faceCount)
-            throw new ArgumentException(
-                $"faceRemap length ({faceRemap.Length}) must equal the face count ({faceCount}).",
-                nameof(faceRemap));
+            throw new ArgumentException($"faceRemap length ({faceRemap.Length}) must equal the face count ({faceCount}).", nameof(faceRemap));
 
         int[] output = GC.AllocateUninitializedArray<int>(faceCount * 3);
 

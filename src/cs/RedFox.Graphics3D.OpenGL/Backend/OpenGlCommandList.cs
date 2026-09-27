@@ -128,17 +128,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         gl.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destinationHandle);
         EnsureFramebufferComplete(gl, FramebufferTarget.DrawFramebuffer, "draw");
 
-        gl.BlitFramebuffer(
-            0,
-            0,
-            openGlSource.Width,
-            openGlSource.Height,
-            0,
-            0,
-            destinationWidth,
-            destinationHeight,
-            (uint)ClearBufferMask.ColorBufferBit,
-            GLEnum.Nearest);
+        gl.BlitFramebuffer(0, 0, openGlSource.Width, openGlSource.Height, 0, 0, destinationWidth, destinationHeight, (uint)ClearBufferMask.ColorBufferBit, GLEnum.Nearest);
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, destinationHandle);
     }
 

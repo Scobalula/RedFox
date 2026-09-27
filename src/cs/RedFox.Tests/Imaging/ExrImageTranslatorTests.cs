@@ -1,6 +1,7 @@
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
 using RedFox.Imaging.Formats.Exr;
+using RedFox.Imaging.Formats.Dds;
 using RedFox.Imaging.IO;
 
 namespace RedFox.Tests.Imaging;
@@ -21,19 +22,22 @@ public sealed class ExrImageTranslatorTests
         };
         byte[] encoded = ImageTranslatorTestHarness.WriteImageWithManager(manager, source, "pattern.exr", options);
         Image decoded = ImageTranslatorTestHarness.ReadImageWithManager(manager, encoded, "pattern.exr");
+        string previewPath = ImageTranslatorTestHarness.WriteRgbaDdsOutput(decoded, "RoundTrip/pattern.exr", "Exr");
+        Image preview = DdsLoader.Load(previewPath);
 
         Assert.Equal(source.Width, decoded.Width);
         Assert.Equal(source.Height, decoded.Height);
         Assert.Equal(ImageFormat.R32G32B32A32Float, decoded.Format);
         Assert.Equal(source.PixelData.ToArray(), decoded.PixelData.ToArray());
+        Assert.Equal(ImageFormat.R8G8B8A8Unorm, preview.Format);
+        Assert.Equal(source.Width, preview.Width);
+        Assert.Equal(source.Height, preview.Height);
     }
 
     [Fact]
     public void ExrSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] exrFiles = ImageTranslatorTestHarness.GetInputFiles("Exr", ".exr");
-        if (exrFiles.Length == 0)
-            return;
+        string[] exrFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Exr", ".exr");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new ExrImageTranslator());
         List<string> failures = [];
@@ -44,6 +48,7 @@ public sealed class ExrImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(exrFile);
                 Image image = manager.Read(inputFileStream, exrFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, exrFile, "Exr");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{exrFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{exrFile}'.");
@@ -52,7 +57,8 @@ public sealed class ExrImageTranslatorTests
             }
             catch (Exception exception)
             {
-                failures.Add($"{Path.GetFileName(exrFile)} :: {exception.GetType().Name}: {exception.Message}");
+                string failedInputPath = ImageTranslatorTestHarness.CopyFailedInputToOutput(exrFile, "Exr");
+                failures.Add($"{exrFile} :: {exception.GetType().Name}: {exception.Message}{Environment.NewLine}{exception.StackTrace}{Environment.NewLine}Source copied to '{failedInputPath}'.");
             }
         }
 

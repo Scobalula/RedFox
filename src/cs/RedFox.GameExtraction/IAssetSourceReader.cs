@@ -20,9 +20,5 @@ public interface IAssetSourceReader
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted asset source.</returns>
-    Task<IAssetSource> OpenAsync(
-        AssetSourceRequest request,
-        AssetManager assetManager,
-        IProgress<string>? progress,
-        CancellationToken cancellationToken);
+    Task<IAssetSource> OpenAsync(AssetSourceRequest request, AssetManager assetManager, IProgress<string>? progress, CancellationToken cancellationToken);
 }

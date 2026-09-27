@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
 using RedFox.Imaging.IO;
+using RedFox.Imaging.Formats.Dds;
 
 namespace RedFox.Tests.Imaging;
 
@@ -36,11 +37,14 @@ internal static class ImageTranslatorTestHarness
         return manager.Read(stream, sourcePath);
     }
 
-    public static string[] GetInputFiles(string preferredDirectoryName, params string[] extensions)
+    public static string[] GetRequiredInputFiles(string preferredDirectoryName, params string[] extensions)
     {
         string? testsRoot = Environment.GetEnvironmentVariable("REDFOX_TESTS_DIR");
         if (string.IsNullOrWhiteSpace(testsRoot))
-            return [];
+            throw new DirectoryNotFoundException("REDFOX_TESTS_DIR must point to the test-data root containing the required image inputs.");
+
+        if (!Directory.Exists(testsRoot))
+            throw new DirectoryNotFoundException($"REDFOX_TESTS_DIR points to a directory that does not exist: '{testsRoot}'.");
 
         string inputDirectory = Path.Combine(testsRoot, "Input");
         string preferredDirectory = Path.Combine(inputDirectory, preferredDirectoryName);
@@ -53,7 +57,40 @@ internal static class ImageTranslatorTestHarness
 
         string[] results = [.. files];
         Array.Sort(results, StringComparer.OrdinalIgnoreCase);
+
+        if (results.Length == 0)
+            throw new FileNotFoundException($"No required {string.Join(", ", extensions)} test images were found under '{testsRoot}'. Expected them under 'Input', 'Input/{preferredDirectoryName}', or '{preferredDirectoryName}'.");
+
         return results;
+    }
+
+    public static string WriteRgbaDdsOutput(Image image, string sourcePath, string category)
+    {
+        string projectDirectory = GetProjectDirectory();
+        string? testsRoot = Environment.GetEnvironmentVariable("REDFOX_TESTS_DIR");
+        string relativeSourcePath = GetRelativeInputPath(sourcePath, category, testsRoot);
+        string outputPath = Path.Combine(projectDirectory, "OUTPUT", category, Path.ChangeExtension(relativeSourcePath, ".dds"));
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+
+        Image rgbaImage = new(image.Info, image.PixelData.ToArray());
+        rgbaImage.Convert(ImageFormat.R8G8B8A8Unorm);
+        DdsWriter.Save(outputPath, rgbaImage);
+
+        string failedInputPath = Path.Combine(projectDirectory, "OUTPUT", category, "Failed", relativeSourcePath);
+        if (File.Exists(failedInputPath))
+            File.Delete(failedInputPath);
+
+        return outputPath;
+    }
+
+    public static string CopyFailedInputToOutput(string sourcePath, string category)
+    {
+        string projectDirectory = GetProjectDirectory();
+        string relativeSourcePath = GetRelativeInputPath(sourcePath, category, Environment.GetEnvironmentVariable("REDFOX_TESTS_DIR"));
+        string outputPath = Path.Combine(projectDirectory, "OUTPUT", category, "Failed", relativeSourcePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.Copy(sourcePath, outputPath, overwrite: true);
+        return outputPath;
     }
 
     public static Image CreatePatternImage(int width, int height, bool includeTransparency)
@@ -121,5 +158,30 @@ internal static class ImageTranslatorTestHarness
             foreach (string file in Directory.EnumerateFiles(directory, $"*{extension}", SearchOption.AllDirectories))
                 files.Add(file);
         }
+    }
+
+    private static string GetProjectDirectory()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "RedFox.Tests.csproj")))
+                return directory.FullName;
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate RedFox.Tests.csproj for test output.");
+    }
+
+    private static string GetRelativeInputPath(string sourcePath, string category, string? testsRoot)
+    {
+        string relativePath = Path.IsPathRooted(sourcePath) ? Path.GetRelativePath(testsRoot ?? throw new DirectoryNotFoundException("REDFOX_TESTS_DIR must be set to write output for corpus inputs."), sourcePath) : sourcePath;
+        string[] segments = relativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+        int firstSegment = segments.Length > 0 && string.Equals(segments[0], "Input", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        if (firstSegment < segments.Length && string.Equals(segments[firstSegment], category, StringComparison.OrdinalIgnoreCase))
+            firstSegment++;
+
+        return Path.Combine(segments.Skip(firstSegment).ToArray());
     }
 }

@@ -123,11 +123,7 @@ public sealed class VulkanBcConverterEngineGpuTests
         {
             float x = (i % width) / (float)Math.Max(1, width - 1);
             float y = (i / width) / (float)Math.Max(1, height - 1);
-            sourcePixels[i] = new Vector4(
-                0.5f + (x * 3.0f),
-                0.25f + (y * 2.5f),
-                0.75f + ((x + y) * 1.5f),
-                1.0f);
+            sourcePixels[i] = new Vector4(0.5f + (x * 3.0f), 0.25f + (y * 2.5f), 0.75f + ((x + y) * 1.5f), 1.0f);
         }
 
         byte[] sourceBytes = new byte[ImageFormatInfo.CalculatePitch(ImageFormat.R16G16B16A16Float, width, height).SlicePitch];

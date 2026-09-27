@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 
 namespace RedFox.Graphics3D;
 
@@ -144,8 +144,7 @@ public abstract class Animation : SceneNode
     /// Enumerates keyframes from a nullable collection, yielding nothing if
     /// the collection is <see langword="null"/>.
     /// </summary>
-    public static IEnumerable<AnimationKeyFrame<TFrame, TValue>> EnumerateKeyFrames<TFrame, TValue>(
-        IEnumerable<AnimationKeyFrame<TFrame, TValue>>? keyFrames)
+    public static IEnumerable<AnimationKeyFrame<TFrame, TValue>> EnumerateKeyFrames<TFrame, TValue>(IEnumerable<AnimationKeyFrame<TFrame, TValue>>? keyFrames)
         where TFrame : INumber<TFrame>
     {
         if (keyFrames is null) yield break;

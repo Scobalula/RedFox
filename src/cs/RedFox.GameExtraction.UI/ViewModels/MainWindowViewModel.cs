@@ -487,13 +487,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountSourceAsync(
-            $"Loading {Path.GetFileName(fullPath)}...",
-            (progress, cancellationToken) => _assetManager.MountFileAsync(
-                fullPath,
-                _config.SourceOptions,
-                progress,
-                cancellationToken)).ConfigureAwait(false);
+        await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -510,13 +504,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountSourceAsync(
-            $"Loading {Path.GetFileName(fullPath)}...",
-            (progress, cancellationToken) => _assetManager.MountDirectoryAsync(
-                fullPath,
-                _config.SourceOptions,
-                progress,
-                cancellationToken)).ConfigureAwait(false);
+        await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountDirectoryAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -870,13 +858,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountSourceAsync(
-            $"Loading {process.DisplayName}...",
-            (progress, cancellationToken) => _assetManager.MountProcessAsync(
-                process.ProcessId,
-                _config.SourceOptions,
-                progress,
-                cancellationToken)).ConfigureAwait(true);
+        await MountSourceAsync($"Loading {process.DisplayName}...", (progress, cancellationToken) => _assetManager.MountProcessAsync(process.ProcessId, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(true);
     }
 
     private async Task<IReadOnlyList<ProcessCandidateViewModel>> DiscoverProcessCandidatesAsync(bool applyConfiguredFilter)
@@ -1025,9 +1007,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 }
             });
 
-            IAssetSource source = await Task.Run(
-                () => mountSourceAsync(progress, cancellationSource.Token),
-                cancellationSource.Token).ConfigureAwait(true);
+            IAssetSource source = await Task.Run(() => mountSourceAsync(progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
             AddMountedSource(source);
             StatusText = "Ready";
@@ -1113,9 +1093,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             });
 
             List<Asset> assets = [.. rowList.Select(row => row.Asset)];
-            await Task.Run(
-                () => _assetManager.ExportAsync(assets, configuration, progress, cancellationSource.Token),
-                cancellationSource.Token).ConfigureAwait(true);
+            await Task.Run(() => _assetManager.ExportAsync(assets, configuration, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
             StatusText = $"Exported {rowList.Count:N0} assets";
         }
@@ -1511,9 +1489,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="entries">The currently selected explorer entries.</param>
     public void SetSelectedExplorerEntries(IEnumerable<AssetExplorerEntry> entries)
     {
-        SetSelectedAssets(entries
-            .Where(entry => entry.IsFile && entry.Row is not null)
-            .Select(entry => entry.Row!));
+        SetSelectedAssets(entries .Where(entry => entry.IsFile && entry.Row is not null) .Select(entry => entry.Row!));
     }
 
     /// <summary>

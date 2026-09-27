@@ -381,6 +381,8 @@ namespace RedFox.IO
             return value;
         }
 
+        /// <summary>Reads bytes up to a null terminator and advances past it.</summary>
+        /// <returns>The bytes before the terminator, or the remaining bytes if no terminator exists.</returns>
         public ReadOnlySpan<byte> ReadNullTerminatedSpan()
         {
             var start = _position;
@@ -454,6 +456,9 @@ namespace RedFox.IO
             return _position;
         }
 
+        /// <summary>Reads a fixed-size UTF-8 string, stopping at the first null byte.</summary>
+        /// <param name="size">The number of bytes to read.</param>
+        /// <returns>The decoded string.</returns>
         public string ReadFixedString(int size)
         {
             var buffer = Read(size);

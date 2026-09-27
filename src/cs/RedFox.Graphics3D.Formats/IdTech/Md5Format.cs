@@ -37,7 +37,7 @@ public static class Md5Format
     /// <summary>
     /// Formats a float value with sufficient precision for MD5 file output using invariant culture.
     /// </summary>
-    /// <param name="v">The value to format.</param>
+    /// <param name="value">The value to format.</param>
     /// <returns>A fixed-precision invariant-culture numeric string.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string FormatFloat(float value) => value.ToString("G10", CultureInfo.InvariantCulture);

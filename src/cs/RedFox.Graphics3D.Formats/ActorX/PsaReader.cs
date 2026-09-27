@@ -63,19 +63,7 @@ public sealed class PsaReader
         var sequences = new List<ActorXAnimInfo>(count);
         for (int i = 0; i < count; i++)
         {
-            sequences.Add(new ActorXAnimInfo(
-                ActorXBinary.ReadFixedString(reader, 64),
-                ActorXBinary.ReadFixedString(reader, 64),
-                reader.ReadInt32(),
-                reader.ReadInt32(),
-                reader.ReadInt32(),
-                reader.ReadInt32(),
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadSingle(),
-                reader.ReadInt32(),
-                reader.ReadInt32(),
-                reader.ReadInt32()));
+            sequences.Add(new ActorXAnimInfo(ActorXBinary.ReadFixedString(reader, 64), ActorXBinary.ReadFixedString(reader, 64), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()));
         }
 
         return sequences;

@@ -331,13 +331,7 @@ public sealed class HexBytesPreviewControl : UserControl
 
     internal static void DrawText(DrawingContext context, string text, IBrush brush, Point origin)
     {
-        FormattedText formattedText = new(
-            text,
-            CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight,
-            HexTypeface,
-            TextFontSize,
-            brush);
+        FormattedText formattedText = new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, HexTypeface, TextFontSize, brush);
 
         context.DrawText(formattedText, origin);
     }

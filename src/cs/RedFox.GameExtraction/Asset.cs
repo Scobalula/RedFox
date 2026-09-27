@@ -91,12 +91,7 @@ public sealed class Asset
     /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
     /// <param name="information">Optional secondary information describing the asset.</param>
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
-    public Asset(
-        string name,
-        string type,
-        object? dataSource,
-        string? information,
-        IReadOnlyDictionary<string, object?>? metadata)
+    public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);

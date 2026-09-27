@@ -131,14 +131,7 @@ public sealed class PskReader
         var materials = new List<ActorXMaterial>(count);
         for (int i = 0; i < count; i++)
         {
-            materials.Add(new ActorXMaterial(
-                ActorXBinary.ReadFixedString(reader, 64),
-                reader.ReadInt32(),
-                reader.ReadUInt32(),
-                reader.ReadInt32(),
-                reader.ReadUInt32(),
-                reader.ReadInt32(),
-                reader.ReadInt32()));
+            materials.Add(new ActorXMaterial(ActorXBinary.ReadFixedString(reader, 64), reader.ReadInt32(), reader.ReadUInt32(), reader.ReadInt32(), reader.ReadUInt32(), reader.ReadInt32(), reader.ReadInt32()));
         }
 
         return materials;

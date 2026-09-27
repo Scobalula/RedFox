@@ -38,10 +38,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         }
 
         /// <inheritdoc/>
-        public readonly Vector4 Unpack() => new(
-            (float)BitConverter.UInt16BitsToHalf((ushort)(_packed & 0xFFFF)),
-            (float)BitConverter.UInt16BitsToHalf((ushort)(_packed >> 16)),
-            0f, 0f);
+        public readonly Vector4 Unpack() => new((float)BitConverter.UInt16BitsToHalf((ushort)(_packed & 0xFFFF)), (float)BitConverter.UInt16BitsToHalf((ushort)(_packed >> 16)), 0f, 0f);
 
         /// <inheritdoc/>
         public readonly float UnpackComponent(int componentIndex) => componentIndex switch

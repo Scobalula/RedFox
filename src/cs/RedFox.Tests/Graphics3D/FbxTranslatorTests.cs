@@ -76,16 +76,11 @@ public sealed class FbxTranslatorTests
         SkeletonBone reloadedChild = reloaded.GetDescendants<SkeletonBone>().First(static b => b.Name == "child");
         Mesh reloadedMesh = reloaded.GetDescendants<Mesh>()[0];
 
-        Assert.True(Vector3.Distance(rootBoneWorldBefore, reloadedRoot.GetBindWorldPosition()) < 0.01f,
-            $"Root bone world position mismatch: expected {rootBoneWorldBefore}, got {reloadedRoot.GetBindWorldPosition()}");
-        Assert.True(Vector3.Distance(childBoneWorldBefore, reloadedChild.GetBindWorldPosition()) < 0.01f,
-            $"Child bone world position mismatch: expected {childBoneWorldBefore}, got {reloadedChild.GetBindWorldPosition()}");
-        Assert.True(MathF.Abs(Quaternion.Dot(rootBoneRotBefore, reloadedRoot.GetBindWorldRotation())) > 0.999f,
-            $"Root bone world rotation mismatch: expected {rootBoneRotBefore}, got {reloadedRoot.GetBindWorldRotation()}");
-        Assert.True(MathF.Abs(Quaternion.Dot(childBoneRotBefore, reloadedChild.GetBindWorldRotation())) > 0.999f,
-            $"Child bone world rotation mismatch: expected {childBoneRotBefore}, got {reloadedChild.GetBindWorldRotation()}");
-        Assert.True(Vector3.Distance(meshWorldBefore, reloadedMesh.GetBindWorldPosition()) < 0.01f,
-            $"Mesh world position mismatch: expected {meshWorldBefore}, got {reloadedMesh.GetBindWorldPosition()}");
+        Assert.True(Vector3.Distance(rootBoneWorldBefore, reloadedRoot.GetBindWorldPosition()) < 0.01f, $"Root bone world position mismatch: expected {rootBoneWorldBefore}, got {reloadedRoot.GetBindWorldPosition()}");
+        Assert.True(Vector3.Distance(childBoneWorldBefore, reloadedChild.GetBindWorldPosition()) < 0.01f, $"Child bone world position mismatch: expected {childBoneWorldBefore}, got {reloadedChild.GetBindWorldPosition()}");
+        Assert.True(MathF.Abs(Quaternion.Dot(rootBoneRotBefore, reloadedRoot.GetBindWorldRotation())) > 0.999f, $"Root bone world rotation mismatch: expected {rootBoneRotBefore}, got {reloadedRoot.GetBindWorldRotation()}");
+        Assert.True(MathF.Abs(Quaternion.Dot(childBoneRotBefore, reloadedChild.GetBindWorldRotation())) > 0.999f, $"Child bone world rotation mismatch: expected {childBoneRotBefore}, got {reloadedChild.GetBindWorldRotation()}");
+        Assert.True(Vector3.Distance(meshWorldBefore, reloadedMesh.GetBindWorldPosition()) < 0.01f, $"Mesh world position mismatch: expected {meshWorldBefore}, got {reloadedMesh.GetBindWorldPosition()}");
 
         // Double round-trip: write the reloaded scene again and verify stability.
         byte[] data2 = WriteScene(manager, reloaded, "transform_rt2.fbx");
@@ -94,26 +89,16 @@ public sealed class FbxTranslatorTests
         SkeletonBone reloadedRoot2 = reloaded2.GetDescendants<SkeletonBone>().First(static b => b.Name == "root");
         SkeletonBone reloadedChild2 = reloaded2.GetDescendants<SkeletonBone>().First(static b => b.Name == "child");
 
-        Assert.True(Vector3.Distance(rootBoneWorldBefore, reloadedRoot2.GetBindWorldPosition()) < 0.01f,
-            $"Double RT root bone mismatch: expected {rootBoneWorldBefore}, got {reloadedRoot2.GetBindWorldPosition()}");
-        Assert.True(Vector3.Distance(childBoneWorldBefore, reloadedChild2.GetBindWorldPosition()) < 0.01f,
-            $"Double RT child bone mismatch: expected {childBoneWorldBefore}, got {reloadedChild2.GetBindWorldPosition()}");
+        Assert.True(Vector3.Distance(rootBoneWorldBefore, reloadedRoot2.GetBindWorldPosition()) < 0.01f, $"Double RT root bone mismatch: expected {rootBoneWorldBefore}, got {reloadedRoot2.GetBindWorldPosition()}");
+        Assert.True(Vector3.Distance(childBoneWorldBefore, reloadedChild2.GetBindWorldPosition()) < 0.01f, $"Double RT child bone mismatch: expected {childBoneWorldBefore}, got {reloadedChild2.GetBindWorldPosition()}");
     }
 
     [Fact]
     public void FbxTranslator_CanReadProvidedBinarySamples()
     {
         string samplesPath = GetSampleDirectory();
-        if (string.IsNullOrWhiteSpace(samplesPath))
-        {
-            return;
-        }
-
         string[] files = Directory.GetFiles(samplesPath, "*.fbx", SearchOption.TopDirectoryOnly);
-        if (files.Length == 0)
-        {
-            return;
-        }
+        Assert.NotEmpty(files);
 
         SceneTranslatorManager manager = CreateManager();
         for (int i = 0; i < files.Length; i++)
@@ -242,8 +227,7 @@ public sealed class FbxTranslatorTests
         FbxSceneMapper.StripImportedRootBasisTransforms(scene.RootNode);
 
         Vector3 correctedBoneWorld = bone.GetBindWorldPosition();
-        Assert.True(Vector3.Distance(correctedBoneWorld, new Vector3(5f, 0f, 0f)) < 0.0001f,
-            $"Expected corrected bone world at <5,0,0>, got {correctedBoneWorld}");
+        Assert.True(Vector3.Distance(correctedBoneWorld, new Vector3(5f, 0f, 0f)) < 0.0001f, $"Expected corrected bone world at <5,0,0>, got {correctedBoneWorld}");
 
         // IBMs are derived from the current scene graph (meshBindWorld × inv(boneBindWorld))
         // so they are in the same coordinate space as the bone transforms.
@@ -296,19 +280,16 @@ public sealed class FbxTranslatorTests
         FbxSceneMapper.StripImportedRootBasisTransforms(scene.RootNode, bindHints);
 
         Vector3 bindWorldPos = bone.GetBindWorldPosition();
-        Assert.True(Vector3.Distance(bindWorldPos, new Vector3(5f, 0f, 0f)) < 0.0001f,
-            $"Expected bind world at <5,0,0>, got {bindWorldPos}");
+        Assert.True(Vector3.Distance(bindWorldPos, new Vector3(5f, 0f, 0f)) < 0.0001f, $"Expected bind world at <5,0,0>, got {bindWorldPos}");
 
         // Live overrides preserved — active world reflects the imported live pose.
         Vector3 activeWorldPos = bone.GetActiveWorldPosition();
-        Assert.True(Vector3.Distance(activeWorldPos, new Vector3(7f, 0f, 0f)) < 0.0001f,
-            $"Expected active world at <7,0,0>, got {activeWorldPos}");
+        Assert.True(Vector3.Distance(activeWorldPos, new Vector3(7f, 0f, 0f)) < 0.0001f, $"Expected active world at <7,0,0>, got {activeWorldPos}");
 
         // Skinning with the active pose produces the correct offset.
         Matrix4x4 skinTransform = mesh.Skin!.GetSkinTransform(0, mesh.GetBindWorldMatrix());
         Vector3 skinned = Vector3.Transform(Vector3.Zero, skinTransform);
-        Assert.True(Vector3.Distance(skinned, new Vector3(2f, 0f, 0f)) < 0.0001f,
-            $"Expected skinned offset at <2,0,0>, got {skinned}");
+        Assert.True(Vector3.Distance(skinned, new Vector3(2f, 0f, 0f)) < 0.0001f, $"Expected skinned offset at <2,0,0>, got {skinned}");
     }
 
     [Fact]
@@ -350,19 +331,16 @@ public sealed class FbxTranslatorTests
         FbxSceneMapper.StripImportedRootBasisTransforms(scene.RootNode, bindHints);
 
         Vector3 bindWorldPos = bone.GetBindWorldPosition();
-        Assert.True(Vector3.Distance(bindWorldPos, new Vector3(5f, 0f, 0f)) < 0.0001f,
-            $"Expected bind world at <5,0,0>, got {bindWorldPos}");
+        Assert.True(Vector3.Distance(bindWorldPos, new Vector3(5f, 0f, 0f)) < 0.0001f, $"Expected bind world at <5,0,0>, got {bindWorldPos}");
 
         // Live overrides preserved — active world reflects the imported live pose.
         Vector3 activeWorldPos = bone.GetActiveWorldPosition();
-        Assert.True(Vector3.Distance(activeWorldPos, new Vector3(5.3f, 0f, 0f)) < 0.001f,
-            $"Expected active world at <5.3,0,0>, got {activeWorldPos}");
+        Assert.True(Vector3.Distance(activeWorldPos, new Vector3(5.3f, 0f, 0f)) < 0.001f, $"Expected active world at <5.3,0,0>, got {activeWorldPos}");
 
         // Skinning with the active pose produces the correct small offset.
         Matrix4x4 skinTransform = mesh.Skin!.GetSkinTransform(0, mesh.GetBindWorldMatrix());
         Vector3 skinned = Vector3.Transform(Vector3.Zero, skinTransform);
-        Assert.True(Vector3.Distance(skinned, new Vector3(0.3f, 0f, 0f)) < 0.001f,
-            $"Expected skinned offset at <0.3,0,0>, got {skinned}");
+        Assert.True(Vector3.Distance(skinned, new Vector3(0.3f, 0f, 0f)) < 0.001f, $"Expected skinned offset at <0.3,0,0>, got {skinned}");
     }
 
     [Fact]
@@ -437,14 +415,12 @@ public sealed class FbxTranslatorTests
         FbxNode boneModel = Assert.Single(objectsNode.Children, static node => node.Name == "Model" && FbxSceneMapper.GetNodeObjectName(node).EndsWith("Bone", StringComparison.Ordinal));
         FbxNode boneProps = Assert.Single(boneModel.ChildrenNamed("Properties70"));
         Vector3 exportedBoneTranslation = FbxSceneMapper.GetPropertyVector3(boneProps, "Lcl Translation", Vector3.Zero);
-        Assert.True(Vector3.Distance(exportedBoneTranslation, new Vector3(7f, 0f, 0f)) < 0.0001f,
-            $"Expected exported live translation at <7,0,0>, got {exportedBoneTranslation}");
+        Assert.True(Vector3.Distance(exportedBoneTranslation, new Vector3(7f, 0f, 0f)) < 0.0001f, $"Expected exported live translation at <7,0,0>, got {exportedBoneTranslation}");
 
         FbxNode clusterNode = Assert.Single(objectsNode.Children, static node => node.Name == "Deformer" && node.Properties.Count > 2 && node.Properties[2].AsString() == "Cluster");
         Matrix4x4 transformLink = FbxSkinningMapper.ReadNodeMatrix(clusterNode, "TransformLink");
         Vector3 transformLinkTranslation = new(transformLink.M41, transformLink.M42, transformLink.M43);
-        Assert.True(Vector3.Distance(transformLinkTranslation, new Vector3(5f, 0f, 0f)) < 0.0001f,
-            $"Expected bind TransformLink translation at <5,0,0>, got {transformLinkTranslation}");
+        Assert.True(Vector3.Distance(transformLinkTranslation, new Vector3(5f, 0f, 0f)) < 0.0001f, $"Expected bind TransformLink translation at <5,0,0>, got {transformLinkTranslation}");
     }
 
     [Fact]
@@ -509,14 +485,12 @@ public sealed class FbxTranslatorTests
         FbxNode boneModel = Assert.Single(objectsNode.Children, static node => node.Name == "Model" && FbxSceneMapper.GetNodeObjectName(node) == "Bone");
         FbxNode boneProps = Assert.Single(boneModel.ChildrenNamed("Properties70"));
         Vector3 exportedBoneTranslation = FbxSceneMapper.GetPropertyVector3(boneProps, "Lcl Translation", Vector3.Zero);
-        Assert.True(Vector3.Distance(exportedBoneTranslation, new Vector3(7f, 0f, 0f)) < 0.0001f,
-            $"Expected exported live translation at <7,0,0>, got {exportedBoneTranslation}");
+        Assert.True(Vector3.Distance(exportedBoneTranslation, new Vector3(7f, 0f, 0f)) < 0.0001f, $"Expected exported live translation at <7,0,0>, got {exportedBoneTranslation}");
 
         FbxNode clusterNode = Assert.Single(objectsNode.Children, static node => node.Name == "Deformer" && node.Properties.Count > 2 && node.Properties[2].AsString() == "Cluster");
         Matrix4x4 transformLink = FbxSkinningMapper.ReadNodeMatrix(clusterNode, "TransformLink");
         Vector3 transformLinkTranslation = new(transformLink.M41, transformLink.M42, transformLink.M43);
-        Assert.True(Vector3.Distance(transformLinkTranslation, new Vector3(5f, 0f, 0f)) < 0.0001f,
-            $"Expected bind TransformLink translation at <5,0,0>, got {transformLinkTranslation}");
+        Assert.True(Vector3.Distance(transformLinkTranslation, new Vector3(5f, 0f, 0f)) < 0.0001f, $"Expected bind TransformLink translation at <5,0,0>, got {transformLinkTranslation}");
     }
 
     [Fact]
@@ -653,7 +627,7 @@ public sealed class FbxTranslatorTests
         MeshGroup modelRoot = Assert.Single(scene.EnumerateChildren().OfType<MeshGroup>(), static model => model.Name == "ModelRoot");
 
         Assert.Contains(modelRoot.EnumerateChildren(), static child => child is MeshGroup model && model.Name == "MeshGroup");
-        Assert.DoesNotContain(scene.GetDescendants<Group>(), static group => group.Name == "MeshGroup");
+        Assert.DoesNotContain(scene.GetDescendants<Group>(), static group => group.GetType() == typeof(Group) && group.Name == "MeshGroup");
     }
 
     [Fact]
@@ -718,11 +692,7 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxTranslator_Read_RealTalk_ImportsVisibleConstraintNodes()
     {
-        string realTalkPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        if (!File.Exists(realTalkPath))
-        {
-            return;
-        }
+        string realTalkPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
 
         byte[] data = File.ReadAllBytes(realTalkPath);
         using MemoryStream documentStream = new(data, writable: false);
@@ -751,12 +721,8 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxTranslator_Read_RealTalkBinary_BonePositionsMatchAscii()
     {
-        string binaryPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        string asciiPath = GetWorkspaceAssetPath("RealTalkascii.fbx");
-        if (!File.Exists(binaryPath) || !File.Exists(asciiPath))
-        {
-            return;
-        }
+        string binaryPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
+        string asciiPath = GetRequiredWorkspaceAssetPath("RealTalkascii.fbx");
 
         SceneTranslatorManager manager = CreateManager();
 
@@ -818,11 +784,7 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxTranslator_Read_RealTalkAscii_ImportsSceneNodes()
     {
-        string realTalkPath = GetWorkspaceAssetPath("RealTalkascii.fbx");
-        if (!File.Exists(realTalkPath))
-        {
-            return;
-        }
+        string realTalkPath = GetRequiredWorkspaceAssetPath("RealTalkascii.fbx");
 
         byte[] data = File.ReadAllBytes(realTalkPath);
         using MemoryStream documentStream = new(data, writable: false);
@@ -1248,9 +1210,8 @@ public sealed class FbxTranslatorTests
 
         Mesh reloadedMesh = Assert.Single(reloaded.GetDescendants<Mesh>());
         Assert.Equal("ExportRoot", reloadedMesh.Parent?.Name);
-        Assert.True(Vector3.Distance(reloadedMesh.GetBindWorldPosition(), new Vector3(8f, 0f, 0f)) < 0.01f,
-            $"Expected SelectedMesh world position to remain <8,0,0>, got {reloadedMesh.GetBindWorldPosition()}");
-        Assert.Empty(reloaded.GetDescendants<Group>());
+        Assert.True(Vector3.Distance(reloadedMesh.GetBindWorldPosition(), new Vector3(8f, 0f, 0f)) < 0.01f, $"Expected SelectedMesh world position to remain <8,0,0>, got {reloadedMesh.GetBindWorldPosition()}");
+        Assert.DoesNotContain(reloaded.GetDescendants<Group>(), static group => group.GetType() == typeof(Group));
     }
 
     [Fact]
@@ -1278,8 +1239,7 @@ public sealed class FbxTranslatorTests
         };
 
         using MemoryStream stream = new();
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(
-            () => manager.Write(stream, "filtered_missing_material.fbx", scene, options, token: null));
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => manager.Write(stream, "filtered_missing_material.fbx", scene, options, token: null));
 
         Assert.Contains("references material", exception.Message);
         Assert.Contains("material_0", exception.Message);
@@ -1305,8 +1265,7 @@ public sealed class FbxTranslatorTests
         };
 
         using MemoryStream stream = new();
-        InvalidDataException exception = Assert.Throws<InvalidDataException>(
-            () => manager.Write(stream, "filtered_missing_bones.fbx", scene, options, token: null));
+        InvalidDataException exception = Assert.Throws<InvalidDataException>(() => manager.Write(stream, "filtered_missing_bones.fbx", scene, options, token: null));
 
         Assert.Contains("references skinned bones", exception.Message);
         Assert.Contains("root", exception.Message);
@@ -1316,11 +1275,7 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxTranslator_RealTalkBinary_RoundTripPreservesT7LiveBonesAndSkinSample()
     {
-        string sourcePath = GetWorkspaceAssetPath("RealTalk.fbx");
-        if (!File.Exists(sourcePath))
-        {
-            return;
-        }
+        string sourcePath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
 
         SceneTranslatorManager manager = CreateManager();
 
@@ -1420,13 +1375,10 @@ public sealed class FbxTranslatorTests
             urbanInfluenceDetails = string.Join(" | ", parts);
         }
 
-        Assert.True(Vector3.Distance(sourceActiveBonePos, roundTripActiveBonePos) < 0.05f,
-            $"t7 wrist active position changed across roundtrip: source={sourceActiveBonePos}, roundtrip={roundTripActiveBonePos}");
-        Assert.True(Vector3.Distance(sourceSkinnedVertex, roundTripSkinnedVertex) < 0.05f,
-            $"t7 mesh skinned vertex changed across roundtrip: source={sourceSkinnedVertex}, roundtrip={roundTripSkinnedVertex}; rawSource={sourceRawVertex}, rawRoundTrip={roundTripRawVertex}; sourceIBM0={sourceIbm0}; roundTripIBM0={roundTripIbm0}; sourceBone0={sourceMeshBone0?.Name} active={sourceMeshBone0Active}; roundTripBone0={roundTripMeshBone0?.Name} active={roundTripMeshBone0Active}");
+        Assert.True(Vector3.Distance(sourceActiveBonePos, roundTripActiveBonePos) < 0.05f, $"t7 wrist active position changed across roundtrip: source={sourceActiveBonePos}, roundtrip={roundTripActiveBonePos}");
+        Assert.True(Vector3.Distance(sourceSkinnedVertex, roundTripSkinnedVertex) < 0.05f, $"t7 mesh skinned vertex changed across roundtrip: source={sourceSkinnedVertex}, roundtrip={roundTripSkinnedVertex}; rawSource={sourceRawVertex}, rawRoundTrip={roundTripRawVertex}; sourceIBM0={sourceIbm0}; roundTripIBM0={roundTripIbm0}; sourceBone0={sourceMeshBone0?.Name} active={sourceMeshBone0Active}; roundTripBone0={roundTripMeshBone0?.Name} active={roundTripMeshBone0Active}");
         Assert.True(dempseyMaxDelta < 0.15f, $"c_zom_der_dempsey_viewhands max skinned delta too large: {dempseyMaxDelta}");
-        Assert.True(urbanMaxDelta < 0.15f,
-            $"viewhands_sas_urban_a max skinned delta too large: {urbanMaxDelta} at vtx={urbanMaxIndex}; src={urbanMaxSource}; rt={urbanMaxRoundTrip}; srcIBM0={urbanSourceIbm0}; rtIBM0={urbanRoundTripIbm0}; influences={urbanInfluenceDetails}");
+        Assert.True(urbanMaxDelta < 0.15f, $"viewhands_sas_urban_a max skinned delta too large: {urbanMaxDelta} at vtx={urbanMaxIndex}; src={urbanMaxSource}; rt={urbanMaxRoundTrip}; srcIBM0={urbanSourceIbm0}; rtIBM0={urbanRoundTripIbm0}; influences={urbanInfluenceDetails}");
     }
 
     private static void AssertSceneShapeEquivalent(Scene expected, Scene actual)
@@ -1462,19 +1414,10 @@ public sealed class FbxTranslatorTests
 
     private static string GetSampleDirectory()
     {
-        string explicitPath = "/home/philipmaher/FBX";
-        if (Directory.Exists(explicitPath))
-        {
-            return explicitPath;
-        }
-
         string? environmentPath = Environment.GetEnvironmentVariable("REDFOX_FBX_DIR");
-        if (!string.IsNullOrWhiteSpace(environmentPath) && Directory.Exists(environmentPath))
-        {
-            return environmentPath;
-        }
-
-        return string.Empty;
+        Assert.False(string.IsNullOrWhiteSpace(environmentPath), "REDFOX_FBX_DIR must point to the directory containing the FBX sample corpus.");
+        Assert.True(Directory.Exists(environmentPath), $"REDFOX_FBX_DIR points to a directory that does not exist: '{environmentPath}'.");
+        return environmentPath!;
     }
 
     private static string GetWorkspaceAssetPath(string assetName, [CallerFilePath] string sourceFilePath = "")
@@ -1482,6 +1425,13 @@ public sealed class FbxTranslatorTests
         string? sourceDirectory = Path.GetDirectoryName(sourceFilePath);
         Assert.NotNull(sourceDirectory);
         return Path.GetFullPath(Path.Combine(sourceDirectory!, "..", "..", assetName));
+    }
+
+    private static string GetRequiredWorkspaceAssetPath(string assetName, [CallerFilePath] string sourceFilePath = "")
+    {
+        string assetPath = GetWorkspaceAssetPath(assetName, sourceFilePath);
+        Assert.True(File.Exists(assetPath), $"Required test asset '{assetName}' was not found at '{assetPath}'.");
+        return assetPath;
     }
 
     private static FbxDocument CreateImportClassificationDocument()
@@ -1678,14 +1628,9 @@ public sealed class FbxTranslatorTests
     {
         string fbxPath = GetWorkspaceAssetPath("RealTalkascii.fbx");
         if (!File.Exists(fbxPath))
-        {
-            fbxPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        }
-
-        if (!File.Exists(fbxPath))
-        {
-            return;
-        }
+            fbxPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
+        else
+            fbxPath = GetRequiredWorkspaceAssetPath("RealTalkascii.fbx");
 
         SceneTranslatorManager manager = CreateManager();
         Scene scene;
@@ -1739,14 +1684,9 @@ public sealed class FbxTranslatorTests
     {
         string fbxPath = GetWorkspaceAssetPath("RealTalkascii.fbx");
         if (!File.Exists(fbxPath))
-        {
-            fbxPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        }
-
-        if (!File.Exists(fbxPath))
-        {
-            return;
-        }
+            fbxPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
+        else
+            fbxPath = GetRequiredWorkspaceAssetPath("RealTalkascii.fbx");
 
         SceneTranslatorManager manager = CreateManager();
         manager.Register(new MayaAsciiTranslator());
@@ -1793,11 +1733,7 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void FbxImport_RealTalkAscii_GenerateOutputFiles()
     {
-        string fbxPath = GetWorkspaceAssetPath("RealTalkascii.fbx");
-        if (!File.Exists(fbxPath))
-        {
-            return;
-        }
+        string fbxPath = GetRequiredWorkspaceAssetPath("RealTalkascii.fbx");
 
         string outputDir = Path.Combine(Path.GetDirectoryName(fbxPath)!, "artifacts", "fbx-build");
         Directory.CreateDirectory(outputDir);
@@ -2094,12 +2030,9 @@ public sealed class FbxTranslatorTests
     [Fact]
     public void Diagnostic_FbxVsSemodel_SkinnedVertexComparison()
     {
-        string fbxPath = GetWorkspaceAssetPath("RealTalk.fbx");
+        string fbxPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
         string semodelPath = GetWorkspaceAssetPath("RealTalk.semodel");
-        if (!File.Exists(fbxPath) || !File.Exists(semodelPath))
-        {
-            return;
-        }
+        Assert.True(File.Exists(semodelPath), $"Required test asset 'RealTalk.semodel' was not found at '{semodelPath}'.");
 
         SceneTranslatorManager manager = new();
         manager.Register(new FbxTranslator());
@@ -2231,8 +2164,7 @@ public sealed class FbxTranslatorTests
             report.AppendLine($"  {boneSuffix}: bindDelta={bindDelta:F4} activeDelta={activeDelta:F4} fbxBind={fbxBindWorld} fbxActive={fbxActiveWorld} seBind={seBindWorld}");
         }
 
-        Assert.True(overallMaxDelta < 0.001f,
-            $"FBX skinned vertices differ from SEModel ground truth. Worst: {worstMeshName} vtx={worstVertex} delta={overallMaxDelta:F4}\n{report}");
+        Assert.True(overallMaxDelta < 0.001f, $"FBX skinned vertices differ from SEModel ground truth. Worst: {worstMeshName} vtx={worstVertex} delta={overallMaxDelta:F4}\n{report}");
 
         // Now round-trip the FBX and compare RT skinned vertices against SEModel ground truth
         using MemoryStream rtOutput = new();
@@ -2323,18 +2255,13 @@ public sealed class FbxTranslatorTests
             }
         }
 
-        Assert.True(rtOverallMaxDelta < 0.05f,
-            $"RT FBX skinned vertices differ from SEModel ground truth. Worst: {rtWorstMeshName} vtx={rtWorstVertex} delta={rtOverallMaxDelta:F4}\n{rtReport}");
+        Assert.True(rtOverallMaxDelta < 0.05f, $"RT FBX skinned vertices differ from SEModel ground truth. Worst: {rtWorstMeshName} vtx={rtWorstVertex} delta={rtOverallMaxDelta:F4}\n{rtReport}");
     }
 
     [Fact]
     public void Diagnostic_FbxRoundTrip_ClusterMatricesMatch()
     {
-        string fbxPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        if (!File.Exists(fbxPath))
-        {
-            return;
-        }
+        string fbxPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
 
         // Read original FBX document and extract cluster matrices
         FbxDocument originalDoc;
@@ -2504,8 +2431,7 @@ public sealed class FbxTranslatorTests
             }
         }
 
-        Assert.True(maxTransformDelta < 0.1f,
-            $"Cluster Transform matrices diverge after round-trip. Worst: {worstCluster} delta={maxTransformDelta:F4}\n{report}");
+        Assert.True(maxTransformDelta < 0.1f, $"Cluster Transform matrices diverge after round-trip. Worst: {worstCluster} delta={maxTransformDelta:F4}\n{report}");
 
         // Write report to file for inspection
         string outputDir = Path.Combine(Path.GetTempPath(), "RedFox_FbxDiag");
@@ -2578,11 +2504,7 @@ public sealed class FbxTranslatorTests
     public void Diagnostic_FbxExport_MayaBindPoseSimulation()
     {
         // Export RealTalk.fbx to ASCII and inspect the output
-        string fbxPath = GetWorkspaceAssetPath("RealTalk.fbx");
-        if (!File.Exists(fbxPath))
-        {
-            return;
-        }
+        string fbxPath = GetRequiredWorkspaceAssetPath("RealTalk.fbx");
 
         SceneTranslatorManager manager = new();
         manager.Register(new FbxTranslator());
@@ -2688,7 +2610,6 @@ public sealed class FbxTranslatorTests
         File.WriteAllText(Path.Combine(outputDir, "roundtrip_comparison.txt"), report.ToString());
 
         // This threshold is generous — primarily we want to generate the files + report
-        Assert.True(worstDelta < 1.0f,
-            $"Round-trip skinned vertex delta too large. Worst: {worstMesh} vtx={worstVtx} delta={worstDelta:F4}\n{report}");
+        Assert.True(worstDelta < 1.0f, $"Round-trip skinned vertex delta too large. Worst: {worstMesh} vtx={worstVtx} delta={worstDelta:F4}\n{report}");
     }
 }

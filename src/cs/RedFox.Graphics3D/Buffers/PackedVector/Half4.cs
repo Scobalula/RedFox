@@ -42,11 +42,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         }
 
         /// <inheritdoc/>
-        public readonly Vector4 Unpack() => new(
-            (float)BitConverter.UInt16BitsToHalf((ushort)(_packed & 0xFFFF)),
-            (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 16) & 0xFFFF)),
-            (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 32) & 0xFFFF)),
-            (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 48) & 0xFFFF)));
+        public readonly Vector4 Unpack() => new((float)BitConverter.UInt16BitsToHalf((ushort)(_packed & 0xFFFF)), (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 16) & 0xFFFF)), (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 32) & 0xFFFF)), (float)BitConverter.UInt16BitsToHalf((ushort)((_packed >> 48) & 0xFFFF)));
 
         /// <inheritdoc/>
         public readonly float UnpackComponent(int componentIndex) => componentIndex switch

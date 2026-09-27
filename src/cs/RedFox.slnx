@@ -51,6 +51,5 @@
   <Project Path="RedFox.Patterns/RedFox.Patterns.csproj" />
   <Project Path="RedFox.Plugins.Python/RedFox.Plugins.Python.csproj" />
   <Project Path="RedFox.Plugins/RedFox.Plugins.csproj" />
-  <Project Path="RedFox.Samples/RedFox.Samples.csproj" />
   <Project Path="RedFox.Tests/RedFox.Tests.csproj" />
 </Solution>

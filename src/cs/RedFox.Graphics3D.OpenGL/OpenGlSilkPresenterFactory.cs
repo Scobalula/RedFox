@@ -19,11 +19,7 @@ public sealed class OpenGlSilkPresenterFactory : ISilkGraphicsPresenterFactory
     /// <param name="options">The window options to configure.</param>
     public void ConfigureWindowOptions(ref WindowOptions options)
     {
-        options.API = new GraphicsAPI(
-            ContextAPI.OpenGL,
-            ContextProfile.Core,
-            ContextFlags.ForwardCompatible,
-            new APIVersion(RequiredOpenGlMajorVersion, RequiredOpenGlMinorVersion));
+        options.API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.ForwardCompatible, new APIVersion(RequiredOpenGlMajorVersion, RequiredOpenGlMinorVersion));
     }
 
     /// <summary>

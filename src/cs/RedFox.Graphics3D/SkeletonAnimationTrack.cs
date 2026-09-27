@@ -50,7 +50,7 @@ namespace RedFox.Graphics3D.Skeletal
         /// </summary>
         /// <param name="time">The keyframe time (in frames or seconds).</param>
         /// <param name="value">The translation vector.</param>
-        public void AddTranslationFrame(float time, Vector3 value)
+        public new void AddTranslationFrame(float time, Vector3 value)
         {
             TranslationCurve ??= AnimationCurve.CreateVector3(TransformSpace, TransformType);
             TranslationCurve.Add(time, value);
@@ -62,7 +62,7 @@ namespace RedFox.Graphics3D.Skeletal
         /// </summary>
         /// <param name="time">The keyframe time.</param>
         /// <param name="value">The scale vector.</param>
-        public void AddScaleFrame(float time, Vector3 value)
+        public new void AddScaleFrame(float time, Vector3 value)
         {
             ScaleCurve ??= AnimationCurve.CreateVector3(TransformSpace, TransformType);
             ScaleCurve.Add(time, value);
@@ -74,7 +74,7 @@ namespace RedFox.Graphics3D.Skeletal
         /// </summary>
         /// <param name="time">The keyframe time.</param>
         /// <param name="value">The rotation quaternion.</param>
-        public void AddRotationFrame(float time, Quaternion value)
+        public new void AddRotationFrame(float time, Quaternion value)
         {
             RotationCurve ??= AnimationCurve.CreateQuaternion(TransformSpace, TransformType);
             RotationCurve.Add(time, value);

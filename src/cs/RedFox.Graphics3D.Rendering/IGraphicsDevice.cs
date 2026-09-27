@@ -93,21 +93,7 @@ public interface IGraphicsDevice : IDisposable
     /// <param name="depthCompareFunc">The depth comparison function.</param>
     /// <param name="primitiveTopology">The primitive topology.</param>
     /// <returns>The created pipeline state.</returns>
-    IGpuPipelineState CreatePipelineState(
-        IGpuShader vertexShader,
-        IGpuShader fragmentShader,
-        ReadOnlySpan<VertexAttribute> vertexAttributes,
-        CullMode cullMode,
-        FaceWinding faceWinding,
-        bool wireframe,
-        bool blend,
-        BlendFactor sourceBlendFactor,
-        BlendFactor destinationBlendFactor,
-        BlendOp blendOperation,
-        bool depthTest,
-        bool depthWrite,
-        CompareFunc depthCompareFunc,
-        PrimitiveTopology primitiveTopology);
+    IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology);
 
     /// <summary>
     /// Creates a compute pipeline state.

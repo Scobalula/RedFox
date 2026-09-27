@@ -321,15 +321,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
     private static SceneRenderer CreateDefaultRenderer(IGraphicsDevice graphicsDevice)
     {
-        return new SceneRenderer(
-            graphicsDevice,
-            RedFoxThemeColors.SceneBackgroundVector,
-            new Vector3(0.13f, 0.13f, 0.16f),
-            new Vector3(-0.4f, -1.0f, -0.2f),
-            Vector3.One,
-            0.8f,
-            false,
-            SkinningMode.Linear);
+        return new SceneRenderer(graphicsDevice, RedFoxThemeColors.SceneBackgroundVector, new Vector3(0.13f, 0.13f, 0.16f), new Vector3(-0.4f, -1.0f, -0.2f), Vector3.One, 0.8f, false, SkinningMode.Linear);
     }
 
     private void OnScenePropertyChanged(AvaloniaPropertyChangedEventArgs e)

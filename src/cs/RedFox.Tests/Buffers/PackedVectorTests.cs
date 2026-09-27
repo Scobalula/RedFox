@@ -31,8 +31,7 @@ public class PackedVectorTests
         {
             var expected = i switch { 0 => input.X, 1 => input.Y, 2 => input.Z, _ => input.W };
             var actual = i switch { 0 => output.X, 1 => output.Y, 2 => output.Z, _ => output.W };
-            Assert.True(MathF.Abs(expected - actual) < epsilon,
-                $"Type {typeof(TPacked).Name}: component {i} roundtrip failed. Expected {expected}, got {actual}");
+            Assert.True(MathF.Abs(expected - actual) < epsilon, $"Type {typeof(TPacked).Name}: component {i} roundtrip failed. Expected {expected}, got {actual}");
         }
     }
 

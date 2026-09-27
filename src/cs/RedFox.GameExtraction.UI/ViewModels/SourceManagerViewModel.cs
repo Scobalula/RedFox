@@ -17,9 +17,7 @@ public partial class SourceManagerViewModel : ObservableObject
     /// </summary>
     /// <param name="sources">The mounted source collection.</param>
     /// <param name="unloadAsync">The source unload callback.</param>
-    public SourceManagerViewModel(
-        ObservableCollection<AssetSourceViewModel> sources,
-        Func<AssetSourceViewModel, Task> unloadAsync)
+    public SourceManagerViewModel(ObservableCollection<AssetSourceViewModel> sources, Func<AssetSourceViewModel, Task> unloadAsync)
     {
         Sources = sources ?? throw new ArgumentNullException(nameof(sources));
         _unloadAsync = unloadAsync ?? throw new ArgumentNullException(nameof(unloadAsync));

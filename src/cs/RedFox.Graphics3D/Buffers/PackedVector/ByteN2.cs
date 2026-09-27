@@ -43,10 +43,7 @@ namespace RedFox.Graphics3D.Buffers.PackedVector
         {
             var x = (sbyte)(_packed & 0xFF);
             var y = (sbyte)(_packed >> 8);
-            return new Vector4(
-                x == -128 ? -1f : x / 127f,
-                y == -128 ? -1f : y / 127f,
-                0f, 0f);
+            return new Vector4(x == -128 ? -1f : x / 127f, y == -128 ? -1f : y / 127f, 0f, 0f);
         }
 
         /// <inheritdoc/>

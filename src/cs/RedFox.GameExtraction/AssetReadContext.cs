@@ -48,20 +48,12 @@ public sealed class AssetReadContext
     /// </remarks>
     public IReadOnlyList<AssetReadResult> References => _references;
 
-    internal AssetReadContext(
-        AssetManager assetManager,
-        IAssetSource source,
-        AssetSourceRequest request)
+    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request)
         : this(assetManager, source, request, null, CancellationToken.None)
     {
     }
 
-    internal AssetReadContext(
-        AssetManager assetManager,
-        IAssetSource source,
-        AssetSourceRequest request,
-        object? userData,
-        CancellationToken cancellationToken)
+    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, object? userData, CancellationToken cancellationToken)
     {
         AssetManager = assetManager;
         Source = source;

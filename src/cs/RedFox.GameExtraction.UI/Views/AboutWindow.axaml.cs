@@ -5,13 +5,23 @@ using Avalonia.Media.Imaging;
 
 namespace RedFox.GameExtraction.UI.Views;
 
+/// <summary>
+/// Displays application version, description, icon, and configured links.
+/// </summary>
 public partial class AboutWindow : Window
 {
+    /// <summary>
+    /// Creates an uninitialized about window.
+    /// </summary>
     public AboutWindow()
     {
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Populates the window from application configuration.
+    /// </summary>
+    /// <param name="config">Configuration containing the application details to display.</param>
     public void Initialize(GameExtractionConfig config)
     {
         AppTitle.Text = config.WindowTitle;

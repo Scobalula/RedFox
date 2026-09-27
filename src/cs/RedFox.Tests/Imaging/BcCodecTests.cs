@@ -147,11 +147,7 @@ public sealed class BcCodecTests
         for (int index = 0; index < pixels.Length; index++)
         {
             float t = index / 15.0f;
-            pixels[index] = new Vector4(
-                0.5f + (1.75f * t),
-                1.25f + (0.80f * t),
-                2.0f + (0.60f * t),
-                1.0f);
+            pixels[index] = new Vector4(0.5f + (1.75f * t), 1.25f + (0.80f * t), 2.0f + (0.60f * t), 1.0f);
         }
 
         return pixels;
@@ -164,11 +160,7 @@ public sealed class BcCodecTests
         for (int index = 0; index < pixels.Length; index++)
         {
             float t = index / 15.0f;
-            pixels[index] = new Vector4(
-                -0.75f + (1.5f * t),
-                -0.40f + (0.9f * t),
-                -0.20f + (0.7f * t),
-                1.0f);
+            pixels[index] = new Vector4(-0.75f + (1.5f * t), -0.40f + (0.9f * t), -0.20f + (0.7f * t), 1.0f);
         }
 
         return pixels;

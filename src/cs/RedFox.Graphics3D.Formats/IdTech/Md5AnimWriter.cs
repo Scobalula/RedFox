@@ -58,8 +58,7 @@ public sealed class Md5AnimWriter
         ArgumentNullException.ThrowIfNull(selection);
 
         var skelAnim = selection.TryGetFirstOfType<SkeletonAnimation>()
-            ?? throw new InvalidDataException(
-                $"Cannot write MD5 anim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
+            ?? throw new InvalidDataException($"Cannot write MD5 anim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
 
         var allBones = selection.GetDescendants<SkeletonBone>();
         if (allBones.Length == 0)
@@ -280,7 +279,7 @@ public sealed class Md5AnimWriter
     /// <summary>
     /// Formats a float value for MD5 file output.
     /// </summary>
-    /// <param name="v">The value to format.</param>
+    /// <param name="value">The value to format.</param>
     /// <returns>An invariant-culture numeric string.</returns>
     public static string FormatFloat(float value) => Md5Format.FormatFloat(value);
 }

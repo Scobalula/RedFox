@@ -24,15 +24,7 @@ public sealed record class MaterialTypeDescriptor
     /// <param name="pipelineState">The graphics pipeline state.</param>
     /// <param name="requirements">The material input requirements.</param>
     [JsonConstructor]
-    public MaterialTypeDescriptor(
-        string name,
-        MaterialPipelineKind pipelineKind,
-        string? vertexShaderName,
-        string? fragmentShaderName,
-        string? computeShaderName,
-        IReadOnlyList<VertexAttribute>? vertexAttributes,
-        MaterialPipelineStateDefinition? pipelineState,
-        MaterialTypeRequirements? requirements)
+    public MaterialTypeDescriptor(string name, MaterialPipelineKind pipelineKind, string? vertexShaderName, string? fragmentShaderName, string? computeShaderName, IReadOnlyList<VertexAttribute>? vertexAttributes, MaterialPipelineStateDefinition? pipelineState, MaterialTypeRequirements? requirements)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         requirements ??= MaterialTypeRequirements.Empty;
@@ -120,15 +112,7 @@ public sealed record class MaterialTypeDescriptor
         ArgumentNullException.ThrowIfNull(pipelineState);
         ArgumentNullException.ThrowIfNull(requirements);
 
-        return new MaterialTypeDescriptor(
-            name,
-            MaterialPipelineKind.Graphics,
-            vertexShaderName,
-            fragmentShaderName,
-            null,
-            vertexAttributes,
-            pipelineState,
-            requirements);
+        return new MaterialTypeDescriptor(name, MaterialPipelineKind.Graphics, vertexShaderName, fragmentShaderName, null, vertexAttributes, pipelineState, requirements);
     }
 
     /// <summary>
@@ -154,15 +138,7 @@ public sealed record class MaterialTypeDescriptor
         ArgumentException.ThrowIfNullOrWhiteSpace(computeShaderName);
         ArgumentNullException.ThrowIfNull(requirements);
 
-        return new MaterialTypeDescriptor(
-            name,
-            MaterialPipelineKind.Compute,
-            null,
-            null,
-            computeShaderName,
-            Array.Empty<VertexAttribute>(),
-                null,
-                requirements);
+        return new MaterialTypeDescriptor(name, MaterialPipelineKind.Compute, null, null, computeShaderName, Array.Empty<VertexAttribute>(), null, requirements);
     }
 
     internal IGpuPipelineState BuildPipeline(IGraphicsDevice graphicsDevice, IMaterialShaderFactory shaderFactory)
@@ -223,21 +199,7 @@ public sealed record class MaterialTypeDescriptor
         IGpuShader fragmentShader = shaderFactory.CreateShader(graphicsDevice, fragmentShaderName, ShaderStage.Fragment);
         try
         {
-            return graphicsDevice.CreatePipelineState(
-                vertexShader,
-                fragmentShader,
-                _vertexAttributes,
-                pipelineState.CullMode,
-                pipelineState.FaceWinding,
-                pipelineState.Wireframe,
-                pipelineState.Blend,
-                pipelineState.SourceBlendFactor,
-                pipelineState.DestinationBlendFactor,
-                pipelineState.BlendOperation,
-                pipelineState.DepthTest,
-                pipelineState.DepthWrite,
-                pipelineState.DepthCompareFunc,
-                pipelineState.PrimitiveTopology);
+            return graphicsDevice.CreatePipelineState(vertexShader, fragmentShader, _vertexAttributes, pipelineState.CullMode, pipelineState.FaceWinding, pipelineState.Wireframe, pipelineState.Blend, pipelineState.SourceBlendFactor, pipelineState.DestinationBlendFactor, pipelineState.BlendOperation, pipelineState.DepthTest, pipelineState.DepthWrite, pipelineState.DepthCompareFunc, pipelineState.PrimitiveTopology);
         }
         finally
         {

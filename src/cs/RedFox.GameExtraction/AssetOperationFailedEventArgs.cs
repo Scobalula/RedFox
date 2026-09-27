@@ -45,12 +45,4 @@ public sealed class AssetOperationFailedEventArgs(AssetOperationKind operation, 
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AssetOperationFailedEventArgs"/> class.
-    /// </summary>
-    /// <param name="operation">The operation that failed.</param>
-    /// <param name="exception">The exception raised by the operation.</param>
-    /// <param name="source">The source associated with the failure when available.</param>
-    /// <param name="asset">The asset associated with the failure when available.</param>
-    /// <param name="relativeOutputDirectory">The relative output directory associated with the failure when available.</param>
 }

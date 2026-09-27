@@ -552,8 +552,7 @@ public class SemodelTranslator : SceneTranslator
             if (materialTable.TryGetValue(exactMaterial, out int exactIndex))
                 return exactIndex;
 
-            throw new InvalidDataException(
-                $"Cannot write SEModel: mesh '{mesh.Name}' references material '{exactMaterial.Name}' for layer {layerIndex} that is not included in the export selection.");
+            throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' references material '{exactMaterial.Name}' for layer {layerIndex} that is not included in the export selection.");
         }
 
         foreach (Material material in mesh.Materials)

@@ -31,9 +31,7 @@ public sealed class JpegImageTranslatorTests
     [Fact]
     public void JpegSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] jpegFiles = ImageTranslatorTestHarness.GetInputFiles("Jpeg", ".jpg", ".jpeg", ".jpe", ".jfif");
-        if (jpegFiles.Length == 0)
-            return;
+        string[] jpegFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Jpeg", ".jpg", ".jpeg", ".jpe", ".jfif");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new JpegImageTranslator());
         List<string> failures = [];
@@ -44,6 +42,7 @@ public sealed class JpegImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(jpegFile);
                 Image image = manager.Read(inputFileStream, jpegFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, jpegFile, "Jpeg");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{jpegFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{jpegFile}'.");

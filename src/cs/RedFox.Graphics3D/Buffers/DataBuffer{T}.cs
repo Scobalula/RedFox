@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -71,15 +71,7 @@ namespace RedFox.Graphics3D.Buffers
             int componentSizeBytes = Unsafe.SizeOf<T>();
             int valueStrideBytes = _componentCount * componentSizeBytes;
             int elementStrideBytes = _valueCount * valueStrideBytes;
-            bufferData = new DataBufferRawData(
-                MemoryMarshal.AsBytes(AsReadOnlySpan()),
-                typeof(T),
-                _elementCount,
-                _valueCount,
-                _componentCount,
-                elementStrideBytes,
-                valueStrideBytes,
-                componentSizeBytes);
+            bufferData = new DataBufferRawData(MemoryMarshal.AsBytes(AsReadOnlySpan()), typeof(T), _elementCount, _valueCount, _componentCount, elementStrideBytes, valueStrideBytes, componentSizeBytes);
             return true;
         }
 

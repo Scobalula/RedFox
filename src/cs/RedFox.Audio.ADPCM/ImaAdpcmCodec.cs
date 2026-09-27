@@ -93,17 +93,11 @@ public sealed class ImaAdpcmCodec : AudioCodec
 
             if (channels == 1)
             {
-                DecodeMonoBlock(
-                    source.Slice(blockOffset, blockAlign),
-                    destination[written..blockEnd],
-                    headerSize);
+                DecodeMonoBlock(source.Slice(blockOffset, blockAlign), destination[written..blockEnd], headerSize);
             }
             else
             {
-                DecodeStereoBlock(
-                    source.Slice(blockOffset, blockAlign),
-                    destination[written..blockEnd],
-                    headerSize);
+                DecodeStereoBlock(source.Slice(blockOffset, blockAlign), destination[written..blockEnd], headerSize);
             }
 
             written = blockEnd;
@@ -133,17 +127,11 @@ public sealed class ImaAdpcmCodec : AudioCodec
 
             if (channels == 1)
             {
-                EncodeMonoBlock(
-                    source.Slice(samplePos, blockSamples),
-                    destination.Slice(blockOffset, blockAlign),
-                    headerSize);
+                EncodeMonoBlock(source.Slice(samplePos, blockSamples), destination.Slice(blockOffset, blockAlign), headerSize);
             }
             else
             {
-                EncodeStereoBlock(
-                    source.Slice(samplePos, blockSamples),
-                    destination.Slice(blockOffset, blockAlign),
-                    headerSize);
+                EncodeStereoBlock(source.Slice(samplePos, blockSamples), destination.Slice(blockOffset, blockAlign), headerSize);
             }
 
             samplePos += blockSamples;

@@ -36,6 +36,8 @@ public static class BinaryReaderExtensions
     /// </summary>
     /// <typeparam name="T">The structure type to read</typeparam>
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
+    /// <param name="position">The absolute stream position to read from.</param>
+    /// <param name="returnBack">Whether to restore the original stream position after reading.</param>
     /// <returns>A structure of the given type from the current stream</returns>
     public static T ReadStruct<T>(this BinaryReader reader, long position, bool returnBack) where T : unmanaged
     {
@@ -47,6 +49,11 @@ public static class BinaryReaderExtensions
         return result;
     }
 
+    /// <summary>Reads a native data structure from the specified stream position.</summary>
+    /// <typeparam name="T">The structure type to read.</typeparam>
+    /// <param name="reader">The reader whose stream supplies the data.</param>
+    /// <param name="position">The absolute stream position to read from.</param>
+    /// <returns>The structure read from the stream.</returns>
     public static T ReadStruct<T>(this BinaryReader reader, long position) where T : unmanaged
     {
         return ReadStruct<T>(reader, position, false);
@@ -58,7 +65,6 @@ public static class BinaryReaderExtensions
     /// <typeparam name="T">The structure type to read</typeparam>
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
     /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
-    /// <param name="position">Position of the data</param>
     /// <returns>A structure array of the given type from the current stream</returns>
     public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count) where T : unmanaged
     {
@@ -76,7 +82,6 @@ public static class BinaryReaderExtensions
     /// <typeparam name="T">The structure type to read</typeparam>
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
     /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
-    /// <param name="position">Position of the data</param>
     /// <returns>A structure array of the given type from the current stream</returns>
     public static IEnumerable<T> EnumerateStructArray<T>(this BinaryReader reader, int count) where T : unmanaged
     {
@@ -90,9 +95,8 @@ public static class BinaryReaderExtensions
     /// Reads a native data structure from the current stream and advances the current position of the stream by the size of the array
     /// </summary>
     /// <typeparam name="T">The structure type to read</typeparam>
-    /// <param name="reader">Current <see cref="BinaryReader"/></param>
-    /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
-    /// <param name="position">Position of the data</param>
+    /// <param name="reader">The reader whose stream supplies the data.</param>
+    /// <param name="input">The destination span to fill with values read from the stream.</param>
     /// <returns>A structure array of the given type from the current stream</returns>
     public static void ReadStructArray<T>(this BinaryReader reader, ref Span<T> input) where T : unmanaged
     {
@@ -111,6 +115,7 @@ public static class BinaryReaderExtensions
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
     /// <param name="count">The number of items to read. This value must be 0 or a non-negative number or an exception will occur.</param>
     /// <param name="position">Position of the data</param>
+    /// <param name="returnBack">Whether to restore the original stream position after reading.</param>
     /// <returns>A structure array of the given type from the current stream</returns>
     public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count, long position, bool returnBack) where T : unmanaged
     {
@@ -124,6 +129,12 @@ public static class BinaryReaderExtensions
         return result;
     }
 
+    /// <summary>Reads a structure array starting at the specified stream position.</summary>
+    /// <typeparam name="T">The structure type to read.</typeparam>
+    /// <param name="reader">The reader whose stream supplies the data.</param>
+    /// <param name="count">The number of values to read.</param>
+    /// <param name="position">The absolute stream position to read from.</param>
+    /// <returns>The values read from the stream.</returns>
     public static Span<T> ReadStructArray<T>(this BinaryReader reader, int count, long position) where T : unmanaged
     {
         return ReadStructArray<T>(reader, count, position, false);
@@ -146,6 +157,7 @@ public static class BinaryReaderExtensions
     /// Returns the next available byte at the position and does not advance the byte or character position.
     /// </summary>
     /// <param name="reader">Current <see cref="BinaryReader"/></param>
+    /// <param name="position">The absolute stream position to read from.</param>
     /// <returns></returns>
     public static byte ReadByte(this BinaryReader reader, long position)
     {
@@ -266,7 +278,6 @@ public static class BinaryReaderExtensions
     /// Reads a UTF-8 string from the reader terminated by a null byte (also known as C string)
     /// </summary>
     /// <param name="reader">Reader</param>
-    /// <param name="bufferSize">Initial size of the buffer</param>
     /// <returns>Resulting string</returns>
     public static string ReadUTF8NullTerminatedString(this BinaryReader reader)
     {
@@ -295,7 +306,6 @@ public static class BinaryReaderExtensions
     /// Reads a UTF-8 string from the reader terminated by a null byte (also known as C string)
     /// </summary>
     /// <param name="reader">Reader</param>
-    /// <param name="bufferSize">Initial size of the buffer</param>
     /// <returns>Resulting string</returns>
     public static string ReadUTF16NullTerminatedString(this BinaryReader reader)
     {
@@ -324,7 +334,6 @@ public static class BinaryReaderExtensions
     /// Reads a UTF-8 string from the reader terminated by a null byte (also known as C string)
     /// </summary>
     /// <param name="reader">Reader</param>
-    /// <param name="bufferSize">Initial size of the buffer</param>
     /// <returns>Resulting string</returns>
     public static string ReadUTF32NullTerminatedString(this BinaryReader reader)
     {

@@ -159,6 +159,7 @@ public sealed class SubStream(Stream stream, long offset, long? size, bool leave
         _position += buffer.Length;
     }
 
+    /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
         if (!_disposed)

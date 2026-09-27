@@ -60,11 +60,7 @@ public class LookAtConstraint(string name, SceneNode source) : AnimationSamplerS
         }
         var correctedUp = Vector3.Cross(forward, right);
 
-        var rotMatrix = new Matrix4x4(
-            right.X, right.Y, right.Z, 0,
-            correctedUp.X, correctedUp.Y, correctedUp.Z, 0,
-            forward.X, forward.Y, forward.Z, 0,
-            0, 0, 0, 1);
+        var rotMatrix = new Matrix4x4(right.X, right.Y, right.Z, 0, correctedUp.X, correctedUp.Y, correctedUp.Z, 0, forward.X, forward.Y, forward.Z, 0, 0, 0, 0, 1);
 
         var targetRotation = Quaternion.CreateFromRotationMatrix(rotMatrix);
         var currentRotation = sourcePose.Rotation;

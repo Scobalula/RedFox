@@ -30,9 +30,7 @@ public sealed class PngImageTranslatorTests
     [Fact]
     public void PngSamples_ReadAcrossCorpus_DoesNotThrowAndProducesPixels()
     {
-        string[] pngFiles = ImageTranslatorTestHarness.GetInputFiles("Png", ".png");
-        if (pngFiles.Length == 0)
-            return;
+        string[] pngFiles = ImageTranslatorTestHarness.GetRequiredInputFiles("Png", ".png");
 
         ImageTranslatorManager manager = ImageTranslatorTestHarness.CreateManager(new PngImageTranslator());
         List<string> failures = [];
@@ -43,6 +41,7 @@ public sealed class PngImageTranslatorTests
             {
                 using FileStream inputFileStream = File.OpenRead(pngFile);
                 Image image = manager.Read(inputFileStream, pngFile);
+                ImageTranslatorTestHarness.WriteRgbaDdsOutput(image, pngFile, "Png");
 
                 Assert.True(image.Width > 0, $"Expected positive width for '{pngFile}'.");
                 Assert.True(image.Height > 0, $"Expected positive height for '{pngFile}'.");

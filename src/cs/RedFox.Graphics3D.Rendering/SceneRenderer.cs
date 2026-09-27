@@ -346,14 +346,9 @@ public sealed class SceneRenderer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>
-    /// Creates a frame context populated with the renderer's per-frame lighting and skinning configuration.
-    /// </summary>
-    /// <param name="scene">The scene being rendered.</param>
-    /// <param name="view">The active camera view.</param>
-    /// <param name="viewportSize">The active viewport size.</param>
-    /// <param name="deltaTime">Seconds elapsed since the previous frame.</param>
-    /// <returns>The populated frame context.</returns>
+    /// <summary>Collects the scene nodes in render traversal order, refreshing the cached list when the scene changes.</summary>
+    /// <param name="scene">The scene whose nodes are collected.</param>
+    /// <returns>The scene nodes in post-order traversal.</returns>
     private IReadOnlyList<SceneNode> GetSceneTraversalNodes(Scene scene)
     {
         if (ReferenceEquals(_sceneTraversalScene, scene) && _sceneTraversalVersion == scene.Version)

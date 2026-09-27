@@ -37,15 +37,7 @@ public readonly ref struct DataBufferRawData
     /// <param name="componentSizeBytes">
     /// The number of bytes used by one scalar component.
     /// </param>
-    public DataBufferRawData(
-        ReadOnlySpan<byte> bytes,
-        Type componentType,
-        int elementCount,
-        int valueCount,
-        int componentCount,
-        int elementStrideBytes,
-        int valueStrideBytes,
-        int componentSizeBytes)
+    public DataBufferRawData(ReadOnlySpan<byte> bytes, Type componentType, int elementCount, int valueCount, int componentCount, int elementStrideBytes, int valueStrideBytes, int componentSizeBytes)
     {
         Bytes = bytes;
         ComponentType = componentType;

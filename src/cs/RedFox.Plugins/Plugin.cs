@@ -14,6 +14,7 @@ public sealed class Plugin
     /// <param name="name">The unique plugin name.</param>
     /// <param name="filePath">The fully qualified path of the script file.</param>
     /// <param name="host">The host that owns the plugin.</param>
+    /// <param name="manager">The manager that owns this plugin.</param>
     internal Plugin(string name, string filePath, IPluginHost host, PluginManager manager)
     {
         Name = name;

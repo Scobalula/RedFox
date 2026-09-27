@@ -28,10 +28,7 @@ public sealed class SilkRendererHost : IRendererHost
     /// <param name="windowOptions">The Silk window options.</param>
     /// <param name="presenterFactory">The presenter factory.</param>
     /// <param name="rendererFactory">Creates the scene renderer for the presenter graphics device.</param>
-    public SilkRendererHost(
-        WindowOptions windowOptions,
-        ISilkGraphicsPresenterFactory presenterFactory,
-        Func<IGraphicsDevice, SceneRenderer> rendererFactory)
+    public SilkRendererHost(WindowOptions windowOptions, ISilkGraphicsPresenterFactory presenterFactory, Func<IGraphicsDevice, SceneRenderer> rendererFactory)
     {
         _presenterFactory = presenterFactory ?? throw new ArgumentNullException(nameof(presenterFactory));
         _rendererFactory = rendererFactory ?? throw new ArgumentNullException(nameof(rendererFactory));

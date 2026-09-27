@@ -18,7 +18,7 @@ internal ref struct ExrHuffmanBitReader(ReadOnlySpan<byte> data, int totalBits)
 
     private int _bitsConsumed;
 
-    private ulong _buffer;
+    private UInt128 _buffer;
 
     private int _bufferedBits;
 
@@ -59,7 +59,7 @@ internal ref struct ExrHuffmanBitReader(ReadOnlySpan<byte> data, int totalBits)
         }
 
         EnsureBits(bitCount);
-        value = (_buffer >> (_bufferedBits - bitCount)) & ((1UL << bitCount) - 1);
+        value = (ulong)((_buffer >> (_bufferedBits - bitCount)) & (((UInt128)1 << bitCount) - 1));
         return true;
     }
 
@@ -72,7 +72,7 @@ internal ref struct ExrHuffmanBitReader(ReadOnlySpan<byte> data, int totalBits)
         EnsureBits(bitCount);
         _bufferedBits -= bitCount;
         _bitsConsumed += bitCount;
-        _buffer = _bufferedBits == 0 ? 0 : _buffer & ((1UL << _bufferedBits) - 1);
+        _buffer = _bufferedBits == 0 ? 0 : _buffer & (((UInt128)1 << _bufferedBits) - 1);
     }
 
     private void EnsureBits(int bitCount)
@@ -84,7 +84,7 @@ internal ref struct ExrHuffmanBitReader(ReadOnlySpan<byte> data, int totalBits)
             if (streamBitsRemaining <= 0 || _byteOffset >= _data.Length)
                 throw new InvalidDataException("Unexpected end of Huffman data.");
 
-            int bitsToAppend = Math.Min(Math.Min(8, streamBitsRemaining), bitCount - _bufferedBits);
+            int bitsToAppend = Math.Min(8, streamBitsRemaining);
             byte nextByte = _data[_byteOffset++];
 
             if (bitsToAppend < 8)

@@ -284,8 +284,7 @@ public sealed class MayaAsciiWriter
             {
                 if (_selection is not null && !_selection.Includes(material))
                 {
-                    throw new InvalidDataException(
-                        $"Cannot write Maya ASCII: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
+                    throw new InvalidDataException($"Cannot write Maya ASCII: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
                 }
 
                 if (!materialNodeNames.ContainsKey(material))
@@ -561,8 +560,7 @@ public sealed class MayaAsciiWriter
 
         if (missingBones.Count > 0)
         {
-            throw new InvalidDataException(
-                $"Cannot write Maya ASCII: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
+            throw new InvalidDataException($"Cannot write Maya ASCII: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
         string baseName = SanitizeMayaName(mesh.Name);
@@ -906,11 +904,7 @@ public sealed class MayaAsciiWriter
                 float value;
                 if (isQuaternion)
                 {
-                    Quaternion q = new(
-                        curve.Values!.Get<float>(k, 0, 0),
-                        curve.Values!.Get<float>(k, 0, 1),
-                        curve.Values!.Get<float>(k, 0, 2),
-                        curve.Values!.Get<float>(k, 0, 3));
+                    Quaternion q = new(curve.Values!.Get<float>(k, 0, 0), curve.Values!.Get<float>(k, 0, 1), curve.Values!.Get<float>(k, 0, 2), curve.Values!.Get<float>(k, 0, 3));
                     if (bindRotation is Quaternion localBindRotation)
                     {
                         q = Quaternion.Normalize(Quaternion.Inverse(localBindRotation) * q);
@@ -1287,8 +1281,7 @@ public sealed class MayaAsciiWriter
         }
         else
         {
-            throw new InvalidDataException(
-                $"Cannot write Maya ASCII: constraint '{constraint.Name}' targets node '{constraint.ConstrainedNode.Name}' that is not included in the export selection.");
+            throw new InvalidDataException($"Cannot write Maya ASCII: constraint '{constraint.Name}' targets node '{constraint.ConstrainedNode.Name}' that is not included in the export selection.");
         }
 
         if (constraint is ParentConstraintNode parentConstraint)
@@ -1323,8 +1316,7 @@ public sealed class MayaAsciiWriter
 
             if (!_nodeNames.TryGetValue(parentConstraint.SourceNode, out string? sourceName))
             {
-                throw new InvalidDataException(
-                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{parentConstraint.SourceNode.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{parentConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
 
             _connections.Add(new MayaConnection(sourceName + ".t", constraintName + ".tg[0].tt", false));
@@ -1355,8 +1347,7 @@ public sealed class MayaAsciiWriter
 
             if (!_nodeNames.TryGetValue(orientConstraint.SourceNode, out string? sourceName))
             {
-                throw new InvalidDataException(
-                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{orientConstraint.SourceNode.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{orientConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
 
             _connections.Add(new MayaConnection(sourceName + ".r", constraintName + ".tg[0].tr", false));
@@ -1384,8 +1375,7 @@ public sealed class MayaAsciiWriter
 
             if (!_nodeNames.TryGetValue(pointConstraint.SourceNode, out string? sourceName))
             {
-                throw new InvalidDataException(
-                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{pointConstraint.SourceNode.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{pointConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
 
             _connections.Add(new MayaConnection(sourceName + ".t", constraintName + ".tg[0].tt", false));
@@ -1413,8 +1403,7 @@ public sealed class MayaAsciiWriter
 
             if (!_nodeNames.TryGetValue(scaleConstraint.SourceNode, out string? sourceName))
             {
-                throw new InvalidDataException(
-                    $"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{scaleConstraint.SourceNode.Name}' that is not included in the export selection.");
+                throw new InvalidDataException($"Cannot write Maya ASCII: constraint '{constraint.Name}' references source node '{scaleConstraint.SourceNode.Name}' that is not included in the export selection.");
             }
 
             _connections.Add(new MayaConnection(sourceName + ".s", constraintName + ".tg[0].ts", false));

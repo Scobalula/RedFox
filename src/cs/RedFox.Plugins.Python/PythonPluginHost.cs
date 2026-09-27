@@ -95,8 +95,6 @@ public sealed class PythonPluginHost : IPluginHost, IDisposable
 
         plugin.Tag = null;
         Exception? captured = null;
-        IntPtr scopeHandle = scope.Handle;
-
         using (Py.GIL())
         {
             try
@@ -116,7 +114,7 @@ public sealed class PythonPluginHost : IPluginHost, IDisposable
             {
                 using PyObject sysModules = Py.Import("sys").GetAttr("modules");
                 using PyObject currentModule = sysModules.InvokeMethod("get", plugin.Name.ToPython());
-                if (currentModule.Handle == scopeHandle)
+                if (scope.Equals(currentModule))
                     sysModules.InvokeMethod("pop", plugin.Name.ToPython(), PyObject.None);
             }
             catch

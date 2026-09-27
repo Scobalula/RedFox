@@ -13,6 +13,7 @@ namespace RedFox.Imaging.Formats.Dds;
 /// <param name="Format">The DXGI-based pixel format of the image data.</param>
 /// <param name="IsCubemap">Whether the image is a cubemap.</param>
 /// <param name="DataOffset">Byte offset to the start of the pixel payload.</param>
+/// <param name="IsLegacyRgb24">Whether the legacy header describes 24-bit RGB data.</param>
 internal readonly record struct DdsMetadata(int Width, int Height, int Depth, int ArraySize, int MipLevels, ImageFormat Format, bool IsCubemap, int DataOffset, bool IsLegacyRgb24)
 {
     /// <summary>

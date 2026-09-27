@@ -85,8 +85,7 @@ public sealed class MeshNormalsTests
         // Different modes should agree on direction for a flat triangle.
         for (int m = 1; m < results.Length; m++)
         {
-            Assert.True(MathF.Abs(results[m].Z - results[0].Z) < Eps,
-                $"Mode {modes[m]} Z={results[m].Z} differs from Mode {modes[0]} Z={results[0].Z}");
+            Assert.True(MathF.Abs(results[m].Z - results[0].Z) < Eps, $"Mode {modes[m]} Z={results[m].Z} differs from Mode {modes[0]} Z={results[0].Z}");
         }
     }
 

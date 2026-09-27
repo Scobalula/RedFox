@@ -80,8 +80,7 @@ internal sealed class OpenGlContext : IDisposable
     {
         if (!SupportsVersion(major, minor))
         {
-            throw new InvalidOperationException(
-                $"OpenGL {major}.{minor}+ is required, but the active context is {MajorVersion}.{MinorVersion}.");
+            throw new InvalidOperationException($"OpenGL {major}.{minor}+ is required, but the active context is {MajorVersion}.{MinorVersion}.");
         }
     }
 

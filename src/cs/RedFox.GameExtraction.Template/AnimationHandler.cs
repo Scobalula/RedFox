@@ -111,8 +111,7 @@ public sealed class AnimationHandler : IAssetHandler
         {
             VirtualFile file => file.Open(),
             ZipArchiveEntry entry => entry.Open(),
-            _ => throw new InvalidOperationException(
-                $"AnimationHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
+            _ => throw new InvalidOperationException($"AnimationHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
         };
     }
 }

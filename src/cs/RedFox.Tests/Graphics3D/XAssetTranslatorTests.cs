@@ -14,8 +14,6 @@ public sealed class XAssetTranslatorTests
     public void XModelSamples_ReadAndRoundTrip(string fileName)
     {
         string path = GetReferencePath(fileName);
-        if (!File.Exists(path))
-            return;
 
         SceneTranslatorManager manager = new();
         manager.Register(new XModelTranslator());
@@ -41,8 +39,6 @@ public sealed class XAssetTranslatorTests
     public void XModelWrite_IncludesUnskinnedBones()
     {
         string path = GetReferencePath("char_usa_marine_player_head_smg_LOD1.XMODEL_EXPORT");
-        if (!File.Exists(path))
-            return;
 
         SceneTranslatorManager manager = new();
         manager.Register(new XModelTranslator());
@@ -63,8 +59,6 @@ public sealed class XAssetTranslatorTests
     public void XModelWrite_InjectsTagOriginWhenSceneHasNoBones()
     {
         string path = GetReferencePath("char_usa_marine_player_head_smg_LOD1.XMODEL_EXPORT");
-        if (!File.Exists(path))
-            return;
 
         SceneTranslatorManager manager = new();
         manager.Register(new XModelTranslator());
@@ -96,8 +90,6 @@ public sealed class XAssetTranslatorTests
     public void XAnimSamples_ReadAndRoundTrip(string fileName)
     {
         string path = GetReferencePath(fileName);
-        if (!File.Exists(path))
-            return;
 
         SceneTranslatorManager manager = new();
         manager.Register(new XAnimTranslator());
@@ -149,13 +141,16 @@ public sealed class XAssetTranslatorTests
     private static string GetReferencePath(string fileName)
     {
         DirectoryInfo? directory = new(Directory.GetCurrentDirectory());
+        List<string> searchedDirectories = [];
         while (directory is not null)
         {
+            searchedDirectories.Add(directory.FullName);
             string path = Path.Combine(directory.FullName, "ref", fileName);
             if (File.Exists(path))
                 return path;
             directory = directory.Parent;
         }
-        return string.Empty;
+
+        throw new FileNotFoundException($"Required XAsset test input '{fileName}' was not found in a 'ref' directory. Searched under: {string.Join(", ", searchedDirectories)}.");
     }
 }

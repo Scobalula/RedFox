@@ -218,8 +218,6 @@ namespace RedFox.IO.ProcessMemory
         /// </summary>
         /// <param name="address">The target memory address to write to.</param>
         /// <param name="pointerValue">The pointer value to write.</param>
-        /// <param name="pointerSize">The pointer width to use for the write operation.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="pointerSize"/> is invalid.</exception>
         public void WritePointer(nint address, nint pointerValue)
         {
             WritePointer(address, pointerValue, ProcessPointerSize.Native);
@@ -279,9 +277,6 @@ namespace RedFox.IO.ProcessMemory
         /// <param name="address">The target memory address to write to.</param>
         /// <param name="value">The string value to write.</param>
         /// <param name="encoding">The encoding used to convert the string to bytes.</param>
-        /// <param name="nullTerminate">
-        /// <see langword="true"/> to append an encoding-aware null terminator; otherwise, <see langword="false"/>.
-        /// </param>
         /// <exception cref="ArgumentNullException">
         /// Thrown when <paramref name="value"/> or <paramref name="encoding"/> is null.
         /// </exception>
@@ -328,9 +323,6 @@ namespace RedFox.IO.ProcessMemory
         /// </summary>
         /// <param name="address">The target memory address to write to.</param>
         /// <param name="value">The string value to write.</param>
-        /// <param name="nullTerminate">
-        /// <see langword="true"/> to append a null terminator; otherwise, <see langword="false"/>.
-        /// </param>
         public void WriteUtf8String(nint address, string value)
         {
             WriteUtf8String(address, value, DefaultNullTerminate);
@@ -354,9 +346,6 @@ namespace RedFox.IO.ProcessMemory
         /// </summary>
         /// <param name="address">The target memory address to write to.</param>
         /// <param name="value">The string value to write.</param>
-        /// <param name="nullTerminate">
-        /// <see langword="true"/> to append a null terminator; otherwise, <see langword="false"/>.
-        /// </param>
         public void WriteAsciiString(nint address, string value)
         {
             WriteAsciiString(address, value, DefaultNullTerminate);
@@ -380,9 +369,6 @@ namespace RedFox.IO.ProcessMemory
         /// </summary>
         /// <param name="address">The target memory address to write to.</param>
         /// <param name="value">The string value to write.</param>
-        /// <param name="nullTerminate">
-        /// <see langword="true"/> to append a null terminator; otherwise, <see langword="false"/>.
-        /// </param>
         public void WriteUtf16String(nint address, string value)
         {
             WriteUtf16String(address, value, DefaultNullTerminate);

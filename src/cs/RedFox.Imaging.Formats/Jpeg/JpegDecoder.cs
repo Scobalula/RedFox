@@ -383,15 +383,16 @@ internal sealed class JpegDecoder(Stream stream)
     private void DecodeBaselineScan(JpegScanHeader scan)
     {
         using var reader = new JpegBitReader(_stream);
+        JpegFrame frame = _frame ?? throw new InvalidDataException("JPEG scan encountered before a frame header.");
         int mcuCount = 0;
 
         foreach (var sc in scan.Components)
-            _frame!.Components[sc.ComponentId].PreviousDc = 0;
+            frame.Components[sc.ComponentId].PreviousDc = 0;
 
         bool nonInterleaved = scan.Components.Length == 1;
-        var singleComponent = nonInterleaved ? _frame!.Components[scan.Components[0].ComponentId] : null;
-        int scanUnitCount = nonInterleaved ? singleComponent!.BlocksPerRow * singleComponent.BlocksPerColumn : _frame!.McuCount;
-        int scanWidth = nonInterleaved ? singleComponent!.BlocksPerRow : _frame!.McuWidth;
+        var singleComponent = nonInterleaved ? frame.Components[scan.Components[0].ComponentId] : null;
+        int scanUnitCount = nonInterleaved ? singleComponent!.BlocksPerRow * singleComponent.BlocksPerColumn : frame.McuCount;
+        int scanWidth = nonInterleaved ? singleComponent!.BlocksPerRow : frame.McuWidth;
 
         for (int mcuIndex = 0; mcuIndex < scanUnitCount; mcuIndex++)
         {
@@ -411,7 +412,7 @@ internal sealed class JpegDecoder(Stream stream)
 
             foreach (var sc in scan.Components)
             {
-                var comp = _frame.Components[sc.ComponentId];
+                var comp = frame.Components[sc.ComponentId];
                 var dcTable = _dcTables[sc.DcTableId] ?? throw new InvalidDataException($"Missing DC Huffman table {sc.DcTableId}.");
                 var acTable = _acTables[sc.AcTableId] ?? throw new InvalidDataException($"Missing AC Huffman table {sc.AcTableId}.");
 
@@ -436,6 +437,8 @@ internal sealed class JpegDecoder(Stream stream)
 
             mcuCount++;
         }
+
+        CaptureScanMarker(reader);
     }
 
     private static bool TryDecodeBlock(JpegBitReader reader, int[] block, JpegHuffmanTable dcTable, JpegHuffmanTable acTable, JpegFrameComponent comp)
@@ -559,6 +562,8 @@ internal sealed class JpegDecoder(Stream stream)
 
             mcuCount++;
         }
+
+        CaptureScanMarker(reader);
     }
 
     private void DecodeProgressiveScanInterleaved(JpegScanHeader scan, bool isDc, bool isFirstVisit)
@@ -611,6 +616,8 @@ internal sealed class JpegDecoder(Stream stream)
 
             mcuCount++;
         }
+
+        CaptureScanMarker(reader);
     }
 
     private JpegHuffmanTable GetDcTable(int id)

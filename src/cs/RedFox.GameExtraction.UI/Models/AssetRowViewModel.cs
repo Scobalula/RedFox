@@ -66,10 +66,7 @@ public sealed class AssetRowViewModel
     /// <summary>
     /// Gets display-friendly metadata values.
     /// </summary>
-    public IReadOnlyDictionary<string, string> MetadataDisplay => Asset.Metadata.ToDictionary(
-        pair => pair.Key,
-        pair => pair.Value?.ToString() ?? string.Empty,
-        StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<string, string> MetadataDisplay => Asset.Metadata.ToDictionary(pair => pair.Key, pair => pair.Value?.ToString() ?? string.Empty, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets a metadata value for display or search.

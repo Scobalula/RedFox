@@ -201,10 +201,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
                 continue;
             }
 
-            TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(
-                _graphicsDevice,
-                binding.Texture,
-                () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
+            TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, binding.Texture, () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
 
             commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
             textureHandle.Bind(commandList, binding.Slot);
@@ -224,10 +221,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             return false;
         }
 
-        TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(
-            _graphicsDevice,
-            texture,
-            () => new TextureRenderHandle(_graphicsDevice, texture));
+        TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
 
         commandList.SetUniformInt(samplerUniform, slot);
         textureHandle.Bind(commandList, slot);

@@ -405,7 +405,7 @@ public sealed class SmdWriter
     /// <summary>
     /// Formats a float using fixed six-decimal invariant culture output.
     /// </summary>
-    /// <param name="v">
+    /// <param name="value">
     /// The value to format.
     /// </param>
     /// <returns>

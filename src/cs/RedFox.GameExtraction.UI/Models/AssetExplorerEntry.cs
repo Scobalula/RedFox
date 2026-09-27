@@ -7,13 +7,7 @@ namespace RedFox.GameExtraction.UI.Models;
 /// </summary>
 public sealed class AssetExplorerEntry
 {
-    private AssetExplorerEntry(
-        bool isFolder,
-        string name,
-        string typeDisplay,
-        string information,
-        AssetDirectoryNode? directory,
-        AssetRowViewModel? row)
+    private AssetExplorerEntry(bool isFolder, string name, string typeDisplay, string information, AssetDirectoryNode? directory, AssetRowViewModel? row)
     {
         IsFolder = isFolder;
         Name = name;
@@ -70,13 +64,7 @@ public sealed class AssetExplorerEntry
         int folderCount = node.Children.Count;
         int fileCount = node.RecursiveFileCount;
         string information = $"{folderCount:N0} folder{(folderCount == 1 ? string.Empty : "s")}, {fileCount:N0} file{(fileCount == 1 ? string.Empty : "s")}";
-        return new AssetExplorerEntry(
-            isFolder: true,
-            name: name,
-            typeDisplay: "Folder",
-            information: information,
-            directory: node,
-            row: null);
+        return new AssetExplorerEntry(isFolder: true, name: name, typeDisplay: "Folder", information: information, directory: node, row: null);
     }
 
     /// <summary>
@@ -88,13 +76,7 @@ public sealed class AssetExplorerEntry
         ArgumentNullException.ThrowIfNull(row);
 
         string name = LeafName(row.Asset.Name);
-        return new AssetExplorerEntry(
-            isFolder: false,
-            name: name,
-            typeDisplay: row.Type,
-            information: row.Information,
-            directory: null,
-            row: row);
+        return new AssetExplorerEntry(isFolder: false, name: name, typeDisplay: row.Type, information: row.Information, directory: null, row: row);
     }
 
     private static string LeafName(string? assetName)

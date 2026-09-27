@@ -121,8 +121,7 @@ public sealed class BvhWriter
                 continue;
             }
 
-            throw new InvalidOperationException(
-                $"BVH export cannot represent scene node '{node.Name}' of type '{node.GetType().Name}'. BVH only supports a skeleton hierarchy and a single skeleton animation clip.");
+            throw new InvalidOperationException($"BVH export cannot represent scene node '{node.Name}' of type '{node.GetType().Name}'. BVH only supports a skeleton hierarchy and a single skeleton animation clip.");
         }
     }
 

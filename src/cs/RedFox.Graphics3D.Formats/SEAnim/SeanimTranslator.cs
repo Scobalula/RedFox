@@ -146,8 +146,7 @@ public class SeanimTranslator : SceneTranslator
         {
             if (selection.Filter != SceneNodeFlags.None && scene.TryGetFirstOfType<SkeletonAnimation>() is not null)
             {
-                throw new InvalidDataException(
-                    $"Cannot write SEAnim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
+                throw new InvalidDataException($"Cannot write SEAnim: no SkeletonAnimation matched the export selection '{selection.Filter}'.");
             }
 
             throw new InvalidDataException("Scene does not contain a SkeletonAnimation.");

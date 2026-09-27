@@ -68,21 +68,14 @@ public sealed class PublicUtilitiesTests
     [Fact]
     public void ReadNullTerminatedBytes_NegativeChunkCount_ThrowsInvalidOperationException()
     {
-        Assert.Throws<InvalidOperationException>(
-            () => NullTerminatedStringReader.ReadNullTerminatedBytes(
-                Encoding.UTF8,
-                maxBytes: 16,
-                chunkSize: 8,
-                readChunk: _ => -1,
-                onMissing: () => new InvalidOperationException("Missing terminator.")));
+        Assert.Throws<InvalidOperationException>(() => NullTerminatedStringReader.ReadNullTerminatedBytes(Encoding.UTF8, maxBytes: 16, chunkSize: 8, readChunk: _ => -1, onMissing: () => new InvalidOperationException("Missing terminator.")));
     }
 
     [Fact]
     public void BytePatternScanner_NegativeChunkCount_ThrowsInvalidOperationException()
     {
         Pattern<byte> pattern = BytePattern.Parse("AA");
-        Assert.Throws<InvalidOperationException>(
-            () => BytePatternScanner.Scan(pattern, start: 0, end: 10, bufferSize: 8, firstOnly: false, readChunk: (_, _) => -1));
+        Assert.Throws<InvalidOperationException>(() => BytePatternScanner.Scan(pattern, start: 0, end: 10, bufferSize: 8, firstOnly: false, readChunk: (_, _) => -1));
     }
 
     [Fact]

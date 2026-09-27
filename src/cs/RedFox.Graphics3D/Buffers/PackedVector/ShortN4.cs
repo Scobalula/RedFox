@@ -49,11 +49,7 @@ public struct ShortN4 : IPackedVector<ShortN4>
         var y = (short)((_packed >> 16) & 0xFFFF);
         var z = (short)((_packed >> 32) & 0xFFFF);
         var w = (short)((_packed >> 48) & 0xFFFF);
-        return new Vector4(
-            x == -32768 ? -1f : x / 32767f,
-            y == -32768 ? -1f : y / 32767f,
-            z == -32768 ? -1f : z / 32767f,
-            w == -32768 ? -1f : w / 32767f);
+        return new Vector4(x == -32768 ? -1f : x / 32767f, y == -32768 ? -1f : y / 32767f, z == -32768 ? -1f : z / 32767f, w == -32768 ? -1f : w / 32767f);
     }
 
     /// <inheritdoc/>

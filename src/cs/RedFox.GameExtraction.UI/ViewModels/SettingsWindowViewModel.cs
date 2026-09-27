@@ -18,10 +18,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     /// <param name="settings">The settings object to edit.</param>
     /// <param name="settingDefinitions">The settings to display.</param>
     /// <param name="appName">The application name used for persistence.</param>
-    public SettingsWindowViewModel(
-        GameExtractionSettings settings,
-        IReadOnlyList<GameExtractionSetting> settingDefinitions,
-        string appName)
+    public SettingsWindowViewModel(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(settingDefinitions);
