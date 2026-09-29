@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
+             xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+             x:Class="RedFox.GameExtraction.UI.Views.AudioPreviewView"
+             x:DataType="vm:AudioPreviewViewModel"
+             MinHeight="200">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Classes="preview-toolbar">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Classes="preview-stats" Text="{Binding InfoDisplay}"/>
+                <TextBlock Classes="preview-stats error"
+                           Margin="16,0,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding ErrorMessage}"/>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Classes="preview-toolbar bottom">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
+                    <CheckBox Content="Loop" IsChecked="{Binding IsLooping}"/>
+                    <TextBlock Classes="preview-stats" Text="Volume"/>
+                    <Slider Width="110" Minimum="0" Maximum="1" Value="{Binding Volume}" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Classes="icon-btn" Command="{Binding TogglePlaybackCommand}" IsEnabled="{Binding CanPlay}">
+                        <Panel>
+                            <PathIcon Data="{StaticResource IconPlay}" Width="12" Height="12" IsVisible="{Binding !IsPlaying}"/>
+                            <PathIcon Data="{StaticResource IconPause}" Width="12" Height="12" IsVisible="{Binding IsPlaying}"/>
+                        </Panel>
+                    </Button>
+                    <Button Classes="icon-btn" Command="{Binding StopCommand}" IsEnabled="{Binding IsActive}">
+                        <PathIcon Data="{StaticResource IconStop}" Width="12" Height="12"/>
+                    </Button>
+                    <TextBlock Classes="preview-stats" MinWidth="120" Text="{Binding TimeDisplay}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <controls:AudioWaveformControl Audio="{Binding Audio}"
+                                       Position="{Binding PositionFraction}"
+                                       SeekCommand="{Binding SeekCommand}"/>
+    </DockPanel>
+</UserControl>

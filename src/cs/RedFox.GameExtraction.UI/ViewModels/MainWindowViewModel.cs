@@ -18,7 +18,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
-    private readonly Func<MainWindowViewModel, object?> _previewContentFactory;
     private readonly List<AssetRowViewModel> _allAssets = [];
     private readonly ObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly List<AssetExplorerEntry> _explorerEntries = [];
@@ -27,9 +26,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly Timer _searchFilterTimer;
     private string _assetNameFilter = string.Empty;
     private CancellationTokenSource? _currentCts;
-    private CancellationTokenSource? _previewLoadCts;
-    private int _previewLoadVersion;
-    private object? _previewContent;
     private bool _isPreviewWindowOpen;
     private AssetRowViewModel[]? _pendingPreviewSelection;
 
@@ -42,6 +38,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the plugin service exposed by the asset manager.
     /// </summary>
     public PluginsService Plugins { get; }
+
+    /// <summary>
+    /// Gets the preview state bound to the preview window.
+    /// </summary>
+    public PreviewViewModel Preview { get; }
 
     /// <summary>
     /// Gets the filtered asset view bound to the asset grid.
@@ -73,91 +74,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty]
     public partial AssetRowViewModel? SelectedAsset { get; set; }
-
-    /// <summary>
-    /// Gets or sets the selected asset currently being previewed.
-    /// </summary>
-    [ObservableProperty]
-    public partial AssetRowViewModel? PreviewAsset { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the most recent raw preview read result.
-    /// </summary>
-    [ObservableProperty]
-    public partial AssetReadResult? PreviewReadResult { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the most recent preview data payload.
-    /// </summary>
-    [ObservableProperty]
-    public partial object? PreviewData { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the byte payload displayed by the hex previewer.
-    /// </summary>
-    [ObservableProperty]
-    public partial byte[]? PreviewBytes { get; private set; }
-
-    /// <summary>
-    /// Gets the active preview control selected for the current payload.
-    /// </summary>
-    public object? PreviewContent
-    {
-        get => _previewContent;
-        private set
-        {
-            if (ReferenceEquals(_previewContent, value))
-            {
-                return;
-            }
-
-            _previewContent = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(ShowPreviewPlaceholder));
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets whether preview content is visible.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsPreviewContentVisible { get; private set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether preview data is loading.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsPreviewLoading { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the current preview status message.
-    /// </summary>
-    [ObservableProperty]
-    public partial string PreviewStatusText { get; private set; } = "Waiting for selection";
-
-    /// <summary>
-    /// Gets or sets the active handler display name.
-    /// </summary>
-    [ObservableProperty]
-    public partial string HandlerDisplay { get; private set; } = "-";
-
-    /// <summary>
-    /// Gets or sets the payload type display name.
-    /// </summary>
-    [ObservableProperty]
-    public partial string PayloadTypeDisplay { get; private set; } = "-";
-
-    /// <summary>
-    /// Gets or sets the reference count display text.
-    /// </summary>
-    [ObservableProperty]
-    public partial string ReferenceCountDisplay { get; private set; } = "0";
-
-    /// <summary>
-    /// Gets or sets the number of selected assets reflected in the preview window.
-    /// </summary>
-    [ObservableProperty]
-    public partial int PreviewSelectionCount { get; private set; }
 
     /// <summary>
     /// Gets or sets the asset search text.
@@ -222,73 +138,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the toggle button label for the directory/list view mode switch.
     /// </summary>
     public string ViewModeToggleLabel => IsDirectoryViewActive ? "List View" : "Directory View";
-
-    /// <summary>
-    /// Gets or sets the title displayed in the preview body.
-    /// </summary>
-    [ObservableProperty]
-    public partial string ContentTitle { get; private set; } = "No asset selected";
-
-    /// <summary>
-    /// Gets or sets the description displayed in the preview body.
-    /// </summary>
-    [ObservableProperty]
-    public partial string ContentText { get; private set; } = "";
-
-    /// <summary>
-    /// Gets the preview window title.
-    /// </summary>
-    public string WindowTitle => PreviewAsset?.Name ?? "Preview";
-
-    /// <summary>
-    /// Gets the selected asset name display.
-    /// </summary>
-    public string AssetNameDisplay => PreviewAsset?.Name ?? "No asset selected";
-
-    /// <summary>
-    /// Gets the selected asset type display.
-    /// </summary>
-    public string AssetTypeDisplay => PreviewAsset?.Type ?? string.Empty;
-
-    /// <summary>
-    /// Gets the selected source name display.
-    /// </summary>
-    public string SourceNameDisplay => PreviewAsset?.SourceName ?? string.Empty;
-
-    /// <summary>
-    /// Gets the selected asset size display.
-    /// </summary>
-    public string SizeDisplay => PreviewAsset?.SizeDisplay ?? "-";
-
-    /// <summary>
-    /// Gets the selected asset information display.
-    /// </summary>
-    public string InformationDisplay => PreviewAsset?.Information ?? "Select an asset to inspect its preview payload.";
-
-    /// <summary>
-    /// Gets the selection summary display.
-    /// </summary>
-    public string SelectionDisplay => PreviewSelectionCount switch
-    {
-        <= 0 => "No selection",
-        1 => "1 selected",
-        _ => $"{PreviewSelectionCount} selected, previewing the latest",
-    };
-
-    /// <summary>
-    /// Gets a value indicating whether preview data is available for future controls.
-    /// </summary>
-    public bool HasPreviewData => PreviewData is not null;
-
-    /// <summary>
-    /// Gets a value indicating whether the current payload can be displayed as hex bytes.
-    /// </summary>
-    public bool HasPreviewBytes => PreviewBytes is not null;
-
-    /// <summary>
-    /// Gets a value indicating whether the placeholder content should be shown.
-    /// </summary>
-    public bool ShowPreviewPlaceholder => PreviewContent is null;
 
     /// <summary>
     /// Gets or sets a value indicating whether an operation is running.
@@ -366,17 +215,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public partial string StatusText { get; set; } = "Ready";
 
     /// <summary>
-    /// Gets or sets the loaded asset count shown in the status bar.
-    /// </summary>
-    [ObservableProperty]
-    public partial int AssetCount { get; set; }
-
-    /// <summary>
-    /// Gets the status bar asset count text.
-    /// </summary>
-    public string AssetCountDisplay => AssetCount > 0 ? $"{AssetCount:N0} assets loaded" : "No assets loaded";
-
-    /// <summary>
     /// Raised when the settings window should be opened.
     /// </summary>
     public event Action? SettingsRequested;
@@ -421,7 +259,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _searchFilterTimer = new Timer(OnSearchFilterTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
         _config = config;
         _assetManager = config.AssetManagerFactory();
-        _previewContentFactory = config.PreviewContentFactory;
+        Preview = new PreviewViewModel(_assetManager);
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
 
@@ -526,7 +364,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 RemoveSource(source);
                 LoadedSources.Remove(source);
-                AssetCount = TotalCount;
                 StatusText = $"Unloaded {source.DisplayName}";
             });
         }
@@ -571,10 +408,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         TotalCount = _allAssets.Count;
         RebuildDirectoryTree();
         ApplyFilter();
-        if (_isPreviewWindowOpen)
-        {
-            _ = UpdatePreviewSelectionAsync(SelectedAssets);
-        }
+        RefreshPreview([.. SelectedAssets]);
     }
 
     /// <summary>
@@ -590,10 +424,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         SelectedAsset = SelectedAssets.LastOrDefault();
-        if (_isPreviewWindowOpen)
-        {
-            _ = UpdatePreviewSelectionAsync(SelectedAssets);
-        }
+        RefreshPreview([.. SelectedAssets]);
     }
 
     /// <summary>
@@ -607,10 +438,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         TotalCount = 0;
         RebuildDirectoryTree();
         ApplyFilter();
-        if (_isPreviewWindowOpen)
-        {
-            _ = UpdatePreviewSelectionAsync([]);
-        }
+        RefreshPreview([]);
     }
 
     /// <summary>
@@ -619,17 +447,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="asset">The asset row to preview.</param>
     public void OpenPreview(AssetRowViewModel asset)
     {
-        AssetRowViewModel[] selection = [asset];
         SelectedAsset = asset;
-        if (_isPreviewWindowOpen)
-        {
-            _ = UpdatePreviewSelectionAsync(selection);
-            PreviewRequested?.Invoke();
-            return;
-        }
-
-        _pendingPreviewSelection = selection;
-        PreviewRequested?.Invoke();
+        RequestPreview([asset]);
     }
 
     /// <summary>
@@ -644,17 +463,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         _isPreviewWindowOpen = value;
+        AssetRowViewModel[] selection = _pendingPreviewSelection ?? [.. SelectedAssets];
+        _pendingPreviewSelection = null;
+
         if (value)
         {
-            AssetRowViewModel[] selection = _pendingPreviewSelection ?? [.. SelectedAssets];
-            _pendingPreviewSelection = null;
-            _ = UpdatePreviewSelectionAsync(selection);
-            return;
+            _ = Preview.UpdateSelectionAsync(selection);
         }
-
-        _pendingPreviewSelection = null;
-        CancelPendingPreviewLoad();
-        IsPreviewLoading = false;
+        else
+        {
+            Preview.Clear();
+        }
     }
 
     /// <inheritdoc/>
@@ -666,42 +485,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         Plugins.Dispose();
         _currentCts?.Cancel();
         _currentCts = null;
-        CancelPendingPreviewLoad();
-    }
-
-    partial void OnIsLoadingChanged(bool value)
-    {
+        Preview.Clear();
     }
 
     partial void OnSearchTextChanged(string value)
     {
         _assetNameFilter = value.Trim();
         _searchFilterTimer.Change(TimeSpan.FromMilliseconds(180), Timeout.InfiniteTimeSpan);
-    }
-
-    partial void OnPreviewAssetChanged(AssetRowViewModel? value)
-    {
-        OnPropertyChanged(nameof(WindowTitle));
-        OnPropertyChanged(nameof(AssetNameDisplay));
-        OnPropertyChanged(nameof(AssetTypeDisplay));
-        OnPropertyChanged(nameof(SourceNameDisplay));
-        OnPropertyChanged(nameof(SizeDisplay));
-        OnPropertyChanged(nameof(InformationDisplay));
-    }
-
-    partial void OnPreviewSelectionCountChanged(int value)
-    {
-        OnPropertyChanged(nameof(SelectionDisplay));
-    }
-
-    partial void OnPreviewDataChanged(object? value)
-    {
-        OnPropertyChanged(nameof(HasPreviewData));
-    }
-
-    partial void OnPreviewBytesChanged(byte[]? value)
-    {
-        OnPropertyChanged(nameof(HasPreviewBytes));
     }
 
     [RelayCommand]
@@ -755,16 +545,29 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PreviewSelected()
     {
-        AssetRowViewModel[] selection = [.. SelectedAssets];
+        RequestPreview([.. SelectedAssets]);
+    }
+
+    private void RequestPreview(AssetRowViewModel[] selection)
+    {
         if (_isPreviewWindowOpen)
         {
-            _ = UpdatePreviewSelectionAsync(selection);
-            PreviewRequested?.Invoke();
-            return;
+            _ = Preview.UpdateSelectionAsync(selection);
+        }
+        else
+        {
+            _pendingPreviewSelection = selection;
         }
 
-        _pendingPreviewSelection = selection;
         PreviewRequested?.Invoke();
+    }
+
+    private void RefreshPreview(AssetRowViewModel[] selection)
+    {
+        if (_isPreviewWindowOpen)
+        {
+            _ = Preview.UpdateSelectionAsync(selection);
+        }
     }
 
     [RelayCommand]
@@ -782,11 +585,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnSourceCountChanged(int value)
     {
         OnPropertyChanged(nameof(SourceCountDisplay));
-    }
-
-    partial void OnAssetCountChanged(int value)
-    {
-        OnPropertyChanged(nameof(AssetCountDisplay));
     }
 
     private async Task RequestLoadFilesAsync()
@@ -1037,7 +835,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         AssetSourceViewModel sourceRow = new(source, request);
         LoadedSources.Add(sourceRow);
         AddSource(sourceRow);
-        AssetCount = TotalCount;
     }
 
     private void InitializeShellState(GameExtractionConfig config)
@@ -1126,7 +923,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         ClearAssets();
         LoadedSources.Clear();
-        AssetCount = 0;
         StatusText = "Cleared all sources";
     }
 
@@ -1138,115 +934,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void OpenSourceManager()
     {
         SourceManagerRequested?.Invoke();
-    }
-
-    /// <summary>
-    /// Loads preview data for the selected assets.
-    /// </summary>
-    /// <param name="selectedAssets">The assets selected in the main window.</param>
-    public async Task UpdatePreviewSelectionAsync(IEnumerable<AssetRowViewModel> selectedAssets)
-    {
-        AssetRowViewModel[] selection = [.. selectedAssets];
-        PreviewSelectionCount = selection.Length;
-        AssetRowViewModel? asset = selection.LastOrDefault();
-        PreviewAsset = asset;
-        IsPreviewContentVisible = false;
-
-        if (asset is null)
-        {
-            CancelPendingPreviewLoad();
-            IsPreviewLoading = false;
-            PreviewReadResult = null;
-            PreviewData = null;
-            PreviewBytes = null;
-            PreviewContent = null;
-            ContentTitle = "No asset selected";
-            PreviewStatusText = "Waiting for selection";
-            HandlerDisplay = "-";
-            PayloadTypeDisplay = "-";
-            ReferenceCountDisplay = "0";
-            return;
-        }
-
-        int loadVersion = ++_previewLoadVersion;
-        CancellationTokenSource cancellationSource = BeginPreviewLoad();
-
-        IsPreviewLoading = true;
-        HandlerDisplay = ResolveHandlerName(asset.Asset);
-        PayloadTypeDisplay = "-";
-        ReferenceCountDisplay = "0";
-        PreviewStatusText = $"Reading {asset.Name} for preview";
-        PreviewReadResult = null;
-        PreviewData = null;
-        PreviewBytes = null;
-        ContentTitle = "Loading asset data";
-        ContentText = "";
-
-        try
-        {
-            AssetReadResult readResult = await _assetManager.ReadAsync(asset.Asset, cancellationSource.Token)
-                .ConfigureAwait(true);
-
-            if (loadVersion != _previewLoadVersion || cancellationSource.IsCancellationRequested)
-            {
-                return;
-            }
-
-            string handlerName = ResolveHandlerName(asset.Asset);
-            PreviewData = ExtractPayload(readResult, out Type? payloadType);
-            PreviewBytes = PreviewData as byte[];
-            PreviewReadResult = readResult;
-            HandlerDisplay = handlerName;
-            PayloadTypeDisplay = payloadType?.Name ?? "Unknown";
-            ReferenceCountDisplay = readResult.References.Count.ToString("N0");
-            ContentTitle = PreviewBytes is not null ? "Hex preview" : PreviewData is null ? "Asset data loaded" : "Asset data captured";
-            if (PreviewBytes is not null)
-            {
-                ContentText = $"{PreviewBytes.Length:N0} bytes";
-            }
-
-            object? previewContent = CreatePreviewContent();
-            PreviewContent = previewContent;
-            if (previewContent is null && PreviewData is not null)
-            {
-                ContentTitle = "No preview available";
-            }
-
-            PreviewStatusText = $"Data ready ({PayloadTypeDisplay})";
-        }
-        catch (OperationCanceledException)
-        {
-            if (loadVersion == _previewLoadVersion && PreviewAsset is null)
-            {
-                PreviewStatusText = "Waiting for selection";
-            }
-        }
-        catch (Exception exception)
-        {
-            if (loadVersion != _previewLoadVersion || cancellationSource.IsCancellationRequested)
-            {
-                return;
-            }
-
-            PreviewReadResult = null;
-            PreviewData = null;
-            PreviewBytes = null;
-            PreviewContent = null;
-            ContentTitle = "Preview read failed";
-            ContentText = exception.Message;
-            PayloadTypeDisplay = "-";
-            ReferenceCountDisplay = "0";
-            PreviewStatusText = exception.Message;
-        }
-        finally
-        {
-            if (loadVersion == _previewLoadVersion)
-            {
-                IsPreviewLoading = false;
-            }
-
-            IsPreviewContentVisible = PreviewContent is not null;
-        }
     }
 
     private static ProgressDialogViewModel CreateProgressDialog(string title, CancellationTokenSource cancellationSource)
@@ -1489,7 +1176,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="entries">The currently selected explorer entries.</param>
     public void SetSelectedExplorerEntries(IEnumerable<AssetExplorerEntry> entries)
     {
-        SetSelectedAssets(entries .Where(entry => entry.IsFile && entry.Row is not null) .Select(entry => entry.Row!));
+        SetSelectedAssets(entries.Where(entry => entry.IsFile && entry.Row is not null).Select(entry => entry.Row!));
     }
 
     /// <summary>
@@ -1533,54 +1220,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IsDirectoryViewActive = !IsDirectoryViewActive;
-    }
-
-    private CancellationTokenSource BeginPreviewLoad()
-    {
-        CancelPendingPreviewLoad();
-        _previewLoadCts = new CancellationTokenSource();
-        return _previewLoadCts;
-    }
-
-    private void CancelPendingPreviewLoad()
-    {
-        CancellationTokenSource? previous = _previewLoadCts;
-        _previewLoadCts = null;
-
-        if (previous is null)
-        {
-            return;
-        }
-
-        previous.Cancel();
-        previous.Dispose();
-    }
-
-    private static object? ExtractPayload(AssetReadResult readResult, out Type? payloadType)
-    {
-        payloadType = readResult.Data?.GetType();
-        return readResult.Data;
-    }
-
-    private object? CreatePreviewContent()
-    {
-        try
-        {
-            return _previewContentFactory(this);
-        }
-        catch (Exception exception)
-        {
-            ContentTitle = "Preview control failed";
-            ContentText = exception.Message;
-            PreviewStatusText = exception.Message;
-            return null;
-        }
-    }
-
-    private string ResolveHandlerName(Asset asset)
-    {
-        IAssetHandler? handler = _assetManager.FindHandler(asset);
-        return handler?.GetType().Name ?? "Unknown Handler";
     }
 
     private static string? ResolveIconPath(string? path)

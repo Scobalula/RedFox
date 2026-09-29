@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+             x:Class="RedFox.GameExtraction.UI.Views.TablePreviewView"
+             x:DataType="vm:TablePreviewViewModel">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Classes="preview-toolbar">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Classes="preview-stats" Text="{Binding CountDisplay}"/>
+                <TextBox Classes="search-box"
+                         Width="240"
+                         HorizontalAlignment="Left"
+                         PlaceholderText="Filter"
+                         Text="{Binding Filter}"/>
+            </DockPanel>
+        </Border>
+
+        <DataGrid x:Name="TableGrid"
+                  ItemsSource="{Binding Rows}"
+                  AutoGenerateColumns="False"
+                  CanUserResizeColumns="True"
+                  CanUserSortColumns="False"
+                  GridLinesVisibility="Horizontal"
+                  HeadersVisibility="Column"
+                  IsReadOnly="True"
+                  SelectionMode="Extended"
+                  RowHeight="28"
+                  Background="Transparent"
+                  BorderThickness="0"/>
+    </DockPanel>
+</UserControl>

@@ -10,15 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.1" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.1" />
+    <PackageReference Include="Avalonia" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.3" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../RedFox.Audio/RedFox.Audio.csproj" />
+    <ProjectReference Include="../RedFox.Audio.OpenAL/RedFox.Audio.OpenAL.csproj" />
     <ProjectReference Include="../RedFox.GameExtraction/RedFox.GameExtraction.csproj" />
     <ProjectReference Include="../RedFox.Graphics3D.Avalonia/RedFox.Graphics3D.Avalonia.csproj" />
     <ProjectReference Include="../RedFox.Plugins/RedFox.Plugins.csproj" />

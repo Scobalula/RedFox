@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:g3d="using:RedFox.Graphics3D.Avalonia"
+             xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+             x:Class="RedFox.GameExtraction.UI.Views.ScenePreviewView"
+             x:DataType="vm:ScenePreviewViewModel"
+             MinHeight="240">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Classes="preview-toolbar">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right"
+                           Classes="preview-stats"
+                           Margin="16,0,0,0"
+                           Text="{Binding StatsDisplay}"/>
+                <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
+                    <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleScenes}">
+                        <TextBlock Text="Scene"/>
+                        <ComboBox MinWidth="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
+                    </StackPanel>
+                    <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleAnimations}">
+                        <TextBlock Text="Animation"/>
+                        <ComboBox MinWidth="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
+                    </StackPanel>
+                    <StackPanel Classes="preview-field">
+                        <TextBlock Text="Up axis"/>
+                        <ComboBox MinWidth="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding UpAxis}"/>
+                    </StackPanel>
+                    <StackPanel Classes="preview-field">
+                        <TextBlock Text="Skinning"/>
+                        <ComboBox MinWidth="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding SkinningMode}"/>
+                    </StackPanel>
+                    <CheckBox Content="View lighting" IsChecked="{Binding UseViewBasedLighting}"/>
+                    <CheckBox Content="Pause" IsChecked="{Binding IsAnimationPaused}"/>
+                    <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}"/>
+                </WrapPanel>
+            </DockPanel>
+        </Border>
+
+        <Panel>
+            <g3d:AvaloniaOpenGlRendererControl x:Name="Renderer"
+                                               Scene="{Binding ActiveScene}"
+                                               ViewportController="{Binding ViewportController}"
+                                               UseViewBasedLighting="{Binding UseViewBasedLighting}"
+                                               IsAnimationPaused="{Binding IsAnimationPaused}"
+                                               SkinningMode="{Binding SkinningMode}"/>
+            <Border Classes="preview-overlay"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top">
+                <TextBlock x:Name="FpsText" Classes="preview-stats" Text="FPS: -"/>
+            </Border>
+        </Panel>
+    </DockPanel>
+</UserControl>

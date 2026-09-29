@@ -24,15 +24,15 @@ public sealed class HexBytesPreviewControl : UserControl
     internal const double CharWidth = 8.2;
     internal const double TextFontSize = 13;
 
-    internal static readonly Typeface HexTypeface = new("Consolas");
-    internal static readonly IBrush BackgroundBrush = Brush.Parse("#141417");
-    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#1E1E22");
-    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1A1A1E");
-    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#909096");
+    internal static readonly Typeface HexTypeface = new("Cascadia Mono, Consolas, monospace");
+    internal static readonly IBrush BackgroundBrush = Brush.Parse("#18181B");
+    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#1B1B1F");
+    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1C1C20");
+    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#8A8A92");
     internal static readonly IBrush OffsetTextBrush = Brush.Parse("#6DB6FF");
-    internal static readonly IBrush HexTextBrush = Brush.Parse("#E8E8EA");
+    internal static readonly IBrush HexTextBrush = Brush.Parse("#E4E4EA");
     internal static readonly IBrush AsciiTextBrush = Brush.Parse("#D69D85");
-    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#2C2C31");
+    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#2A2A2F");
 
     private readonly ScrollBar _horizontalScrollBar;
     private readonly ScrollBar _verticalScrollBar;
@@ -91,9 +91,6 @@ public sealed class HexBytesPreviewControl : UserControl
         Border viewportBorder = new()
         {
             Background = BackgroundBrush,
-            BorderBrush = BorderStrokeBrush,
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(8),
             ClipToBounds = true,
             Child = _viewport,
         };
@@ -262,7 +259,7 @@ public sealed class HexBytesPreviewControl : UserControl
 
             double maxHorizontalOffset = Math.Max(0, GetContentWidth(PreviewBytes, GetBytesPerRow()) - _viewport.Bounds.Width);
             _horizontalOffset = Math.Clamp(_horizontalOffset, 0, maxHorizontalOffset);
-            _horizontalScrollBar.IsVisible = true;
+            _horizontalScrollBar.IsVisible = maxHorizontalOffset > 0;
             _horizontalScrollBar.Maximum = maxHorizontalOffset;
             _horizontalScrollBar.ViewportSize = Math.Max(0, _viewport.Bounds.Width);
             _horizontalScrollBar.SmallChange = 24;

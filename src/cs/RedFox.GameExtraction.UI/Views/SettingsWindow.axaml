@@ -1,92 +1,59 @@
 <Window xmlns="https://github.com/avaloniaui"
-		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-		xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
-		x:Class="RedFox.GameExtraction.UI.Views.SettingsWindow"
-		x:DataType="vm:SettingsWindowViewModel"
-		Title="Settings"
-		Width="560" Height="360"
-		MinWidth="480" MinHeight="320"
-		WindowStartupLocation="CenterOwner"
-		CanResize="True">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        x:Class="RedFox.GameExtraction.UI.Views.SettingsWindow"
+        x:DataType="vm:SettingsWindowViewModel"
+        Title="Settings"
+        Width="560" Height="420"
+        MinWidth="480" MinHeight="320"
+        WindowStartupLocation="CenterOwner">
 
-	<DockPanel Margin="12">
-		<Border DockPanel.Dock="Bottom"
-				Classes="settings-action-bar"
-				Margin="0,10,0,0">
-				<Grid>
-					<StackPanel Orientation="Horizontal" Spacing="8">
-					<Button Classes="cancel-btn"
-						Content="Open Log Folder"
-						Command="{Binding OpenLogCommand}"/>
-					<Button Classes="cancel-btn"
-						Content="Plugins..."
-						Command="{Binding OpenPluginsCommand}"/>
-					</StackPanel>
-					<StackPanel Orientation="Horizontal"
-						HorizontalAlignment="Right"
-						Spacing="8">
-					<Button Classes="cancel-btn"
-						Content="Cancel"
-						Command="{Binding CancelCommand}"
-						Width="90"/>
-					<Button Classes="accent-btn"
-						Content="Save"
-						Command="{Binding SaveCommand}"
-						Width="90"/>
-					</StackPanel>
-				</Grid>
-			</Border>
+    <DockPanel Margin="12">
+        <Border DockPanel.Dock="Bottom"
+                Classes="panel"
+                Padding="12,10"
+                Margin="0,8,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="secondary-btn" Content="Cancel" Command="{Binding CancelCommand}"/>
+                    <Button Classes="accent-btn" Content="Save" Command="{Binding SaveCommand}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Classes="secondary-btn" Content="Open Log Folder" Command="{Binding OpenLogCommand}"/>
+                    <Button Classes="secondary-btn" Content="Plugins" Command="{Binding OpenPluginsCommand}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
 
-			<Border Classes="sidebar" Padding="0" ClipToBounds="True">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-				<ItemsControl ItemsSource="{Binding Groups}" Margin="15,15,15,5">
-					<ItemsControl.ItemTemplate>
-						<DataTemplate x:DataType="vm:SettingGroupViewModel">
-							<StackPanel Spacing="10" Margin="0,0,0,0">
-								<TextBlock Classes="setting-category" Text="{Binding Name}" Margin="0,0,0,2"/>
-								<ItemsControl ItemsSource="{Binding Settings}">
-									<ItemsControl.ItemTemplate>
-										<DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
-											<StackPanel Spacing="6" Margin="0,0,0,8">
-												<TextBlock Classes="setting-label"
-														   Text="{Binding Label}"
-														   IsVisible="{Binding ShowLabel}"/>
-												<TextBox Text="{Binding TextValue, Mode=TwoWay}"
-														 CornerRadius="6"
-														 Padding="8,6"
-														 IsVisible="{Binding IsText}"/>
-												<Grid ColumnDefinitions="*,Auto"
-													  ColumnSpacing="8"
-													  IsVisible="{Binding IsPathSetting}">
-													<TextBox Grid.Column="0"
-															 Text="{Binding TextValue, Mode=TwoWay}"
-															 CornerRadius="6"
-															 Padding="8,6"/>
-													<Button Grid.Column="1"
-															Classes="sidebar-btn"
-															Content="Browse"
-															Command="{Binding BrowseCommand}"
-															Width="96"/>
-												</Grid>
-												<ComboBox ItemsSource="{Binding Options}"
-														  SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-														  IsVisible="{Binding IsChoice}"/>
-												<CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-														  Content="{Binding Label}"
-														  Foreground="#E4E4EA"
-														  IsVisible="{Binding IsBoolean}"/>
-												<TextBlock Classes="setting-desc"
-														   Text="{Binding Description}"
-														   IsVisible="{Binding HasDescription}"/>
-											</StackPanel>
-										</DataTemplate>
-									</ItemsControl.ItemTemplate>
-								</ItemsControl>
-							</StackPanel>
-						</DataTemplate>
-					</ItemsControl.ItemTemplate>
-				</ItemsControl>
-				</ScrollViewer>
-			</Border>
-	</DockPanel>
+        <Border Classes="panel" Padding="0" ClipToBounds="True">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Groups}" Margin="16,4,16,12">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SettingGroupViewModel">
+                            <StackPanel>
+                                <TextBlock Classes="setting-category" Text="{Binding Name}"/>
+                                <ItemsControl ItemsSource="{Binding Settings}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
+                                            <StackPanel Spacing="4" Margin="0,0,0,10">
+                                                <TextBlock Classes="setting-label" Text="{Binding Label}" IsVisible="{Binding ShowLabel}"/>
+                                                <TextBox Classes="search-box" Text="{Binding TextValue}" IsVisible="{Binding IsText}"/>
+                                                <DockPanel IsVisible="{Binding IsPathSetting}">
+                                                    <Button DockPanel.Dock="Right" Classes="secondary-btn" Content="Browse" Margin="8,0,0,0" Command="{Binding BrowseCommand}"/>
+                                                    <TextBox Classes="search-box" Text="{Binding TextValue}"/>
+                                                </DockPanel>
+                                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" MinWidth="200"/>
+                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
+                                                <TextBlock Classes="setting-desc" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+    </DockPanel>
 </Window>

@@ -7,6 +7,7 @@
   <Folder Name="/Audio/">
     <Project Path="RedFox.Audio.ADPCM/RedFox.Audio.ADPCM.csproj" />
     <Project Path="RedFox.Audio.Flac/RedFox.Audio.Flac.csproj" />
+    <Project Path="RedFox.Audio.OpenAL/RedFox.Audio.OpenAL.csproj" />
     <Project Path="RedFox.Audio.Opus/RedFox.Audio.Opus.csproj" />
     <Project Path="RedFox.Audio/RedFox.Audio.csproj" />
   </Folder>

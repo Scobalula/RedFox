@@ -3,7 +3,7 @@ using Avalonia.Controls;
 namespace RedFox.GameExtraction.UI.Views;
 
 /// <summary>
-/// Preview window for a selected asset.
+/// Preview window bound to a <see cref="ViewModels.PreviewViewModel"/>.
 /// </summary>
 public partial class PreviewWindow : Window
 {

@@ -14,7 +14,7 @@ namespace RedFox.GameExtraction.UI.Views;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly PreviewWindowHost _previewWindowHost = new();
+    private PreviewWindow? _previewWindow;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -22,7 +22,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _previewWindowHost.Closed += OnPreviewWindowClosed;
         Closed += OnWindowClosed;
     }
 
@@ -85,28 +84,15 @@ public partial class MainWindow : Window
 
     private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
-        if (DataContext is not MainWindowViewModel viewModel || sender is not DataGrid dataGrid)
+        if (DataContext is MainWindowViewModel viewModel && sender is DataGrid dataGrid)
         {
-            return;
+            viewModel.SetSelectedAssets(dataGrid.SelectedItems.OfType<AssetRowViewModel>());
         }
-
-        viewModel.SetSelectedAssets(dataGrid.SelectedItems.OfType<AssetRowViewModel>());
     }
 
     private void OnAssetDoubleTapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is not MainWindowViewModel viewModel || args.Source is not Visual source)
-        {
-            return;
-        }
-
-        AssetRowViewModel? row = source.FindAncestorOfType<DataGridRow>()?.DataContext as AssetRowViewModel;
-        if (row is null)
-        {
-            row = (source as Control)?.DataContext as AssetRowViewModel;
-        }
-
-        if (row is not null)
+        if (DataContext is MainWindowViewModel viewModel && FindRowItem<AssetRowViewModel>(args.Source) is { } row)
         {
             viewModel.OpenPreview(row);
         }
@@ -114,31 +100,23 @@ public partial class MainWindow : Window
 
     private void OnExplorerSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
-        if (DataContext is not MainWindowViewModel viewModel || sender is not DataGrid dataGrid)
+        if (DataContext is MainWindowViewModel viewModel && sender is DataGrid dataGrid)
         {
-            return;
+            viewModel.SetSelectedExplorerEntries(dataGrid.SelectedItems.OfType<AssetExplorerEntry>());
         }
-
-        viewModel.SetSelectedExplorerEntries(dataGrid.SelectedItems.OfType<AssetExplorerEntry>());
     }
 
     private void OnExplorerDoubleTapped(object? sender, TappedEventArgs args)
     {
-        if (DataContext is not MainWindowViewModel viewModel || args.Source is not Visual source)
-        {
-            return;
-        }
-
-        AssetExplorerEntry? entry = source.FindAncestorOfType<DataGridRow>()?.DataContext as AssetExplorerEntry;
-        if (entry is null)
-        {
-            entry = (source as Control)?.DataContext as AssetExplorerEntry;
-        }
-
-        if (entry is not null)
+        if (DataContext is MainWindowViewModel viewModel && FindRowItem<AssetExplorerEntry>(args.Source) is { } entry)
         {
             viewModel.ActivateExplorerEntry(entry);
         }
+    }
+
+    private static T? FindRowItem<T>(object? source) where T : class
+    {
+        return source is Visual visual ? visual.FindAncestorOfType<DataGridRow>()?.DataContext as T ?? (visual as Control)?.DataContext as T : null;
     }
 
     private async Task<IReadOnlyList<string>> OnFileDialogRequested()
@@ -148,18 +126,14 @@ public partial class MainWindow : Window
             return [];
         }
 
-        IReadOnlyList<FilePickerFileType> filters = ParseFileFilter(viewModel.Config.FileFilter);
         IReadOnlyList<IStorageFile> result = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select file(s) to load",
             AllowMultiple = true,
-            FileTypeFilter = filters,
+            FileTypeFilter = ParseFileFilter(viewModel.Config.FileFilter),
         }).ConfigureAwait(true);
 
-        return [.. result
-            .Select(file => file.TryGetLocalPath())
-            .Where(path => path is not null)
-            .Cast<string>()];
+        return [.. result.Select(file => file.TryGetLocalPath()).OfType<string>()];
     }
 
     private async Task<string?> OnFolderDialogRequested()
@@ -225,15 +199,25 @@ public partial class MainWindow : Window
 
     private void OnPreviewRequested()
     {
-        if (DataContext is MainWindowViewModel viewModel)
+        if (DataContext is not MainWindowViewModel viewModel)
         {
-            _previewWindowHost.Show(this, viewModel);
+            return;
+        }
+
+        if (_previewWindow is null)
+        {
+            _previewWindow = new PreviewWindow { DataContext = viewModel.Preview };
+            _previewWindow.Closed += OnPreviewWindowClosed;
+            _previewWindow.Show(this);
             viewModel.SetPreviewWindowOpen(true);
         }
+
+        _previewWindow.Activate();
     }
 
-    private void OnPreviewWindowClosed()
+    private void OnPreviewWindowClosed(object? sender, EventArgs e)
     {
+        _previewWindow = null;
         if (DataContext is MainWindowViewModel viewModel)
         {
             viewModel.SetPreviewWindowOpen(false);
@@ -242,13 +226,12 @@ public partial class MainWindow : Window
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
+        _previewWindow?.Close();
         if (DataContext is MainWindowViewModel viewModel)
         {
             UnsubscribeFromViewModel(viewModel);
             viewModel.Dispose();
         }
-
-        _previewWindowHost.Dispose();
     }
 
     private static IReadOnlyList<FilePickerFileType> ParseFileFilter(string filter)
@@ -258,13 +241,10 @@ public partial class MainWindow : Window
 
         for (int index = 0; index + 1 < parts.Length; index += 2)
         {
-            string name = parts[index];
-            List<string> patterns = [.. parts[index + 1]
-                .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
-
+            List<string> patterns = [.. parts[index + 1].Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)];
             if (patterns.Count > 0)
             {
-                types.Add(new FilePickerFileType(name) { Patterns = patterns });
+                types.Add(new FilePickerFileType(parts[index]) { Patterns = patterns });
             }
         }
 

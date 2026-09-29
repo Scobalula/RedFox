@@ -10,203 +10,158 @@
         WindowStartupLocation="CenterScreen">
 
     <Panel>
-        <DockPanel IsEnabled="{Binding !IsLoading}">
-            <Panel DockPanel.Dock="Bottom" Margin="8,6,8,8">
-                <Border Classes="status-bar">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0"
-                                   Classes="status-text"
-                                   Text="{Binding StatusText}"/>
-                        <TextBlock Grid.Column="1"
-                                   Classes="status-text"
-                                   Text="{Binding AssetCountDisplay}"
-                                   Margin="20,0,0,0"/>
-                    </Grid>
-                </Border>
-            </Panel>
+        <DockPanel Margin="8" IsEnabled="{Binding !IsLoading}">
+            <Border DockPanel.Dock="Bottom"
+                    Classes="panel status-bar"
+                    Margin="0,8,0,0">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right"
+                               Classes="status-text"
+                               Margin="16,0,0,0">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:N0} of {1:N0} assets">
+                                <Binding Path="FilteredCount"/>
+                                <Binding Path="TotalCount"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <TextBlock Classes="status-text"
+                               Text="{Binding StatusText}"
+                               TextTrimming="CharacterEllipsis"/>
+                </DockPanel>
+            </Border>
 
-            <Panel DockPanel.Dock="Left" Margin="8,8,6,6" Width="274">
-                <Border Classes="sidebar">
-                    <Panel>
-                        <Border IsHitTestVisible="False"
-                                CornerRadius="12"
-                                Background="{DynamicResource AccentRadialGlow}"/>
+            <Border DockPanel.Dock="Left"
+                    Classes="panel"
+                    Width="248"
+                    Margin="0,0,8,0">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Bottom" Spacing="2">
+                        <Separator Classes="sidebar-sep"/>
+                        <Button Classes="sidebar-btn" Command="{Binding OpenSettingsCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <PathIcon Data="{StaticResource IconSettings}"/>
+                                <TextBlock Text="Settings"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="sidebar-btn" Command="{Binding OpenAboutCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <PathIcon Data="{StaticResource IconInfo}"/>
+                                <TextBlock Text="About"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
 
-                        <Border Padding="16">
-                            <DockPanel>
-                                <StackPanel DockPanel.Dock="Bottom" Spacing="2" Margin="0,8,0,0">
-                                    <Separator Classes="sidebar-sep"/>
-                                    <Button Classes="sidebar-btn"
-                                            Command="{Binding OpenSettingsCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <PathIcon Data="{StaticResource IconSettings}" Width="16" Height="16"/>
-                                            <TextBlock Text="Settings" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Classes="sidebar-btn"
-                                            Command="{Binding OpenAboutCommand}">
-                                        <StackPanel Orientation="Horizontal" Spacing="10">
-                                            <PathIcon Data="{StaticResource IconInfo}" Width="16" Height="16"/>
-                                            <TextBlock Text="About" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="2">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="6,4,6,14">
+                                <Image x:Name="SidebarIconImage"
+                                       Width="32" Height="32"
+                                       Stretch="Uniform"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding HasSidebarIcon}"
+                                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Classes="sidebar-title" Text="{Binding SidebarTitle}"/>
+                                    <TextBlock Classes="sidebar-desc" Text="{Binding SidebarDescription}"/>
                                 </StackPanel>
+                            </Grid>
 
-                                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              AllowAutoHide="False">
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="0,0,0,16">
-                                            <Image Grid.Column="0" Grid.RowSpan="2"
-                                                   x:Name="SidebarIconImage"
-                                                   Stretch="Uniform"
-                                                   Width="32" Height="32"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,10,0"
-                                                   IsVisible="{Binding HasSidebarIcon}" RenderOptions.BitmapInterpolationMode="HighQuality"/>
-                                            <TextBlock Grid.Column="1" Grid.Row="0"
-                                                       Classes="sidebar-title"
-                                                       Text="{Binding SidebarTitle}"
-                                                       Margin="0,0,0,2"/>
-                                            <TextBlock Grid.Column="1" Grid.Row="1"
-                                                       Classes="sidebar-desc"
-                                                       Text="{Binding SidebarDescription}"
-                                                       Margin="0"/>
-                                        </Grid>
+                            <TextBlock Classes="sidebar-section" Text="Sources"/>
+                            <Button Classes="accent-btn" Command="{Binding BrowseProcessCommand}" IsVisible="{Binding CanLoadProcess}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconGamepad}"/>
+                                    <TextBlock Text="Load Process"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="accent-btn" Command="{Binding LoadSourceCommand}" IsVisible="{Binding CanLoadFiles}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconFile}"/>
+                                    <TextBlock Text="Load Files"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="sidebar-btn" Command="{Binding LoadDirectoryCommand}" IsVisible="{Binding CanLoadDirectories}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconFolder}"/>
+                                    <TextBlock Text="Load Folder"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="sidebar-btn" Command="{Binding ManageSourcesCommand}" IsVisible="{Binding CanLoadAnySource}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconList}"/>
+                                    <TextBlock Text="{Binding SourceCountDisplay}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="sidebar-btn" Command="{Binding ClearAllCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconTrash}"/>
+                                    <TextBlock Text="Clear All"/>
+                                </StackPanel>
+                            </Button>
 
-                                        <TextBlock Classes="sidebar-section" Text="Sources"/>
-                                        <Button Classes="accent-btn"
-                                                Command="{Binding BrowseProcessCommand}"
-                                                IsVisible="{Binding CanLoadProcess}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconGamepad}" Width="16" Height="16"/>
-                                                <TextBlock Text="Load Process" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="sidebar-btn"
-                                                Command="{Binding LoadDirectoryCommand}"
-                                                IsVisible="{Binding CanLoadDirectories}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconFolder}" Width="16" Height="16"/>
-                                                <TextBlock Text="Load Folder" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="accent-btn"
-                                                Command="{Binding LoadSourceCommand}"
-                                                IsVisible="{Binding CanLoadFiles}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconFolder}" Width="16" Height="16"/>
-                                                <TextBlock Text="Load Files" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="sidebar-btn"
-                                                Command="{Binding ManageSourcesCommand}"
-                                                IsVisible="{Binding CanLoadAnySource}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconList}" Width="16" Height="16"/>
-                                                <TextBlock Text="{Binding SourceCountDisplay}" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="sidebar-btn"
-                                                Command="{Binding ClearAllCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconList}" Width="16" Height="16"/>
-                                                <TextBlock Text="Clear All" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
+                            <Separator Classes="sidebar-sep"/>
 
-                                        <Separator Classes="sidebar-sep"/>
+                            <TextBlock Classes="sidebar-section" Text="Assets"/>
+                            <Button Classes="sidebar-btn" Command="{Binding PreviewSelectedCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconEye}"/>
+                                    <TextBlock Text="Preview Selected"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="accent-btn" Command="{Binding ExportAllCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconExport}"/>
+                                    <TextBlock Text="Export All"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="sidebar-btn" Command="{Binding ExportSelectedCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <PathIcon Data="{StaticResource IconExport}"/>
+                                    <TextBlock Text="Export Selected"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
 
-                                        <TextBlock Classes="sidebar-section" Text="Export"/>
-                                        <Button Classes="sidebar-btn"
-                                                Command="{Binding PreviewSelectedCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconInfo}" Width="16" Height="16"/>
-                                                <TextBlock Text="Preview Selected" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="accent-btn"
-                                                Command="{Binding ExportAllCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconExport}" Width="16" Height="16"/>
-                                                <TextBlock Text="Export All" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                        <Button Classes="sidebar-btn"
-                                                Command="{Binding ExportSelectedCommand}">
-                                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                                <PathIcon Data="{StaticResource IconExport}" Width="16" Height="16"/>
-                                                <TextBlock Text="Export Selected" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                    </StackPanel>
-                                </ScrollViewer>
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <Button DockPanel.Dock="Right"
+                            Classes="secondary-btn"
+                            Margin="8,0,0,0"
+                            Command="{Binding ToggleViewModeCommand}"
+                            IsVisible="{Binding IsDirectoryViewEnabled}"
+                            Content="{Binding ViewModeToggleLabel}"/>
+                    <TextBox Classes="search-box"
+                             PlaceholderText="Search assets"
+                             Text="{Binding SearchText}"/>
+                </DockPanel>
+
+                <Border Classes="panel" Padding="0" ClipToBounds="True">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Classes="preview-toolbar"
+                                IsVisible="{Binding IsDirectoryViewActive}">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Left"
+                                        Classes="icon-btn"
+                                        Margin="0,0,10,0"
+                                        Command="{Binding NavigateUpCommand}"
+                                        IsEnabled="{Binding CanNavigateUp}">
+                                    <PathIcon Data="{StaticResource IconArrowUp}" Width="12" Height="12"/>
+                                </Button>
+                                <TextBlock Classes="status-text"
+                                           Text="{Binding CurrentDirectoryPath}"
+                                           TextTrimming="CharacterEllipsis"/>
                             </DockPanel>
                         </Border>
-                    </Panel>
-                </Border>
-            </Panel>
 
-            <DockPanel Margin="12,8,16,6">
-                <Border DockPanel.Dock="Top"
-                        Margin="0,0,0,10">
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right"
-                                Classes="sidebar-btn"
-                                Margin="8,0,0,0"
-                                Padding="10,4"
-                                Command="{Binding ToggleViewModeCommand}"
-                                IsVisible="{Binding IsDirectoryViewEnabled}"
-                                Content="{Binding ViewModeToggleLabel}"/>
-                        <Border Classes="search-container">
-                            <TextBox Classes="search-box"
-                                     Text="{Binding SearchText, Mode=TwoWay}"/>
-                        </Border>
-                    </DockPanel>
-                </Border>
-
-                <Border DockPanel.Dock="Top"
-                        Margin="0,0,0,8">
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Left"
-                                    Orientation="Horizontal"
-                                    Spacing="6"
-                                    IsVisible="{Binding IsDirectoryViewActive}">
-                            <Button Classes="sidebar-btn"
-                                    Padding="6,2"
-                                    Command="{Binding NavigateUpCommand}"
-                                    IsEnabled="{Binding CanNavigateUp}">
-                                <PathIcon Data="{StaticResource IconArrowUp}" Width="14" Height="14"/>
-                            </Button>
-                            <TextBlock Classes="status-text"
-                                       VerticalAlignment="Center"
-                                       Text="{Binding CurrentDirectoryPath}"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-                        <TextBlock Classes="status-text"
-                                   HorizontalAlignment="Right"
-                                   VerticalAlignment="Center">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0:N0} of {1:N0} assets shown">
-                                    <Binding Path="FilteredCount"/>
-                                    <Binding Path="TotalCount"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
-                    </DockPanel>
-                </Border>
-
-                <Panel>
-                    <Border CornerRadius="8"
-                            BoxShadow="0 3 12 0 #40000000"
-                            Background="#1F1F22"
-                            IsHitTestVisible="False"/>
-                    <Border Classes="card-subtle" Padding="0" ClipToBounds="True">
                         <Panel>
                             <DataGrid x:Name="AssetDataGrid"
-                                      x:CompileBindings="True"
                                       IsVisible="{Binding !IsDirectoryViewActive}"
                                       ItemsSource="{Binding AssetsView}"
-                                      SelectedItem="{Binding SelectedAsset, Mode=TwoWay}"
+                                      SelectedItem="{Binding SelectedAsset}"
                                       AutoGenerateColumns="False"
                                       CanUserResizeColumns="True"
                                       CanUserSortColumns="True"
@@ -214,23 +169,17 @@
                                       HeadersVisibility="Column"
                                       IsReadOnly="True"
                                       SelectionMode="Extended"
-                                      ScrollViewer.AllowAutoHide="False"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      RowHeight="32"
+                                      RowHeight="30"
                                       SelectionChanged="OnAssetSelectionChanged"
                                       DoubleTapped="OnAssetDoubleTapped">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType={x:Type model:AssetRowViewModel}}" Width="2*"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding Type, DataType={x:Type model:AssetRowViewModel}}" Width="140"/>
-                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType={x:Type model:AssetRowViewModel}}" Width="3*"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType=model:AssetRowViewModel}" Width="2*"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type, DataType=model:AssetRowViewModel}" Width="140"/>
+                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType=model:AssetRowViewModel}" Width="3*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
 
                             <DataGrid x:Name="ExplorerDataGrid"
-                                      x:CompileBindings="True"
                                       IsVisible="{Binding IsDirectoryViewActive}"
                                       ItemsSource="{Binding ExplorerView}"
                                       AutoGenerateColumns="False"
@@ -240,70 +189,56 @@
                                       HeadersVisibility="Column"
                                       IsReadOnly="True"
                                       SelectionMode="Extended"
-                                      ScrollViewer.AllowAutoHide="False"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      RowHeight="32"
+                                      RowHeight="30"
                                       SelectionChanged="OnExplorerSelectionChanged"
                                       DoubleTapped="OnExplorerDoubleTapped">
                                 <DataGrid.Columns>
-                                    <DataGridTemplateColumn Header="" Width="36" CanUserResize="False">
+                                    <DataGridTemplateColumn Width="36" CanUserResize="False">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate x:DataType="model:AssetExplorerEntry">
                                                 <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <PathIcon Data="{StaticResource IconFolder}"
-                                                              Width="16" Height="16"
-                                                              IsVisible="{Binding IsFolder}"/>
-                                                    <PathIcon Data="{StaticResource IconFile}"
-                                                              Width="16" Height="16"
-                                                              IsVisible="{Binding IsFile}"/>
+                                                    <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" IsVisible="{Binding IsFolder}"/>
+                                                    <PathIcon Data="{StaticResource IconFile}" Width="14" Height="14" IsVisible="{Binding IsFile}"/>
                                                 </Panel>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType={x:Type model:AssetExplorerEntry}}" Width="2*"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeDisplay, DataType={x:Type model:AssetExplorerEntry}}" Width="140"/>
-                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType={x:Type model:AssetExplorerEntry}}" Width="3*"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType=model:AssetExplorerEntry}" Width="2*"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeDisplay, DataType=model:AssetExplorerEntry}" Width="140"/>
+                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType=model:AssetExplorerEntry}" Width="3*"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Panel>
-                    </Border>
-                </Panel>
+                    </DockPanel>
+                </Border>
             </DockPanel>
         </DockPanel>
 
-        <Border Classes="progress-overlay"
-                IsVisible="{Binding ShowProgressDialog}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch">
+        <Border Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">
             <Border Classes="progress-card"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     DataContext="{Binding ProgressDialog}">
-                <StackPanel Spacing="14">
-                    <TextBlock Text="{Binding Title}"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#FFFFFF"/>
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="title" Text="{Binding Title}"/>
                     <ProgressBar Classes="themed"
                                  Value="{Binding ProgressValue}"
                                  IsIndeterminate="{Binding IsIndeterminate}"
                                  Maximum="100"/>
-                    <TextBlock Text="{Binding StatusText}"
-                               Foreground="#909096"
-                               FontSize="12"/>
-                    <TextBlock Text="{Binding ProgressText}"
-                               Foreground="#78787E"
-                               FontSize="11"
-                               HorizontalAlignment="Right"/>
-                    <Button Classes="cancel-btn"
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right"
+                                   Classes="status-text"
+                                   Margin="16,0,0,0"
+                                   Text="{Binding ProgressText}"/>
+                        <TextBlock Classes="status-text"
+                                   Text="{Binding StatusText}"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </DockPanel>
+                    <Button Classes="secondary-btn"
                             Content="Cancel"
                             Command="{Binding CancelCommand}"
                             IsEnabled="{Binding !IsCancelling}"
-                            HorizontalAlignment="Right"
-                            Margin="0,4,0,0"/>
+                            HorizontalAlignment="Right"/>
                 </StackPanel>
             </Border>
         </Border>

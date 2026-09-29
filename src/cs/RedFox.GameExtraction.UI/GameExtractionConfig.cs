@@ -1,6 +1,3 @@
-using RedFox.GameExtraction;
-using RedFox.GameExtraction.UI.ViewModels;
-
 namespace RedFox.GameExtraction.UI;
 
 /// <summary>
@@ -111,11 +108,6 @@ public sealed class GameExtractionConfig
     /// Gets the settings displayed in the settings window.
     /// </summary>
     public required IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; init; }
-
-    /// <summary>
-    /// Gets the factory used to build preview content for the current preview state.
-    /// </summary>
-    public required Func<MainWindowViewModel, object?> PreviewContentFactory { get; init; }
 
     /// <summary>
     /// Gets the optional About window configuration with description and links.
