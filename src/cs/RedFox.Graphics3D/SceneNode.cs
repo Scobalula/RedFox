@@ -1438,22 +1438,20 @@ public abstract class SceneNode : IUpdatable, IDisposable
     public void SetParentUnsafe(SceneNode? newParent) => LinkNode(this, newParent, newParent?._scene);
 
     /// <summary>
-    /// Links nodes into a hierarchy from a parent-index table.
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
     /// </summary>
     /// <remarks>
-    /// No duplicate or cycle validation, no transform handling, and no change notifications; the
-    /// caller guarantees a valid, acyclic table with unique sibling names.
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
     /// </remarks>
     /// <param name="nodes">The nodes to link, in any order.</param>
     /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
-    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<int> parentIndices) => LinkHierarchyUnsafe<int>(nodes, parentIndices);
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<byte> parentIndices) => LinkHierarchyUnsafe<byte>(nodes, parentIndices);
 
     /// <summary>
-    /// Links nodes into a hierarchy from a 16-bit parent-index table.
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
     /// </summary>
     /// <remarks>
-    /// No duplicate or cycle validation, no transform handling, and no change notifications; the
-    /// caller guarantees a valid, acyclic table with unique sibling names.
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
     /// </remarks>
     /// <param name="nodes">The nodes to link, in any order.</param>
     /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
@@ -1463,9 +1461,37 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// Links nodes into a hierarchy from a parent-index table of any integer type.
     /// </summary>
     /// <remarks>
-    /// Performs no duplicate or cycle validation, leaves transforms untouched, and raises no change
-    /// notifications. The caller must guarantee unique sibling names, an acyclic table, and that every
-    /// transform is already correct.
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
+    /// </remarks>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<ushort> parentIndices) => LinkHierarchyUnsafe<ushort>(nodes, parentIndices);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
+    /// </summary>
+    /// <remarks>
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
+    /// </remarks>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<int> parentIndices) => LinkHierarchyUnsafe<int>(nodes, parentIndices);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
+    /// </summary>
+    /// <remarks>
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
+    /// </remarks>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<uint> parentIndices) => LinkHierarchyUnsafe<uint>(nodes, parentIndices);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
+    /// </summary>
+    /// <remarks>
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the caller guarantees a valid, acyclic table with unique sibling names.
     /// </remarks>
     /// <typeparam name="TIndex">The integer type of the parent-index table.</typeparam>
     /// <param name="nodes">The nodes to link, in any order.</param>
