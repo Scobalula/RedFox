@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.GameExtraction\RedFox.GameExtraction.csproj" />
+    <ProjectReference Include="..\RedFox.GameExtraction.Mcp\RedFox.GameExtraction.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

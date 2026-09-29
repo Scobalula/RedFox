@@ -1,5 +1,6 @@
 using System.Text;
 using RedFox.GameExtraction.CommandLine.Commands;
+using RedFox.GameExtraction.Mcp;
 using Spectre.Console;
 
 namespace RedFox.GameExtraction.CommandLine;
@@ -20,6 +21,21 @@ public static class GameExtractionCommandLineApp
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(args);
+
+        if (args is ["--mcp"])
+        {
+            config.Settings.LoadFrom(GameExtractionSettings.GetDefaultSettingsPath(config.AppName));
+
+            await GameExtractionMcpServer.RunAsync(new GameExtractionMcpConfig
+            {
+                AssetManagerFactory = config.AssetManagerFactory,
+                ExportConfigurationFactory = () => config.ExportConfigurationFactory(config.Settings),
+                Name = config.AppName,
+                Version = config.Version,
+            }).ConfigureAwait(false);
+
+            return 0;
+        }
 
         Console.OutputEncoding = Encoding.UTF8;
 
