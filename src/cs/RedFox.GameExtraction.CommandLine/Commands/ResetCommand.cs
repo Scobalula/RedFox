@@ -19,7 +19,7 @@ internal sealed class ResetCommand : ICommandLineCommand
             throw new ArgumentException("Specify a setting or all");
         }
 
-        IReadOnlyList<GameExtractionSetting> settings = arguments[0].Equals(AllKeyword, StringComparison.OrdinalIgnoreCase) ? session.Config.SettingDefinitions : [.. arguments.Select(argument => SetCommand.FindSetting(session, argument))];
+        IReadOnlyList<GameExtractionSetting> settings = arguments[0].Equals(AllKeyword, StringComparison.OrdinalIgnoreCase) ? session.SettingDefinitions : [.. arguments.Select(argument => SetCommand.FindSetting(session, argument))];
 
         foreach (GameExtractionSetting setting in settings)
         {
@@ -34,5 +34,5 @@ internal sealed class ResetCommand : ICommandLineCommand
         return Task.CompletedTask;
     }
 
-    public IEnumerable<string> GetCompletions(CommandLineSession session, IReadOnlyList<string> arguments) => session.Config.SettingDefinitions.Select(setting => setting.Name).Prepend(AllKeyword);
+    public IEnumerable<string> GetCompletions(CommandLineSession session, IReadOnlyList<string> arguments) => session.SettingDefinitions.Select(setting => setting.Name).Prepend(AllKeyword);
 }

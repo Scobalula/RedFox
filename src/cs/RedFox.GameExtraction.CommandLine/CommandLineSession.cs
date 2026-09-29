@@ -14,6 +14,15 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
 {
     private const int MaximumFailuresShown = 20;
 
+    private static readonly GameExtractionSetting PrintExportedAssetsSetting = new()
+    {
+        Name = "PrintExportedAssets",
+        Group = "Command Line",
+        Label = "Print each asset as it is exported",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = false,
+    };
+
     /// <summary>
     /// Gets the application configuration.
     /// </summary>
@@ -43,6 +52,12 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     /// Gets the persisted settings.
     /// </summary>
     public GameExtractionSettings Settings => Config.Settings;
+
+    /// <summary>
+    /// Gets the settings available to the <c>/set</c> command: the application settings followed by the settings
+    /// built into the command line shell.
+    /// </summary>
+    public IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } = [.. config.SettingDefinitions, PrintExportedAssetsSetting];
 
     /// <summary>
     /// Gets the path the settings are persisted to.
@@ -158,14 +173,16 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
         ExportConfiguration configuration = CreateExportConfiguration();
         List<(Asset Asset, Exception Exception)> failures = [];
         Stopwatch stopwatch = Stopwatch.StartNew();
+        bool printAssets = bool.TryParse(Settings.GetSettingValue(PrintExportedAssetsSetting), out bool print) && print;
         Asset? currentAsset = null;
+        bool isCurrentSkipped = false;
         int skipped = 0;
 
         void OnAssetExportCompleted(object? sender, AssetExportCompletedEventArgs eventArgs)
         {
             if (eventArgs.Skipped && ReferenceEquals(eventArgs.Asset, currentAsset))
             {
-                skipped++;
+                isCurrentSkipped = true;
             }
         }
 
@@ -177,9 +194,13 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
             {
                 ProgressTask task = context.AddTask("Exporting", maxValue: assets.Count);
 
-                foreach (Asset asset in assets)
+                for (int index = 0; index < assets.Count; index++)
                 {
+                    Asset asset = assets[index];
+                    Exception? failure = null;
+
                     currentAsset = asset;
+                    isCurrentSkipped = false;
                     task.Description = Markup.Escape(Path.GetFileName(asset.Name));
 
                     try
@@ -188,7 +209,18 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
+                        failure = exception;
                         failures.Add((asset, exception));
+                    }
+
+                    if (isCurrentSkipped)
+                    {
+                        skipped++;
+                    }
+
+                    if (printAssets)
+                    {
+                        WriteExportedAsset(index + 1, assets.Count, asset, isCurrentSkipped, failure);
                     }
 
                     task.Increment(1);
@@ -216,7 +248,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
             RemainingStyle = Style.Parse(Theme.Muted),
         };
 
-        return Console.Progress().AutoClear(true).Columns(new TaskDescriptionColumn { Alignment = Justify.Left }, progressBar, new PercentageColumn(), new RemainingTimeColumn(), new SpinnerColumn { Style = Style.Parse(Theme.Accent) });
+        return Console.Progress().AutoClear(true).Columns(new TaskDescriptionColumn { Alignment = Justify.Left }, progressBar, new PercentageColumn(), new ProgressCountColumn(Style.Parse(Theme.Muted)), new SpinnerColumn { Style = Style.Parse(Theme.Accent) });
     }
 
     /// <summary>
@@ -266,6 +298,26 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
         }
 
         return AssetSourceRequest.ForFile(path, Config.SourceOptions);
+    }
+
+    private void WriteExportedAsset(int number, int total, Asset asset, bool isSkipped, Exception? failure)
+    {
+        string totalText = total.ToString("N0");
+        string counter = $"[{Theme.Muted}]{number.ToString("N0").PadLeft(totalText.Length)}/{totalText}[/]";
+        string name = Markup.Escape(asset.Name);
+
+        if (failure is not null)
+        {
+            Console.MarkupLine($"{counter} [{Theme.Error}]✖ {name} · {Markup.Escape(failure.Message)}[/]");
+        }
+        else if (isSkipped)
+        {
+            Console.MarkupLine($"{counter} [{Theme.Muted}]– {name} · skipped[/]");
+        }
+        else
+        {
+            Console.MarkupLine($"{counter} [{Theme.Success}]✔[/] {name}");
+        }
     }
 
     private void WriteExportSummary(int exported, int skipped, List<(Asset Asset, Exception Exception)> failures, TimeSpan elapsed, string outputDirectory)

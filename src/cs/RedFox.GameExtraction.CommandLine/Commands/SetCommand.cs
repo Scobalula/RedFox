@@ -41,17 +41,17 @@ internal sealed class SetCommand : ICommandLineCommand
     {
         if (arguments.Count == 1)
         {
-            return session.Config.SettingDefinitions.Select(setting => setting.Name);
+            return session.SettingDefinitions.Select(setting => setting.Name);
         }
 
-        GameExtractionSetting? setting = session.Config.SettingDefinitions.FirstOrDefault(setting => setting.Name.Equals(arguments[0], StringComparison.OrdinalIgnoreCase));
+        GameExtractionSetting? setting = session.SettingDefinitions.FirstOrDefault(setting => setting.Name.Equals(arguments[0], StringComparison.OrdinalIgnoreCase));
 
         return arguments.Count == 2 && setting is not null ? SettingValueParser.GetCompletions(setting, arguments[1]) : [];
     }
 
     internal static GameExtractionSetting FindSetting(CommandLineSession session, string name)
     {
-        return session.Config.SettingDefinitions.FirstOrDefault(setting => setting.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException($"Unknown setting {name}");
+        return session.SettingDefinitions.FirstOrDefault(setting => setting.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ?? throw new ArgumentException($"Unknown setting {name}");
     }
 
     internal static string FormatValue(CommandLineSession session, string? value)
@@ -71,7 +71,7 @@ internal sealed class SetCommand : ICommandLineCommand
 
     private static void WriteSettings(CommandLineSession session)
     {
-        foreach (IGrouping<string, GameExtractionSetting> group in session.Config.SettingDefinitions.GroupBy(setting => setting.Group ?? setting.Category))
+        foreach (IGrouping<string, GameExtractionSetting> group in session.SettingDefinitions.GroupBy(setting => setting.Group ?? setting.Category))
         {
             Grid grid = new Grid().AddColumn(new GridColumn().PadLeft(2).PadRight(3)).AddColumn(new GridColumn().PadRight(3)).AddColumn();
 
