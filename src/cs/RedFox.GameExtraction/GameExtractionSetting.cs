@@ -1,7 +1,7 @@
-namespace RedFox.GameExtraction.UI;
+namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Describes a setting displayed by the GameExtraction settings window.
+/// Describes a user-configurable setting exposed by GameExtraction frontends.
 /// </summary>
 public sealed class GameExtractionSetting
 {
@@ -33,7 +33,7 @@ public sealed class GameExtractionSetting
     /// <summary>
     /// Gets the setting editor type.
     /// </summary>
-    public GameExtractionSettingType Type { get; init; } = GameExtractionSettingType.TextBox;
+    public GameExtractionSettingType Type { get; init; } = GameExtractionSettingType.Text;
 
     /// <summary>
     /// Gets the default value used when no persisted value exists.
@@ -41,7 +41,7 @@ public sealed class GameExtractionSetting
     public object? DefaultValue { get; init; }
 
     /// <summary>
-    /// Gets the available values for combo box settings.
+    /// Gets the available values for choice settings.
     /// </summary>
     public IReadOnlyList<string> Options { get; init; } = [];
 

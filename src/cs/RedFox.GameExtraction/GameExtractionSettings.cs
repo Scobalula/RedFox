@@ -1,9 +1,9 @@
 using System.Text.Json;
 
-namespace RedFox.GameExtraction.UI;
+namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Stores export settings for the GameExtraction UI shell.
+/// Stores persisted setting values shared by GameExtraction frontends.
 /// </summary>
 public sealed class GameExtractionSettings
 {
@@ -62,7 +62,12 @@ public sealed class GameExtractionSettings
         JsonSerializer.Serialize(stream, this, SerializerOptions);
     }
 
-    internal string? GetSettingValue(GameExtractionSetting setting)
+    /// <summary>
+    /// Gets the persisted value for a setting, falling back to its default value.
+    /// </summary>
+    /// <param name="setting">The setting definition.</param>
+    /// <returns>The persisted or default value.</returns>
+    public string? GetSettingValue(GameExtractionSetting setting)
     {
         ArgumentNullException.ThrowIfNull(setting);
 
@@ -71,7 +76,12 @@ public sealed class GameExtractionSettings
             : setting.DefaultValue?.ToString();
     }
 
-    internal void SetSettingValue(GameExtractionSetting setting, string? value)
+    /// <summary>
+    /// Sets the persisted value for a setting, removing it when the value is <see langword="null"/>.
+    /// </summary>
+    /// <param name="setting">The setting definition.</param>
+    /// <param name="value">The value to persist.</param>
+    public void SetSettingValue(GameExtractionSetting setting, string? value)
     {
         ArgumentNullException.ThrowIfNull(setting);
 

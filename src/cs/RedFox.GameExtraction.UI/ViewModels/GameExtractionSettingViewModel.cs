@@ -72,12 +72,12 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// <summary>
     /// Gets a value indicating whether a label should be shown above the setting editor.
     /// </summary>
-    public bool ShowLabel => !IsCheckBox;
+    public bool ShowLabel => !IsBoolean;
 
     /// <summary>
-    /// Gets a value indicating whether the setting uses a text box editor.
+    /// Gets a value indicating whether the setting holds a text value.
     /// </summary>
-    public bool IsTextBox => Type == GameExtractionSettingType.TextBox;
+    public bool IsText => Type == GameExtractionSettingType.Text;
 
     /// <summary>
     /// Gets a value indicating whether the setting uses a browseable path editor.
@@ -90,14 +90,14 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     public bool IsFilePath => Type == GameExtractionSettingType.FilePath;
 
     /// <summary>
-    /// Gets a value indicating whether the setting uses a combo box editor.
+    /// Gets a value indicating whether the setting holds a choice from its options.
     /// </summary>
-    public bool IsComboBox => Type == GameExtractionSettingType.ComboBox;
+    public bool IsChoice => Type == GameExtractionSettingType.Choice;
 
     /// <summary>
-    /// Gets a value indicating whether the setting uses a check box editor.
+    /// Gets a value indicating whether the setting holds a boolean value.
     /// </summary>
-    public bool IsCheckBox => Type == GameExtractionSettingType.CheckBox;
+    public bool IsBoolean => Type == GameExtractionSettingType.Boolean;
 
     /// <summary>
     /// Gets or sets the text value.
@@ -156,8 +156,8 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     {
         return Type switch
         {
-            GameExtractionSettingType.CheckBox => BooleanValue.ToString(),
-            GameExtractionSettingType.ComboBox => SelectedOption,
+            GameExtractionSettingType.Boolean => BooleanValue.ToString(),
+            GameExtractionSettingType.Choice => SelectedOption,
             _ => TextValue,
         };
     }

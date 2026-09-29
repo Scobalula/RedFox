@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageDescription>Interactive command line shell for RedFox GameExtraction tools with slash commands, completion, and progress reporting.</PackageDescription>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PrettyPrompt" Version="6.0.5" />
+    <PackageReference Include="Spectre.Console" Version="0.57.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.GameExtraction\RedFox.GameExtraction.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RedFox.GameExtraction.Tests" />
+  </ItemGroup>
+
+</Project>

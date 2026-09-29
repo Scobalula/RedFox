@@ -54,7 +54,7 @@
 												<TextBox Text="{Binding TextValue, Mode=TwoWay}"
 														 CornerRadius="6"
 														 Padding="8,6"
-														 IsVisible="{Binding IsTextBox}"/>
+														 IsVisible="{Binding IsText}"/>
 												<Grid ColumnDefinitions="*,Auto"
 													  ColumnSpacing="8"
 													  IsVisible="{Binding IsPathSetting}">
@@ -70,11 +70,11 @@
 												</Grid>
 												<ComboBox ItemsSource="{Binding Options}"
 														  SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-														  IsVisible="{Binding IsComboBox}"/>
+														  IsVisible="{Binding IsChoice}"/>
 												<CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
 														  Content="{Binding Label}"
 														  Foreground="#E4E4EA"
-														  IsVisible="{Binding IsCheckBox}"/>
+														  IsVisible="{Binding IsBoolean}"/>
 												<TextBlock Classes="setting-desc"
 														   Text="{Binding Description}"
 														   IsVisible="{Binding HasDescription}"/>

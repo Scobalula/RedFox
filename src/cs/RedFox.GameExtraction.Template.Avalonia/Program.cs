@@ -28,65 +28,9 @@ internal static class Program
             SupportsProcessSources = true,
             EnableDirectoryView = true,
             MetadataColumns = ["CompressedSize", "ArchivePath"],
-            ExportConfigurationFactory = settings =>
-            {
-                ArgumentNullException.ThrowIfNull(settings);
-
-                string? outputDirectory = settings.Values.TryGetValue("OutputDirectory", out string? configuredOutputDirectory) ? configuredOutputDirectory : null;
-
-                return new ExportConfiguration
-                {
-                    OutputDirectory = string.IsNullOrWhiteSpace(outputDirectory) ? GameExtractionSettings.GetDefaultOutputDirectory() : outputDirectory,
-                    Overwrite = settings.Values.TryGetValue("Overwrite", out string? overwriteValue) && bool.TryParse(overwriteValue, out bool overwrite) && overwrite,
-                    ExportReferences = settings.Values.TryGetValue("ExportReferences", out string? exportReferencesValue) && bool.TryParse(exportReferencesValue, out bool exportReferences) && exportReferences,
-                    PreserveDirectoryStructure = !settings.Values.TryGetValue("PreserveDirectoryStructure", out string? preserveDirectoryStructureValue) || (bool.TryParse(preserveDirectoryStructureValue, out bool preserveDirectoryStructure) && preserveDirectoryStructure),
-                };
-            },
-            Settings = new GameExtractionSettings
-            {
-                Values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["OutputDirectory"] = GameExtractionSettings.GetDefaultOutputDirectory(),
-                    ["Overwrite"] = bool.FalseString,
-                    ["ExportReferences"] = bool.FalseString,
-                    ["PreserveDirectoryStructure"] = bool.TrueString,
-                },
-            },
-            SettingDefinitions =
-            [
-                new GameExtractionSetting
-                {
-                    Name = "OutputDirectory",
-                    Group = "Export",
-                    Label = "Output directory",
-                    Type = GameExtractionSettingType.DirectoryPath,
-                    DefaultValue = GameExtractionSettings.GetDefaultOutputDirectory(),
-                },
-                new GameExtractionSetting
-                {
-                    Name = "Overwrite",
-                    Group = "Export",
-                    Label = "Overwrite existing files",
-                    Type = GameExtractionSettingType.CheckBox,
-                    DefaultValue = false,
-                },
-                new GameExtractionSetting
-                {
-                    Name = "PreserveDirectoryStructure",
-                    Group = "Export",
-                    Label = "Preserve directory structure",
-                    Type = GameExtractionSettingType.CheckBox,
-                    DefaultValue = true,
-                },
-                new GameExtractionSetting
-                {
-                    Name = "ExportReferences",
-                    Group = "Export",
-                    Label = "Export referenced assets",
-                    Type = GameExtractionSettingType.CheckBox,
-                    DefaultValue = false,
-                },
-            ],
+            ExportConfigurationFactory = TemplateSettings.CreateExportConfiguration,
+            Settings = TemplateSettings.CreateDefaults(),
+            SettingDefinitions = TemplateSettings.Definitions,
             About = new AboutConfig
             {
                 Description = "A minimal Avalonia shell for ZIP-backed RedFox.GameExtraction sources.",

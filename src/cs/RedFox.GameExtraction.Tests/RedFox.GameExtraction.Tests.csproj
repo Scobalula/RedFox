@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RedFox.GameExtraction.CommandLine\RedFox.GameExtraction.CommandLine.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 

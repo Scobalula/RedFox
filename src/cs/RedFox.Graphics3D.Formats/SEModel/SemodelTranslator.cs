@@ -446,7 +446,7 @@ public class SemodelTranslator : SceneTranslator
         // ---- Materials ----
         foreach (var material in materials)
         {
-            writer.WriteNullTerminatedString(material.Name);
+            writer.WriteNullTerminatedString(material.Name.Replace('/', '_').Replace('\\', '_').Replace('.', '_'));
 
             string? diffuseMapName  = ResolveMaterialTextureName(material, material.DiffuseMapName,  targetDirectoryPath);
             string? normalMapName   = ResolveMaterialTextureName(material, material.NormalMapName,   targetDirectoryPath);

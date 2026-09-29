@@ -6,7 +6,6 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using global::System.IO;
 using RedFox.Patterns;
 
 namespace RedFox.IO;

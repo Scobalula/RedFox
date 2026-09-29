@@ -9,8 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Spectre.Console" Version="0.57.2" />
-    <ProjectReference Include="..\RedFox.GameExtraction\RedFox.GameExtraction.csproj" />
+    <ProjectReference Include="..\RedFox.GameExtraction.CommandLine\RedFox.GameExtraction.CommandLine.csproj" />
     <ProjectReference Include="..\RedFox.GameExtraction.Template\RedFox.GameExtraction.Template.csproj" />
   </ItemGroup>
 

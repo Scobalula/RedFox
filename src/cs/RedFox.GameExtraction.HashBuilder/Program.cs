@@ -1,6 +1,7 @@
 ﻿using System.Security.Cryptography;
 using System.Text;
 using RedFox.GameExtraction.Hashing;
+using Spectre.Console;
 
 IAnsiConsole errorConsole = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(Console.Error) });
 Style errorStyle = Style.Parse("red");

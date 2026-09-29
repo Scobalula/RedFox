@@ -21,6 +21,7 @@
     <Project Path="RedFox.Compression/RedFox.Compression.csproj" />
   </Folder>
   <Folder Name="/GameExtraction/">
+    <Project Path="RedFox.GameExtraction.CommandLine/RedFox.GameExtraction.CommandLine.csproj" />
     <Project Path="RedFox.GameExtraction.HashBuilder/RedFox.GameExtraction.HashBuilder.csproj" />
     <Project Path="RedFox.GameExtraction.Hashing/RedFox.GameExtraction.Hashing.csproj" />
     <Project Path="RedFox.GameExtraction.Template.Avalonia/RedFox.GameExtraction.Template.Avalonia.csproj" />

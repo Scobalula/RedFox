@@ -28,7 +28,7 @@ public sealed class AssetFileSystemService
     {
         Manager = manager;
         Manager.SourceMounted += ManagerSourceMounted;
-        Manager.SourceUnloaded += ManagerSourceUnloaded;
+        Manager.SourceUnloading += ManagerSourceUnloading;
     }
 
     private void ManagerSourceMounted(object? sender, SourceEventArgs e)
@@ -58,15 +58,42 @@ public sealed class AssetFileSystemService
         }
     }
 
-    private void ManagerSourceUnloaded(object? sender, SourceEventArgs e)
+    private void ManagerSourceUnloading(object? sender, SourceEventArgs e)
     {
         lock (_fileSystemLock)
         {
+            HashSet<VirtualDirectory> topLevelDirectories = new(ReferenceEqualityComparer.Instance);
+
             foreach (Asset asset in e.Source.Assets)
             {
-                if (asset.DataSource is VirtualFile file)
-                    file.MoveTo(null);
+                if (asset.DataSource is not VirtualFile file)
+                    continue;
+
+                if (file.Parent is not null && file.Parent != FileSystem.Root)
+                    topLevelDirectories.Add(GetTopLevelDirectory(file.Parent));
+
+                file.MoveTo(null);
             }
+
+            foreach (VirtualDirectory directory in topLevelDirectories)
+                RemoveEmptyDirectories(directory);
         }
+    }
+
+    private static VirtualDirectory GetTopLevelDirectory(VirtualDirectory directory)
+    {
+        while (directory.Parent?.Parent is not null)
+            directory = directory.Parent;
+
+        return directory;
+    }
+
+    private static void RemoveEmptyDirectories(VirtualDirectory directory)
+    {
+        foreach (VirtualDirectory child in directory.Directories.ToArray())
+            RemoveEmptyDirectories(child);
+
+        if (directory.Files.Count == 0 && directory.Directories.Count == 0)
+            directory.MoveTo(null);
     }
 }
