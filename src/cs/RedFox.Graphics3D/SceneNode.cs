@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Enumeration;
 using System.Numerics;
-using System.Xml.Linq;
 
 namespace RedFox.Graphics3D;
 
@@ -11,27 +10,14 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public abstract class SceneNode : IUpdatable, IDisposable
 {
-    private const int ChildNameIndexThreshold = 8;
     private List<SceneNode>? _children = null;
-    private Dictionary<string, int>? _childNameCounts;
     private bool _disposed;
     private Scene? _scene = null;
-    private string _name = string.Empty;
 
     /// <summary>
     /// Gets or sets the name associated with the node.
     /// </summary>
-    public string Name
-    {
-        get => _name;
-        set
-        {
-            if (Parent is { } parent && !string.Equals(_name, value, StringComparison.OrdinalIgnoreCase))
-                parent.ChangeChildName(_name, value);
-
-            _name = value;
-        }
-    }
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the scene this this object is apart of.
@@ -185,25 +171,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
     {
         if (newParent is null)
         {
-            foreach (SceneNode descendant in EnumerateDescendants())
-            {
-                descendant.StoreTransformsAsLocal();
-            }
-
-            switch (transformMode)
-            {
-                case ReparentTransformMode.PreserveLocal:
-                    StoreTransformsAsLocal();
-                    break;
-                case ReparentTransformMode.PreserveWorld:
-                    StoreTransformsAsWorld();
-                    break;
-                case ReparentTransformMode.PreserveExisting:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
-            }
-
+            PrepareForReparent(transformMode);
             Detach();
             return this;
         }
@@ -1269,7 +1237,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return false;
         }
 
-        RemoveChildName(node.Name);
         Scene? scene = node.Scene ?? _scene;
         node.Parent = null;
         node.SetScene(null);
@@ -1311,7 +1278,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         _children.Clear();
-        _childNameCounts = null;
         scene?.NotifyChanged(SceneChangeKind.Cleared, this);
     }
 
@@ -1346,19 +1312,11 @@ public abstract class SceneNode : IUpdatable, IDisposable
         node.ThrowIfInvalidParent(this);
 
         _children ??= [];
-        bool duplicate = _childNameCounts?.ContainsKey(node.Name) == true;
-        if (_childNameCounts is null)
-            foreach (SceneNode child in _children)
-                if (child.Name.Equals(node.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    duplicate = true;
-                    break;
-                }
-        if (duplicate)
-            throw new SceneNodeDuplicateException($"A node with the name: {node.Name} already exists in: {Name}");
-        _children.Add(node);
-        AddChildName(node.Name);
+        foreach (SceneNode child in _children)
+            if (child.Name.Equals(node.Name, StringComparison.OrdinalIgnoreCase))
+                throw new SceneNodeDuplicateException($"A node with the name: {node.Name} already exists in: {Name}");
 
+        _children.Add(node);
         node.Parent = this;
         node.SetScene(_scene);
 
@@ -3195,6 +3153,36 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
+    /// Prepares this node and its descendants to change parent. Descendants are kept in local space
+    /// so their pose relative to this node is preserved, while this node's transforms are rewritten
+    /// according to <paramref name="transformMode"/>.
+    /// </summary>
+    private void PrepareForReparent(ReparentTransformMode transformMode)
+    {
+        foreach (SceneNode descendant in EnumerateDescendants())
+        {
+            descendant.StoreTransformsAsLocal();
+        }
+
+        switch (transformMode)
+        {
+            case ReparentTransformMode.PreserveLocal:
+                StoreTransformsAsLocal();
+                break;
+
+            case ReparentTransformMode.PreserveWorld:
+                StoreTransformsAsWorld();
+                break;
+
+            case ReparentTransformMode.PreserveExisting:
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
+        }
+    }
+
+    /// <summary>
     /// Rewrites any world-space values held by this node's transforms as local values relative to the
     /// current parent, so the node keeps its pose relative to the parent when the hierarchy changes.
     /// </summary>
@@ -3261,41 +3249,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
     private bool MatchesName(string namePattern) => FileSystemName.MatchesSimpleExpression(namePattern, Name);
 
-    private void AddChildName(string name)
-    {
-        if (_childNameCounts is null)
-        {
-            if (_children!.Count < ChildNameIndexThreshold)
-                return;
-
-            _childNameCounts = new Dictionary<string, int>(_children.Count, StringComparer.OrdinalIgnoreCase);
-            foreach (SceneNode child in _children)
-                _childNameCounts[child.Name] = _childNameCounts.GetValueOrDefault(child.Name) + 1;
-            return;
-        }
-
-        _childNameCounts[name] = _childNameCounts.GetValueOrDefault(name) + 1;
-    }
-
-    private void RemoveChildName(string name)
-    {
-        if (_childNameCounts is null || !_childNameCounts.TryGetValue(name, out int count))
-            return;
-
-        if (count == 1)
-            _childNameCounts.Remove(name);
-        else
-            _childNameCounts[name] = count - 1;
-    }
-
-    private void ChangeChildName(string oldName, string newName)
-    {
-        if (_childNameCounts is null)
-            return;
-
-        RemoveChildName(oldName);
-        _childNameCounts[newName] = _childNameCounts.GetValueOrDefault(newName) + 1;
-    }
     /// <summary>
     /// Resolves duplicates in <paramref name="targetParent"/>'s hierarchy and either attaches this
     /// node as a child of <paramref name="targetParent"/> or surrenders it according to
@@ -3310,7 +3263,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
         SceneNode? existing = FindDuplicateInScope(targetParent, scope);
 
-        if (existing is null || ReferenceEquals(existing, this))
+        if (existing is null)
         {
             AttachAsChild(targetParent, transformMode);
             ApplyScopeToChildren(scope, strategy, transformMode);
@@ -3394,34 +3347,14 @@ public abstract class SceneNode : IUpdatable, IDisposable
         Scene? oldScene = Scene;
         Scene? newScene = newParent.Scene;
 
-        foreach (SceneNode node in EnumerateDescendants())
-            node.StoreTransformsAsLocal();
+        PrepareForReparent(transformMode);
 
-        switch (transformMode)
-        {
-            case ReparentTransformMode.PreserveLocal:
-                StoreTransformsAsLocal();
-                break;
-
-            case ReparentTransformMode.PreserveWorld:
-                StoreTransformsAsWorld();
-                break;
-
-            case ReparentTransformMode.PreserveExisting:
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(transformMode), transformMode, "Unknown reparent transform mode.");
-        }
-
-        if (oldParent?._children?.Remove(this) == true)
-            oldParent.RemoveChildName(Name);
+        oldParent?._children?.Remove(this);
         oldParent?.OnChildRemoved(this);
 
         Parent = newParent;
         newParent._children ??= [];
         newParent._children.Add(this);
-        newParent.AddChildName(Name);
         SetScene(newScene);
         newParent.OnChildAdded(this);
 

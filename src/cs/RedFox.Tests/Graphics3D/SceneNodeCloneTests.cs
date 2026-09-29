@@ -77,4 +77,32 @@ public sealed class SceneNodeCloneTests
 
         Assert.Throws<NotSupportedException>(() => scene.Clone());
     }
+
+    [Fact]
+    public void Clone_WideHierarchy_DoesNotThrow()
+    {
+        Group root = new("root");
+
+        for (int i = 0; i < 12; i++)
+            root.AddNode(new Group($"child_{i}"));
+
+        SceneNode clone = root.Clone();
+
+        Assert.Equal(12, clone.Children!.Count);
+        Assert.Null(clone.Parent);
+    }
+
+    [Fact]
+    public void Clone_WideHierarchy_DoesNotShareChildNameState()
+    {
+        Group root = new("root");
+
+        for (int i = 0; i < 12; i++)
+            root.AddNode(new Group($"child_{i}"));
+
+        SceneNode clone = root.Clone();
+        clone.AddNode(new Group("child_extra"));
+
+        Assert.False(root.TryFindChild("child_extra", out _));
+    }
 }
