@@ -1428,6 +1428,66 @@ public abstract class SceneNode : IUpdatable, IDisposable
     }
 
     /// <summary>
+    /// Reparents this node by updating only the parent/child links and scene reference.
+    /// </summary>
+    /// <remarks>
+    /// Performs no duplicate or cycle validation, leaves transforms untouched, and raises no change
+    /// notifications. The caller must guarantee unique sibling names and an acyclic hierarchy.
+    /// </remarks>
+    /// <param name="newParent">The new parent, or <see langword="null"/> to detach.</param>
+    public void SetParentUnsafe(SceneNode? newParent) => LinkNode(this, newParent, newParent?._scene);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a parent-index table.
+    /// </summary>
+    /// <remarks>
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the
+    /// caller guarantees a valid, acyclic table with unique sibling names.
+    /// </remarks>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<int> parentIndices) => LinkHierarchyUnsafe<int>(nodes, parentIndices);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a 16-bit parent-index table.
+    /// </summary>
+    /// <remarks>
+    /// No duplicate or cycle validation, no transform handling, and no change notifications; the
+    /// caller guarantees a valid, acyclic table with unique sibling names.
+    /// </remarks>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<short> parentIndices) => LinkHierarchyUnsafe<short>(nodes, parentIndices);
+
+    /// <summary>
+    /// Links nodes into a hierarchy from a parent-index table of any integer type.
+    /// </summary>
+    /// <remarks>
+    /// Performs no duplicate or cycle validation, leaves transforms untouched, and raises no change
+    /// notifications. The caller must guarantee unique sibling names, an acyclic table, and that every
+    /// transform is already correct.
+    /// </remarks>
+    /// <typeparam name="TIndex">The integer type of the parent-index table.</typeparam>
+    /// <param name="nodes">The nodes to link, in any order.</param>
+    /// <param name="parentIndices">The parent index for each node, aligned with <paramref name="nodes"/>.</param>
+    public void LinkHierarchyUnsafe<TIndex>(IReadOnlyList<SceneNode> nodes, ReadOnlySpan<TIndex> parentIndices) where TIndex : struct, INumber<TIndex>
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+
+        if (nodes.Count != parentIndices.Length)
+            throw new ArgumentException("nodes and parentIndices must contain the same number of elements.", nameof(parentIndices));
+
+        Scene? scene = Scene;
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            SceneNode node = nodes[i];
+            int parentIndex = int.CreateChecked(parentIndices[i]);
+            LinkNode(node, (uint)parentIndex < (uint)nodes.Count && parentIndex != i ? nodes[parentIndex] : this, scene);
+        }
+    }
+
+    /// <summary>
     /// Updates the node and all its descendants.
     /// </summary>
     /// <param name="deltaTime">Time elapsed since last update in seconds.</param>
@@ -3152,13 +3212,22 @@ public abstract class SceneNode : IUpdatable, IDisposable
             throw new SceneNodeParentException($"Node '{Name}' cannot be parented to its descendant '{newParent.Name}'.");
     }
 
-    /// <summary>
-    /// Prepares this node and its descendants to change parent. Descendants are kept in local space
-    /// so their pose relative to this node is preserved, while this node's transforms are rewritten
-    /// according to <paramref name="transformMode"/>.
-    /// </summary>
+    private static void LinkNode(SceneNode node, SceneNode? parent, Scene? scene)
+    {
+        node.Parent?._children?.Remove(node);
+        node.Parent = parent;
+
+        if (parent is not null)
+            (parent._children ??= []).Add(node);
+
+        node._scene = scene;
+    }
+
     private void PrepareForReparent(ReparentTransformMode transformMode)
     {
+        if (transformMode == ReparentTransformMode.PreserveExisting)
+            return;
+
         foreach (SceneNode descendant in EnumerateDescendants())
         {
             descendant.StoreTransformsAsLocal();
@@ -3172,9 +3241,6 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
             case ReparentTransformMode.PreserveWorld:
                 StoreTransformsAsWorld();
-                break;
-
-            case ReparentTransformMode.PreserveExisting:
                 break;
 
             default:

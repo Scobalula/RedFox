@@ -101,18 +101,7 @@ public class SemodelTranslator : SceneTranslator
         }
 
         var skeleton = scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
-
-        for (int i = 0; i < bones.Length; i++)
-        {
-            if (boneParents[i] != -1)
-            {
-                bones[i].MoveTo(bones[boneParents[i]], ReparentTransformMode.PreserveExisting);
-            }
-            else
-            {
-                bones[i].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
-            }
-        }
+        skeleton.LinkHierarchyUnsafe(bones, boneParents);
 
         bool hasUVs     = (meshDataPresence & (1 << 0)) != 0;
         bool hasNormals = (meshDataPresence & (1 << 1)) != 0;

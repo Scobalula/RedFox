@@ -223,6 +223,92 @@ public sealed class SceneGraphTests
     }
 
     [Fact]
+    public void MoveTo_PreserveExisting_LeavesNodeAndDescendantTransformsUntouched()
+    {
+        Group parent = new("Parent");
+        Group child = parent.AddNode(new Group("Child"));
+        Group grandChild = child.AddNode(new Group("GrandChild"));
+        Group target = new("Target");
+        child.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+        grandChild.BindTransform.LocalPosition = null;
+        grandChild.BindTransform.WorldPosition = new Vector3(1f, 1f, 1f);
+
+        child.MoveTo(target, ReparentTransformMode.PreserveExisting);
+
+        Assert.Same(target, child.Parent);
+        Assert.Equal(new Vector3(2f, 0f, 0f), child.BindTransform.LocalPosition);
+        Assert.Null(child.BindTransform.WorldPosition);
+        Assert.Null(grandChild.BindTransform.LocalPosition);
+        Assert.Equal(new Vector3(1f, 1f, 1f), grandChild.BindTransform.WorldPosition);
+    }
+
+    [Fact]
+    public void SetParentUnsafe_LinksDirectlyWithoutTouchingTransformsOrDescendants()
+    {
+        Scene scene = new("scene");
+        Group parent = scene.AddNode(new Group("Parent"));
+        Group child = parent.AddNode(new Group("Child"));
+        Group grandChild = child.AddNode(new Group("GrandChild"));
+        Group target = scene.AddNode(new Group("Target"));
+        child.BindTransform.LocalPosition = new Vector3(2f, 0f, 0f);
+        grandChild.BindTransform.LocalPosition = null;
+        grandChild.BindTransform.WorldPosition = new Vector3(1f, 1f, 1f);
+
+        child.SetParentUnsafe(target);
+
+        Assert.Empty(parent.EnumerateChildren());
+        Assert.Same(child, Assert.Single(target.EnumerateChildren()));
+        Assert.Same(target, child.Parent);
+        Assert.Same(child, grandChild.Parent);
+        Assert.Same(scene, child.Scene);
+        Assert.Equal(new Vector3(2f, 0f, 0f), child.BindTransform.LocalPosition);
+        Assert.Null(grandChild.BindTransform.LocalPosition);
+        Assert.Equal(new Vector3(1f, 1f, 1f), grandChild.BindTransform.WorldPosition);
+    }
+
+    [Fact]
+    public void LinkHierarchyUnsafe_OutOfOrderParentTable_LinksAndAssignsScene()
+    {
+        Scene scene = new("scene");
+        Skeleton skeleton = scene.AddNode(new Skeleton("Skeleton"));
+        SkeletonBone b0 = new("b0");
+        SkeletonBone b1 = new("b1");
+        SkeletonBone b2 = new("b2");
+        SkeletonBone b3 = new("b3");
+        SkeletonBone[] bones = [b0, b1, b2, b3];
+        int[] parents = [1, -1, 0, 99];
+        b2.BindTransform.LocalPosition = new Vector3(3f, 0f, 0f);
+
+        skeleton.LinkHierarchyUnsafe(bones, parents);
+
+        Assert.Same(b1, b0.Parent);
+        Assert.Same(skeleton, b1.Parent);
+        Assert.Same(b0, b2.Parent);
+        Assert.Same(skeleton, b3.Parent);
+        Assert.All(bones, bone => Assert.Same(scene, bone.Scene));
+        Assert.Equal(new Vector3(3f, 0f, 0f), b2.BindTransform.LocalPosition);
+    }
+
+    [Fact]
+    public void LinkHierarchyUnsafe_ShortParentTable_LinksAndAssignsScene()
+    {
+        Scene scene = new("scene");
+        Skeleton skeleton = scene.AddNode(new Skeleton("Skeleton"));
+        SkeletonBone b0 = new("b0");
+        SkeletonBone b1 = new("b1");
+        SkeletonBone b2 = new("b2");
+        SkeletonBone[] bones = [b0, b1, b2];
+        short[] parents = [1, -1, 0];
+
+        skeleton.LinkHierarchyUnsafe(bones, parents);
+
+        Assert.Same(b1, b0.Parent);
+        Assert.Same(skeleton, b1.Parent);
+        Assert.Same(b0, b2.Parent);
+        Assert.All(bones, bone => Assert.Same(scene, bone.Scene));
+    }
+
+    [Fact]
     public void MoveToNull_PreserveLocal_KeepsLocalPose()
     {
         Group parent = new("Parent");
