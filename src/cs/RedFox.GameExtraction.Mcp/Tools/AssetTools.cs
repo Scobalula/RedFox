@@ -24,8 +24,8 @@ internal sealed class AssetTools(AssetManager assetManager, AssetDataReader data
         return builder.ToString();
     }
 
-    [McpServerTool(Name = "get_asset"), Description("Returns the type, information, metadata, handler and raw size of an asset.")]
-    public async Task<string> GetAsset([Description("Full asset name.")] string name)
+    [McpServerTool(Name = "get_asset"), Description("Returns the type, information, metadata and handler for an asset.")]
+    public string GetAsset([Description("Full asset name.")] string name)
     {
         Asset asset = dataReader.GetAsset(name);
         IAssetHandler? handler = assetManager.FindHandler(asset);
@@ -35,15 +35,6 @@ internal sealed class AssetTools(AssetManager assetManager, AssetDataReader data
         builder.AppendLine($"Type: {asset.Type}");
         builder.AppendLine($"Information: {asset.Information}");
         builder.AppendLine($"Handler: {handler?.GetType().Name ?? "none"}");
-
-        try
-        {
-            builder.AppendLine($"Size: {await dataReader.GetSizeAsync(asset)}");
-        }
-        catch (Exception exception)
-        {
-            builder.AppendLine($"Size: unavailable ({exception.Message})");
-        }
 
         foreach ((string key, object? value) in asset.Metadata)
         {

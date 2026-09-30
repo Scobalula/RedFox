@@ -7,7 +7,7 @@ namespace RedFox.GameExtraction.UI.Models;
 /// </summary>
 public sealed class AssetRowViewModel
 {
-    private static readonly string[] SizeMetadataKeys = ["Size", "Length", "UncompressedSize", "CompressedSize"];
+    private readonly string _information;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AssetRowViewModel"/> class.
@@ -18,9 +18,8 @@ public sealed class AssetRowViewModel
     {
         Asset = asset;
         Source = source;
-        string fileName = Path.GetFileName(asset.Name);
-        Name = string.IsNullOrWhiteSpace(fileName) ? asset.Name : fileName;
-        Size = ResolveSize(asset);
+        Name = asset.Name;
+        _information = asset.Information?.Trim() ?? string.Empty;
     }
 
     /// <summary>
@@ -49,19 +48,14 @@ public sealed class AssetRowViewModel
     public string Type => Asset.Type;
 
     /// <summary>
-    /// Gets the asset size in bytes when known.
+    /// Gets a value indicating whether a secondary information line should be shown.
     /// </summary>
-    public long? Size { get; }
-
-    /// <summary>
-    /// Gets the display text for the asset size.
-    /// </summary>
-    public string SizeDisplay => Size is long size ? FormatSize(size) : "-";
+    public bool HasInformation => _information.Length > 0;
 
     /// <summary>
     /// Gets secondary information for the asset.
     /// </summary>
-    public string Information => string.IsNullOrWhiteSpace(Asset.Information) ? SizeDisplay : Asset.Information;
+    public string Information => _information;
 
     /// <summary>
     /// Gets display-friendly metadata values.
@@ -80,55 +74,4 @@ public sealed class AssetRowViewModel
             : string.Empty;
     }
 
-    private static long? ResolveSize(Asset asset)
-    {
-        foreach (string key in SizeMetadataKeys)
-        {
-            if (asset.Metadata.TryGetValue(key, out object? value) && TryConvertToInt64(value, out long size))
-            {
-                return size;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool TryConvertToInt64(object? value, out long result)
-    {
-        result = 0;
-        switch (value)
-        {
-            case long longValue:
-                result = longValue;
-                return true;
-            case int intValue:
-                result = intValue;
-                return true;
-            case uint uintValue:
-                result = uintValue;
-                return true;
-            case ulong ulongValue when ulongValue <= long.MaxValue:
-                result = (long)ulongValue;
-                return true;
-            case string text when long.TryParse(text, out long parsed):
-                result = parsed;
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        string[] suffixes = ["B", "KB", "MB", "GB", "TB"];
-        int order = 0;
-        double size = bytes;
-        while (size >= 1024 && order < suffixes.Length - 1)
-        {
-            order++;
-            size /= 1024;
-        }
-
-        return order == 0 ? $"{size:N0} {suffixes[order]}" : $"{size:N2} {suffixes[order]}";
-    }
 }

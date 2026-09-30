@@ -12,16 +12,6 @@ internal sealed class AssetDataReader(AssetManager assetManager)
         return asset ?? throw new McpException($"Asset '{name}' was not found. Use search_assets to find valid names.");
     }
 
-    public async Task<long> GetSizeAsync(Asset asset)
-    {
-        if (asset.DataSource is VirtualFile file)
-        {
-            return file.Size;
-        }
-
-        return (await ReadAllAsync(asset).ConfigureAwait(false)).Length;
-    }
-
     public async Task<byte[]> ReadAsync(Asset asset, long offset, int length)
     {
         if (asset.DataSource is VirtualFile file)

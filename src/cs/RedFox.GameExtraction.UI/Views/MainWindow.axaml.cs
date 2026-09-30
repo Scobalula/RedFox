@@ -84,9 +84,9 @@ public partial class MainWindow : Window
 
     private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
     {
-        if (DataContext is MainWindowViewModel viewModel && sender is DataGrid dataGrid)
+        if (DataContext is MainWindowViewModel viewModel && sender is ListBox listBox)
         {
-            viewModel.SetSelectedAssets(dataGrid.SelectedItems.OfType<AssetRowViewModel>());
+            viewModel.SetSelectedAssets(listBox.SelectedItems?.OfType<AssetRowViewModel>() ?? Enumerable.Empty<AssetRowViewModel>());
         }
     }
 
@@ -98,25 +98,12 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnExplorerSelectionChanged(object? sender, SelectionChangedEventArgs args)
-    {
-        if (DataContext is MainWindowViewModel viewModel && sender is DataGrid dataGrid)
-        {
-            viewModel.SetSelectedExplorerEntries(dataGrid.SelectedItems.OfType<AssetExplorerEntry>());
-        }
-    }
-
-    private void OnExplorerDoubleTapped(object? sender, TappedEventArgs args)
-    {
-        if (DataContext is MainWindowViewModel viewModel && FindRowItem<AssetExplorerEntry>(args.Source) is { } entry)
-        {
-            viewModel.ActivateExplorerEntry(entry);
-        }
-    }
-
     private static T? FindRowItem<T>(object? source) where T : class
     {
-        return source is Visual visual ? visual.FindAncestorOfType<DataGridRow>()?.DataContext as T ?? (visual as Control)?.DataContext as T : null;
+        return source is Visual visual
+            ? visual.FindAncestorOfType<ListBoxItem>()?.DataContext as T
+                ?? (visual as Control)?.DataContext as T
+            : null;
     }
 
     private async Task<IReadOnlyList<string>> OnFileDialogRequested()

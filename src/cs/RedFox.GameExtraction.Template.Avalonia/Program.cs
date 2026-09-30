@@ -21,7 +21,6 @@ internal static class Program
             SupportsFileSources = true,
             SupportsDirectorySources = false,
             SupportsProcessSources = true,
-            EnableDirectoryView = true,
             MetadataColumns = ["CompressedSize", "ArchivePath"],
             ExportConfigurationFactory = TemplateSettings.CreateExportConfiguration,
             Settings = TemplateSettings.CreateDefaults(),

@@ -127,87 +127,104 @@
 
             <DockPanel>
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <Button DockPanel.Dock="Right"
-                            Classes="secondary-btn"
-                            Margin="8,0,0,0"
-                            Command="{Binding ToggleViewModeCommand}"
-                            IsVisible="{Binding IsDirectoryViewEnabled}"
-                            Content="{Binding ViewModeToggleLabel}"/>
                     <TextBox Classes="search-box"
                              PlaceholderText="Search assets"
                              Text="{Binding SearchText}"/>
                 </DockPanel>
 
-                <Border Classes="panel" Padding="0" ClipToBounds="True">
+                <Border Classes="panel asset-list-panel" Padding="0" ClipToBounds="True">
                     <DockPanel>
                         <Border DockPanel.Dock="Top"
-                                Classes="preview-toolbar"
-                                IsVisible="{Binding IsDirectoryViewActive}">
+                                Classes="preview-toolbar">
                             <DockPanel>
-                                <Button DockPanel.Dock="Left"
-                                        Classes="icon-btn"
-                                        Margin="0,0,10,0"
-                                        Command="{Binding NavigateUpCommand}"
-                                        IsEnabled="{Binding CanNavigateUp}">
-                                    <PathIcon Data="{StaticResource IconArrowUp}" Width="12" Height="12"/>
-                                </Button>
                                 <TextBlock Classes="status-text"
-                                           Text="{Binding CurrentDirectoryPath}"
-                                           TextTrimming="CharacterEllipsis"/>
+                                           Text="{Binding SelectedAssetsSummary}"
+                                           IsVisible="{Binding HasSelectedAssets}"
+                                           VerticalAlignment="Center"/>
+                                <StackPanel DockPanel.Dock="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="8"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Classes="status-text" Text="Type" VerticalAlignment="Center"/>
+                                    <ComboBox Width="142"
+                                              ItemsSource="{Binding AssetTypeOptions}"
+                                              SelectedItem="{Binding SelectedAssetType, Mode=TwoWay}"/>
+                                    <TextBlock Classes="status-text" Text="Source" VerticalAlignment="Center"/>
+                                    <ComboBox Width="158"
+                                              ItemsSource="{Binding AssetSourceOptions}"
+                                              SelectedItem="{Binding SelectedAssetSource, Mode=TwoWay}"/>
+                                    <TextBlock Classes="status-text" Text="Sort" VerticalAlignment="Center"/>
+                                    <ComboBox Width="112"
+                                              ItemsSource="{Binding SortOptions}"
+                                              SelectedItem="{Binding SortBy, Mode=TwoWay}"/>
+                                </StackPanel>
                             </DockPanel>
                         </Border>
-
                         <Panel>
-                            <DataGrid x:Name="AssetDataGrid"
-                                      IsVisible="{Binding !IsDirectoryViewActive}"
-                                      ItemsSource="{Binding AssetsView}"
-                                      SelectedItem="{Binding SelectedAsset}"
-                                      AutoGenerateColumns="False"
-                                      CanUserResizeColumns="True"
-                                      CanUserSortColumns="True"
-                                      GridLinesVisibility="Horizontal"
-                                      HeadersVisibility="Column"
-                                      IsReadOnly="True"
-                                      SelectionMode="Extended"
-                                      RowHeight="30"
-                                      SelectionChanged="OnAssetSelectionChanged"
-                                      DoubleTapped="OnAssetDoubleTapped">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType=model:AssetRowViewModel}" Width="2*"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding Type, DataType=model:AssetRowViewModel}" Width="140"/>
-                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType=model:AssetRowViewModel}" Width="3*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <ListBox x:Name="AssetListBox"
+                                     Classes="asset-list"
+                                     ClipToBounds="True"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.AllowAutoHide="False"
+                                     ItemsSource="{Binding AssetsView}"
+                                     SelectionMode="Multiple"
+                                     SelectionChanged="OnAssetSelectionChanged"
+                                     DoubleTapped="OnAssetDoubleTapped">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="model:AssetRowViewModel">
+                                        <Grid ColumnDefinitions="Auto,*,Auto"
+                                              ColumnSpacing="12"
+                                              Margin="10,5,14,5">
+                                            <Border Classes="asset-icon">
+                                                <PathIcon Data="{StaticResource IconFile}" Width="16" Height="16"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                                <TextBlock Classes="asset-name"
+                                                           Text="{Binding Name}"
+                                                           ToolTip.Tip="{Binding Name}"
+                                                           TextTrimming="LeadingCharacterEllipsis"/>
+                                                <TextBlock Classes="asset-info"
+                                                           Text="{Binding Information}"
+                                                           IsVisible="{Binding HasInformation}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <Border Grid.Column="2" Classes="pill">
+                                                <TextBlock Text="{Binding Type}"/>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
 
-                            <DataGrid x:Name="ExplorerDataGrid"
-                                      IsVisible="{Binding IsDirectoryViewActive}"
-                                      ItemsSource="{Binding ExplorerView}"
-                                      AutoGenerateColumns="False"
-                                      CanUserResizeColumns="True"
-                                      CanUserSortColumns="False"
-                                      GridLinesVisibility="Horizontal"
-                                      HeadersVisibility="Column"
-                                      IsReadOnly="True"
-                                      SelectionMode="Extended"
-                                      RowHeight="30"
-                                      SelectionChanged="OnExplorerSelectionChanged"
-                                      DoubleTapped="OnExplorerDoubleTapped">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Width="36" CanUserResize="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate x:DataType="model:AssetExplorerEntry">
-                                                <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <PathIcon Data="{StaticResource IconFolder}" Width="14" Height="14" IsVisible="{Binding IsFolder}"/>
-                                                    <PathIcon Data="{StaticResource IconFile}" Width="14" Height="14" IsVisible="{Binding IsFile}"/>
-                                                </Panel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, DataType=model:AssetExplorerEntry}" Width="2*"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeDisplay, DataType=model:AssetExplorerEntry}" Width="140"/>
-                                    <DataGridTextColumn Header="Information" Binding="{Binding Information, DataType=model:AssetExplorerEntry}" Width="3*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            <StackPanel Spacing="6"
+                                        Margin="24"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsHitTestVisible="False"
+                                        IsVisible="{Binding IsAssetListEmpty}">
+                                <TextBlock Classes="title"
+                                           HorizontalAlignment="Center"
+                                           Text="No assets loaded"/>
+                                <TextBlock Classes="status-text"
+                                           TextAlignment="Center"
+                                           Text="Load a source to browse its assets."/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6"
+                                        Margin="24"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsHitTestVisible="False"
+                                        IsVisible="{Binding NoMatchingAssets}">
+                                <TextBlock Classes="title"
+                                           HorizontalAlignment="Center"
+                                           Text="No matching assets"/>
+                                <TextBlock Classes="status-text"
+                                           TextAlignment="Center"
+                                           Text="Try a different search term."/>
+                            </StackPanel>
+
                         </Panel>
                     </DockPanel>
                 </Border>

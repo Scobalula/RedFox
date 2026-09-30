@@ -28,7 +28,9 @@
                             Orientation="Horizontal"
                             Spacing="14">
                     <TextBlock Classes="status-text" Text="{Binding SourceNameDisplay}"/>
-                    <TextBlock Classes="status-text" Text="{Binding SizeDisplay}"/>
+                    <TextBlock Classes="status-text"
+                               Text="{Binding InformationDisplay}"
+                               IsVisible="{Binding HasInformation}"/>
                     <TextBlock Classes="status-text" Text="{Binding HandlerDisplay, StringFormat='Handler: {0}'}"/>
                     <TextBlock Classes="status-text" Text="{Binding PayloadTypeDisplay, StringFormat='Payload: {0}'}"/>
                     <TextBlock Classes="status-text" Text="{Binding ReferenceCount, StringFormat='References: {0:N0}'}"/>

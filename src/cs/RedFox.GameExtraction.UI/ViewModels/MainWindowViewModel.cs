@@ -5,7 +5,6 @@ using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
 using RedFox.GameExtraction.UI.Models;
 using RedFox.Graphics3D.IO;
-using RedFox.IO.FileSystem;
 using RedFox.Plugins;
 using RedFox.Plugins.Python;
 
@@ -20,8 +19,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly GameExtractionConfig _config;
     private readonly List<AssetRowViewModel> _allAssets = [];
     private readonly ObservableCollection<AssetRowViewModel> _assetsView = [];
-    private readonly List<AssetExplorerEntry> _explorerEntries = [];
-    private readonly ObservableCollection<AssetExplorerEntry> _explorerView = [];
     private readonly SynchronizationContext? _uiSynchronizationContext;
     private readonly Timer _searchFilterTimer;
     private string _assetNameFilter = string.Empty;
@@ -50,11 +47,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<AssetRowViewModel> AssetsView => _assetsView;
 
     /// <summary>
-    /// Gets the filtered Explorer-view rows for the currently selected directory.
-    /// </summary>
-    public ObservableCollection<AssetExplorerEntry> ExplorerView => _explorerView;
-
-    /// <summary>
     /// Gets the mounted source rows.
     /// </summary>
     public ObservableCollection<AssetSourceViewModel> LoadedSources { get; } = [];
@@ -70,6 +62,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public ObservableCollection<AssetRowViewModel> SelectedAssets { get; } = [];
 
     /// <summary>
+    /// Gets a value indicating whether any assets are selected.
+    /// </summary>
+    public bool HasSelectedAssets => SelectedAssets.Count > 0;
+
+    /// <summary>
+    /// Gets a summary of the current asset selection.
+    /// </summary>
+    public string SelectedAssetsSummary => $"{SelectedAssets.Count:N0} selected";
+
+    /// <summary>
     /// Gets or sets the selected asset row used by the preview command.
     /// </summary>
     [ObservableProperty]
@@ -82,10 +84,48 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public partial string SearchText { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets the available asset sort fields.
+    /// </summary>
+    public IReadOnlyList<string> SortOptions { get; } = ["Name", "Type", "Information"];
+
+    /// <summary>
+    /// Gets the asset types available in the current source set.
+    /// </summary>
+    public IReadOnlyList<string> AssetTypeOptions { get; private set; } = ["All types"];
+
+    /// <summary>
+    /// Gets the sources available in the current asset set.
+    /// </summary>
+    public IReadOnlyList<string> AssetSourceOptions { get; private set; } = ["All sources"];
+
+    /// <summary>
+    /// Gets or sets the type selected for filtering.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SelectedAssetType { get; set; } = "All types";
+
+    /// <summary>
+    /// Gets or sets the source selected for filtering.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SelectedAssetSource { get; set; } = "All sources";
+
+    /// <summary>
+    /// Gets or sets the asset sort field.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SortBy { get; set; } = "Name";
+
+    /// <summary>
     /// Gets or sets the total loaded asset count.
     /// </summary>
     [ObservableProperty]
     public partial int TotalCount { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the flat asset list has no loaded assets.
+    /// </summary>
+    public bool IsAssetListEmpty => TotalCount == 0;
 
     /// <summary>
     /// Gets or sets the displayed asset count after filtering.
@@ -94,50 +134,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public partial int FilteredCount { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether the application exposes the directory view toggle.
+    /// Gets a value indicating whether the current search has no matches.
     /// </summary>
-    [ObservableProperty]
-    public partial bool IsDirectoryViewEnabled { get; private set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether directory view mode is currently active.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsDirectoryViewActive { get; set; }
-
-    /// <summary>
-    /// Gets the root of the asset directory tree shown in directory view mode.
-    /// </summary>
-    [ObservableProperty]
-    public partial AssetDirectoryNode? RootDirectory { get; private set; }
-
-    /// <summary>
-    /// Gets the directory exposed as the items source for the directory tree.
-    /// </summary>
-    public IReadOnlyList<AssetDirectoryNode> RootDirectories =>
-        RootDirectory is null ? Array.Empty<AssetDirectoryNode>() : (IReadOnlyList<AssetDirectoryNode>)new[] { RootDirectory };
-
-    /// <summary>
-    /// Gets or sets the directory whose direct files are shown in the asset grid.
-    /// </summary>
-    [ObservableProperty]
-    public partial AssetDirectoryNode? SelectedDirectory { get; set; }
-
-    /// <summary>
-    /// Gets the breadcrumb-style path for the currently selected directory.
-    /// </summary>
-    [ObservableProperty]
-    public partial string CurrentDirectoryPath { get; private set; } = string.Empty;
-
-    /// <summary>
-    /// Gets a value indicating whether the Explorer view can navigate up one level.
-    /// </summary>
-    public bool CanNavigateUp => IsDirectoryViewActive && SelectedDirectory?.Parent is not null;
-
-    /// <summary>
-    /// Gets the toggle button label for the directory/list view mode switch.
-    /// </summary>
-    public string ViewModeToggleLabel => IsDirectoryViewActive ? "List View" : "Directory View";
+    public bool NoMatchingAssets => TotalCount > 0 && FilteredCount == 0;
 
     /// <summary>
     /// Gets or sets a value indicating whether an operation is running.
@@ -385,7 +384,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         TotalCount = _allAssets.Count;
-        RebuildDirectoryTree();
+        RefreshAssetFilterOptions();
         ApplyFilter();
     }
 
@@ -405,8 +404,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         SelectedAsset = SelectedAssets.LastOrDefault();
+        NotifySelectionChanged();
         TotalCount = _allAssets.Count;
-        RebuildDirectoryTree();
+        RefreshAssetFilterOptions();
         ApplyFilter();
         RefreshPreview([.. SelectedAssets]);
     }
@@ -424,6 +424,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         SelectedAsset = SelectedAssets.LastOrDefault();
+        NotifySelectionChanged();
         RefreshPreview([.. SelectedAssets]);
     }
 
@@ -435,8 +436,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _allAssets.Clear();
         SelectedAssets.Clear();
         SelectedAsset = null;
+        NotifySelectionChanged();
         TotalCount = 0;
-        RebuildDirectoryTree();
+        RefreshAssetFilterOptions();
         ApplyFilter();
         RefreshPreview([]);
     }
@@ -493,6 +495,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _assetNameFilter = value.Trim();
         _searchFilterTimer.Change(TimeSpan.FromMilliseconds(180), Timeout.InfiniteTimeSpan);
     }
+
+    partial void OnTotalCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsAssetListEmpty));
+        OnPropertyChanged(nameof(NoMatchingAssets));
+    }
+
+    partial void OnFilteredCountChanged(int value) => OnPropertyChanged(nameof(NoMatchingAssets));
+
+    partial void OnSortByChanged(string value) => ApplyFilter();
+
+    partial void OnSelectedAssetTypeChanged(string value) => ApplyFilter();
+
+    partial void OnSelectedAssetSourceChanged(string value) => ApplyFilter();
 
     [RelayCommand]
     private Task LoadSource()
@@ -844,7 +860,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         CanLoadFiles = config.SupportsFileSources;
         CanLoadDirectories = config.SupportsDirectorySources;
         CanLoadProcess = config.SupportsProcessSources;
-        IsDirectoryViewEnabled = config.EnableDirectoryView;
         SidebarIconPath = ResolveIconPath(config.SidebarIconPath ?? config.IconPath);
     }
 
@@ -1024,202 +1039,76 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void ApplyFilter()
     {
         _assetsView.Clear();
-        foreach (AssetRowViewModel asset in _allAssets)
+        IEnumerable<AssetRowViewModel> visibleAssets = _allAssets.Where(IsVisibleAssetRow);
+        visibleAssets = SortBy switch
         {
-            if (IsVisibleAssetRow(asset))
-            {
-                _assetsView.Add(asset);
-            }
+            "Type" => visibleAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+            "Information" => visibleAssets.OrderBy(asset => asset.Asset, GetAssetInformationComparer()).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+            _ => visibleAssets.OrderBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+        };
+        foreach (AssetRowViewModel asset in visibleAssets)
+        {
+            _assetsView.Add(asset);
         }
 
-        _explorerView.Clear();
-        foreach (AssetExplorerEntry entry in _explorerEntries)
-        {
-            if (IsVisibleExplorerEntry(entry))
-            {
-                _explorerView.Add(entry);
-            }
-        }
-
-        FilteredCount = IsDirectoryViewActive ? _explorerView.Count : _assetsView.Count;
+        FilteredCount = _assetsView.Count;
     }
 
     private bool IsVisibleAssetRow(AssetRowViewModel asset)
     {
-        if (string.IsNullOrEmpty(_assetNameFilter))
-        {
-            return true;
-        }
-
-        return asset.Name.Contains(_assetNameFilter, StringComparison.OrdinalIgnoreCase);
+        bool matchesName = string.IsNullOrEmpty(_assetNameFilter) || asset.Name.Contains(_assetNameFilter, StringComparison.OrdinalIgnoreCase);
+        bool matchesType = string.IsNullOrEmpty(SelectedAssetType) || string.Equals(SelectedAssetType, "All types", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.Type, SelectedAssetType, StringComparison.OrdinalIgnoreCase);
+        bool matchesSource = string.IsNullOrEmpty(SelectedAssetSource) || string.Equals(SelectedAssetSource, "All sources", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.SourceName, SelectedAssetSource, StringComparison.OrdinalIgnoreCase);
+        return matchesName && matchesType && matchesSource;
     }
 
-    private bool IsVisibleExplorerEntry(AssetExplorerEntry entry)
+    private IComparer<Asset> GetAssetInformationComparer()
     {
-        if (string.IsNullOrEmpty(_assetNameFilter))
+        if (_assetManager.TryGetService(out IAssetComparer? assetComparer) && assetComparer is not null)
         {
-            return true;
+            return assetComparer;
         }
 
-        return entry.Name.Contains(_assetNameFilter, StringComparison.OrdinalIgnoreCase);
+        return AssetInformationComparer.Instance;
     }
 
-    private void RebuildDirectoryTree()
+    private sealed class AssetInformationComparer : IComparer<Asset>
     {
-        if (!IsDirectoryViewEnabled)
+        public static AssetInformationComparer Instance { get; } = new();
+
+        public int Compare(Asset? left, Asset? right)
         {
-            RootDirectory = null;
-            SelectedDirectory = null;
-            _explorerEntries.Clear();
-            return;
-        }
-
-        AssetDirectoryNode? previousSelection = SelectedDirectory;
-        string? previousPath = previousSelection?.FullPath;
-
-        AssetDirectoryNode root;
-        if (_assetManager.TryGetService(out AssetFileSystemService? fileSystemService))
-        {
-            root = AssetDirectoryTreeBuilder.BuildFromVirtualFileSystem(fileSystemService.FileSystem, _allAssets);
-        }
-        else
-        {
-            root = AssetDirectoryTreeBuilder.BuildFromAssetNames(_allAssets);
-        }
-
-        RootDirectory = root;
-        OnPropertyChanged(nameof(RootDirectories));
-
-        SelectedDirectory = TryFindByPath(root, previousPath) ?? root;
-    }
-
-    private static AssetDirectoryNode? TryFindByPath(AssetDirectoryNode root, string? fullPath)
-    {
-        if (string.IsNullOrEmpty(fullPath))
-        {
-            return root;
-        }
-
-        if (string.Equals(root.FullPath, fullPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return root;
-        }
-
-        foreach (AssetDirectoryNode child in root.Children)
-        {
-            AssetDirectoryNode? match = TryFindByPath(child, fullPath);
-            if (match is not null)
-            {
-                return match;
-            }
-        }
-
-        return null;
-    }
-
-    partial void OnIsDirectoryViewActiveChanged(bool value)
-    {
-        if (value && RootDirectory is null)
-        {
-            RebuildDirectoryTree();
-        }
-
-        if (value && SelectedDirectory is null)
-        {
-            SelectedDirectory = RootDirectory;
-        }
-
-        UpdateSelectedDirectoryState();
-        OnPropertyChanged(nameof(ViewModeToggleLabel));
-        OnPropertyChanged(nameof(CanNavigateUp));
-        ApplyFilter();
-    }
-
-    partial void OnSelectedDirectoryChanged(AssetDirectoryNode? value)
-    {
-        UpdateSelectedDirectoryState();
-        if (IsDirectoryViewActive)
-        {
-            ApplyFilter();
+            int leftIsEmpty = string.IsNullOrWhiteSpace(left?.Information) ? 1 : 0;
+            int rightIsEmpty = string.IsNullOrWhiteSpace(right?.Information) ? 1 : 0;
+            int emptyComparison = leftIsEmpty.CompareTo(rightIsEmpty);
+            return emptyComparison != 0
+                ? emptyComparison
+                : StringComparer.OrdinalIgnoreCase.Compare(left?.Information, right?.Information);
         }
     }
 
-    private void UpdateSelectedDirectoryState()
+    private void NotifySelectionChanged()
     {
-        AssetDirectoryNode? node = SelectedDirectory;
-        _explorerEntries.Clear();
-
-        if (node is null)
-        {
-            CurrentDirectoryPath = string.Empty;
-            OnPropertyChanged(nameof(CanNavigateUp));
-            return;
-        }
-
-        foreach (AssetDirectoryNode child in node.Children)
-        {
-            _explorerEntries.Add(AssetExplorerEntry.ForFolder(child));
-        }
-
-        foreach (AssetRowViewModel row in node.Files)
-        {
-            _explorerEntries.Add(AssetExplorerEntry.ForFile(row));
-        }
-
-        CurrentDirectoryPath = string.IsNullOrEmpty(node.FullPath) ? "/" : "/" + node.FullPath;
-        OnPropertyChanged(nameof(CanNavigateUp));
+        OnPropertyChanged(nameof(HasSelectedAssets));
+        OnPropertyChanged(nameof(SelectedAssetsSummary));
     }
 
-    /// <summary>
-    /// Sets the asset selection from the Explorer-view grid, ignoring folder entries.
-    /// </summary>
-    /// <param name="entries">The currently selected explorer entries.</param>
-    public void SetSelectedExplorerEntries(IEnumerable<AssetExplorerEntry> entries)
+    private void RefreshAssetFilterOptions()
     {
-        SetSelectedAssets(entries.Where(entry => entry.IsFile && entry.Row is not null).Select(entry => entry.Row!));
-    }
+        AssetTypeOptions = ["All types", .. _allAssets.Select(asset => asset.Type).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type, StringComparer.OrdinalIgnoreCase)];
+        AssetSourceOptions = ["All sources", .. _allAssets.Select(asset => asset.SourceName).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(source => source, StringComparer.OrdinalIgnoreCase)];
+        OnPropertyChanged(nameof(AssetTypeOptions));
+        OnPropertyChanged(nameof(AssetSourceOptions));
 
-    /// <summary>
-    /// Activates the supplied Explorer entry: folders navigate inward, files open preview.
-    /// </summary>
-    /// <param name="entry">The entry to activate.</param>
-    public void ActivateExplorerEntry(AssetExplorerEntry entry)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-
-        if (entry.IsFolder && entry.Directory is not null)
+        if (!AssetTypeOptions.Contains(SelectedAssetType, StringComparer.OrdinalIgnoreCase))
         {
-            SelectedDirectory = entry.Directory;
-            return;
+            SelectedAssetType = "All types";
         }
 
-        if (entry.IsFile && entry.Row is not null)
+        if (!AssetSourceOptions.Contains(SelectedAssetSource, StringComparer.OrdinalIgnoreCase))
         {
-            OpenPreview(entry.Row);
+            SelectedAssetSource = "All sources";
         }
-    }
-
-    [RelayCommand]
-    private void NavigateUp()
-    {
-        AssetDirectoryNode? parent = SelectedDirectory?.Parent;
-        if (parent is null)
-        {
-            return;
-        }
-
-        SelectedDirectory = parent;
-    }
-
-    [RelayCommand]
-    private void ToggleViewMode()
-    {
-        if (!IsDirectoryViewEnabled)
-        {
-            return;
-        }
-
-        IsDirectoryViewActive = !IsDirectoryViewActive;
     }
 
     private static string? ResolveIconPath(string? path)

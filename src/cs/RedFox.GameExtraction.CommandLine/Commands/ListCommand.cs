@@ -6,9 +6,6 @@ internal sealed class ListCommand : ICommandLineCommand
 {
     private const int MaximumRows = 100;
 
-    private static readonly string[] SizeMetadataKeys = ["Size", "Length", "UncompressedSize", "CompressedSize"];
-    private static readonly string[] SizeUnits = ["B", "KB", "MB", "GB", "TB"];
-
     public string Name => "list";
 
     public IReadOnlyList<string> Aliases => ["ls", "find"];
@@ -28,7 +25,7 @@ internal sealed class ListCommand : ICommandLineCommand
             return Task.CompletedTask;
         }
 
-        Table table = new Table().Border(TableBorder.Simple).BorderColor(Style.Parse(session.Theme.Muted).Foreground).AddColumn("Name").AddColumn("Type").AddColumn(new TableColumn("Size").RightAligned()).AddColumn("Information");
+        Table table = new Table().Border(TableBorder.Simple).BorderColor(Style.Parse(session.Theme.Muted).Foreground).AddColumn("Name").AddColumn("Type").AddColumn("Information");
 
         foreach (string column in session.Config.MetadataColumns)
         {
@@ -37,7 +34,7 @@ internal sealed class ListCommand : ICommandLineCommand
 
         foreach (Asset asset in assets.Take(MaximumRows))
         {
-            table.AddRow([FormatName(session, asset.Name), Markup.Escape(asset.Type), FormatSize(asset), Markup.Escape(asset.Information ?? string.Empty), .. session.Config.MetadataColumns.Select(column => Markup.Escape(asset.Metadata.GetValueOrDefault(column)?.ToString() ?? string.Empty))]);
+            table.AddRow([FormatName(session, asset.Name), Markup.Escape(asset.Type), Markup.Escape(asset.Information ?? string.Empty), .. session.Config.MetadataColumns.Select(column => Markup.Escape(asset.Metadata.GetValueOrDefault(column)?.ToString() ?? string.Empty))]);
         }
 
         session.Console.Write(table);
@@ -60,29 +57,4 @@ internal sealed class ListCommand : ICommandLineCommand
         return $"[{session.Theme.Muted}]{Markup.Escape(name[..(separatorIndex + 1)])}[/]{Markup.Escape(name[(separatorIndex + 1)..])}";
     }
 
-    private static string FormatSize(Asset asset)
-    {
-        foreach (string key in SizeMetadataKeys)
-        {
-            if (asset.Metadata.GetValueOrDefault(key) is IConvertible value)
-            {
-                return FormatSize(value.ToDouble(null));
-            }
-        }
-
-        return string.Empty;
-    }
-
-    private static string FormatSize(double size)
-    {
-        int unit = 0;
-
-        while (size >= 1024 && unit < SizeUnits.Length - 1)
-        {
-            size /= 1024;
-            unit++;
-        }
-
-        return unit == 0 ? $"{size:0} {SizeUnits[unit]}" : $"{size:0.0} {SizeUnits[unit]}";
-    }
 }

@@ -51,6 +51,11 @@ public sealed class Asset
     public IReadOnlyDictionary<string, object?> Metadata { get; }
 
     /// <summary>
+    /// Gets optional loader-defined data that consumers such as custom asset comparers can inspect.
+    /// </summary>
+    public object? UserData { get; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Asset"/> class.
     /// </summary>
     /// <param name="name">The name of the asset.</param>
@@ -92,6 +97,20 @@ public sealed class Asset
     /// <param name="information">Optional secondary information describing the asset.</param>
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
     public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata)
+        : this(name, type, dataSource, information, metadata, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Asset"/> class with optional source metadata and loader-defined user data.
+    /// </summary>
+    /// <param name="name">The name of the asset.</param>
+    /// <param name="type">The logical asset type used for handler dispatch and display.</param>
+    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="information">Optional secondary information describing the asset.</param>
+    /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
+    /// <param name="userData">Optional loader-defined data for consumers such as asset comparers.</param>
+    public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata, object? userData)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
@@ -103,6 +122,7 @@ public sealed class Asset
         Metadata = metadata is null
             ? EmptyMetadata
             : new Dictionary<string, object?>(metadata, StringComparer.OrdinalIgnoreCase);
+        UserData = userData;
     }
 
     internal void AttachSource(IAssetSource source)

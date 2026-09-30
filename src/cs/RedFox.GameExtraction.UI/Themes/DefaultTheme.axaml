@@ -16,6 +16,10 @@
         <Setter Property="Background" Value="#1F1F23"/>
     </Style>
 
+    <Style Selector="Border.asset-list-panel">
+        <Setter Property="BorderThickness" Value="1,0,1,1"/>
+    </Style>
+
     <Style Selector="Border.status-bar">
         <Setter Property="Padding" Value="12,7"/>
     </Style>
@@ -65,6 +69,31 @@
         <Setter Property="Foreground" Value="#8A8A92"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.asset-name">
+        <Setter Property="Foreground" Value="#F0F0F4"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="TextBlock.asset-info">
+        <Setter Property="Foreground" Value="#898991"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Border.asset-icon">
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="Background" Value="#29292F"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Border.asset-icon PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
     <Style Selector="TextBlock.preview-stats">
@@ -291,6 +320,28 @@
         <Setter Property="BorderThickness" Value="0"/>
     </Style>
 
+    <Style Selector="ListBox.asset-list">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list ListBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list ListBoxItem:pointerover">
+        <Setter Property="Background" Value="#24242A"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list ListBoxItem:selected">
+        <Setter Property="Background" Value="#303038"/>
+        <Setter Property="Foreground" Value="#F4F4F7"/>
+    </Style>
+
     <Style Selector="DataGridCell:focus /template/ Grid#FocusVisual">
         <Setter Property="IsVisible" Value="False"/>
     </Style>
@@ -301,6 +352,11 @@
 
     <Style Selector="DataGridRow:pointerover">
         <Setter Property="Background" Value="#24242A"/>
+    </Style>
+
+    <Style Selector="DataGridRow:selected">
+        <Setter Property="Background" Value="#303038"/>
+        <Setter Property="Foreground" Value="#F4F4F7"/>
     </Style>
 
     <Style Selector="ListBox">

@@ -18,7 +18,7 @@ public partial class PreviewViewModel(AssetManager assetManager) : ObservableObj
     /// Gets the asset currently being previewed.
     /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(WindowTitle), nameof(AssetNameDisplay), nameof(AssetTypeDisplay), nameof(SourceNameDisplay), nameof(SizeDisplay), nameof(HasAsset), nameof(PlaceholderTitle))]
+    [NotifyPropertyChangedFor(nameof(WindowTitle), nameof(AssetNameDisplay), nameof(AssetTypeDisplay), nameof(SourceNameDisplay), nameof(InformationDisplay), nameof(HasInformation), nameof(HasAsset), nameof(PlaceholderTitle))]
     public partial AssetRowViewModel? Asset { get; private set; }
 
     /// <summary>
@@ -95,9 +95,14 @@ public partial class PreviewViewModel(AssetManager assetManager) : ObservableObj
     public string SourceNameDisplay => Asset?.SourceName ?? string.Empty;
 
     /// <summary>
-    /// Gets the asset size display.
+    /// Gets the loader-provided information for the asset.
     /// </summary>
-    public string SizeDisplay => Asset?.SizeDisplay ?? "-";
+    public string InformationDisplay => Asset?.Information ?? string.Empty;
+
+    /// <summary>
+    /// Gets a value indicating whether loader-provided information is available.
+    /// </summary>
+    public bool HasInformation => !string.IsNullOrWhiteSpace(InformationDisplay);
 
     /// <summary>
     /// Gets the multi-selection summary.
