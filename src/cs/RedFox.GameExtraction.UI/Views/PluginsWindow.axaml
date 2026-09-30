@@ -34,10 +34,10 @@
                         <DataTemplate x:DataType="vm:PluginRowViewModel">
                             <Grid ColumnDefinitions="*,Auto,Auto" Margin="8,6" ColumnSpacing="14">
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="#E4E4EA"/>
+                                    <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource ThemeForegroundBrush}"/>
                                     <TextBlock Text="{Binding FilePath}" Classes="status-text" TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{Binding ErrorMessage}"
-                                               Foreground="#E07070"
+                                               Foreground="{DynamicResource ThemeDestructiveBrush}"
                                                FontSize="11"
                                                TextWrapping="Wrap"
                                                IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>

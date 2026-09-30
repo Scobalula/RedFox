@@ -16,7 +16,7 @@ internal static class Program
             Description = "Open ZIP archives and export raw entries.",
             AppName = "RedFoxZipExplorer",
             Version = "1.0.0",
-            AccentColor = "#0B7D92",
+            AccentColor = "#9F0712",
             FileFilter = "All Files|*.*",
             SupportsFileSources = true,
             SupportsDirectorySources = false,

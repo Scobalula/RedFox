@@ -1,15 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using RedFox.Audio;
+using Avalonia.Controls;
 using RedFox.GameExtraction.UI.Models;
-using RedFox.Graphics3D;
 
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
-/// Reads the payload of the most recently selected asset and exposes a typed preview model for it. The window maps each
-/// preview model type to its view, so this class never touches controls.
+/// Reads the payload of the most recently selected asset and asks the configured previewers to create a view for it.
 /// </summary>
-public partial class PreviewViewModel(AssetManager assetManager) : ObservableObject
+public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers) : ObservableObject
 {
     private CancellationTokenSource? _loadCancellation;
     private int _loadVersion;
@@ -22,12 +20,11 @@ public partial class PreviewViewModel(AssetManager assetManager) : ObservableObj
     public partial AssetRowViewModel? Asset { get; private set; }
 
     /// <summary>
-    /// Gets the preview model for the loaded payload: a <see cref="ScenePreviewViewModel"/>, <see cref="AudioPreviewViewModel"/>,
-    /// <see cref="HexPreviewViewModel"/>, or <see cref="TablePreviewViewModel"/>, or <see langword="null"/> when nothing can be shown.
+    /// Gets the dynamically created preview view, or <see langword="null"/> when no previewer supports the payload.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowPlaceholder))]
-    public partial object? Content { get; private set; }
+    public partial Control? Content { get; private set; }
 
     /// <summary>
     /// Gets a value indicating whether the payload is being read.
@@ -169,7 +166,7 @@ public partial class PreviewViewModel(AssetManager assetManager) : ObservableObj
 
             PayloadTypeDisplay = result.Data is null ? "None" : FormatTypeName(result.Data.GetType());
             ReferenceCount = result.References.Count;
-            SetContent(CreateContent(result.Data));
+            SetContent(CreateContent(result));
             StatusText = Content is null ? $"No preview for {PayloadTypeDisplay}" : $"Ready ({PayloadTypeDisplay})";
         }
         catch (OperationCanceledException)
@@ -231,38 +228,37 @@ public partial class PreviewViewModel(AssetManager assetManager) : ObservableObj
         return $"{name}<{string.Join(", ", type.GetGenericArguments().Select(FormatTypeName))}>";
     }
 
-    private object? CreateContent(object? payload)
+    private Control? CreateContent(AssetReadResult result)
     {
-        return payload switch
+        AssetPreviewContext context = new(result, Content);
+        foreach (IAssetPreviewer previewer in previewers)
         {
-            null => null,
-            Scene scene => CreateSceneContent([scene]),
-            IEnumerable<Scene> scenes => CreateSceneContent([.. scenes]),
-            AudioBuffer audio => new AudioPreviewViewModel(audio),
-            byte[] bytes => new HexPreviewViewModel(bytes),
-            _ when PreviewTable.TryCreate(payload, out PreviewTable? table) => new TablePreviewViewModel(table),
-            _ => null,
-        };
-    }
-
-    private object? CreateSceneContent(IReadOnlyList<Scene> scenes)
-    {
-        if (Content is ScenePreviewViewModel current && current.TryAppendAnimations(scenes))
-        {
-            return current;
+            if (previewer.TryCreatePreview(context, out Control? preview))
+            {
+                return preview;
+            }
         }
 
-        return scenes.Count > 0 ? new ScenePreviewViewModel(scenes) : null;
+        return null;
     }
 
-    private void SetContent(object? content)
+    private void SetContent(Control? content)
     {
         if (ReferenceEquals(Content, content))
         {
             return;
         }
 
-        (Content as IDisposable)?.Dispose();
+        if (Content is IDisposable disposableContent)
+        {
+            disposableContent.Dispose();
+        }
+
+        if (Content?.DataContext is IDisposable disposableViewModel && !ReferenceEquals(Content, disposableViewModel))
+        {
+            disposableViewModel.Dispose();
+        }
+
         Content = content;
     }
 }

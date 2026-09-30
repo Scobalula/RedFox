@@ -5,6 +5,19 @@
     <Application.Resources>
         <FontFamily x:Key="InterFont">avares://Avalonia.Fonts.Inter#Inter</FontFamily>
 
+        <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#0A0A0A"/>
+        <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="ThemeCardBrush" Color="#171717"/>
+        <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#27272A"/>
+        <SolidColorBrush x:Key="ThemeMutedBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="ThemeMutedForegroundBrush" Color="#A1A1A1"/>
+        <SolidColorBrush x:Key="ThemeBorderBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="ThemeInputBrush" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="ThemeRingBrush" Color="#737373"/>
+        <SolidColorBrush x:Key="ThemeDestructiveBrush" Color="#FF6467"/>
+        <SolidColorBrush x:Key="SecondaryActionBrush" Color="#222222"/>
+        <SolidColorBrush x:Key="SecondaryActionHoverBrush" Color="#292929"/>
+
         <StreamGeometry x:Key="IconFolder">F1 M2,5 L2,4 C2,3.45 2.45,3 3,3 L6.5,3 L8,5 L13,5 C13.55,5 14,5.45 14,6 L14,13 C14,13.55 13.55,14 13,14 L3,14 C2.45,14 2,13.55 2,13 Z</StreamGeometry>
         <StreamGeometry x:Key="IconFile">F1 M4,2 L9.5,2 L13,5.5 L13,14 C13,14.55 12.55,15 12,15 L4,15 C3.45,15 3,14.55 3,14 L3,3 C3,2.45 3.45,2 4,2 Z M9,3 L9,6 L12,6 Z</StreamGeometry>
         <StreamGeometry x:Key="IconArrowUp">F1 M8,2 L13,7 L10,7 L10,14 L6,14 L6,7 L3,7 Z</StreamGeometry>

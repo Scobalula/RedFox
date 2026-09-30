@@ -56,7 +56,20 @@ public sealed class GameExtractionConfig
     /// <summary>
     /// Gets the accent color hex value used by the theme.
     /// </summary>
-    public string AccentColor { get; init; } = "#E53935";
+    public string AccentColor { get; init; } = "#9F0712";
+
+    /// <summary>
+    /// Gets the previewers tried in order when an asset payload has been read.
+    /// </summary>
+    /// <remarks>
+    /// Use <see cref="AssetPreviewers.WithDefaults(IAssetPreviewer[])"/> to add custom previewers while retaining
+    /// the standard scene, audio, table, and hex views. A typed previewer can be registered as follows:
+    /// <code>
+    /// Previewers = AssetPreviewers.WithDefaults(
+    ///     AssetPreviewer.For&lt;MyAiData&gt;(data =&gt; new AiPreviewView { DataContext = new AiPreviewViewModel(data) }));
+    /// </code>
+    /// </remarks>
+    public IReadOnlyList<IAssetPreviewer> Previewers { get; init; } = AssetPreviewers.CreateDefault();
 
     /// <summary>
     /// Gets the file picker filter string, using the WinForms-style format "Label|*.ext|All Files|*.*".

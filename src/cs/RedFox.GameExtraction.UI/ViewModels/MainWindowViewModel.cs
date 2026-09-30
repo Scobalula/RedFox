@@ -258,7 +258,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _searchFilterTimer = new Timer(OnSearchFilterTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
         _config = config;
         _assetManager = config.AssetManagerFactory();
-        Preview = new PreviewViewModel(_assetManager);
+        Preview = new PreviewViewModel(_assetManager, config.Previewers);
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
 

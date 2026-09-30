@@ -20,7 +20,7 @@
                         <DataTemplate x:DataType="model:AssetSourceViewModel">
                             <Grid ColumnDefinitions="*,Auto" Margin="8,6" ColumnSpacing="12">
                                 <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" Foreground="#E4E4EA"/>
+                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" Foreground="{DynamicResource ThemeForegroundBrush}"/>
                                     <TextBlock Text="{Binding Location}" Classes="status-text" TextTrimming="CharacterEllipsis"/>
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <TextBlock Text="{Binding Kind}" Classes="status-text"/>

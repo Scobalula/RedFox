@@ -70,8 +70,6 @@ public sealed class AvaloniaCameraInputAdapter : IInputSource, IDisposable
     /// </summary>
     public event EventHandler? InputChanged;
 
-    internal bool HasActiveInput => _pressedKeys.Count > 0 || _isLeftPressed || _isMiddlePressed || _isRightPressed;
-
     /// <inheritdoc/>
     public CameraControllerInput ReadInput()
     {

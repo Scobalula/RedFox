@@ -80,19 +80,19 @@
                                     <TextBlock Text="Load Files"/>
                                 </StackPanel>
                             </Button>
-                            <Button Classes="sidebar-btn" Command="{Binding LoadDirectoryCommand}" IsVisible="{Binding CanLoadDirectories}">
+                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding LoadDirectoryCommand}" IsVisible="{Binding CanLoadDirectories}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <PathIcon Data="{StaticResource IconFolder}"/>
                                     <TextBlock Text="Load Folder"/>
                                 </StackPanel>
                             </Button>
-                            <Button Classes="sidebar-btn" Command="{Binding ManageSourcesCommand}" IsVisible="{Binding CanLoadAnySource}">
+                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ManageSourcesCommand}" IsVisible="{Binding CanLoadAnySource}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <PathIcon Data="{StaticResource IconList}"/>
                                     <TextBlock Text="{Binding SourceCountDisplay}"/>
                                 </StackPanel>
                             </Button>
-                            <Button Classes="sidebar-btn" Command="{Binding ClearAllCommand}">
+                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ClearAllCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <PathIcon Data="{StaticResource IconTrash}"/>
                                     <TextBlock Text="Clear All"/>
@@ -102,7 +102,7 @@
                             <Separator Classes="sidebar-sep"/>
 
                             <TextBlock Classes="sidebar-section" Text="Assets"/>
-                            <Button Classes="sidebar-btn" Command="{Binding PreviewSelectedCommand}">
+                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding PreviewSelectedCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <PathIcon Data="{StaticResource IconEye}"/>
                                     <TextBlock Text="Preview Selected"/>
@@ -114,7 +114,7 @@
                                     <TextBlock Text="Export All"/>
                                 </StackPanel>
                             </Button>
-                            <Button Classes="sidebar-btn" Command="{Binding ExportSelectedCommand}">
+                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ExportSelectedCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <PathIcon Data="{StaticResource IconExport}"/>
                                     <TextBlock Text="Export Selected"/>

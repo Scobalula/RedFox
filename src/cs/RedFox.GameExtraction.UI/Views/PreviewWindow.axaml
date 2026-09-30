@@ -1,7 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
-        xmlns:views="using:RedFox.GameExtraction.UI.Views"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.PreviewWindow"
         x:DataType="vm:PreviewViewModel"
@@ -46,22 +44,7 @@
 
         <Border Classes="panel" Padding="0" ClipToBounds="True">
             <Panel>
-                <ContentControl Content="{Binding Content}">
-                    <ContentControl.DataTemplates>
-                        <DataTemplate DataType="vm:ScenePreviewViewModel">
-                            <views:ScenePreviewView/>
-                        </DataTemplate>
-                        <DataTemplate DataType="vm:AudioPreviewViewModel">
-                            <views:AudioPreviewView/>
-                        </DataTemplate>
-                        <DataTemplate DataType="vm:TablePreviewViewModel">
-                            <views:TablePreviewView/>
-                        </DataTemplate>
-                        <DataTemplate DataType="vm:HexPreviewViewModel">
-                            <controls:HexBytesPreviewControl Bytes="{Binding Bytes}"/>
-                        </DataTemplate>
-                    </ContentControl.DataTemplates>
-                </ContentControl>
+                <ContentControl Content="{Binding Content}"/>
 
                 <StackPanel Spacing="6"
                             Margin="24"

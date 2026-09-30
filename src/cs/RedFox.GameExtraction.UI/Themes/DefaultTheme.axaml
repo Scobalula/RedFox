@@ -2,22 +2,22 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style Selector="Window">
-        <Setter Property="Background" Value="#18181B"/>
-        <Setter Property="Foreground" Value="#E4E4EA"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
     <Style Selector="Border.panel">
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="12"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="BorderBrush" Value="#2A2A2F"/>
-        <Setter Property="Background" Value="#1F1F23"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
     </Style>
 
     <Style Selector="Border.asset-list-panel">
-        <Setter Property="BorderThickness" Value="1,0,1,1"/>
+        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <Style Selector="Border.status-bar">
@@ -25,21 +25,23 @@
     </Style>
 
     <Style Selector="Border.pill">
-        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="8,3"/>
-        <Setter Property="Background" Value="#2A2A30"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="Border.pill > TextBlock">
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Foreground" Value="#B4B4BC"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="Border.preview-toolbar">
-        <Setter Property="Background" Value="#1B1B1F"/>
-        <Setter Property="BorderBrush" Value="#2A2A2F"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding" Value="12,8"/>
     </Style>
@@ -49,61 +51,55 @@
     </Style>
 
     <Style Selector="Border.preview-overlay">
-        <Setter Property="Background" Value="#CC1B1B1F"/>
-        <Setter Property="BorderBrush" Value="#2A2A2F"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Margin" Value="12"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
     </Style>
 
-    <Style Selector="TextBlock.title">
+    <Style Selector="TextBlock.title, TextBlock.sidebar-title">
         <Setter Property="FontSize" Value="16"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="#F2F2F6"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="TextBlock.status-text">
-        <Setter Property="Foreground" Value="#8A8A92"/>
+    <Style Selector="TextBlock.status-text, TextBlock.asset-info, TextBlock.preview-stats, StackPanel.preview-field > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="TextBlock.asset-name">
-        <Setter Property="Foreground" Value="#F0F0F4"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="TextBlock.asset-info">
-        <Setter Property="Foreground" Value="#898991"/>
         <Setter Property="FontSize" Value="11"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="Border.asset-icon">
         <Setter Property="Width" Value="34"/>
         <Setter Property="Height" Value="34"/>
-        <Setter Property="CornerRadius" Value="7"/>
-        <Setter Property="Background" Value="#29292F"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="Border.asset-icon PathIcon">
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-    </Style>
-
-    <Style Selector="TextBlock.preview-stats">
-        <Setter Property="Foreground" Value="#8A8A92"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="TextBlock.preview-stats.error">
-        <Setter Property="Foreground" Value="#E07070"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeDestructiveBrush}"/>
     </Style>
 
     <Style Selector="StackPanel.preview-field">
@@ -112,39 +108,32 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="StackPanel.preview-field > TextBlock">
-        <Setter Property="Foreground" Value="#8A8A92"/>
+    <Style Selector="TextBlock.sidebar-desc, TextBlock.setting-desc">
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-    </Style>
-
-    <Style Selector="TextBlock.sidebar-title">
-        <Setter Property="FontSize" Value="15"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="#F2F2F6"/>
-    </Style>
-
-    <Style Selector="TextBlock.sidebar-desc">
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Foreground" Value="#75757D"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
-    <Style Selector="TextBlock.sidebar-section">
+    <Style Selector="TextBlock.sidebar-section, TextBlock.setting-category">
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="Margin" Value="10,10,0,4"/>
+    </Style>
+
+    <Style Selector="TextBlock.setting-category">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Margin" Value="0,12,0,6"/>
     </Style>
 
     <Style Selector="Separator.sidebar-sep">
         <Setter Property="Margin" Value="4,6"/>
         <Setter Property="Height" Value="1"/>
-        <Setter Property="Background" Value="#2A2A2F"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeBorderBrush}"/>
     </Style>
 
     <Style Selector="Button.sidebar-btn, Button.accent-btn">
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="10,8"/>
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -164,40 +153,52 @@
 
     <Style Selector="Button.sidebar-btn">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="#C8C8D0"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.sidebar-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#26262B"/>
-        <Setter Property="Foreground" Value="#F2F2F6"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn.secondary-action-btn">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn.secondary-action-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn.secondary-action-btn:disabled">
+        <Setter Property="Opacity" Value="0.7"/>
     </Style>
 
     <Style Selector="Button.sidebar-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#2C2C32"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
     <Style Selector="Button.accent-btn">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="#FFFBEB"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
     <Style Selector="Button.secondary-btn, Button.icon-btn">
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="BorderBrush" Value="#333338"/>
-        <Setter Property="Background" Value="#26262B"/>
-        <Setter Property="Foreground" Value="#C8C8D0"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Cursor" Value="Hand"/>
     </Style>
@@ -217,13 +218,13 @@
     </Style>
 
     <Style Selector="Button.secondary-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#2C2C32"/>
-        <Setter Property="BorderBrush" Value="#3C3C42"/>
-        <Setter Property="Foreground" Value="#F2F2F6"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.secondary-btn:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#323238"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
     <Style Selector="Button:disabled">
@@ -231,43 +232,43 @@
     </Style>
 
     <Style Selector="TextBox.search-box">
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="10,7"/>
         <Setter Property="MinHeight" Value="34"/>
-        <Setter Property="Background" Value="#1B1B1F"/>
-        <Setter Property="BorderBrush" Value="#2A2A2F"/>
-        <Setter Property="Foreground" Value="#E4E4EA"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
     <Style Selector="TextBox.search-box:pointerover /template/ Border#PART_BorderElement">
-        <Setter Property="Background" Value="#1B1B1F"/>
-        <Setter Property="BorderBrush" Value="#3C3C42"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
     </Style>
 
     <Style Selector="TextBox.search-box:focus /template/ Border#PART_BorderElement">
-        <Setter Property="Background" Value="#1B1B1F"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
     <Style Selector="Border.progress-overlay">
-        <Setter Property="Background" Value="#C0141417"/>
+        <Setter Property="Background" Value="#CC0C0A09"/>
     </Style>
 
     <Style Selector="Border.progress-card">
-        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="24,20"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="BorderBrush" Value="#333338"/>
-        <Setter Property="Background" Value="#1F1F23"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="MinWidth" Value="360"/>
         <Setter Property="MaxWidth" Value="460"/>
     </Style>
 
     <Style Selector="ProgressBar.themed">
-        <Setter Property="Background" Value="#2A2A30"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="MinHeight" Value="6"/>
     </Style>
 
@@ -278,41 +279,28 @@
         <Setter Property="Height" Value="3"/>
     </Style>
 
-    <Style Selector="TextBlock.setting-category">
-        <Setter Property="FontSize" Value="13"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-        <Setter Property="Margin" Value="0,12,0,6"/>
-    </Style>
-
     <Style Selector="TextBlock.setting-label">
-        <Setter Property="Foreground" Value="#D0D0D6"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="TextBlock.setting-desc">
-        <Setter Property="Foreground" Value="#75757D"/>
-        <Setter Property="FontSize" Value="11"/>
-        <Setter Property="TextWrapping" Value="Wrap"/>
-    </Style>
-
     <Style Selector="DataGrid">
         <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="#DADAE0"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="HorizontalGridLinesBrush" Value="#26262B"/>
-        <Setter Property="VerticalGridLinesBrush" Value="#26262B"/>
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+        <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="RowBackground" Value="Transparent"/>
     </Style>
 
     <Style Selector="DataGridColumnHeader">
-        <Setter Property="Background" Value="#1B1B1F"/>
-        <Setter Property="Foreground" Value="#8A8A92"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Padding" Value="10,8"/>
-        <Setter Property="BorderBrush" Value="#2A2A2F"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
     </Style>
 
     <Style Selector="DataGridCell">
@@ -333,13 +321,13 @@
         <Setter Property="Padding" Value="0"/>
     </Style>
 
-    <Style Selector="ListBox.asset-list ListBoxItem:pointerover">
-        <Setter Property="Background" Value="#24242A"/>
+    <Style Selector="ListBox.asset-list ListBoxItem:pointerover, DataGridRow:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
     </Style>
 
-    <Style Selector="ListBox.asset-list ListBoxItem:selected">
-        <Setter Property="Background" Value="#303038"/>
-        <Setter Property="Foreground" Value="#F4F4F7"/>
+    <Style Selector="ListBox.asset-list ListBoxItem:selected, DataGridRow:selected">
+        <Setter Property="Background" Value="#553C1800"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="DataGridCell:focus /template/ Grid#FocusVisual">
@@ -350,15 +338,6 @@
         <Setter Property="IsVisible" Value="False"/>
     </Style>
 
-    <Style Selector="DataGridRow:pointerover">
-        <Setter Property="Background" Value="#24242A"/>
-    </Style>
-
-    <Style Selector="DataGridRow:selected">
-        <Setter Property="Background" Value="#303038"/>
-        <Setter Property="Foreground" Value="#F4F4F7"/>
-    </Style>
-
     <Style Selector="ListBox">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -367,7 +346,7 @@
     <Style Selector="ListBoxItem">
         <Setter Property="Padding" Value="4,2"/>
         <Setter Property="Margin" Value="2,1"/>
-        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="CornerRadius" Value="0"/>
     </Style>
 
     <Style Selector="ScrollViewer">
@@ -381,9 +360,22 @@
 
     <Style Selector="ComboBox">
         <Setter Property="MinHeight" Value="30"/>
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Background" Value="#1B1B1F"/>
-        <Setter Property="BorderBrush" Value="#333338"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+    </Style>
+
+    <Style Selector="ComboBox:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+    </Style>
+
+    <Style Selector="ScrollBar /template/ Thumb">
+        <Setter Property="Background" Value="#66737373"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+
+    <Style Selector="ScrollBar:pointerover /template/ Thumb">
+        <Setter Property="Background" Value="#99A1A1A1"/>
     </Style>
 
 </Styles>

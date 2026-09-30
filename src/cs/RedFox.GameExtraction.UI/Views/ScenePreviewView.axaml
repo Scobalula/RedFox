@@ -39,6 +39,7 @@
 
         <Panel>
             <g3d:AvaloniaOpenGlRendererControl x:Name="Renderer"
+                                               ClearColor="{DynamicResource ScenePreviewClearColor}"
                                                Scene="{Binding ActiveScene}"
                                                ViewportController="{Binding ViewportController}"
                                                UseViewBasedLighting="{Binding UseViewBasedLighting}"

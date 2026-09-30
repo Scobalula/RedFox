@@ -279,8 +279,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
             gl.Clear(0x00004000 | 0x00000100);
         }
 
-        if ((!IsAnimationPaused && scene is { AnimationPlayers.Count: > 0 }) || _inputAdapter?.HasActiveInput == true)
-            RequestNextFrameRendering();
+        RequestNextFrameRendering();
     }
 
     /// <inheritdoc/>

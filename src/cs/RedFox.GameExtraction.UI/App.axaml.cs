@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using RedFox.Avalonia.Themes;
 
 namespace RedFox.GameExtraction.UI;
 
@@ -18,6 +19,11 @@ public class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+
+        if (Resources["ThemeCardBrush"] is ISolidColorBrush cardBrush)
+        {
+            Resources["ScenePreviewClearColor"] = RedFoxThemeColors.ToVector4(cardBrush.Color);
+        }
 
         if (CurrentConfig is null)
         {
@@ -64,4 +70,5 @@ public class App : Application
     {
         return Color.FromArgb(color.A, (byte)Math.Clamp(color.R + amount, 0, 255), (byte)Math.Clamp(color.G + amount, 0, 255), (byte)Math.Clamp(color.B + amount, 0, 255));
     }
+
 }

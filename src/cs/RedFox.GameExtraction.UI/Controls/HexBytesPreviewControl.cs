@@ -25,14 +25,14 @@ public sealed class HexBytesPreviewControl : UserControl
     internal const double TextFontSize = 13;
 
     internal static readonly Typeface HexTypeface = new("Cascadia Mono, Consolas, monospace");
-    internal static readonly IBrush BackgroundBrush = Brush.Parse("#18181B");
-    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#1B1B1F");
-    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1C1C20");
-    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#8A8A92");
-    internal static readonly IBrush OffsetTextBrush = Brush.Parse("#6DB6FF");
-    internal static readonly IBrush HexTextBrush = Brush.Parse("#E4E4EA");
-    internal static readonly IBrush AsciiTextBrush = Brush.Parse("#D69D85");
-    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#2A2A2F");
+    internal static readonly IBrush BackgroundBrush = Brush.Parse("#171717");
+    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#262626");
+    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1C1C1C");
+    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#A1A1A1");
+    internal static readonly IBrush OffsetTextBrush = Brush.Parse("#A1A1A1");
+    internal static readonly IBrush HexTextBrush = Brush.Parse("#FAFAFA");
+    internal static readonly IBrush AsciiTextBrush = Brush.Parse("#B8B8B8");
+    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#1AFFFFFF");
 
     private readonly ScrollBar _horizontalScrollBar;
     private readonly ScrollBar _verticalScrollBar;
@@ -154,8 +154,8 @@ public sealed class HexBytesPreviewControl : UserControl
     {
         get
         {
-            double contentHeight = Math.Max(0, _viewport.Bounds.Height - HeaderHeight - (TopPadding * 2));
-            return Math.Max(1, (int)Math.Ceiling(contentHeight / RowHeight));
+        double contentHeight = Math.Max(0, _viewport.Bounds.Height - HeaderHeight - (TopPadding * 2));
+        return Math.Max(1, (int)Math.Floor(contentHeight / RowHeight));
         }
     }
 
@@ -250,7 +250,7 @@ public sealed class HexBytesPreviewControl : UserControl
             int maxFirstRow = Math.Max(0, RowCount - visibleRows);
             _firstVisibleRow = Math.Clamp(_firstVisibleRow, 0, maxFirstRow);
 
-            _verticalScrollBar.IsVisible = true;
+            _verticalScrollBar.IsVisible = RowCount > visibleRows;
             _verticalScrollBar.Maximum = maxFirstRow;
             _verticalScrollBar.ViewportSize = visibleRows;
             _verticalScrollBar.SmallChange = 1;
