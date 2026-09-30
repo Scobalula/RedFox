@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using PrettyPrompt;
 using PrettyPrompt.Completion;
 using PrettyPrompt.Consoles;
@@ -24,8 +25,9 @@ internal sealed class CommandLinePromptCallbacks(CommandLineSession session) : P
     protected override Task<bool> ShouldOpenCompletionWindowAsync(string text, int caret, KeyPress keyPress, CancellationToken cancellationToken)
     {
         char character = keyPress.ConsoleKeyInfo.KeyChar;
+        bool startsSlashCommand = text.StartsWith('/') || (character == '/' && caret <= 1);
 
-        if ((character == '/' && caret <= 1) || (text.StartsWith('/') && character is ' ' or '/' or '\\'))
+        if (startsSlashCommand && !char.IsControl(character))
         {
             return Task.FromResult(true);
         }
@@ -63,8 +65,9 @@ internal sealed class CommandLinePromptCallbacks(CommandLineSession session) : P
         }
 
         int width = session.Commands.Max(command => command.Name.Length) + 1 + DescriptionSpacing;
+        ImmutableArray<CharacterSetModificationRule> commitOnSpace = [new(CharacterSetModificationKind.Add, [' '])];
 
-        return [.. session.Commands.Select(command => new CompletionItem("/" + command.Name, CreateDisplayText(command, width)))];
+        return [.. session.Commands.Select(command => new CompletionItem( "/" + command.Name, CreateDisplayText(command, width), commitCharacterRules: commitOnSpace))];
     }
 
     private IReadOnlyList<CompletionItem> GetArgumentItems(IReadOnlyList<string> previous, string partial)
