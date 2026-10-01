@@ -277,8 +277,8 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
-        <Setter Property="MinWidth" Value="360"/>
-        <Setter Property="MaxWidth" Value="460"/>
+        <Setter Property="Width" Value="420"/>
+        <Setter Property="Height" Value="176"/>
     </Style>
 
     <Style Selector="ProgressBar.themed">

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Interactivity;
 using RedFox.GameExtraction.UI.Models;
 using RedFox.GameExtraction.UI.ViewModels;
@@ -30,6 +31,8 @@ public partial class SourceManagerWindow : Window
         _viewModel = new SourceManagerViewModel(mainViewModel.LoadedSources, mainViewModel.UnloadSourceAsync);
         DataContext = _viewModel;
         SourceList.ItemsSource = _viewModel.Sources;
+        ProgressOverlay.Bind(IsVisibleProperty, new Binding(nameof(MainWindowViewModel.ShowProgressDialog)) { Source = mainViewModel });
+        ProgressCard.Bind(DataContextProperty, new Binding(nameof(MainWindowViewModel.ProgressDialog)) { Source = mainViewModel });
     }
 
     private async void OnUnloadClick(object? sender, RoutedEventArgs e)

@@ -18,11 +18,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
     private readonly List<AssetRowViewModel> _allAssets = [];
-    private readonly ObservableCollection<AssetRowViewModel> _assetsView = [];
+    private readonly RangeObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly SynchronizationContext? _uiSynchronizationContext;
     private readonly Timer _searchFilterTimer;
+    private readonly object _progressUpdateLock = new();
+    private readonly object _filterCancellationLock = new();
     private string _assetNameFilter = string.Empty;
     private CancellationTokenSource? _currentCts;
+    private CancellationTokenSource? _filterCancellationSource;
+    private ProgressDialogViewModel? _queuedProgressDialog;
+    private string? _queuedProgressStatus;
+    private int _queuedCompletedOperations;
+    private int _filterGeneration;
+    private int _filterOptionsGeneration;
+    private bool _progressUpdatePosted;
     private bool _isPreviewWindowOpen;
     private AssetRowViewModel[]? _pendingPreviewSelection;
 
@@ -356,9 +365,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
+        IsLoading = true;
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog($"Unloading {source.DisplayName}...", cancellationSource);
+        ProgressDialog = progressVm;
+        ShowProgressDialog = true;
+
         try
         {
-            await _assetManager.UnloadAsync(source.Source).ConfigureAwait(false);
+            progressVm.StatusText = $"Releasing {source.DisplayName}...";
+            await Task.Run(() => _assetManager.UnloadAsync(source.Source, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
             await InvokeOnUiThreadAsync(() =>
             {
                 RemoveSource(source);
@@ -366,9 +383,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 StatusText = $"Unloaded {source.DisplayName}";
             });
         }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Unload cancelled";
+        }
         catch (Exception exception)
         {
             StatusText = $"Unload error: {exception.Message}";
+        }
+        finally
+        {
+            ShowProgressDialog = false;
+            ProgressDialog = null;
+            IsLoading = false;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
         }
     }
 
@@ -378,14 +408,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="source">The source row to add.</param>
     public void AddSource(AssetSourceViewModel source)
     {
-        foreach (Asset asset in source.Source.Assets)
-        {
-            _allAssets.Add(new AssetRowViewModel(asset, source));
-        }
-
-        TotalCount = _allAssets.Count;
-        RefreshAssetFilterOptions();
-        ApplyFilter();
+        AddSource(source, [.. source.Source.Assets.Select(asset => new AssetRowViewModel(asset, source))]);
     }
 
     /// <summary>
@@ -482,6 +505,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         _searchFilterTimer.Dispose();
+        lock (_filterCancellationLock)
+        {
+            _filterCancellationSource?.Cancel();
+            _filterCancellationSource = null;
+        }
+
+        _filterGeneration++;
+        _filterOptionsGeneration++;
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         Plugins.Dispose();
@@ -611,12 +642,74 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         IReadOnlyList<string> filePaths = await FileDialogRequested.Invoke().ConfigureAwait(true);
-        foreach (string filePath in filePaths)
+        string[] selectedPaths = [.. filePaths.Where(filePath => !string.IsNullOrWhiteSpace(filePath))];
+        if (selectedPaths.Length == 0)
         {
-            if (!string.IsNullOrWhiteSpace(filePath))
+            return;
+        }
+
+        await MountFilesAsync(selectedPaths).ConfigureAwait(true);
+    }
+
+    private async Task MountFilesAsync(IReadOnlyList<string> filePaths)
+    {
+        IsLoading = true;
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog($"Loading {filePaths.Count:N0} sources...", cancellationSource);
+        progressVm.Total = filePaths.Count;
+        progressVm.IsIndeterminate = false;
+        ProgressDialog = progressVm;
+        ShowProgressDialog = true;
+        StatusText = progressVm.Title;
+
+        try
+        {
+            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
+
+            foreach (string filePath in filePaths)
             {
-                await LoadSourceFromFileAsync(filePath).ConfigureAwait(true);
+                cancellationSource.Token.ThrowIfCancellationRequested();
+                string fullPath = Path.GetFullPath(filePath);
+                if (HasMountedLocation(AssetSourceKind.File, fullPath))
+                {
+                    StatusText = $"Already loaded: {Path.GetFileName(fullPath)}";
+                }
+                else
+                {
+                    progressVm.StatusText = $"Loading {Path.GetFileName(fullPath)}...";
+                    try
+                    {
+                        IAssetSource source = await Task.Run(() => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
+                        await AddMountedSourceAsync(source).ConfigureAwait(true);
+                        StatusText = "Ready";
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        StatusText = $"Load error: {exception.Message}";
+                    }
+                }
+
+                progressVm.Current++;
+                progressVm.ProgressValue = progressVm.Current / (double)progressVm.Total * 100;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Loading cancelled";
+        }
+        finally
+        {
+            ShowProgressDialog = false;
+            ProgressDialog = null;
+            IsLoading = false;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
         }
     }
 
@@ -692,13 +785,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            IProgress<string> progress = new Progress<string>(message =>
-            {
-                if (!progressVm.IsCancelling)
-                {
-                    progressVm.StatusText = message;
-                }
-            });
+            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
 
             return await Task.Run<IReadOnlyList<ProcessCandidateViewModel>>(() =>
             {
@@ -813,17 +900,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            Progress<string> progress = new(message =>
-            {
-                if (!progressVm.IsCancelling)
-                {
-                    progressVm.StatusText = message;
-                }
-            });
+            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
 
             IAssetSource source = await Task.Run(() => mountSourceAsync(progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
-            AddMountedSource(source);
+            await AddMountedSourceAsync(source).ConfigureAwait(true);
             StatusText = "Ready";
         }
         catch (OperationCanceledException)
@@ -845,12 +926,21 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void AddMountedSource(IAssetSource source)
+    private async Task AddMountedSourceAsync(IAssetSource source)
     {
         _assetManager.TryGetSourceRequest(source, out AssetSourceRequest? request);
         AssetSourceViewModel sourceRow = new(source, request);
         LoadedSources.Add(sourceRow);
-        AddSource(sourceRow);
+        AssetRowViewModel[] rows = await Task.Run(() => sourceRow.Source.Assets.Select(asset => new AssetRowViewModel(asset, sourceRow)).ToArray()).ConfigureAwait(true);
+        AddSource(sourceRow, rows);
+    }
+
+    private void AddSource(AssetSourceViewModel source, IEnumerable<AssetRowViewModel> rows)
+    {
+        _allAssets.AddRange(rows);
+        TotalCount = _allAssets.Count;
+        RefreshAssetFilterOptions();
+        ApplyFilter();
     }
 
     private void InitializeShellState(GameExtractionConfig config)
@@ -896,16 +986,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         try
         {
             ExportConfiguration configuration = _config.ExportConfigurationFactory(_config.Settings);
-            Progress<string> progress = new(message =>
-            {
-                if (!progressVm.IsCancelling)
-                {
-                    progressVm.StatusText = message;
-                }
-            });
-
-            List<Asset> assets = [.. rowList.Select(row => row.Asset)];
-            await Task.Run(() => _assetManager.ExportAsync(assets, configuration, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
+            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
+            await Task.Run(() => _assetManager.ExportAsync([.. rowList.Select(row => row.Asset)], configuration, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
             StatusText = $"Exported {rowList.Count:N0} assets";
         }
@@ -931,14 +1013,96 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ClearAll()
     {
-        foreach (AssetSourceViewModel source in LoadedSources.ToArray())
+        AssetSourceViewModel[] sources = [.. LoadedSources];
+        if (sources.Length == 0)
         {
-            await UnloadSourceAsync(source).ConfigureAwait(true);
+            ClearAssets();
+            StatusText = "Cleared all sources";
+            return;
         }
 
-        ClearAssets();
-        LoadedSources.Clear();
-        StatusText = "Cleared all sources";
+        IsLoading = true;
+        CancellationTokenSource cancellationSource = new();
+        _currentCts = cancellationSource;
+        ProgressDialogViewModel progressVm = CreateProgressDialog($"Unloading {sources.Length:N0} sources...", cancellationSource);
+        progressVm.Total = sources.Length;
+        progressVm.IsIndeterminate = false;
+        ProgressDialog = progressVm;
+        ShowProgressDialog = true;
+        StatusText = progressVm.Title;
+
+        try
+        {
+            (AssetSourceViewModel Source, bool Unloaded, Exception? Error)[] results = await Task.Run(async () =>
+            {
+                List<(AssetSourceViewModel Source, bool Unloaded, Exception? Error)> unloadResults = [];
+                foreach (AssetSourceViewModel source in sources)
+                {
+                    if (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    QueueProgressUpdate(progressVm, $"Unloading {source.DisplayName}...");
+                    try
+                    {
+                        await _assetManager.UnloadAsync(source.Source, cancellationSource.Token).ConfigureAwait(false);
+                        unloadResults.Add((source, true, null));
+                        QueueProgressUpdate(progressVm, $"Unloaded {source.DisplayName}", completedOperation: true);
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception exception)
+                    {
+                        unloadResults.Add((source, false, exception));
+                        QueueProgressUpdate(progressVm, $"Failed to unload {source.DisplayName}", completedOperation: true);
+                    }
+                }
+
+                return unloadResults.ToArray();
+            }).ConfigureAwait(true);
+
+            HashSet<AssetSourceViewModel> unloadedSources = new(results.Where(result => result.Unloaded).Select(result => result.Source), ReferenceEqualityComparer.Instance);
+            foreach (AssetSourceViewModel source in unloadedSources)
+            {
+                LoadedSources.Remove(source);
+            }
+
+            _allAssets.RemoveAll(row => unloadedSources.Contains(row.Source));
+            for (int index = SelectedAssets.Count - 1; index >= 0; index--)
+            {
+                if (unloadedSources.Contains(SelectedAssets[index].Source))
+                {
+                    SelectedAssets.RemoveAt(index);
+                }
+            }
+
+            SelectedAsset = SelectedAssets.LastOrDefault();
+            NotifySelectionChanged();
+            TotalCount = _allAssets.Count;
+            RefreshAssetFilterOptions();
+            ApplyFilter();
+            RefreshPreview([.. SelectedAssets]);
+
+            int failedCount = results.Count(result => result.Error is not null);
+            string summary = failedCount > 0
+                ? $"Unloaded {unloadedSources.Count:N0} sources; {failedCount:N0} could not be unloaded"
+                : unloadedSources.Count == sources.Length ? "Cleared all sources" : $"Unloaded {unloadedSources.Count:N0} sources";
+            StatusText = cancellationSource.IsCancellationRequested && unloadedSources.Count < sources.Length
+                ? $"Unloading cancelled; {summary}"
+                : summary;
+        }
+        finally
+        {
+            ShowProgressDialog = false;
+            ProgressDialog = null;
+            IsLoading = false;
+            if (ReferenceEquals(_currentCts, cancellationSource))
+                _currentCts = null;
+            cancellationSource.Dispose();
+        }
     }
 
     private bool HasMountedLocation(AssetSourceKind kind, string location)
@@ -980,22 +1144,76 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        PostToUiThread(() =>
+        string status = args.Skipped ? $"Skipped {args.Asset.Name}" : $"Exported {args.Asset.Name}";
+        QueueProgressUpdate(progressVm, status, completedOperation: true);
+    }
+
+    private void QueueProgressUpdate(ProgressDialogViewModel progressVm, string status, bool completedOperation = false)
+    {
+        if (!ReferenceEquals(ProgressDialog, progressVm))
         {
-            if (!ReferenceEquals(ProgressDialog, progressVm))
+            return;
+        }
+
+        bool postUpdate;
+        lock (_progressUpdateLock)
+        {
+            if (!ReferenceEquals(_queuedProgressDialog, progressVm))
             {
-                return;
+                _queuedProgressDialog = progressVm;
+                _queuedProgressStatus = null;
+                _queuedCompletedOperations = 0;
             }
 
+            _queuedProgressStatus = status;
+            if (completedOperation)
+            {
+                _queuedCompletedOperations++;
+            }
+
+            postUpdate = !_progressUpdatePosted;
+            _progressUpdatePosted = true;
+        }
+
+        if (postUpdate)
+        {
+            PostToUiThread(FlushProgressUpdate);
+        }
+    }
+
+    private void FlushProgressUpdate()
+    {
+        ProgressDialogViewModel? progressVm;
+        string? status;
+        int completedCount;
+        lock (_progressUpdateLock)
+        {
+            progressVm = _queuedProgressDialog;
+            status = _queuedProgressStatus;
+            completedCount = _queuedCompletedOperations;
+            _queuedProgressDialog = null;
+            _queuedProgressStatus = null;
+            _queuedCompletedOperations = 0;
+            _progressUpdatePosted = false;
+        }
+
+        if (progressVm is null || !ReferenceEquals(ProgressDialog, progressVm))
+        {
+            return;
+        }
+
+        if (status is not null && !progressVm.IsCancelling)
+        {
+            progressVm.StatusText = status;
+        }
+
+        if (completedCount > 0)
+        {
             progressVm.IsIndeterminate = false;
-            progressVm.Current++;
-            if (progressVm.Total < progressVm.Current)
-            {
-                progressVm.Total = progressVm.Current;
-            }
-
+            progressVm.Current += completedCount;
+            progressVm.Total = Math.Max(progressVm.Total, progressVm.Current);
             progressVm.ProgressValue = progressVm.Total > 0 ? Math.Min(100, progressVm.Current / (double)progressVm.Total * 100) : 0;
-        });
+        }
     }
 
     private void OnSearchFilterTimerElapsed(object? state) => PostToUiThread(ApplyFilter);
@@ -1038,27 +1256,106 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void ApplyFilter()
     {
-        _assetsView.Clear();
-        IEnumerable<AssetRowViewModel> visibleAssets = _allAssets.Where(IsVisibleAssetRow);
-        visibleAssets = SortBy switch
+        int generation = ++_filterGeneration;
+        CancellationTokenSource cancellationSource = new();
+        lock (_filterCancellationLock)
         {
-            "Type" => visibleAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
-            "Information" => visibleAssets.OrderBy(asset => asset.Asset, GetAssetInformationComparer()).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
-            _ => visibleAssets.OrderBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
-        };
-        foreach (AssetRowViewModel asset in visibleAssets)
-        {
-            _assetsView.Add(asset);
+            CancellationTokenSource? previousCancellationSource = _filterCancellationSource;
+            _filterCancellationSource = cancellationSource;
+            previousCancellationSource?.Cancel();
         }
 
-        FilteredCount = _assetsView.Count;
+        AssetRowViewModel[] allAssets = [.. _allAssets];
+        string nameFilter = _assetNameFilter;
+        string selectedType = SelectedAssetType;
+        string selectedSource = SelectedAssetSource;
+        string sortBy = SortBy;
+        IComparer<Asset>? comparer = sortBy == "Information" ? GetAssetInformationComparer() : null;
+        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilter, selectedType, selectedSource, sortBy, comparer, cancellationSource);
     }
 
-    private bool IsVisibleAssetRow(AssetRowViewModel asset)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string nameFilter, string selectedType, string selectedSource, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
-        bool matchesName = string.IsNullOrEmpty(_assetNameFilter) || asset.Name.Contains(_assetNameFilter, StringComparison.OrdinalIgnoreCase);
-        bool matchesType = string.IsNullOrEmpty(SelectedAssetType) || string.Equals(SelectedAssetType, "All types", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.Type, SelectedAssetType, StringComparison.OrdinalIgnoreCase);
-        bool matchesSource = string.IsNullOrEmpty(SelectedAssetSource) || string.Equals(SelectedAssetSource, "All sources", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.SourceName, SelectedAssetSource, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            CancellationToken cancellationToken = cancellationSource.Token;
+            AssetRowViewModel[]? visibleAssets = await Task.Run(() =>
+            {
+                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilter, selectedType, selectedSource, cancellationToken);
+                IOrderedEnumerable<AssetRowViewModel> sortedAssets = sortBy switch
+                {
+                    "Type" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+                    "Information" => filteredAssets.OrderBy(asset => asset.Asset, comparer).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+                    _ => filteredAssets.OrderBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+                };
+                AssetRowViewModel[] results = sortedAssets.ToArray();
+                return cancellationToken.IsCancellationRequested ? null : results;
+            }).ConfigureAwait(false);
+
+            if (visibleAssets is null)
+            {
+                return;
+            }
+
+            PostToUiThread(() =>
+            {
+                if (generation != _filterGeneration)
+                {
+                    return;
+                }
+
+                _assetsView.ReplaceAll(visibleAssets);
+                FilteredCount = visibleAssets.Length;
+            });
+        }
+        catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            PostToUiThread(() =>
+            {
+                if (generation == _filterGeneration)
+                {
+                    StatusText = $"Asset filter error: {exception.Message}";
+                }
+            });
+        }
+        finally
+        {
+            lock (_filterCancellationLock)
+            {
+                if (ReferenceEquals(_filterCancellationSource, cancellationSource))
+                {
+                    _filterCancellationSource = null;
+                }
+
+                cancellationSource.Dispose();
+            }
+        }
+    }
+
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string nameFilter, string selectedType, string selectedSource, CancellationToken cancellationToken)
+    {
+        foreach (AssetRowViewModel asset in assets)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            if (IsVisibleAssetRow(asset, nameFilter, selectedType, selectedSource))
+            {
+                yield return asset;
+            }
+        }
+    }
+
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string nameFilter, string selectedType, string selectedSource)
+    {
+        bool matchesName = string.IsNullOrEmpty(nameFilter) || asset.Name.Contains(nameFilter, StringComparison.OrdinalIgnoreCase);
+        bool matchesType = string.IsNullOrEmpty(selectedType) || string.Equals(selectedType, "All types", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.Type, selectedType, StringComparison.OrdinalIgnoreCase);
+        bool matchesSource = string.IsNullOrEmpty(selectedSource) || string.Equals(selectedSource, "All sources", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.SourceName, selectedSource, StringComparison.OrdinalIgnoreCase);
         return matchesName && matchesType && matchesSource;
     }
 
@@ -1095,20 +1392,39 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void RefreshAssetFilterOptions()
     {
-        AssetTypeOptions = ["All types", .. _allAssets.Select(asset => asset.Type).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type, StringComparer.OrdinalIgnoreCase)];
-        AssetSourceOptions = ["All sources", .. _allAssets.Select(asset => asset.SourceName).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(source => source, StringComparer.OrdinalIgnoreCase)];
-        OnPropertyChanged(nameof(AssetTypeOptions));
-        OnPropertyChanged(nameof(AssetSourceOptions));
+        int generation = ++_filterOptionsGeneration;
+        (string Type, string Source)[] values = [.. _allAssets.Select(asset => (asset.Type, asset.SourceName))];
+        _ = UpdateAssetFilterOptionsAsync(generation, values);
+    }
 
-        if (!AssetTypeOptions.Contains(SelectedAssetType, StringComparer.OrdinalIgnoreCase))
-        {
-            SelectedAssetType = "All types";
-        }
+    private async Task UpdateAssetFilterOptionsAsync(int generation, (string Type, string Source)[] values)
+    {
+        (string[] types, string[] sources) = await Task.Run(() => (
+            new[] { "All types" }.Concat(values.Select(value => value.Type).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type, StringComparer.OrdinalIgnoreCase)).ToArray(),
+            new[] { "All sources" }.Concat(values.Select(value => value.Source).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(source => source, StringComparer.OrdinalIgnoreCase)).ToArray())).ConfigureAwait(false);
 
-        if (!AssetSourceOptions.Contains(SelectedAssetSource, StringComparer.OrdinalIgnoreCase))
+        PostToUiThread(() =>
         {
-            SelectedAssetSource = "All sources";
-        }
+            if (generation != _filterOptionsGeneration)
+            {
+                return;
+            }
+
+            AssetTypeOptions = types;
+            AssetSourceOptions = sources;
+            OnPropertyChanged(nameof(AssetTypeOptions));
+            OnPropertyChanged(nameof(AssetSourceOptions));
+
+            if (!AssetTypeOptions.Contains(SelectedAssetType, StringComparer.OrdinalIgnoreCase))
+            {
+                SelectedAssetType = "All types";
+            }
+
+            if (!AssetSourceOptions.Contains(SelectedAssetSource, StringComparer.OrdinalIgnoreCase))
+            {
+                SelectedAssetSource = "All sources";
+            }
+        });
     }
 
     private static string? ResolveIconPath(string? path)
