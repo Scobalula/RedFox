@@ -216,7 +216,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             commandList.SetUniformVector3("CameraPosition", cameraPosition);
             commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
             commandList.SetUniformInt("UVLayerIndex", materialRanges is null ? i : 0);
-            commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin?.BoneIndices.ValueCount ?? 0);
+            commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin is { Bones.Count: > 0 } skin ? skin.InfluenceCount : 0);
             commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
             commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
 

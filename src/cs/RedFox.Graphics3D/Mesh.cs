@@ -455,7 +455,7 @@ public class Mesh : SceneNode
 
     private Vector3? ApplySkinning(Vector3 value, int vertexIndex, Func<Vector3, Matrix4x4, Vector3> transform, ReadOnlySpan<Matrix4x4> skinTransforms, ReadOnlySpan<Matrix4x4> transformOverrides)
     {
-        if (Skin is null)
+        if (Skin is not { Bones.Count: > 0, InfluenceCount: > 0 })
             return null;
 
         Dictionary<SceneNode, Matrix4x4>? worldMatrices = null;
