@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO.Enumeration;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
@@ -440,8 +441,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="selectedAssets">The selected asset rows.</param>
     public void SetSelectedAssets(IEnumerable<AssetRowViewModel> selectedAssets)
     {
+        AssetRowViewModel[] selection = [.. selectedAssets];
+        if (selection.Length == 0 && SelectedAssets.Any(asset => !_assetsView.Contains(asset)))
+        {
+            return;
+        }
+
         SelectedAssets.Clear();
-        foreach (AssetRowViewModel asset in selectedAssets)
+        foreach (AssetRowViewModel asset in selection)
         {
             SelectedAssets.Add(asset);
         }
@@ -1266,22 +1273,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         AssetRowViewModel[] allAssets = [.. _allAssets];
-        string nameFilter = _assetNameFilter;
+        string[] nameFilters = _assetNameFilter.Contains('*') || _assetNameFilter.Contains('?') ? _assetNameFilter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [_assetNameFilter];
         string selectedType = SelectedAssetType;
         string selectedSource = SelectedAssetSource;
         string sortBy = SortBy;
         IComparer<Asset>? comparer = sortBy == "Information" ? GetAssetInformationComparer() : null;
-        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilter, selectedType, selectedSource, sortBy, comparer, cancellationSource);
+        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedType, selectedSource, sortBy, comparer, cancellationSource);
     }
 
-    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string nameFilter, string selectedType, string selectedSource, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[] nameFilters, string selectedType, string selectedSource, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
         try
         {
             CancellationToken cancellationToken = cancellationSource.Token;
             AssetRowViewModel[]? visibleAssets = await Task.Run(() =>
             {
-                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilter, selectedType, selectedSource, cancellationToken);
+                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, selectedType, selectedSource, cancellationToken);
                 IOrderedEnumerable<AssetRowViewModel> sortedAssets = sortBy switch
                 {
                     "Type" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
@@ -1335,7 +1342,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string nameFilter, string selectedType, string selectedSource, CancellationToken cancellationToken)
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[] nameFilters, string selectedType, string selectedSource, CancellationToken cancellationToken)
     {
         foreach (AssetRowViewModel asset in assets)
         {
@@ -1344,19 +1351,33 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 yield break;
             }
 
-            if (IsVisibleAssetRow(asset, nameFilter, selectedType, selectedSource))
+            if (IsVisibleAssetRow(asset, nameFilters, selectedType, selectedSource))
             {
                 yield return asset;
             }
         }
     }
 
-    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string nameFilter, string selectedType, string selectedSource)
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[] nameFilters, string selectedType, string selectedSource)
     {
-        bool matchesName = string.IsNullOrEmpty(nameFilter) || asset.Name.Contains(nameFilter, StringComparison.OrdinalIgnoreCase);
+        bool matchesName = MatchesNameFilter(asset.Name, nameFilters);
         bool matchesType = string.IsNullOrEmpty(selectedType) || string.Equals(selectedType, "All types", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.Type, selectedType, StringComparison.OrdinalIgnoreCase);
         bool matchesSource = string.IsNullOrEmpty(selectedSource) || string.Equals(selectedSource, "All sources", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.SourceName, selectedSource, StringComparison.OrdinalIgnoreCase);
         return matchesName && matchesType && matchesSource;
+    }
+
+    private static bool MatchesNameFilter(string name, string[] filters)
+    {
+        foreach (string filter in filters)
+        {
+            bool matches = filter.Contains('*') || filter.Contains('?') ? FileSystemName.MatchesSimpleExpression(filter, name, ignoreCase: true) : name.Contains(filter, StringComparison.OrdinalIgnoreCase);
+            if (!matches)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private IComparer<Asset> GetAssetInformationComparer()
