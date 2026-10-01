@@ -43,7 +43,7 @@ public sealed class SceneRenderer : IDisposable
     private int _antiAliasingSamples = DefaultAntiAliasingSamples;
     private int _antiAliasingTargetHeight;
     private int _antiAliasingTargetWidth;
-    private (Texture Texture, Image Image)? _completedBackgroundImageLoad;
+    private readonly Queue<(Texture Texture, Image Image)> _completedBackgroundImageLoads = new();
     private int _externalAntiAliasingSamples = MinimumAntiAliasingSamples;
     private (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager)? _pendingBackgroundImageLoad;
     private volatile bool _backgroundImageLoadThreadStopping;
@@ -529,7 +529,7 @@ public sealed class SceneRenderer : IDisposable
 
                 lock (_backgroundImageLoadSync)
                 {
-                    _completedBackgroundImageLoad = (pendingBackgroundImageLoad.Texture, image);
+                    _completedBackgroundImageLoads.Enqueue((pendingBackgroundImageLoad.Texture, image));
                 }
 
                 break;
@@ -539,21 +539,23 @@ public sealed class SceneRenderer : IDisposable
 
     private void ApplyCompletedBackgroundImageLoad()
     {
-        (Texture Texture, Image Image)? completedBackgroundImageLoad;
+        List<(Texture Texture, Image Image)> completedBackgroundImageLoads = [];
         lock (_backgroundImageLoadSync)
         {
-            completedBackgroundImageLoad = _completedBackgroundImageLoad;
-            _completedBackgroundImageLoad = null;
+            while (_completedBackgroundImageLoads.TryDequeue(out (Texture Texture, Image Image) completedBackgroundImageLoad))
+            {
+                completedBackgroundImageLoads.Add(completedBackgroundImageLoad);
+            }
         }
 
-        if (completedBackgroundImageLoad is null)
+        for (int i = 0; i < completedBackgroundImageLoads.Count; i++)
         {
-            return;
-        }
+            (Texture texture, Image image) = completedBackgroundImageLoads[i];
 
-        if (completedBackgroundImageLoad.Value.Texture.Data is null)
-        {
-            completedBackgroundImageLoad.Value.Texture.Data = completedBackgroundImageLoad.Value.Image;
+            if (texture.Data is null)
+            {
+                texture.Data = image;
+            }
         }
     }
 
@@ -564,7 +566,7 @@ public sealed class SceneRenderer : IDisposable
 
         lock (_backgroundImageLoadSync)
         {
-            if (_pendingBackgroundImageLoad is not null || _completedBackgroundImageLoad is not null)
+            if (_pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0)
             {
                 return;
             }
@@ -603,7 +605,7 @@ public sealed class SceneRenderer : IDisposable
 
         lock (_backgroundImageLoadSync)
         {
-            if (_backgroundImageLoadThreadStopping || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoad is not null || texture.Data is not null || texture.LoadAttempted)
+            if (_backgroundImageLoadThreadStopping || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0 || texture.Data is not null || texture.LoadAttempted)
             {
                 return false;
             }

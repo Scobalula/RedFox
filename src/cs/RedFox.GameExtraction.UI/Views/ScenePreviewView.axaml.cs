@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using RedFox.GameExtraction.UI.ViewModels;
 using RedFox.Graphics3D.Avalonia;
@@ -62,4 +63,6 @@ public partial class ScenePreviewView : UserControl
         _fpsSampleDuration = 0.0;
         Dispatcher.UIThread.Post(() => FpsText.Text = $"FPS: {framesPerSecond.ToString("N1", CultureInfo.InvariantCulture)}");
     }
+
+    private void OnFitClick(object? sender, RoutedEventArgs e) => _viewModel?.FitSceneToView();
 }

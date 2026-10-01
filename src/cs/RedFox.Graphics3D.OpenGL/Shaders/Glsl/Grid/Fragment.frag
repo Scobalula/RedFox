@@ -46,6 +46,11 @@ float AxisAlpha(float coordinate, float lineWidth)
     return 1.0 - Saturate(abs(coordinate) / max(lineWidth, 1e-6));
 }
 
+float AxisExtentAlpha(float coordinate, float axisLength, float fadeLength)
+{
+    return 1.0 - smoothstep(axisLength, axisLength + fadeLength, abs(coordinate));
+}
+
 float ComputeDepth(vec3 worldPosition)
 {
     vec4 clipPosition = Projection * View * vec4(worldPosition, 1.0);
@@ -84,7 +89,9 @@ void main()
     float lod1 = lod0 * majorStep;
     float lod2 = lod1 * majorStep;
     vec2 lineWidth = derivatives * max(GridLineWidth, 0.25);
-    vec2 axisLineWidth = min(lineWidth, vec2(max(cellSize * 0.08, 1e-6)));
+    vec2 axisLineWidth = lineWidth * 1.5;
+    float axisLength = cellSize * 4.0;
+    float axisFadeLength = cellSize;
 
     float lod0Alpha = CellAlpha(gridUv, lod0, lineWidth);
     float lod1Alpha = CellAlpha(gridUv, lod1, lineWidth);
@@ -97,8 +104,8 @@ void main()
         ? GridMajorColor
         : (lod1Alpha > 0.0 ? mix(GridMajorColor, GridMinorColor, lodFade) : GridMinorColor);
 
-    float axisXAlpha = AxisAlpha(gridUv.y, axisLineWidth.y);
-    float axisZAlpha = AxisAlpha(gridUv.x, axisLineWidth.x);
+    float axisXAlpha = AxisAlpha(gridUv.y, axisLineWidth.y) * AxisExtentAlpha(gridUv.x, axisLength, axisFadeLength);
+    float axisZAlpha = AxisAlpha(gridUv.x, axisLineWidth.x) * AxisExtentAlpha(gridUv.y, axisLength, axisFadeLength);
     float axisAlpha = max(axisXAlpha, axisZAlpha);
     if (axisAlpha >= lineAlpha && axisAlpha > 0.0)
     {

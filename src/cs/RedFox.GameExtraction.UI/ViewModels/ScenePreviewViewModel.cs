@@ -176,6 +176,10 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         _selectedAnimation = value > 0 && value <= _animations.Count ? _animations[value - 1] : null;
         ConfigureAnimationPlayers(scene);
+        if (Settings.AutoFitScene)
+        {
+            FitScene(scene, true);
+        }
         SceneInvalidated?.Invoke();
     }
 
@@ -190,7 +194,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         {
             case nameof(ScenePreviewSettings.UpAxis):
                 scene.UpAxis = Settings.UpAxis;
-                FitScene(scene, true);
+                FitScene(scene, Settings.AutoFitScene);
                 SceneInvalidated?.Invoke();
                 break;
 
@@ -202,12 +206,62 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 scene.Grid.Enabled = Settings.ShowGrid;
                 SceneInvalidated?.Invoke();
                 break;
+
+            case nameof(ScenePreviewSettings.ShowBones):
+                SetBoneVisibility(scene, Settings.ShowBones);
+                RecomputeBoundsAndFitCamera(Settings.AutoFitScene);
+                SceneInvalidated?.Invoke();
+                break;
+
+            case nameof(ScenePreviewSettings.AutoFitScene):
+                if (Settings.AutoFitScene)
+                {
+                    FitScene(scene, true);
+                    CaptureCameraState();
+                    SceneInvalidated?.Invoke();
+                }
+                break;
         }
+    }
+
+    /// <summary>
+    /// Fits the preview camera to the active scene.
+    /// </summary>
+    public void FitSceneToView()
+    {
+        if (ActiveScene is { } scene)
+        {
+            FitScene(scene, true);
+            CaptureCameraState();
+            SceneInvalidated?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Saves the current orbit so it can be restored when another model is previewed.
+    /// </summary>
+    public void CaptureCameraState()
+    {
+        if (ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        OrbitCamera camera = viewportController.Camera;
+        Settings.CameraState = new ScenePreviewCameraState(camera.OrbitTarget, camera.YawRadians, camera.PitchRadians, camera.Distance);
     }
 
     private static bool IsModel(Scene scene)
     {
         return scene.EnumerateDescendants<Mesh>().Any() || scene.EnumerateDescendants<SkeletonBone>().Any();
+    }
+
+    private static void SetBoneVisibility(Scene scene, bool isVisible)
+    {
+        foreach (SkeletonBone bone in scene.EnumerateDescendants<SkeletonBone>())
+        {
+            bone.ShowSkeletonBone = isVisible;
+        }
     }
 
     private static void EnsureUniqueChildName(SceneNode root, SceneNode node)
@@ -220,7 +274,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static SceneViewportController CreateViewportController(Scene scene)
+    private static SceneViewportController CreateViewportController(Scene scene, ScenePreviewCameraState? cameraState)
     {
         OrbitCamera camera = new("ScenePreviewCamera")
         {
@@ -236,6 +290,15 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             InvertX = true,
             InvertY = true,
         };
+
+        if (cameraState is { } state)
+        {
+            camera.OrbitTarget = state.OrbitTarget;
+            camera.YawRadians = state.YawRadians;
+            camera.PitchRadians = state.PitchRadians;
+            camera.Distance = state.Distance;
+        }
+
         camera.ApplyOrbit();
 
         return new SceneViewportController(scene, camera)
@@ -324,6 +387,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
     private void ShowScene(Scene? scene)
     {
+        CaptureCameraState();
+
         if (scene is not null)
         {
             MoveAppendedAnimations(scene);
@@ -343,11 +408,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         scene.UpAxis = Settings.UpAxis;
         scene.IsAnimationPaused = Settings.IsAnimationPaused;
         scene.Grid.Enabled = Settings.ShowGrid;
-        SceneViewportController viewportController = CreateViewportController(scene);
+        SetBoneVisibility(scene, Settings.ShowBones);
+        bool fitCamera = Settings.AutoFitScene || Settings.CameraState is null;
+        SceneViewportController viewportController = CreateViewportController(scene, Settings.CameraState);
         ViewportController = viewportController;
         ConfigureAnimationPlayers(scene);
-        FitScene(scene, true);
+        FitScene(scene, fitCamera);
         ActiveScene = scene;
+        CaptureCameraState();
         UpdateStats(scene);
     }
 
@@ -378,6 +446,20 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         if (fitCamera && bounds.IsValid)
         {
             viewportController.FitCameraToScene();
+        }
+    }
+
+    private void RecomputeBoundsAndFitCamera(bool fitCamera)
+    {
+        if (ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        if (viewportController.RecomputeBounds() && fitCamera)
+        {
+            viewportController.FitCameraToScene();
+            CaptureCameraState();
         }
     }
 

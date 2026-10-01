@@ -28,6 +28,9 @@
                 <CheckBox Content="View lighting" IsChecked="{Binding Settings.UseViewBasedLighting}"/>
                 <CheckBox Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}"/>
                 <CheckBox Content="Grid" IsChecked="{Binding Settings.ShowGrid}"/>
+                <CheckBox Content="Bones" IsChecked="{Binding Settings.ShowBones}"/>
+                <CheckBox Content="Auto fit" IsChecked="{Binding Settings.AutoFitScene}"/>
+                <Button Content="Fit scene" Click="OnFitClick"/>
             </WrapPanel>
         </Border>
 

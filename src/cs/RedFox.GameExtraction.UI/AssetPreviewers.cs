@@ -60,9 +60,14 @@ public static class AssetPreviewers
                 return null;
             }
 
-            if (context.CurrentPreview?.DataContext is ScenePreviewViewModel current && current.TryAppendAnimations(scenes))
+            if (context.CurrentPreview?.DataContext is ScenePreviewViewModel current)
             {
-                return context.CurrentPreview;
+                if (current.TryAppendAnimations(scenes))
+                {
+                    return context.CurrentPreview;
+                }
+
+                current.CaptureCameraState();
             }
 
             return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, settings) };
