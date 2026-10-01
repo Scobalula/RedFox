@@ -178,7 +178,7 @@
                                               ColumnSpacing="12"
                                               Margin="10,5,14,5">
                                             <Border Classes="asset-icon">
-                                                <PathIcon Data="{StaticResource IconFile}" Width="16" Height="16"/>
+                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
                                             </Border>
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                                 <TextBlock Classes="asset-name"

@@ -15,19 +15,28 @@
                 </Border>
 
                 <ListBox x:Name="SourceList"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                         Classes="asset-list"
+                         ClipToBounds="True"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.AllowAutoHide="False">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="model:AssetSourceViewModel">
-                            <Grid ColumnDefinitions="*,Auto" Margin="8,6" ColumnSpacing="12">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Medium" Foreground="{DynamicResource ThemeForegroundBrush}"/>
-                                    <TextBlock Text="{Binding Location}" Classes="status-text" TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <TextBlock Text="{Binding Kind}" Classes="status-text"/>
-                                        <TextBlock Text="{Binding AssetCount, StringFormat='{}{0:N0} assets'}" Classes="status-text"/>
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="10,5,14,5" ColumnSpacing="12">
+                                <Border Classes="asset-icon">
+                                    <PathIcon Data="{StaticResource IconFolder}" Width="16" Height="16"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                    <TextBlock Classes="asset-name" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Classes="asset-info" Text="{Binding Location}" TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Classes="asset-info" Text="{Binding AssetCount, StringFormat='{}{0:N0} assets'}"/>
                                     </StackPanel>
                                 </StackPanel>
-                                <Button Grid.Column="1"
+                                <Border Grid.Column="2" Classes="pill" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Kind}"/>
+                                </Border>
+                                <Button Grid.Column="3"
                                         Classes="secondary-btn"
                                         Content="Unload"
                                         VerticalAlignment="Center"

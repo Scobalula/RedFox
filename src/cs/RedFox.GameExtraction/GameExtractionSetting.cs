@@ -11,14 +11,9 @@ public sealed class GameExtractionSetting
     public required string Name { get; init; }
 
     /// <summary>
-    /// Gets the group tag used to display settings together.
+    /// Gets the supported group used to display this setting.
     /// </summary>
-    public string? Group { get; init; }
-
-    /// <summary>
-    /// Gets the legacy category shown above the setting when no group is set.
-    /// </summary>
-    public string Category { get; init; } = "General";
+    public GameExtractionSettingGroup Group { get; init; } = GameExtractionSettingGroup.General;
 
     /// <summary>
     /// Gets the label shown next to the setting.

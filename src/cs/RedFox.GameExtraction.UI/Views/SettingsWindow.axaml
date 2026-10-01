@@ -31,8 +31,16 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SettingGroupViewModel">
                             <StackPanel>
-                                <TextBlock Classes="setting-category" Text="{Binding Name}"/>
-                                <ItemsControl ItemsSource="{Binding Settings}">
+                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,14,0,4">
+                                    <PathIcon Classes="setting-group-icon"
+                                              Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}"
+                                              Width="14"
+                                              Height="14"
+                                              VerticalAlignment="Center"/>
+                                    <TextBlock Classes="setting-category" Text="{Binding Title}"/>
+                                </StackPanel>
+                                <Separator Classes="sidebar-sep"/>
+                                <ItemsControl ItemsSource="{Binding Settings}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
                                             <StackPanel Spacing="4" Margin="0,0,0,10">

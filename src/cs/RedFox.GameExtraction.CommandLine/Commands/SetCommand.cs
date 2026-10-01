@@ -71,7 +71,7 @@ internal sealed class SetCommand : ICommandLineCommand
 
     private static void WriteSettings(CommandLineSession session)
     {
-        foreach (IGrouping<string, GameExtractionSetting> group in session.SettingDefinitions.GroupBy(setting => setting.Group ?? setting.Category))
+        foreach (IGrouping<GameExtractionSettingGroup, GameExtractionSetting> group in session.SettingDefinitions.GroupBy(setting => setting.Group))
         {
             Grid grid = new Grid().AddColumn(new GridColumn().PadLeft(2).PadRight(3)).AddColumn(new GridColumn().PadRight(3)).AddColumn();
 
@@ -80,7 +80,7 @@ internal sealed class SetCommand : ICommandLineCommand
                 grid.AddRow($"[{session.Theme.Accent}]{Markup.Escape(setting.Name)}[/]", FormatValue(session, session.Settings.GetSettingValue(setting)), $"[{session.Theme.Muted}]{Markup.Escape(setting.Label ?? string.Empty)}[/]");
             }
 
-            session.Console.MarkupLine($"[bold]{Markup.Escape(group.Key)}[/]");
+            session.Console.MarkupLine($"[bold]{Markup.Escape(group.Key.ToString())}[/]");
             session.Console.Write(grid);
         }
     }

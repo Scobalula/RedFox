@@ -26,7 +26,8 @@ public partial class SettingsWindowViewModel : ObservableObject
         _appName = appName;
 
         Groups = [.. settingDefinitions
-            .GroupBy(GetGroupName)
+            .GroupBy(setting => setting.Group)
+            .OrderBy(group => group.Key)
             .Select(group => new SettingGroupViewModel(
                 group.Key,
                 [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, BrowseSettingAsync))]))];
@@ -129,9 +130,4 @@ public partial class SettingsWindowViewModel : ObservableObject
         return await BrowseSettingRequested.Invoke(setting).ConfigureAwait(true);
     }
 
-    private static string GetGroupName(GameExtractionSetting setting)
-    {
-        string? groupName = string.IsNullOrWhiteSpace(setting.Group) ? setting.Category : setting.Group;
-        return string.IsNullOrWhiteSpace(groupName) ? "General" : groupName.Trim();
-    }
 }

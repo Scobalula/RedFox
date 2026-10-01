@@ -13,7 +13,7 @@ public static class TemplateSettings
         new GameExtractionSetting
         {
             Name = "OutputDirectory",
-            Group = "Export",
+            Group = GameExtractionSettingGroup.Export,
             Label = "Output directory",
             Type = GameExtractionSettingType.DirectoryPath,
             DefaultValue = GameExtractionSettings.GetDefaultOutputDirectory(),
@@ -21,7 +21,7 @@ public static class TemplateSettings
         new GameExtractionSetting
         {
             Name = "Overwrite",
-            Group = "Export",
+            Group = GameExtractionSettingGroup.Export,
             Label = "Overwrite existing files",
             Type = GameExtractionSettingType.Boolean,
             DefaultValue = false,
@@ -29,7 +29,7 @@ public static class TemplateSettings
         new GameExtractionSetting
         {
             Name = "PreserveDirectoryStructure",
-            Group = "Export",
+            Group = GameExtractionSettingGroup.Export,
             Label = "Preserve directory structure",
             Type = GameExtractionSettingType.Boolean,
             DefaultValue = true,
@@ -37,7 +37,7 @@ public static class TemplateSettings
         new GameExtractionSetting
         {
             Name = "ExportReferences",
-            Group = "Export",
+            Group = GameExtractionSettingGroup.Export,
             Label = "Export referenced assets",
             Type = GameExtractionSettingType.Boolean,
             DefaultValue = false,
@@ -45,7 +45,7 @@ public static class TemplateSettings
         new GameExtractionSetting
         {
             Name = "ExportReferences",
-            Group = "Man Down the Road",
+            Group = GameExtractionSettingGroup.Model,
             Label = "Well boss man how she cuttin",
             Type = GameExtractionSettingType.Text,
             DefaultValue = false,

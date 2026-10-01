@@ -48,6 +48,11 @@ public sealed class AssetRowViewModel
     public string Type => Asset.Type;
 
     /// <summary>
+    /// Gets the broad content category used for category-specific presentation.
+    /// </summary>
+    public AssetCategory Category => Asset.Category;
+
+    /// <summary>
     /// Gets a value indicating whether a secondary information line should be shown.
     /// </summary>
     public bool HasInformation => _information.Length > 0;

@@ -31,6 +31,11 @@ public sealed class Asset
     public string Type { get; }
 
     /// <summary>
+    /// Gets the broad content category, independently of the source-specific asset type.
+    /// </summary>
+    public AssetCategory Category { get; }
+
+    /// <summary>
     /// Gets optional secondary information describing the asset.
     /// </summary>
     public string? Information { get; }
@@ -111,12 +116,28 @@ public sealed class Asset
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
     /// <param name="userData">Optional loader-defined data for consumers such as asset comparers.</param>
     public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata, object? userData)
+        : this(name, type, dataSource, information, metadata, userData, AssetCategory.Other)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Asset"/> class with its broad content category.
+    /// </summary>
+    /// <param name="name">The name of the asset.</param>
+    /// <param name="type">The logical asset type used for handler dispatch and display.</param>
+    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="information">Optional secondary information describing the asset.</param>
+    /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
+    /// <param name="userData">Optional loader-defined data for consumers such as asset comparers.</param>
+    /// <param name="category">The broad content category of the asset.</param>
+    public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata, object? userData, AssetCategory category)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(type);
 
         Name = name;
         Type = type;
+        Category = category;
         DataSource = dataSource;
         Information = information;
         Metadata = metadata is null

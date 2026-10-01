@@ -71,7 +71,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
 
                 string assetPath = ZipPathUtility.Normalize(entry.FullName);
                 ZipVirtualFile file = new(entry, archiveLock);
-                Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["ArchivePath"] = location, });
+                Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["ArchivePath"] = location, }, null, ZipPathUtility.GetAssetCategory(entry.Name));
 
                 assets.Add(asset);
                 if (assets.Count % 128 == 0)

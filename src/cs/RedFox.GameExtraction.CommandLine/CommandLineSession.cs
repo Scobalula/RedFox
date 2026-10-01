@@ -17,7 +17,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     private static readonly GameExtractionSetting PrintExportedAssetsSetting = new()
     {
         Name = "PrintExportedAssets",
-        Group = "Command Line",
+        Group = GameExtractionSettingGroup.General,
         Label = "Print each asset as it is exported",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = false,
