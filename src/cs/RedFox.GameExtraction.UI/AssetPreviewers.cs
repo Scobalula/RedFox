@@ -14,11 +14,12 @@ namespace RedFox.GameExtraction.UI;
 public static class AssetPreviewers
 {
     /// <summary>
-    /// Creates previewers for scenes, audio buffers, tables, and byte arrays.
+    /// Creates previewers for scenes, images, audio buffers, tables, and byte arrays.
     /// </summary>
     public static IReadOnlyList<IAssetPreviewer> CreateDefault() =>
     [
         CreateScene(),
+        CreateImage(),
         CreateAudio(),
         CreateTable(),
         CreateHex(),
@@ -42,33 +43,45 @@ public static class AssetPreviewers
     /// <summary>
     /// Creates the standard 3D scene previewer.
     /// </summary>
-    public static IAssetPreviewer CreateScene() => new AssetPreviewer(context =>
+    public static IAssetPreviewer CreateScene()
     {
-        IReadOnlyList<Scene> scenes = context.Data switch
+        ScenePreviewSettings settings = new();
+        return new AssetPreviewer(context =>
         {
-            Scene scene => [scene],
-            IEnumerable<Scene> sceneSequence => [.. sceneSequence],
-            _ => [],
-        };
+            IReadOnlyList<Scene> scenes = context.Data switch
+            {
+                Scene scene => [scene],
+                IEnumerable<Scene> sceneSequence => [.. sceneSequence],
+                _ => [],
+            };
 
-        if (scenes.Count == 0)
+            if (scenes.Count == 0)
+            {
+                return null;
+            }
+
+            if (context.CurrentPreview?.DataContext is ScenePreviewViewModel current && current.TryAppendAnimations(scenes))
+            {
+                return context.CurrentPreview;
+            }
+
+            return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, settings) };
+        });
+    }
+
+    /// <summary>
+    /// Creates the standard image previewer for images and textures, which reads unloaded textures in the background.
+    /// </summary>
+    public static IAssetPreviewer CreateImage()
+    {
+        ImagePreviewSettings settings = new();
+        return new AssetPreviewer(context => context.Data switch
         {
-            return null;
-        }
-
-        if (context.CurrentPreview?.DataContext is ScenePreviewViewModel current && current.TryAppendAnimations(scenes))
-        {
-            return context.CurrentPreview;
-        }
-
-        ScenePreviewViewModel viewModel = new(scenes);
-        if (context.CurrentPreview?.DataContext is ScenePreviewViewModel previous)
-        {
-            viewModel.CopyViewerSettingsFrom(previous);
-        }
-
-        return new ScenePreviewView { DataContext = viewModel };
-    });
+            RedFox.Imaging.Image image => new ImagePreviewView { DataContext = new ImagePreviewViewModel(image, settings) },
+            Texture texture => new ImagePreviewView { DataContext = new ImagePreviewViewModel(texture, context.AssetManager.GetRequiredService<ImageTranslatorService>().Manager, settings) },
+            _ => null,
+        });
+    }
 
     /// <summary>
     /// Creates the standard audio playback previewer.

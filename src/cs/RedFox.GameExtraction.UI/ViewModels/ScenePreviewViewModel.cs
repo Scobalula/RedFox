@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Numerics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.Graphics3D;
@@ -8,10 +9,10 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
-/// Drives the 3D preview for one or more scenes: scene and animation selection, viewport fitting, and renderer options.
-/// Animation-only payloads can be appended to the displayed model so animations are browsed without reloading the mesh.
+/// Drives the 3D preview for one or more scenes: scene and animation selection and viewport fitting. Viewer preferences live in the
+/// shared <see cref="ScenePreviewSettings"/>. Animation-only payloads can be appended to the displayed model so animations are browsed without reloading the mesh.
 /// </summary>
-public partial class ScenePreviewViewModel : ObservableObject
+public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 {
     private const string AllAnimationsLabel = "All animations";
 
@@ -24,6 +25,11 @@ public partial class ScenePreviewViewModel : ObservableObject
     /// Occurs when the scene was mutated in a way the renderer cannot observe and a redraw is needed.
     /// </summary>
     public event Action? SceneInvalidated;
+
+    /// <summary>
+    /// Gets the viewer preferences shared with other scene previews.
+    /// </summary>
+    public ScenePreviewSettings Settings { get; }
 
     /// <summary>
     /// Gets the available scenes.
@@ -82,36 +88,6 @@ public partial class ScenePreviewViewModel : ObservableObject
     public partial SceneViewportController? ViewportController { get; private set; }
 
     /// <summary>
-    /// Gets or sets the scene up axis.
-    /// </summary>
-    [ObservableProperty]
-    public partial SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
-
-    /// <summary>
-    /// Gets or sets the renderer skinning mode.
-    /// </summary>
-    [ObservableProperty]
-    public partial SkinningMode SkinningMode { get; set; } = SkinningMode.Linear;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether lighting follows the camera.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool UseViewBasedLighting { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether animation playback is paused.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool IsAnimationPaused { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the ground grid is drawn.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ShowGrid { get; set; } = true;
-
-    /// <summary>
     /// Gets the vertex, face, bone, and animation summary of the displayed scene.
     /// </summary>
     [ObservableProperty]
@@ -126,25 +102,23 @@ public partial class ScenePreviewViewModel : ObservableObject
     /// Initializes a new instance of the <see cref="ScenePreviewViewModel"/> class.
     /// </summary>
     /// <param name="scenes">The scenes to preview. The first scene is shown initially.</param>
-    public ScenePreviewViewModel(IReadOnlyList<Scene> scenes)
+    /// <param name="settings">The viewer preferences shared with other scene previews.</param>
+    public ScenePreviewViewModel(IReadOnlyList<Scene> scenes, ScenePreviewSettings settings)
     {
         ArgumentNullException.ThrowIfNull(scenes);
+        Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        Settings.PropertyChanged += OnSettingsChanged;
         Scenes = scenes;
         SceneNames = [.. scenes.Select(scene => scene.Name)];
         SelectedSceneIndex = scenes.Count > 0 ? 0 : -1;
     }
 
     /// <summary>
-    /// Copies viewer preferences from another scene preview when a different model replaces it.
+    /// Stops observing the shared settings so the preview can be collected.
     /// </summary>
-    internal void CopyViewerSettingsFrom(ScenePreviewViewModel other)
+    public void Dispose()
     {
-        ArgumentNullException.ThrowIfNull(other);
-        UpAxis = other.UpAxis;
-        SkinningMode = other.SkinningMode;
-        UseViewBasedLighting = other.UseViewBasedLighting;
-        IsAnimationPaused = other.IsAnimationPaused;
-        ShowGrid = other.ShowGrid;
+        Settings.PropertyChanged -= OnSettingsChanged;
     }
 
     /// <summary>
@@ -180,7 +154,7 @@ public partial class ScenePreviewViewModel : ObservableObject
             _appendedAnimations.Add(animation);
         }
 
-        _selectedAnimation = animations.Count == 1 ? animations[0] : null;
+        _selectedAnimation = animations[0];
         RefreshAnimations(scene);
         ConfigureAnimationPlayers(scene);
         UpdateStats(scene);
@@ -205,30 +179,29 @@ public partial class ScenePreviewViewModel : ObservableObject
         SceneInvalidated?.Invoke();
     }
 
-    partial void OnUpAxisChanged(SceneUpAxis value)
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (ActiveScene is { } scene)
+        if (ActiveScene is not { } scene)
         {
-            scene.UpAxis = value;
-            FitScene(scene, true);
-            SceneInvalidated?.Invoke();
+            return;
         }
-    }
 
-    partial void OnIsAnimationPausedChanged(bool value)
-    {
-        if (ActiveScene is { } scene)
+        switch (e.PropertyName)
         {
-            scene.IsAnimationPaused = value;
-        }
-    }
+            case nameof(ScenePreviewSettings.UpAxis):
+                scene.UpAxis = Settings.UpAxis;
+                FitScene(scene, true);
+                SceneInvalidated?.Invoke();
+                break;
 
-    partial void OnShowGridChanged(bool value)
-    {
-        if (ActiveScene is { } scene)
-        {
-            scene.Grid.Enabled = value;
-            SceneInvalidated?.Invoke();
+            case nameof(ScenePreviewSettings.IsAnimationPaused):
+                scene.IsAnimationPaused = Settings.IsAnimationPaused;
+                break;
+
+            case nameof(ScenePreviewSettings.ShowGrid):
+                scene.Grid.Enabled = Settings.ShowGrid;
+                SceneInvalidated?.Invoke();
+                break;
         }
     }
 
@@ -351,8 +324,12 @@ public partial class ScenePreviewViewModel : ObservableObject
 
     private void ShowScene(Scene? scene)
     {
-        _selectedAnimation = null;
-        _appendedAnimations.Clear();
+        if (scene is not null)
+        {
+            MoveAppendedAnimations(scene);
+        }
+
+        _selectedAnimation = _selectedAnimation is not null && _appendedAnimations.Contains(_selectedAnimation) ? _selectedAnimation : _appendedAnimations.FirstOrDefault();
         RefreshAnimations(scene);
 
         if (scene is null)
@@ -363,15 +340,29 @@ public partial class ScenePreviewViewModel : ObservableObject
             return;
         }
 
-        scene.UpAxis = UpAxis;
-        scene.IsAnimationPaused = IsAnimationPaused;
-        scene.Grid.Enabled = ShowGrid;
+        scene.UpAxis = Settings.UpAxis;
+        scene.IsAnimationPaused = Settings.IsAnimationPaused;
+        scene.Grid.Enabled = Settings.ShowGrid;
         SceneViewportController viewportController = CreateViewportController(scene);
         ViewportController = viewportController;
         ConfigureAnimationPlayers(scene);
         FitScene(scene, true);
         ActiveScene = scene;
         UpdateStats(scene);
+    }
+
+    private void MoveAppendedAnimations(Scene scene)
+    {
+        foreach (Animation animation in _appendedAnimations)
+        {
+            if (ReferenceEquals(animation.Parent, scene.RootNode))
+            {
+                continue;
+            }
+
+            EnsureUniqueChildName(scene.RootNode, animation);
+            animation.MoveTo(scene.RootNode, ReparentTransformMode.PreserveExisting);
+        }
     }
 
     private void FitScene(Scene scene, bool fitCamera)

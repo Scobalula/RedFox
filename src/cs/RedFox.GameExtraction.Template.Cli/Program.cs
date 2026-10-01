@@ -11,7 +11,7 @@ internal static class Program
         Settings = TemplateSettings.CreateDefaults(),
         SettingDefinitions = TemplateSettings.Definitions,
         Title = "ZIP Explorer",
-        Description = "Open ZIP archives and export raw entries.",
+        Description = "Open ZIP archives to preview and export their entries.",
         AppName = "RedFoxZipExplorer",
         Version = "1.0.0",
         Author = "Scobalula",

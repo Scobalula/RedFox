@@ -8,7 +8,7 @@ namespace RedFox.GameExtraction.Template;
 public static class TemplateAssetManagerFactory
 {
     /// <summary>
-    /// Creates an <see cref="AssetManager"/> configured with ZIP mounting, raw export support,
+    /// Creates an <see cref="AssetManager"/> configured with ZIP mounting, model, animation, image, audio, and raw export support,
     /// and a shared virtual file system service.
     /// </summary>
     /// <returns>A configured asset manager.</returns>
@@ -19,9 +19,12 @@ public static class TemplateAssetManagerFactory
         manager.RegisterSourceReader(new ZipAssetSourceReader());
         manager.RegisterHandler(new ModelHandler());
         manager.RegisterHandler(new AnimationHandler());
+        manager.RegisterHandler(new ImageHandler());
+        manager.RegisterHandler(new AudioHandler());
         manager.RegisterHandler(new RawAssetHandler());
 
         manager.RegisterService<SceneTranslatorService>();
+        manager.RegisterService<ImageTranslatorService>();
 
         return manager;
     }

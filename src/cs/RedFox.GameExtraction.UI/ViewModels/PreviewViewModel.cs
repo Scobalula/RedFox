@@ -230,7 +230,7 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
     private Control? CreateContent(AssetReadResult result)
     {
-        AssetPreviewContext context = new(result, Content);
+        AssetPreviewContext context = new(result, assetManager, Content);
         foreach (IAssetPreviewer previewer in previewers)
         {
             if (previewer.TryCreatePreview(context, out Control? preview))

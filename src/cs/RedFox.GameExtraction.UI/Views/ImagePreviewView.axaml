@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:g3d="using:RedFox.Graphics3D.Avalonia"
+             xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+             x:Class="RedFox.GameExtraction.UI.Views.ImagePreviewView"
+             x:DataType="vm:ImagePreviewViewModel"
+             MinHeight="240">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Classes="preview-toolbar">
+            <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
+                <StackPanel Classes="preview-field" IsEnabled="{Binding HasMultipleMips}">
+                    <TextBlock Text="Mip"/>
+                    <ComboBox Width="150" ItemsSource="{Binding MipNames}" SelectedIndex="{Binding SelectedMipIndex}"/>
+                </StackPanel>
+                <StackPanel Classes="preview-field" IsEnabled="{Binding HasMultipleLayers}">
+                    <TextBlock Text="Slice"/>
+                    <ComboBox Width="130" ItemsSource="{Binding LayerNames}" SelectedIndex="{Binding SelectedLayerIndex}"/>
+                </StackPanel>
+                <StackPanel Classes="preview-field">
+                    <CheckBox Content="R" IsChecked="{Binding Settings.ShowRed}"/>
+                    <CheckBox Content="G" IsChecked="{Binding Settings.ShowGreen}"/>
+                    <CheckBox Content="B" IsChecked="{Binding Settings.ShowBlue}"/>
+                    <CheckBox Content="A" IsChecked="{Binding Settings.ShowAlpha}"/>
+                </StackPanel>
+                <CheckBox Content="Normal Z" IsChecked="{Binding Settings.ReconstructNormal}" IsVisible="{Binding IsTwoChannel}"/>
+                <StackPanel Classes="preview-field" IsVisible="{Binding IsHighDynamicRange}">
+                    <TextBlock Text="Exposure"/>
+                    <Slider Width="110" Minimum="-8" Maximum="8" SmallChange="0.5" Value="{Binding Settings.Exposure}" VerticalAlignment="Center"/>
+                    <TextBlock MinWidth="48" Text="{Binding Settings.ExposureDisplay}"/>
+                </StackPanel>
+                <CheckBox Content="Tile" IsChecked="{Binding Settings.Tile}"/>
+                <CheckBox Content="Flip Y" IsChecked="{Binding Settings.FlipY}"/>
+                <StackPanel Classes="preview-field">
+                    <Button Content="Fit" Click="OnFitClick"/>
+                    <Button Content="1:1" Click="OnActualSizeClick"/>
+                </StackPanel>
+            </WrapPanel>
+        </Border>
+
+        <Panel>
+            <g3d:AvaloniaOpenGlImageControl x:Name="Viewer"
+                                            ClearColor="{DynamicResource ScenePreviewClearColor}"
+                                            Slice="{Binding Slice}"
+                                            Options="{Binding Settings.Options}"
+                                            PointerTexel="{Binding PointerTexel, Mode=OneWayToSource}"/>
+            <Border Classes="preview-overlay"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top">
+                <TextBlock Classes="preview-stats" Text="{Binding #Viewer.Zoom, StringFormat='{}{0:P0}'}"/>
+            </Border>
+            <Border Classes="preview-overlay"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom">
+                <TextBlock Classes="preview-stats" Text="{Binding StatsDisplay}"/>
+            </Border>
+            <Border Classes="preview-overlay"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    IsVisible="{Binding PixelDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Classes="preview-stats" Text="{Binding PixelDisplay}"/>
+            </Border>
+            <TextBlock Classes="preview-stats error"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding HasError}"
+                       Text="{Binding ErrorMessage}"/>
+            <TextBlock Classes="preview-stats error"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !#Viewer.IsSliceSupported}"
+                       Text="{Binding FormatDisplay, StringFormat='{}{0} is not supported by the graphics device'}"/>
+            <ProgressBar Classes="thin"
+                         VerticalAlignment="Top"
+                         IsIndeterminate="True"
+                         IsHitTestVisible="False"
+                         IsVisible="{Binding IsLoading}"/>
+        </Panel>
+    </DockPanel>
+</UserControl>

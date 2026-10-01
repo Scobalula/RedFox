@@ -435,6 +435,7 @@
         <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
     <Style Selector="ComboBox:pointerover">
@@ -446,6 +447,10 @@
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <Style Selector="ComboBox /template/ Popup#PART_Popup">
+        <Setter Property="Width" Value="{Binding $parent[ComboBox].Bounds.Width}"/>
     </Style>
 
     <Style Selector="ComboBox:dropdownopen /template/ Border#PopupBorder">

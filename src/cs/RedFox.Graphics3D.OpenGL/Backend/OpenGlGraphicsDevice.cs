@@ -15,9 +15,12 @@ namespace RedFox.Graphics3D.OpenGL;
 /// </summary>
 public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 {
+    private const string AngleTextureCompressionDxt3Extension = "GL_ANGLE_texture_compression_dxt3";
+    private const string AngleTextureCompressionDxt5Extension = "GL_ANGLE_texture_compression_dxt5";
     private const string ArbTextureCompressionBptcExtension = "GL_ARB_texture_compression_bptc";
     private const string ArbTextureCompressionRgtcExtension = "GL_ARB_texture_compression_rgtc";
     private const string ExtTextureCompressionBptcExtension = "GL_EXT_texture_compression_bptc";
+    private const string ExtTextureCompressionDxt1Extension = "GL_EXT_texture_compression_dxt1";
     private const string ExtTextureCompressionRgtcExtension = "GL_EXT_texture_compression_rgtc";
     private const string ExtTextureCompressionS3tcExtension = "GL_EXT_texture_compression_s3tc";
     private const string ExtTextureCompressionS3tcSrgbExtension = "GL_EXT_texture_compression_s3tc_srgb";
@@ -977,7 +980,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 
     private static bool SupportsS3tcTextureCompression(GL gl)
     {
-        return gl.IsExtensionPresent(ExtTextureCompressionS3tcExtension);
+        return gl.IsExtensionPresent(ExtTextureCompressionS3tcExtension) || (gl.IsExtensionPresent(ExtTextureCompressionDxt1Extension) && gl.IsExtensionPresent(AngleTextureCompressionDxt3Extension) && gl.IsExtensionPresent(AngleTextureCompressionDxt5Extension));
     }
 
     private static bool SupportsS3tcSrgbTextureCompression(GL gl)

@@ -19,15 +19,15 @@
                 </StackPanel>
                 <StackPanel Classes="preview-field">
                     <TextBlock Text="Up axis"/>
-                    <ComboBox Width="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding UpAxis}"/>
+                    <ComboBox Width="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding Settings.UpAxis}"/>
                 </StackPanel>
                 <StackPanel Classes="preview-field">
                     <TextBlock Text="Skinning"/>
-                    <ComboBox Width="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding SkinningMode}"/>
+                    <ComboBox Width="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding Settings.SkinningMode}"/>
                 </StackPanel>
-                <CheckBox Content="View lighting" IsChecked="{Binding UseViewBasedLighting}"/>
-                <CheckBox Content="Pause" IsChecked="{Binding IsAnimationPaused}"/>
-                <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}"/>
+                <CheckBox Content="View lighting" IsChecked="{Binding Settings.UseViewBasedLighting}"/>
+                <CheckBox Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}"/>
+                <CheckBox Content="Grid" IsChecked="{Binding Settings.ShowGrid}"/>
             </WrapPanel>
         </Border>
 
@@ -36,9 +36,9 @@
                                                ClearColor="{DynamicResource ScenePreviewClearColor}"
                                                Scene="{Binding ActiveScene}"
                                                ViewportController="{Binding ViewportController}"
-                                               UseViewBasedLighting="{Binding UseViewBasedLighting}"
-                                               IsAnimationPaused="{Binding IsAnimationPaused}"
-                                               SkinningMode="{Binding SkinningMode}"/>
+                                               UseViewBasedLighting="{Binding Settings.UseViewBasedLighting}"
+                                               IsAnimationPaused="{Binding Settings.IsAnimationPaused}"
+                                               SkinningMode="{Binding Settings.SkinningMode}"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top">

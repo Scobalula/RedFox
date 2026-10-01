@@ -13,7 +13,7 @@ internal static class Program
             AssetManagerFactory = TemplateAssetManagerFactory.Create,
             WindowTitle = "RedFox ZIP Explorer",
             SidebarTitle = "ZIP Explorer",
-            Description = "Open ZIP archives and export raw entries.",
+            Description = "Open ZIP archives to preview and export their entries.",
             AppName = "RedFoxZipExplorer",
             Version = "1.0.0",
             AccentColor = "#0e6996",

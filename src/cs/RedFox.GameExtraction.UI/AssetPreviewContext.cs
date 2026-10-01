@@ -19,13 +19,19 @@ public sealed class AssetPreviewContext
     public object? Data => ReadResult.Data;
 
     /// <summary>
+    /// Gets the asset manager that produced the read result, for previewers that need its services.
+    /// </summary>
+    public AssetManager AssetManager { get; }
+
+    /// <summary>
     /// Gets the currently displayed preview, if any.
     /// </summary>
     public Control? CurrentPreview { get; }
 
-    internal AssetPreviewContext(AssetReadResult readResult, Control? currentPreview)
+    internal AssetPreviewContext(AssetReadResult readResult, AssetManager assetManager, Control? currentPreview)
     {
         ReadResult = readResult ?? throw new ArgumentNullException(nameof(readResult));
+        AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));
         CurrentPreview = currentPreview;
     }
 }

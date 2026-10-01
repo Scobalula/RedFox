@@ -63,7 +63,7 @@ public sealed class GameExtractionConfig
     /// </summary>
     /// <remarks>
     /// Use <see cref="AssetPreviewers.WithDefaults(IAssetPreviewer[])"/> to add custom previewers while retaining
-    /// the standard scene, audio, table, and hex views. A typed previewer can be registered as follows:
+    /// the standard scene, image, audio, table, and hex views. A typed previewer can be registered as follows:
     /// <code>
     /// Previewers = AssetPreviewers.WithDefaults(
     ///     AssetPreviewer.For&lt;MyAiData&gt;(data =&gt; new AiPreviewView { DataContext = new AiPreviewViewModel(data) }));

@@ -1,0 +1,39 @@
+{
+  "name": "Image",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Image",
+  "fragmentShaderName": "Image",
+  "vertexAttributes": [],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "counterClockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": false,
+    "depthWrite": false,
+    "depthCompareFunc": "always",
+    "primitiveTopology": "triangles"
+  },
+  "requirements": {
+    "textures": [
+      { "name": "ImageTexture", "slot": 0, "required": true }
+    ],
+    "uniforms": [
+      { "name": "ImageSize", "valueType": "float2", "required": true },
+      { "name": "ViewportSize", "valueType": "float2", "required": true },
+      { "name": "Offset", "valueType": "float2", "required": true },
+      { "name": "Zoom", "valueType": "float", "required": true },
+      { "name": "ChannelMask", "valueType": "float4", "required": true },
+      { "name": "Exposure", "valueType": "float", "required": false },
+      { "name": "ReconstructNormal", "valueType": "int32", "required": false },
+      { "name": "Tile", "valueType": "int32", "required": false },
+      { "name": "FlipY", "valueType": "int32", "required": false },
+      { "name": "IsSingleChannel", "valueType": "int32", "required": false },
+      { "name": "IsSigned", "valueType": "int32", "required": false },
+      { "name": "EncodeSrgb", "valueType": "int32", "required": false }
+    ]
+  }
+}
