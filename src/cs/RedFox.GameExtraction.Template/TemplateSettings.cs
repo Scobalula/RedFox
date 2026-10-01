@@ -42,6 +42,14 @@ public static class TemplateSettings
             Type = GameExtractionSettingType.Boolean,
             DefaultValue = false,
         },
+        new GameExtractionSetting
+        {
+            Name = "ExportReferences",
+            Group = "Man Down the Road",
+            Label = "Well boss man how she cuttin",
+            Type = GameExtractionSettingType.Text,
+            DefaultValue = false,
+        },
     ];
 
     /// <summary>

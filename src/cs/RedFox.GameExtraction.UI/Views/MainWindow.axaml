@@ -94,7 +94,7 @@
                             </Button>
                             <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ClearAllCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconTrash}"/>
+                                    <PathIcon Classes="destructive-icon" Data="{StaticResource IconTrash}"/>
                                     <TextBlock Text="Clear All"/>
                                 </StackPanel>
                             </Button>

@@ -29,10 +29,12 @@ internal sealed class HexBytesViewportControl(HexBytesPreviewControl owner) : Co
         int offsetDigits = HexBytesPreviewControl.GetOffsetDigitCount(bytes);
         double offsetColumnWidth = offsetDigits * HexBytesPreviewControl.CharWidth;
         double hexColumnStart = HexBytesPreviewControl.LeftPadding + offsetColumnWidth + HexBytesPreviewControl.OffsetGap - _owner.HorizontalOffset;
-        double asciiColumnStart = hexColumnStart + bytesPerRow * 3 * HexBytesPreviewControl.CharWidth + HexBytesPreviewControl.AsciiGap;
+        int groupSeparators = HexBytesPreviewControl.GetByteGroupSeparatorCount(bytesPerRow);
+        double hexColumnWidth = (bytesPerRow * 3 + groupSeparators) * HexBytesPreviewControl.CharWidth;
+        double asciiColumnStart = hexColumnStart + hexColumnWidth + HexBytesPreviewControl.AsciiGap;
 
         HexBytesPreviewControl.DrawText(context, "Offset", HexBytesPreviewControl.HeaderTextBrush, new Point(HexBytesPreviewControl.LeftPadding, 7));
-        HexBytesPreviewControl.DrawText(context, HexBytesPreviewControl.CreateHeader(bytesPerRow), HexBytesPreviewControl.HeaderTextBrush, new Point(hexColumnStart, 7));
+        HexBytesPreviewControl.DrawGroupedText(context, HexBytesPreviewControl.CreateHeader(bytesPerRow), bytesPerRow, isHex: true, new Point(hexColumnStart, 7));
         HexBytesPreviewControl.DrawText(context, "ASCII", HexBytesPreviewControl.HeaderTextBrush, new Point(asciiColumnStart, 7));
 
         if (bytes.Length == 0)
@@ -50,11 +52,13 @@ internal sealed class HexBytesViewportControl(HexBytesPreviewControl owner) : Co
             double rowY = HexBytesPreviewControl.HeaderHeight + HexBytesPreviewControl.TopPadding + ((rowIndex - startRow) * HexBytesPreviewControl.RowHeight);
 
             if (rowIndex % 2 == 1)
+            {
                 context.DrawRectangle(HexBytesPreviewControl.AlternateRowBrush, null, new Rect(0, rowY, bounds.Width, HexBytesPreviewControl.RowHeight));
+            }
 
             HexBytesPreviewControl.DrawText(context, offset.ToString($"X{offsetDigits}", CultureInfo.InvariantCulture), HexBytesPreviewControl.OffsetTextBrush, new Point(HexBytesPreviewControl.LeftPadding, rowY + 2));
-            HexBytesPreviewControl.DrawText(context, HexBytesPreviewControl.CreateHexRow(bytes, offset, count), HexBytesPreviewControl.HexTextBrush, new Point(hexColumnStart, rowY + 2));
-            HexBytesPreviewControl.DrawText(context, HexBytesPreviewControl.CreateAsciiRow(bytes, offset, count), HexBytesPreviewControl.AsciiTextBrush, new Point(asciiColumnStart, rowY + 2));
+            HexBytesPreviewControl.DrawGroupedText(context, HexBytesPreviewControl.CreateHexRow(bytes, offset, count), count, isHex: true, new Point(hexColumnStart, rowY + 2));
+            HexBytesPreviewControl.DrawGroupedText(context, HexBytesPreviewControl.CreateAsciiRow(bytes, offset, count), count, isHex: false, new Point(asciiColumnStart, rowY + 2));
         }
     }
 }

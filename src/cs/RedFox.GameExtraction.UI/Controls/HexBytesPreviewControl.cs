@@ -15,6 +15,7 @@ namespace RedFox.GameExtraction.UI.Controls;
 public sealed class HexBytesPreviewControl : UserControl
 {
     private const int DefaultBytesPerRow = 16;
+    internal const int BytesPerColorGroup = 4;
     internal const double HeaderHeight = 28;
     internal const double RowHeight = 22;
     internal const double LeftPadding = 12;
@@ -31,7 +32,13 @@ public sealed class HexBytesPreviewControl : UserControl
     internal static readonly IBrush HeaderTextBrush = Brush.Parse("#A1A1A1");
     internal static readonly IBrush OffsetTextBrush = Brush.Parse("#A1A1A1");
     internal static readonly IBrush HexTextBrush = Brush.Parse("#FAFAFA");
-    internal static readonly IBrush AsciiTextBrush = Brush.Parse("#B8B8B8");
+    internal static readonly IReadOnlyList<IBrush> ByteGroupBrushes =
+    [
+        Brush.Parse("#8DD6FF"),
+        Brush.Parse("#E8C17A"),
+        Brush.Parse("#C5A5FF"),
+        Brush.Parse("#8FD6A3"),
+    ];
     internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#1AFFFFFF");
 
     private readonly ScrollBar _horizontalScrollBar;
@@ -67,6 +74,7 @@ public sealed class HexBytesPreviewControl : UserControl
         _viewport = new HexBytesViewportControl(this);
         _viewport.PointerWheelChanged += OnViewportPointerWheelChanged;
         _viewport.SizeChanged += OnViewportSizeChanged;
+        SizeChanged += OnViewportSizeChanged;
 
         _verticalScrollBar = new ScrollBar
         {
@@ -97,6 +105,7 @@ public sealed class HexBytesPreviewControl : UserControl
 
         Grid root = new()
         {
+            Background = BackgroundBrush,
             RowDefinitions = new RowDefinitions("*,Auto"),
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
         };
@@ -152,11 +161,7 @@ public sealed class HexBytesPreviewControl : UserControl
 
     internal int VisibleRowCount
     {
-        get
-        {
-        double contentHeight = Math.Max(0, _viewport.Bounds.Height - HeaderHeight - (TopPadding * 2));
-        return Math.Max(1, (int)Math.Floor(contentHeight / RowHeight));
-        }
+        get => CalculateVisibleRowCount(_viewport.Bounds.Height);
     }
 
     internal int FirstVisibleRow => _firstVisibleRow;
@@ -246,25 +251,35 @@ public sealed class HexBytesPreviewControl : UserControl
 
         try
         {
-            int visibleRows = VisibleRowCount;
+            bool hasControlSize = Bounds.Width > 0 && Bounds.Height > 0;
+            double contentWidth = GetContentWidth(PreviewBytes, GetBytesPerRow());
+            bool showHorizontalScrollBar = hasControlSize && contentWidth > Bounds.Width;
+            bool showVerticalScrollBar = hasControlSize && RowCount > CalculateVisibleRowCount(Bounds.Height);
+            if (showHorizontalScrollBar) showVerticalScrollBar = hasControlSize && RowCount > CalculateVisibleRowCount(Bounds.Height - _horizontalScrollBar.Height);
+            if (showVerticalScrollBar) showHorizontalScrollBar = hasControlSize && contentWidth > Bounds.Width - _verticalScrollBar.Width;
+
+            double viewportWidth = Math.Max(0, Bounds.Width - (showVerticalScrollBar ? _verticalScrollBar.Width : 0));
+            double viewportHeight = Math.Max(0, Bounds.Height - (showHorizontalScrollBar ? _horizontalScrollBar.Height : 0));
+            int visibleRows = CalculateVisibleRowCount(viewportHeight);
+
             int maxFirstRow = Math.Max(0, RowCount - visibleRows);
             _firstVisibleRow = Math.Clamp(_firstVisibleRow, 0, maxFirstRow);
 
-            _verticalScrollBar.IsVisible = RowCount > visibleRows;
             _verticalScrollBar.Maximum = maxFirstRow;
             _verticalScrollBar.ViewportSize = visibleRows;
             _verticalScrollBar.SmallChange = 1;
             _verticalScrollBar.LargeChange = Math.Max(1, visibleRows - 1);
             _verticalScrollBar.Value = _firstVisibleRow;
+            _verticalScrollBar.Visibility = hasControlSize && showVerticalScrollBar ? ScrollBarVisibility.Visible : ScrollBarVisibility.Hidden;
 
-            double maxHorizontalOffset = Math.Max(0, GetContentWidth(PreviewBytes, GetBytesPerRow()) - _viewport.Bounds.Width);
+            double maxHorizontalOffset = Math.Max(0, contentWidth - viewportWidth);
             _horizontalOffset = Math.Clamp(_horizontalOffset, 0, maxHorizontalOffset);
-            _horizontalScrollBar.IsVisible = maxHorizontalOffset > 0;
             _horizontalScrollBar.Maximum = maxHorizontalOffset;
-            _horizontalScrollBar.ViewportSize = Math.Max(0, _viewport.Bounds.Width);
+            _horizontalScrollBar.ViewportSize = viewportWidth;
             _horizontalScrollBar.SmallChange = 24;
-            _horizontalScrollBar.LargeChange = Math.Max(64, _viewport.Bounds.Width * 0.5);
+            _horizontalScrollBar.LargeChange = Math.Max(64, viewportWidth * 0.5);
             _horizontalScrollBar.Value = _horizontalOffset;
+            _horizontalScrollBar.Visibility = hasControlSize && showHorizontalScrollBar ? ScrollBarVisibility.Visible : ScrollBarVisibility.Hidden;
         }
         finally
         {
@@ -274,22 +289,37 @@ public sealed class HexBytesPreviewControl : UserControl
 
     internal int GetBytesPerRow() => Math.Clamp(BytesPerRow, 1, 64);
 
+    private static int CalculateVisibleRowCount(double viewportHeight)
+    {
+        double contentHeight = Math.Max(0, viewportHeight - HeaderHeight - (TopPadding * 2));
+        return Math.Max(1, (int)Math.Floor(contentHeight / RowHeight));
+    }
+
+    internal static int GetByteGroupSeparatorCount(int byteCount) => Math.Max(0, (byteCount - 1) / BytesPerColorGroup);
+
     private static double GetContentWidth(byte[]? bytes, int bytesPerRow)
     {
         int offsetDigits = bytes is { Length: > 0 } ? GetOffsetDigitCount(bytes) : 8;
-        return LeftPadding + offsetDigits * CharWidth + OffsetGap + bytesPerRow * 3 * CharWidth + AsciiGap + bytesPerRow * CharWidth + LeftPadding;
+        int groupSeparators = GetByteGroupSeparatorCount(bytesPerRow);
+        double hexWidth = (bytesPerRow * 3 + groupSeparators) * CharWidth;
+        double asciiWidth = (bytesPerRow + groupSeparators) * CharWidth;
+        return LeftPadding + offsetDigits * CharWidth + OffsetGap + hexWidth + AsciiGap + asciiWidth + LeftPadding;
     }
 
     internal static int GetOffsetDigitCount(byte[] bytes) => Math.Max(8, (bytes.Length - 1).ToString("X", CultureInfo.InvariantCulture).Length);
 
-    internal static string CreateHeader(int bytesPerRow)
+    internal static string CreateHeader(int byteCount)
     {
-        StringBuilder builder = new(bytesPerRow * 3);
-        for (int index = 0; index < bytesPerRow; index++)
+        StringBuilder builder = new(byteCount * 3 + GetByteGroupSeparatorCount(byteCount));
+        for (int index = 0; index < byteCount; index++)
         {
             if (index > 0)
             {
                 builder.Append(' ');
+                if (index % BytesPerColorGroup == 0)
+                {
+                    builder.Append(' ');
+                }
             }
 
             builder.Append(index.ToString("X2", CultureInfo.InvariantCulture));
@@ -298,14 +328,18 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    internal static string CreateHexRow(byte[] bytes, int offset, int count)
+    internal static string CreateHexRow(byte[] bytes, int offset, int byteCount)
     {
-        StringBuilder builder = new(count * 3);
-        for (int index = 0; index < count; index++)
+        StringBuilder builder = new(byteCount * 3 + GetByteGroupSeparatorCount(byteCount));
+        for (int index = 0; index < byteCount; index++)
         {
             if (index > 0)
             {
                 builder.Append(' ');
+                if (index % BytesPerColorGroup == 0)
+                {
+                    builder.Append(' ');
+                }
             }
 
             builder.Append(bytes[offset + index].ToString("X2", CultureInfo.InvariantCulture));
@@ -314,16 +348,39 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    internal static string CreateAsciiRow(byte[] bytes, int offset, int count)
+    internal static string CreateAsciiRow(byte[] bytes, int offset, int byteCount)
     {
-        StringBuilder builder = new(count);
-        for (int index = 0; index < count; index++)
+        StringBuilder builder = new(byteCount + GetByteGroupSeparatorCount(byteCount));
+        for (int index = 0; index < byteCount; index++)
         {
+            if (index > 0 && index % BytesPerColorGroup == 0)
+            {
+                builder.Append(' ');
+            }
+
             byte value = bytes[offset + index];
             builder.Append(value is >= 32 and <= 126 ? (char)value : '.');
         }
 
         return builder.ToString();
+    }
+
+    internal static IBrush GetByteGroupBrush(int groupIndex) => ByteGroupBrushes[groupIndex % ByteGroupBrushes.Count];
+
+    internal static void DrawGroupedText(DrawingContext context, string text, int byteCount, bool isHex, Point origin)
+    {
+        FormattedText formattedText = new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, HexTypeface, TextFontSize, HexTextBrush);
+
+        for (int groupStart = 0; groupStart < byteCount; groupStart += BytesPerColorGroup)
+        {
+            int groupCount = Math.Min(BytesPerColorGroup, byteCount - groupStart);
+            int groupIndex = groupStart / BytesPerColorGroup;
+            int textStart = isHex ? groupStart * 3 + groupIndex : groupStart + groupIndex;
+            int textLength = isHex ? groupCount * 3 - 1 : groupCount;
+            formattedText.SetForegroundBrush(GetByteGroupBrush(groupIndex), textStart, textLength);
+        }
+
+        context.DrawText(formattedText, origin);
     }
 
     internal static void DrawText(DrawingContext context, string text, IBrush brush, Point origin)

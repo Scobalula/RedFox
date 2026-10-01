@@ -135,6 +135,7 @@
     <Style Selector="Button.sidebar-btn, Button.accent-btn">
         <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Padding" Value="10,8"/>
+        <Setter Property="MinHeight" Value="34"/>
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="BorderThickness" Value="0"/>
@@ -145,6 +146,14 @@
     <Style Selector="Button.sidebar-btn PathIcon, Button.accent-btn PathIcon">
         <Setter Property="Width" Value="15"/>
         <Setter Property="Height" Value="15"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon, Border.asset-icon PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.destructive-icon">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeDestructiveBrush}"/>
     </Style>
 
     <Style Selector="Button.sidebar-btn TextBlock, Button.accent-btn TextBlock">
@@ -205,6 +214,7 @@
 
     <Style Selector="Button.secondary-btn">
         <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="MinHeight" Value="34"/>
         <Setter Property="MinWidth" Value="90"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
     </Style>
@@ -356,10 +366,62 @@
     <Style Selector="CheckBox">
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="Padding" Value="8,0,0,0"/>
+        <Setter Property="FocusAdorner" Value="{x:Null}"/>
+    </Style>
+
+    <Style Selector="CheckBox /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+
+    <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:pressed /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:checked /template/ Border#NormalRectangle,
+                     CheckBox:indeterminate /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:checked:pointerover /template/ Border#NormalRectangle,
+                     CheckBox:indeterminate:pointerover /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:checked:pressed /template/ Border#NormalRectangle,
+                     CheckBox:indeterminate:pressed /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:checked /template/ Path#CheckGlyph,
+                     CheckBox:indeterminate /template/ Path#CheckGlyph">
+        <Setter Property="Fill" Value="#FFFBEB"/>
+    </Style>
+
+    <Style Selector="CheckBox:disabled">
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="Opacity" Value="0.4"/>
     </Style>
 
     <Style Selector="ComboBox">
-        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="MinHeight" Value="34"/>
         <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
