@@ -8,33 +8,27 @@
 
     <DockPanel>
         <Border DockPanel.Dock="Top" Classes="preview-toolbar">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right"
-                           Classes="preview-stats"
-                           Margin="16,0,0,0"
-                           Text="{Binding StatsDisplay}"/>
-                <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
-                    <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleScenes}">
-                        <TextBlock Text="Scene"/>
-                        <ComboBox MinWidth="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
-                    </StackPanel>
-                    <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleAnimations}">
-                        <TextBlock Text="Animation"/>
-                        <ComboBox MinWidth="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
-                    </StackPanel>
-                    <StackPanel Classes="preview-field">
-                        <TextBlock Text="Up axis"/>
-                        <ComboBox MinWidth="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding UpAxis}"/>
-                    </StackPanel>
-                    <StackPanel Classes="preview-field">
-                        <TextBlock Text="Skinning"/>
-                        <ComboBox MinWidth="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding SkinningMode}"/>
-                    </StackPanel>
-                    <CheckBox Content="View lighting" IsChecked="{Binding UseViewBasedLighting}"/>
-                    <CheckBox Content="Pause" IsChecked="{Binding IsAnimationPaused}"/>
-                    <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}"/>
-                </WrapPanel>
-            </DockPanel>
+            <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleScenes}">
+                    <TextBlock Text="Scene"/>
+                    <ComboBox Width="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
+                </StackPanel>
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleAnimations}">
+                    <TextBlock Text="Animation"/>
+                    <ComboBox Width="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
+                </StackPanel>
+                <StackPanel Classes="preview-field">
+                    <TextBlock Text="Up axis"/>
+                    <ComboBox Width="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding UpAxis}"/>
+                </StackPanel>
+                <StackPanel Classes="preview-field">
+                    <TextBlock Text="Skinning"/>
+                    <ComboBox Width="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding SkinningMode}"/>
+                </StackPanel>
+                <CheckBox Content="View lighting" IsChecked="{Binding UseViewBasedLighting}"/>
+                <CheckBox Content="Pause" IsChecked="{Binding IsAnimationPaused}"/>
+                <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}"/>
+            </WrapPanel>
         </Border>
 
         <Panel>
@@ -49,6 +43,11 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top">
                 <TextBlock x:Name="FpsText" Classes="preview-stats" Text="FPS: -"/>
+            </Border>
+            <Border Classes="preview-overlay"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom">
+                <TextBlock Classes="preview-stats" Text="{Binding StatsDisplay}"/>
             </Border>
         </Panel>
     </DockPanel>

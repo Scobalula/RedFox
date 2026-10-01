@@ -326,7 +326,7 @@
     </Style>
 
     <Style Selector="ListBox.asset-list ListBoxItem:selected, DataGridRow:selected">
-        <Setter Property="Background" Value="#553C1800"/>
+        <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
@@ -367,6 +367,34 @@
 
     <Style Selector="ComboBox:pointerover">
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+    </Style>
+
+    <Style Selector="ComboBoxItem">
+        <Setter Property="Padding" Value="9,6"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+    <Style Selector="ComboBox:dropdownopen /template/ Border#PopupBorder">
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+
+    <Style Selector="ComboBoxItem /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="TextBlock.Foreground" Value="#FFFBEB"/>
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="TextBlock.Foreground" Value="#FFFBEB"/>
     </Style>
 
     <Style Selector="ScrollBar /template/ Thumb">

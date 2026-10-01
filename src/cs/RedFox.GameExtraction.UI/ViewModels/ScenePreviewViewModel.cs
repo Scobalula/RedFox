@@ -135,6 +135,19 @@ public partial class ScenePreviewViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Copies viewer preferences from another scene preview when a different model replaces it.
+    /// </summary>
+    internal void CopyViewerSettingsFrom(ScenePreviewViewModel other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        UpAxis = other.UpAxis;
+        SkinningMode = other.SkinningMode;
+        UseViewBasedLighting = other.UseViewBasedLighting;
+        IsAnimationPaused = other.IsAnimationPaused;
+        ShowGrid = other.ShowGrid;
+    }
+
+    /// <summary>
     /// Moves the animations of animation-only scenes onto the displayed model, replacing previously appended animations.
     /// </summary>
     /// <param name="scenes">The incoming scenes.</param>

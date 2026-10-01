@@ -14,6 +14,11 @@
         <SolidColorBrush x:Key="ThemeBorderBrush" Color="#1AFFFFFF"/>
         <SolidColorBrush x:Key="ThemeInputBrush" Color="#26FFFFFF"/>
         <SolidColorBrush x:Key="ThemeRingBrush" Color="#737373"/>
+        <SolidColorBrush x:Key="AssetSelectionBrush" Color="#553C1800"/>
+        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#171717"/>
+        <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF"/>
+        <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
+        <SolidColorBrush x:Key="ComboBoxItemBackground" Color="Transparent"/>
         <SolidColorBrush x:Key="ThemeDestructiveBrush" Color="#FF6467"/>
         <SolidColorBrush x:Key="SecondaryActionBrush" Color="#222222"/>
         <SolidColorBrush x:Key="SecondaryActionHoverBrush" Color="#292929"/>

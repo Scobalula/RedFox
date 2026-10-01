@@ -42,7 +42,7 @@
                                                     <Button DockPanel.Dock="Right" Classes="secondary-btn" Content="Browse" Margin="8,0,0,0" Command="{Binding BrowseCommand}"/>
                                                     <TextBox Classes="search-box" Text="{Binding TextValue}"/>
                                                 </DockPanel>
-                                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" MinWidth="200"/>
+                                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" Width="200"/>
                                                 <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
                                                 <TextBlock Classes="setting-desc" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
                                             </StackPanel>

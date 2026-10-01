@@ -137,11 +137,12 @@
                         <Border DockPanel.Dock="Top"
                                 Classes="preview-toolbar">
                             <DockPanel>
-                                <TextBlock Classes="status-text"
+                                <TextBlock DockPanel.Dock="Right"
+                                           Classes="status-text"
                                            Text="{Binding SelectedAssetsSummary}"
                                            IsVisible="{Binding HasSelectedAssets}"
                                            VerticalAlignment="Center"/>
-                                <StackPanel DockPanel.Dock="Right"
+                                <StackPanel DockPanel.Dock="Left"
                                             Orientation="Horizontal"
                                             Spacing="8"
                                             VerticalAlignment="Center">

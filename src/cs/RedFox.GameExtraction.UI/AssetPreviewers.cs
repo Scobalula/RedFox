@@ -61,7 +61,13 @@ public static class AssetPreviewers
             return context.CurrentPreview;
         }
 
-        return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes) };
+        ScenePreviewViewModel viewModel = new(scenes);
+        if (context.CurrentPreview?.DataContext is ScenePreviewViewModel previous)
+        {
+            viewModel.CopyViewerSettingsFrom(previous);
+        }
+
+        return new ScenePreviewView { DataContext = viewModel };
     });
 
     /// <summary>
