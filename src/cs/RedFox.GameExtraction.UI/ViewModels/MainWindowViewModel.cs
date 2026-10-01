@@ -35,6 +35,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private bool _progressUpdatePosted;
     private bool _isPreviewWindowOpen;
     private AssetRowViewModel[]? _pendingPreviewSelection;
+    private int _exportFailureCount;
 
     /// <summary>
     /// Gets the application configuration.
@@ -271,6 +272,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         Preview = new PreviewViewModel(_assetManager, config.Previewers);
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
+        _assetManager.AssetExportFailed += OnAssetExportFailed;
 
         if (!_assetManager.TryGetService(out PluginsService? plugins))
         {
@@ -522,6 +524,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _filterOptionsGeneration++;
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
+        _assetManager.AssetExportFailed -= OnAssetExportFailed;
         Plugins.Dispose();
         _currentCts?.Cancel();
         _currentCts = null;
@@ -989,6 +992,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ProgressDialog = progressVm;
         ShowProgressDialog = true;
         StatusText = $"Exporting {rowList.Count:N0} assets...";
+        Interlocked.Exchange(ref _exportFailureCount, 0);
+        bool completed = false;
 
         try
         {
@@ -996,7 +1001,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
             await Task.Run(() => _assetManager.ExportAsync([.. rowList.Select(row => row.Asset)], configuration, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
-            StatusText = $"Exported {rowList.Count:N0} assets";
+            int failureCount = Volatile.Read(ref _exportFailureCount);
+            string summary = failureCount == 0
+                ? $"Exported {rowList.Count:N0} assets"
+                : $"Completed {rowList.Count - failureCount:N0} of {rowList.Count:N0} assets; {failureCount:N0} failed";
+            progressVm.StatusText = summary;
+            progressVm.Current = rowList.Count;
+            progressVm.ProgressValue = 100;
+            progressVm.IsIndeterminate = false;
+            progressVm.IsCompleted = true;
+            progressVm.OpenExportFolderCommand = new RelayCommand(() => OpenExportFolder(progressVm, configuration.OutputDirectory));
+            StatusText = summary;
+            completed = true;
         }
         catch (OperationCanceledException)
         {
@@ -1008,8 +1024,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
-            ProgressDialog = null;
+            if (!completed)
+            {
+                ShowProgressDialog = false;
+                ProgressDialog = null;
+            }
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
                 _currentCts = null;
@@ -1122,7 +1141,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         SourceManagerRequested?.Invoke();
     }
 
-    private static ProgressDialogViewModel CreateProgressDialog(string title, CancellationTokenSource cancellationSource)
+    private ProgressDialogViewModel CreateProgressDialog(string title, CancellationTokenSource cancellationSource)
     {
         ProgressDialogViewModel progressVm = new(title);
         progressVm.CancelCommand = new RelayCommand(() =>
@@ -1132,7 +1151,29 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             progressVm.IsIndeterminate = true;
             cancellationSource.Cancel();
         });
+        progressVm.CloseCommand = new RelayCommand(() =>
+        {
+            if (ReferenceEquals(ProgressDialog, progressVm))
+            {
+                ShowProgressDialog = false;
+                ProgressDialog = null;
+            }
+        });
         return progressVm;
+    }
+
+    private static void OpenExportFolder(ProgressDialogViewModel progressVm, string outputDirectory)
+    {
+        try
+        {
+            string fullPath = Path.GetFullPath(outputDirectory);
+            Directory.CreateDirectory(fullPath);
+            Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            progressVm.StatusText = $"Unable to open export folder: {exception.Message}";
+        }
     }
 
     private void OnOperationFailed(object? sender, AssetOperationFailedEventArgs args)
@@ -1153,6 +1194,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         string status = args.Skipped ? $"Skipped {args.Asset.Name}" : $"Exported {args.Asset.Name}";
         QueueProgressUpdate(progressVm, status, completedOperation: true);
+    }
+
+    private void OnAssetExportFailed(object? sender, AssetExportFailedEventArgs args)
+    {
+        Interlocked.Increment(ref _exportFailureCount);
+        ProgressDialogViewModel? progressVm = ProgressDialog;
+        if (progressVm is null)
+        {
+            return;
+        }
+
+        QueueProgressUpdate(progressVm, $"Failed {args.Asset.Name}", completedOperation: true);
     }
 
     private void QueueProgressUpdate(ProgressDialogViewModel progressVm, string status, bool completedOperation = false)
@@ -1204,7 +1257,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             _progressUpdatePosted = false;
         }
 
-        if (progressVm is null || !ReferenceEquals(ProgressDialog, progressVm))
+        if (progressVm is null || !ReferenceEquals(ProgressDialog, progressVm) || progressVm.IsCompleted)
         {
             return;
         }

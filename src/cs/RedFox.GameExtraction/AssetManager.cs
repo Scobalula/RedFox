@@ -55,6 +55,11 @@ public sealed class AssetManager
     public event EventHandler<AssetExportCompletedEventArgs>? AssetExportCompleted;
 
     /// <summary>
+    /// Occurs when an asset fails during a batch export.
+    /// </summary>
+    public event EventHandler<AssetExportFailedEventArgs>? AssetExportFailed;
+
+    /// <summary>
     /// Occurs when a manager operation fails.
     /// </summary>
     public event EventHandler<AssetOperationFailedEventArgs>? OperationFailed;
@@ -758,7 +763,18 @@ public sealed class AssetManager
         foreach (Asset asset in assets)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await ExportAsync(asset, string.Empty, configuration, progress, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await ExportAsync(asset, string.Empty, configuration, progress, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                AssetExportFailed?.Invoke(this, new AssetExportFailedEventArgs(asset, exception));
+            }
         }
     }
 

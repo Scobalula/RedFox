@@ -50,6 +50,12 @@ public partial class ProgressDialogViewModel(string title) : ObservableObject
     public partial bool IsCancelling { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the operation has completed successfully.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsCompleted { get; set; }
+
+    /// <summary>
     /// Gets the formatted completed and total item counts.
     /// </summary>
     public string ProgressText => Total > 0
@@ -63,4 +69,16 @@ public partial class ProgressDialogViewModel(string title) : ObservableObject
     /// Gets or sets the command that cancels the operation.
     /// </summary>
     public IRelayCommand? CancelCommand { get; set; }
+
+    /// <summary>
+    /// Gets or sets the command that opens the export output directory.
+    /// </summary>
+    [ObservableProperty]
+    public partial IRelayCommand? OpenExportFolderCommand { get; set; }
+
+    /// <summary>
+    /// Gets or sets the command that closes the completed progress dialog.
+    /// </summary>
+    [ObservableProperty]
+    public partial IRelayCommand? CloseCommand { get; set; }
 }

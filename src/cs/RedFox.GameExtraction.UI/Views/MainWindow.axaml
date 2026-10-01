@@ -259,12 +259,29 @@
                                    TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis"/>
                     </DockPanel>
-                    <Button Classes="secondary-btn"
-                            Content="Cancel"
-                            Command="{Binding CancelCommand}"
-                            IsEnabled="{Binding !IsCancelling}"
-                            Width="96"
-                            HorizontalAlignment="Right"/>
+                    <Grid Height="32" ColumnDefinitions="*,Auto">
+                        <Button Grid.Column="0"
+                                Classes="secondary-btn"
+                                Content="Open Export Folder"
+                                Command="{Binding OpenExportFolderCommand}"
+                                IsVisible="{Binding IsCompleted}"
+                                HorizontalAlignment="Left"/>
+                        <Button Grid.Column="1"
+                                Classes="secondary-btn"
+                                Content="Cancel"
+                                Command="{Binding CancelCommand}"
+                                IsVisible="{Binding !IsCompleted}"
+                                IsEnabled="{Binding !IsCancelling}"
+                                Width="96"
+                                HorizontalAlignment="Right"/>
+                        <Button Grid.Column="1"
+                                Classes="secondary-btn"
+                                Content="Close"
+                                Command="{Binding CloseCommand}"
+                                IsVisible="{Binding IsCompleted}"
+                                Width="96"
+                                HorizontalAlignment="Right"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Border>
