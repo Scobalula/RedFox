@@ -524,6 +524,8 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         gl.BindTexture(TextureTarget.Texture2D, handle);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, image.MipLevels - 1);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
 
@@ -559,6 +561,8 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         gl.BindTexture(TextureTarget.TextureCubeMap, handle);
         gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMinFilter, image.MipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
         gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureBaseLevel, 0);
+        gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMaxLevel, image.MipLevels - 1);
         gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
         gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
         gl.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapR, (int)GLEnum.ClampToEdge);
