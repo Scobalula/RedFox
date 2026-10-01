@@ -39,4 +39,14 @@ public enum GameExtractionSettingGroup
     /// Settings that do not fit another supported group.
     /// </summary>
     Other,
+
+    /// <summary>
+    /// Settings for animation and skeletal motion assets.
+    /// </summary>
+    Animation,
+
+    /// <summary>
+    /// Settings for text and structured document assets.
+    /// </summary>
+    Document,
 }

@@ -27,7 +27,7 @@ public partial class SettingsWindowViewModel : ObservableObject
 
         Groups = [.. settingDefinitions
             .GroupBy(setting => setting.Group)
-            .OrderBy(group => group.Key)
+            .OrderBy(group => GetGroupOrder(group.Key))
             .Select(group => new SettingGroupViewModel(
                 group.Key,
                 [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, BrowseSettingAsync))]))];
@@ -129,5 +129,19 @@ public partial class SettingsWindowViewModel : ObservableObject
 
         return await BrowseSettingRequested.Invoke(setting).ConfigureAwait(true);
     }
+
+    private static int GetGroupOrder(GameExtractionSettingGroup group) => group switch
+    {
+        GameExtractionSettingGroup.Export => 0,
+        GameExtractionSettingGroup.Model => 1,
+        GameExtractionSettingGroup.Animation => 2,
+        GameExtractionSettingGroup.Image => 3,
+        GameExtractionSettingGroup.Sound => 4,
+        GameExtractionSettingGroup.Archive => 5,
+        GameExtractionSettingGroup.Document => 6,
+        GameExtractionSettingGroup.General => 7,
+        GameExtractionSettingGroup.Other => 8,
+        _ => int.MaxValue,
+    };
 
 }

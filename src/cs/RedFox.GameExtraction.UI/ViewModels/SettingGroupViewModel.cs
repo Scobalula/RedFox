@@ -17,9 +17,11 @@ public sealed class SettingGroupViewModel
     {
         GameExtractionSettingGroup.Export => "Export Settings",
         GameExtractionSettingGroup.Model => "Model Settings",
+        GameExtractionSettingGroup.Animation => "Animation Settings",
         GameExtractionSettingGroup.Image => "Image Settings",
         GameExtractionSettingGroup.Sound => "Sound Settings",
         GameExtractionSettingGroup.Archive => "Archive Settings",
+        GameExtractionSettingGroup.Document => "Document Settings",
         GameExtractionSettingGroup.General => "General Settings",
         _ => "Other Settings",
     };
