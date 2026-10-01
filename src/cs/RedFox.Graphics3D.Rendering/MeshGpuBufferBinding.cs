@@ -195,14 +195,12 @@ public sealed class MeshGpuBufferBinding
         ArgumentNullException.ThrowIfNull(commandList);
         ArgumentNullException.ThrowIfNull(pipeline);
 
-        if (GpuBuffer is not { IsDisposed: false } buffer)
-        {
-            return;
-        }
-
         if (Usage.HasFlag(BufferUsage.Index))
         {
-            commandList.BindIndexBuffer(buffer);
+            if (GpuBuffer is { IsDisposed: false } indexBuffer)
+            {
+                commandList.BindIndexBuffer(indexBuffer);
+            }
             return;
         }
 
@@ -211,10 +209,17 @@ public sealed class MeshGpuBufferBinding
             return;
         }
 
-        commandList.BindBuffer(slot, buffer);
-        if (!Usage.HasFlag(BufferUsage.Vertex))
+        if (Usage.HasFlag(BufferUsage.Sampled))
         {
+            // Assign sampler units even when this optional resource has no GPU buffer.
+            // Otherwise absent samplers retain unit 0, which can alias samplers of a
+            // different type (for example usampler2D bone indices and sampler2D data).
             commandList.SetUniformInt(ShaderName, slot);
+        }
+
+        if (GpuBuffer is { IsDisposed: false } buffer)
+        {
+            commandList.BindBuffer(slot, buffer);
         }
     }
 
