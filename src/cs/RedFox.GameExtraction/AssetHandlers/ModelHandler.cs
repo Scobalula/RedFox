@@ -19,40 +19,43 @@ public abstract class ModelHandler : IAssetHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var imageManager = context.GetRequiredService<ImageTranslatorService>().Manager;
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scenes = result.GetData<Scene[]>();
 
         string relativeAssetPath = context.Configuration.GetOption("PreserveDirectoryStructure", true) ? AssetManager.NormalizeVirtualPath(result.Asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(result.Asset.Name));
         string outputDirectory = context.ResolveOutputDirectory(relativeAssetPath);
 
-        var imageFormats = context.Configuration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
-        var relativeImages = context.Configuration.GetOption("RelativeModelImages", false);
-        var relativeToMaterial = context.Configuration.GetOption("RelativeToMaterialImages", false);
-        var skipExistingImages = context.Configuration.GetOption("SkipExistingImages", true);
-
-        // Each scene holds its own clones of shared materials and textures, so every clone must point at the
-        // exported image, while each image is only written once.
-        var exportedImages = new Dictionary<string, string>();
-
-        foreach (var material in scenes.SelectMany(scene => scene.EnumerateDescendants<Material>()))
+        if (context.Configuration.GetOption("ExportModelImages", true))
         {
-            foreach (var texture in material.Textures.Select(binding => binding.Texture))
+            var imageManager = context.GetRequiredService<ImageTranslatorService>().Manager;
+            var imageFormats = context.Configuration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
+            var relativeImages = context.Configuration.GetOption("RelativeModelImages", false);
+            var relativeToMaterial = context.Configuration.GetOption("RelativeToMaterialImages", false);
+            var skipExistingImages = context.Configuration.GetOption("SkipExistingImages", true);
+
+            // Each scene holds its own clones of shared materials and textures, so every clone must point at the
+            // exported image, while each image is only written once.
+            var exportedImages = new Dictionary<string, string>();
+
+            foreach (var material in scenes.SelectMany(scene => scene.EnumerateDescendants<Material>()))
             {
-                string textureRelativePath = relativeImages ? Path.Combine(relativeAssetPath, "_images") : Path.GetDirectoryName(AssetManager.NormalizeVirtualPath(texture.Name)) ?? string.Empty;
-                if (relativeImages && relativeToMaterial)
-                    textureRelativePath = Path.Combine(textureRelativePath, material.Name);
-
-                string textureName = Path.GetFileNameWithoutExtension(AssetManager.NormalizeVirtualPath(texture.Name));
-                string texturePath = context.ResolveOutputPath(Path.Combine(textureRelativePath, textureName));
-
-                if (!exportedImages.TryGetValue(texturePath, out var filePath))
+                foreach (var texture in material.Textures.Select(binding => binding.Texture))
                 {
-                    filePath = TextureHandler.ExportTexture(texture, imageFormats, imageManager, texturePath, skipExistingImages);
-                    exportedImages[texturePath] = filePath;
-                }
+                    string textureRelativePath = relativeImages ? Path.Combine(relativeAssetPath, "_images") : Path.GetDirectoryName(AssetManager.NormalizeVirtualPath(texture.Name)) ?? string.Empty;
+                    if (relativeImages && relativeToMaterial)
+                        textureRelativePath = Path.Combine(textureRelativePath, material.Name);
 
-                texture.FilePath = filePath;
+                    string textureName = Path.GetFileNameWithoutExtension(AssetManager.NormalizeVirtualPath(texture.Name));
+                    string texturePath = context.ResolveOutputPath(Path.Combine(textureRelativePath, textureName));
+
+                    if (!exportedImages.TryGetValue(texturePath, out var filePath))
+                    {
+                        filePath = TextureHandler.ExportTexture(texture, imageFormats, imageManager, texturePath, skipExistingImages);
+                        exportedImages[texturePath] = filePath;
+                    }
+
+                    texture.FilePath = filePath;
+                }
             }
         }
 
