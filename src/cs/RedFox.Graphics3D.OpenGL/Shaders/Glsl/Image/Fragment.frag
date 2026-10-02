@@ -4,6 +4,7 @@ precision highp int;
 
 uniform sampler2D ImageTexture;
 uniform vec2 ImageSize;
+uniform vec2 DisplaySize;
 uniform vec2 ViewportSize;
 uniform vec2 Offset;
 uniform float Zoom;
@@ -28,8 +29,8 @@ vec4 SampleImage(vec2 texel)
 {
     if (Zoom >= 1.0)
     {
-        ivec2 coordinate = ivec2(texel);
-        coordinate.y = FlipY != 0 ? int(ImageSize.y) - 1 - coordinate.y : coordinate.y;
+        ivec2 coordinate = ivec2(texel * DisplaySize / ImageSize);
+        coordinate.y = FlipY != 0 ? int(DisplaySize.y) - 1 - coordinate.y : coordinate.y;
         return texelFetch(ImageTexture, coordinate, 0);
     }
 

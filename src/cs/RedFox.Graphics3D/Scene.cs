@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using RedFox.Imaging.IO;
 using RedFox.Graphics3D.Skeletal;
 
@@ -52,7 +53,7 @@ namespace RedFox.Graphics3D
 
         /// <summary>
         /// Gets the animation players owned by this scene.
-        /// Use <see cref="CreateAnimationPlayers"/> to rebuild this list from scene content.
+        /// Use <see cref="CreateAnimationPlayers()"/> to rebuild this list from scene content.
         /// </summary>
         public List<AnimationPlayer> AnimationPlayers { get; } = [];
 
@@ -136,24 +137,89 @@ namespace RedFox.Graphics3D
         /// Skeletal players also solve the <see cref="IKHandleNode"/> and <see cref="ConstraintNode"/> instances that drive their bones.
         /// </summary>
         /// <returns>The rebuilt animation player list.</returns>
-        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers()
+        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers() => CreateAnimationPlayers(CancellationToken.None);
+
+        /// <summary>
+        /// Rebuilds animation players and allows the scene scan to be canceled.
+        /// </summary>
+        /// <param name="cancellationToken">The token used to stop animation and bone binding.</param>
+        /// <returns>The rebuilt animation player list.</returns>
+        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers(CancellationToken cancellationToken)
         {
-            AnimationPlayers.Clear();
+            cancellationToken.ThrowIfCancellationRequested();
+            List<AnimationPlayer> newAnimationPlayers = [];
 
             // Find all skeleton roots.
-            List<SceneNode> boneRoots = [.. EnumerateDescendants<Skeleton>()];
+            List<SceneNode> boneRoots = [];
+            foreach (Skeleton skeleton in EnumerateDescendants<Skeleton>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                boneRoots.Add(skeleton);
+            }
+
             foreach (SkeletonBone bone in EnumerateDescendants<SkeletonBone>())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (bone.Parent is not SkeletonBone and not Skeleton)
                 {
                     boneRoots.Add(bone);
                 }
             }
 
-            int playerIndex = 0;
-            foreach (SkeletonAnimation animation in EnumerateDescendants<SkeletonAnimation>())
+            SkeletonAnimation[] skeletalAnimations = [.. EnumerateDescendants<SkeletonAnimation>()];
+            Dictionary<SceneNode, HashSet<string>> boneNamesByRoot = new(ReferenceEqualityComparer.Instance);
+            List<(IKHandleNode Handle, HashSet<SceneNode> Ancestors)> ikHandleAncestors = [];
+            List<(ConstraintNode Constraint, HashSet<SceneNode> Ancestors)> constraintAncestors = [];
+
+            if (skeletalAnimations.Length > 0)
             {
-                SceneNode? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots);
+                foreach (SceneNode boneRoot in boneRoots)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    HashSet<string> boneNames = new(StringComparer.Ordinal);
+                    foreach (SkeletonBone bone in boneRoot.EnumerateHierarchy<SkeletonBone>())
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        boneNames.Add(bone.Name);
+                    }
+
+                    boneNamesByRoot[boneRoot] = boneNames;
+                }
+
+                foreach (IKHandleNode handle in EnumerateDescendants<IKHandleNode>())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    SceneNode endNode = handle.EndNode;
+                    HashSet<SceneNode> ancestors = new(ReferenceEqualityComparer.Instance) { endNode };
+                    foreach (SceneNode ancestor in endNode.EnumerateAncestors())
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        ancestors.Add(ancestor);
+                    }
+
+                    ikHandleAncestors.Add((handle, ancestors));
+                }
+
+                foreach (ConstraintNode constraint in EnumerateHierarchy<ConstraintNode>(SceneNodeFlags.None))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    SceneNode constrainedNode = constraint.ConstrainedNode;
+                    HashSet<SceneNode> ancestors = new(ReferenceEqualityComparer.Instance) { constrainedNode };
+                    foreach (SceneNode ancestor in constrainedNode.EnumerateAncestors())
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        ancestors.Add(ancestor);
+                    }
+
+                    constraintAncestors.Add((constraint, ancestors));
+                }
+            }
+
+            int playerIndex = 0;
+            foreach (SkeletonAnimation animation in skeletalAnimations)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                SceneNode? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots, boneNamesByRoot, cancellationToken);
                 if (boneRoot is null)
                 {
                     continue;
@@ -182,24 +248,27 @@ namespace RedFox.Graphics3D
 
                 player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
 
-                foreach (IKHandleNode handle in EnumerateDescendants<IKHandleNode>())
+                foreach ((IKHandleNode handle, HashSet<SceneNode> ancestors) in ikHandleAncestors)
                 {
-                    if (handle.EndNode.EnumerateAncestors().Prepend(handle.EndNode).Contains(boneRoot))
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (ancestors.Contains(boneRoot))
                         player.AddSolver(handle.CreateSolver());
                 }
 
-                foreach (ConstraintNode constraint in EnumerateHierarchy<ConstraintNode>(SceneNodeFlags.None))
+                foreach ((ConstraintNode constraint, HashSet<SceneNode> ancestors) in constraintAncestors)
                 {
-                    if (constraint.ConstrainedNode.EnumerateAncestors().Prepend(constraint.ConstrainedNode).Contains(boneRoot))
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (ancestors.Contains(boneRoot))
                         player.AddSolver(constraint.CreateSolver());
                 }
 
-                AnimationPlayers.Add(player);
+                newAnimationPlayers.Add(player);
                 playerIndex++;
             }
 
             foreach (MorphAnimation animation in EnumerateDescendants<MorphAnimation>())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f ? animation.Framerate : DefaultAnimationFrameRate;
                 string baseName = string.IsNullOrWhiteSpace(animation.Name) ? $"Morph_{playerIndex}" : animation.Name;
 
@@ -210,10 +279,13 @@ namespace RedFox.Graphics3D
 
                 AnimationPlayer player = new($"{baseName}_Player") { FrameRate = frameRate };
                 player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
-                AnimationPlayers.Add(player);
+                newAnimationPlayers.Add(player);
                 playerIndex++;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
+            AnimationPlayers.Clear();
+            AnimationPlayers.AddRange(newAnimationPlayers);
             return AnimationPlayers;
         }
 
@@ -237,8 +309,13 @@ namespace RedFox.Graphics3D
             node.MoveTo(scene);
             return scene;
         }
-        private static SceneNode? ResolveSkeletonBoneRoot(SkeletonAnimation animation, IReadOnlyList<SceneNode> boneRoots)
+        private static SceneNode? ResolveSkeletonBoneRoot(
+            SkeletonAnimation animation,
+            IReadOnlyList<SceneNode> boneRoots,
+            IReadOnlyDictionary<SceneNode, HashSet<string>> boneNamesByRoot,
+            CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (boneRoots.Count == 0)
             {
                 return null;
@@ -254,10 +331,12 @@ namespace RedFox.Graphics3D
 
             foreach (SceneNode root in boneRoots)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 int matchCount = 0;
                 foreach (SkeletonAnimationTrack track in animation.Tracks)
                 {
-                    if (root.EnumerateHierarchy<SkeletonBone>().Any(b => b.Name.Equals(track.Name)))
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (boneNamesByRoot[root].Contains(track.Name))
                     {
                         matchCount++;
                     }

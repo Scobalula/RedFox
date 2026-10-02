@@ -1,14 +1,18 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Avalonia.Controls;
 using RedFox.GameExtraction.UI.Models;
+using RedFox.Graphics3D;
+using RedFox.Graphics3D.Rendering;
 
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
 /// Reads the payload of the most recently selected asset and asks the configured previewers to create a view for it.
 /// </summary>
-public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers) : ObservableObject
+public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers, ScenePreviewSettings scenePreviewSettings) : ObservableObject
 {
+    private readonly ScenePreviewSettings _scenePreviewSettings = scenePreviewSettings;
+    private readonly SemaphoreSlim _readGate = new(1, 1);
     private CancellationTokenSource? _loadCancellation;
     private int _loadVersion;
 
@@ -127,6 +131,15 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
     public string PlaceholderTitle => ErrorMessage is not null ? "Preview failed" : IsLoading ? "Loading asset data" : Asset is null ? "No asset selected" : "No preview available";
 
     /// <summary>
+    /// Initializes the preview using the default scene preview settings.
+    /// </summary>
+    /// <param name="assetManager">The asset manager used to read selected assets.</param>
+    /// <param name="previewers">The previewers used to display asset payloads.</param>
+    public PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers) : this(assetManager, previewers, new())
+    {
+    }
+
+    /// <summary>
     /// Reads the payload for the last asset in the selection. The current preview stays visible until the new payload arrives.
     /// </summary>
     /// <param name="selection">The assets selected in the main window.</param>
@@ -137,13 +150,14 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
         Cancel();
         SelectionCount = selection.Count;
-        Asset = selection.Count > 0 ? selection[^1] : null;
+        AssetRowViewModel? selectedAsset = selection.Count > 0 ? selection[^1] : null;
+        Asset = selectedAsset;
         ErrorMessage = null;
         ReferenceCount = 0;
         PayloadTypeDisplay = "-";
-        HandlerDisplay = Asset is null ? "-" : assetManager.FindHandler(Asset.Asset)?.GetType().Name ?? "Unknown Handler";
+        HandlerDisplay = selectedAsset is null ? "-" : assetManager.FindHandler(selectedAsset.Asset)?.GetType().Name ?? "Unknown Handler";
 
-        if (Asset is null)
+        if (selectedAsset is null)
         {
             SetContent(null);
             StatusText = "Waiting for selection";
@@ -152,13 +166,31 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
         int loadVersion = ++_loadVersion;
         CancellationTokenSource cancellation = new();
+        CancellationToken cancellationToken = cancellation.Token;
         _loadCancellation = cancellation;
         IsLoading = true;
-        StatusText = $"Reading {Asset.Name}";
+        StatusText = $"Reading {selectedAsset.Name}";
 
+        bool readGateAcquired = false;
         try
         {
-            AssetReadResult result = await assetManager.ReadAsync(Asset.Asset, cancellation.Token).ConfigureAwait(true);
+            await _readGate.WaitAsync(cancellationToken).ConfigureAwait(true);
+            readGateAcquired = true;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Asset handlers can do substantial synchronous parsing before their first await. Start the
+            // read on a worker so that its synchronous work and continuations stay off the UI thread.
+            AssetReadResult result = await Task.Run(
+                () => assetManager.ReadAsync(selectedAsset.Asset, cancellationToken),
+                cancellationToken).ConfigureAwait(true);
+            if (loadVersion != _loadVersion)
+            {
+                return;
+            }
+
+            IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData = await Task.Run(
+                () => PrepareSceneGeometry(result.Data, cancellationToken),
+                cancellationToken).ConfigureAwait(true);
             if (loadVersion != _loadVersion)
             {
                 return;
@@ -166,7 +198,7 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
             PayloadTypeDisplay = result.Data is null ? "None" : FormatTypeName(result.Data.GetType());
             ReferenceCount = result.References.Count;
-            SetContent(CreateContent(result));
+            SetContent(CreateContent(result, preparedSceneData));
             StatusText = Content is null ? $"No preview for {PayloadTypeDisplay}" : $"Ready ({PayloadTypeDisplay})";
         }
         catch (OperationCanceledException)
@@ -183,6 +215,11 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
         }
         finally
         {
+            if (readGateAcquired)
+            {
+                _readGate.Release();
+            }
+
             if (loadVersion == _loadVersion)
             {
                 IsLoading = false;
@@ -228,9 +265,81 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
         return $"{name}<{string.Join(", ", type.GetGenericArguments().Select(FormatTypeName))}>";
     }
 
-    private Control? CreateContent(AssetReadResult result)
+    private static IReadOnlyDictionary<Scene, ScenePreviewData> PrepareSceneGeometry(object? data, CancellationToken cancellationToken)
     {
-        AssetPreviewContext context = new(result, assetManager, Content);
+        Dictionary<Scene, ScenePreviewData> preparedData = new(ReferenceEqualityComparer.Instance);
+        IEnumerable<Scene> scenes = data switch
+        {
+            Scene scene => [scene],
+            IEnumerable<Scene> sceneSequence => sceneSequence,
+            _ => [],
+        };
+
+        foreach (Scene scene in scenes)
+        {
+            SceneNode[] nodes = [.. scene.EnumerateDescendants()];
+            Mesh[] meshes = nodes.OfType<Mesh>().ToArray();
+            Animation[] animations = nodes.OfType<Animation>().ToArray();
+            SkeletonBone[] bones = nodes.OfType<SkeletonBone>().ToArray();
+            bool hasLights = nodes.OfType<Light>().Any();
+
+            foreach (SceneNode node in nodes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                node.ResetLiveTransform();
+            }
+
+            int vertexCount = 0;
+            int faceCount = 0;
+            foreach (Mesh mesh in meshes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (mesh.Normals is not { ElementCount: > 0 })
+                {
+                    mesh.GenerateNormals(cancellationToken);
+                }
+
+                if (mesh.Morph is { } morph)
+                {
+                    Array.Clear(morph.Weights);
+                }
+
+                vertexCount += mesh.VertexCount;
+                faceCount += mesh.FaceCount;
+            }
+
+            // Animation binding walks bones, tracks, constraints, and morph targets. Prepare it before
+            // attaching the scene to the UI; the view model only selects from this prepared player set.
+            scene.CreateAnimationPlayers(cancellationToken);
+
+            SceneBounds boundsWithBones = SceneBounds.Invalid;
+            SceneBounds boundsWithoutBones = SceneBounds.Invalid;
+            foreach (SceneNode node in nodes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (node.Flags.HasFlag(SceneNodeFlags.NoDraw) || !node.TryGetSceneBounds(out SceneBounds nodeBounds))
+                {
+                    continue;
+                }
+
+                boundsWithBones = boundsWithBones.Include(nodeBounds);
+                if (node is not SkeletonBone)
+                {
+                    boundsWithoutBones = boundsWithoutBones.Include(nodeBounds);
+                }
+            }
+
+            ScenePreviewBounds bounds = new(boundsWithBones, boundsWithoutBones);
+            SceneTraversal.PreparePostOrder(scene, cancellationToken);
+            preparedData[scene] = new ScenePreviewData(bounds, nodes, meshes, bones, animations, vertexCount, faceCount, bones.Length, hasLights);
+        }
+
+        return preparedData;
+    }
+
+    private Control? CreateContent(AssetReadResult result, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData)
+    {
+        AssetPreviewContext context = new(result, assetManager, Content, preparedSceneData, _scenePreviewSettings);
         foreach (IAssetPreviewer previewer in previewers)
         {
             if (previewer.TryCreatePreview(context, out Control? preview))

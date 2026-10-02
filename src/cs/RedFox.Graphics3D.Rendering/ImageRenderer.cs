@@ -17,7 +17,11 @@ public sealed class ImageRenderer : IDisposable
     private readonly ICommandList _commandList;
     private IGpuPipelineState? _pipeline;
     private IGpuTexture? _texture;
+    private IGpuTexture? _pendingTexture;
+    private ImageSlice? _pendingSlice;
+    private int _pendingUploadByteOffset;
     private ImageSlice? _uploadedSlice;
+    private ImageSlice? _requestedSlice;
     private int _viewportWidth = 1;
     private int _viewportHeight = 1;
     private bool _disposed;
@@ -31,6 +35,11 @@ public sealed class ImageRenderer : IDisposable
     /// Gets a value indicating whether the graphics device can sample the most recently rendered slice.
     /// </summary>
     public bool IsSliceSupported { get; private set; } = true;
+
+    /// <summary>
+    /// Gets a value indicating whether the requested image slice is still being uploaded.
+    /// </summary>
+    public bool IsTextureUploadPending => _pendingTexture is not null;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ImageRenderer"/> class.
@@ -64,9 +73,27 @@ public sealed class ImageRenderer : IDisposable
     /// <param name="options">The channel, exposure, normal, tiling, and orientation options.</param>
     public void Render(ImageSlice? slice, Vector2 offset, float zoom, ImageViewOptions options)
     {
+        Render(slice, slice, offset, zoom, options);
+    }
+
+    /// <summary>
+    /// Renders the requested slice, using a fallback slice while its texture is uploaded.
+    /// </summary>
+    /// <param name="slice">The slice to draw when ready.</param>
+    /// <param name="fallbackSlice">A lower-resolution slice to display during upload.</param>
+    /// <param name="offset">The offset of the image center from the viewport center, in pixels with Y pointing down.</param>
+    /// <param name="zoom">The number of viewport pixels covered by one texel.</param>
+    /// <param name="options">The channel, exposure, normal, tiling, and orientation options.</param>
+    public void Render(ImageSlice? slice, ImageSlice? fallbackSlice, Vector2 offset, float zoom, ImageViewOptions options)
+    {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        UpdateTexture(slice);
+        if (_graphicsDevice is IProgressiveTextureUploadBudget uploadBudget)
+        {
+            uploadBudget.BeginFrameBufferUploads();
+        }
+
+        UpdateTexture(slice, fallbackSlice);
 
         _commandList.Reset();
         _commandList.SetViewport(_viewportWidth, _viewportHeight);
@@ -80,6 +107,8 @@ public sealed class ImageRenderer : IDisposable
             _commandList.BindTexture(ImageTextureSlot, _texture);
             _commandList.SetUniformInt("ImageTexture", ImageTextureSlot);
             _commandList.SetUniformVector2("ImageSize", new Vector2(current.Width, current.Height));
+            ImageSlice displayed = _uploadedSlice ?? current;
+            _commandList.SetUniformVector2("DisplaySize", new Vector2(displayed.Width, displayed.Height));
             _commandList.SetUniformVector2("ViewportSize", new Vector2(_viewportWidth, _viewportHeight));
             _commandList.SetUniformVector2("Offset", offset);
             _commandList.SetUniformFloat("Zoom", zoom);
@@ -126,34 +155,110 @@ public sealed class ImageRenderer : IDisposable
         }
 
         _texture?.Dispose();
+        _pendingTexture?.Dispose();
         _texture = null;
+        _pendingTexture = null;
         _pipeline?.Dispose();
         _pipeline = null;
         _disposed = true;
     }
 
-    private void UpdateTexture(ImageSlice? slice)
+    private void UpdateTexture(ImageSlice? slice, ImageSlice? fallbackSlice)
     {
-        if (_uploadedSlice is { } uploaded && slice is { } requested && uploaded.Pixels.Equals(requested.Pixels) && uploaded.Format == requested.Format && uploaded.Width == requested.Width && uploaded.Height == requested.Height)
+        if (AreSlicesEqual(_requestedSlice, slice))
         {
+            UploadPendingTexture();
             return;
         }
 
-        _texture?.Dispose();
-        _texture = null;
-        _uploadedSlice = slice;
+        _pendingTexture?.Dispose();
+        _pendingTexture = null;
+        _pendingSlice = null;
+        _pendingUploadByteOffset = 0;
+        _requestedSlice = slice;
         IsSliceSupported = true;
 
         if (slice is not { } current)
         {
+            _texture?.Dispose();
+            _texture = null;
+            _uploadedSlice = null;
             return;
         }
 
         IsSliceSupported = _graphicsDevice.SupportsFormat(current.Format, TextureUsage.Sampled);
-        if (IsSliceSupported)
+        if (!IsSliceSupported)
         {
-            _texture = _graphicsDevice.CreateTexture(current.Width, current.Height, current.Format, TextureUsage.Sampled, current.PixelSpan);
+            _texture?.Dispose();
+            _texture = null;
+            _uploadedSlice = null;
+            return;
         }
+
+        if (fallbackSlice is { } fallback && !AreSlicesEqual(_uploadedSlice, fallbackSlice) && _graphicsDevice.SupportsFormat(fallback.Format, TextureUsage.Sampled))
+        {
+            _texture?.Dispose();
+            _texture = _graphicsDevice.CreateTexture(fallback.Width, fallback.Height, fallback.Format, TextureUsage.Sampled, fallback.PixelSpan);
+            _uploadedSlice = fallback;
+        }
+
+        if (AreSlicesEqual(_uploadedSlice, slice))
+        {
+            return;
+        }
+
+        if (_graphicsDevice is IProgressiveTextureUploadBudget uploadBudget)
+        {
+            _pendingTexture = uploadBudget.CreateTextureStorage(current.Width, current.Height, current.Format, TextureUsage.Sampled);
+            _pendingSlice = current;
+            UploadPendingTexture();
+            return;
+        }
+
+        _texture?.Dispose();
+        _texture = _graphicsDevice.CreateTexture(current.Width, current.Height, current.Format, TextureUsage.Sampled, current.PixelSpan);
+        _uploadedSlice = current;
+    }
+
+    private void UploadPendingTexture()
+    {
+        if (_pendingTexture is null || _pendingSlice is not { } pendingSlice || _graphicsDevice is not IProgressiveTextureUploadBudget uploadBudget)
+        {
+            return;
+        }
+
+        while (uploadBudget.RemainingBufferUploadBytes > 0 && _pendingUploadByteOffset < pendingSlice.SlicePitch)
+        {
+            int uploadedBytes = uploadBudget.UploadTextureRange(_pendingTexture, pendingSlice, _pendingUploadByteOffset);
+            if (uploadedBytes <= 0)
+            {
+                return;
+            }
+
+            _pendingUploadByteOffset += uploadedBytes;
+        }
+
+        if (_pendingUploadByteOffset < pendingSlice.SlicePitch)
+        {
+            return;
+        }
+
+        IGpuTexture? previousTexture = _texture;
+        _texture = _pendingTexture;
+        _pendingTexture = null;
+        _uploadedSlice = pendingSlice;
+        _pendingSlice = null;
+        _pendingUploadByteOffset = 0;
+        previousTexture?.Dispose();
+    }
+
+    private static bool AreSlicesEqual(ImageSlice? left, ImageSlice? right)
+    {
+        return left is { } leftSlice && right is { } rightSlice
+            && leftSlice.Pixels.Equals(rightSlice.Pixels)
+            && leftSlice.Format == rightSlice.Format
+            && leftSlice.Width == rightSlice.Width
+            && leftSlice.Height == rightSlice.Height;
     }
 
     private IGpuPipelineState EnsurePipeline()

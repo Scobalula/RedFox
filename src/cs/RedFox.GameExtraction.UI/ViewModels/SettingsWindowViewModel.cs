@@ -25,7 +25,8 @@ public partial class SettingsWindowViewModel : ObservableObject
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         _appName = appName;
 
-        Groups = [.. settingDefinitions
+        Groups = [.. settingDefinitions.Concat(ScenePreviewSettings.SettingDefinitions)
+            .DistinctBy(setting => setting.Name, StringComparer.OrdinalIgnoreCase)
             .GroupBy(setting => setting.Group)
             .OrderBy(group => GetGroupOrder(group.Key))
             .Select(group => new SettingGroupViewModel(
@@ -139,8 +140,9 @@ public partial class SettingsWindowViewModel : ObservableObject
         GameExtractionSettingGroup.Sound => 4,
         GameExtractionSettingGroup.Archive => 5,
         GameExtractionSettingGroup.Document => 6,
-        GameExtractionSettingGroup.General => 7,
-        GameExtractionSettingGroup.Other => 8,
+        GameExtractionSettingGroup.Preview => 7,
+        GameExtractionSettingGroup.General => 8,
+        GameExtractionSettingGroup.Other => 9,
         _ => int.MaxValue,
     };
 

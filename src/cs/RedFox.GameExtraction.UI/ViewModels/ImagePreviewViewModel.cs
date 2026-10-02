@@ -53,6 +53,11 @@ public sealed partial class ImagePreviewViewModel : ObservableObject
     public partial ImageSlice? Slice { get; private set; }
 
     /// <summary>
+    /// Gets the coarsest mip used while the selected slice is uploaded.
+    /// </summary>
+    public ImageSlice? FallbackSlice { get; private set; }
+
+    /// <summary>
     /// Gets a value indicating whether the format stores values outside the zero to one range.
     /// </summary>
     [ObservableProperty]
@@ -253,9 +258,16 @@ public sealed partial class ImagePreviewViewModel : ObservableObject
     {
         if (_image is not { } image || SelectedMipIndex < 0 || SelectedMipIndex >= image.MipLevels || SelectedLayerIndex < 0 || SelectedLayerIndex >= LayerNames.Count)
         {
+            Slice = null;
+            FallbackSlice = null;
+            OnPropertyChanged(nameof(FallbackSlice));
             return;
         }
 
         Slice = image.Depth > 1 ? image.GetSlice(SelectedMipIndex, 0, SelectedLayerIndex) : image.GetSlice(SelectedMipIndex, SelectedLayerIndex);
+        int fallbackMip = image.MipLevels - 1;
+        int fallbackLayer = image.Depth > 1 ? Math.Clamp(SelectedLayerIndex, 0, Math.Max(1, image.Depth >> fallbackMip) - 1) : SelectedLayerIndex;
+        FallbackSlice = image.Depth > 1 ? image.GetSlice(fallbackMip, 0, fallbackLayer) : image.GetSlice(fallbackMip, fallbackLayer);
+        OnPropertyChanged(nameof(FallbackSlice));
     }
 }

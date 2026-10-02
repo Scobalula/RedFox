@@ -23,6 +23,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     private Matrix4x4[] _uploadedSkinMatrices = [];
     private float[] _uploadedMorphWeights = [];
     private Morph? _morphSource;
+    private bool _isReadyToRender = true;
 
     /// <summary>
     /// Gets the mesh that owns this handle.
@@ -170,6 +171,15 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers[7].Update(_graphicsDevice);
         }
         _buffers[8].Update(_graphicsDevice);
+        _isReadyToRender = true;
+        foreach (MeshGpuBufferBinding buffer in _buffers)
+        {
+            if (buffer.HasPendingUpload)
+            {
+                _isReadyToRender = false;
+                break;
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -178,7 +188,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != Rendering.RenderFlags.Opaque || VertexCount <= 0)
+        if (phase != Rendering.RenderFlags.Opaque || VertexCount <= 0 || !_isReadyToRender)
         {
             return;
         }
@@ -202,6 +212,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
             MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
 
+            // A texture can take several frames to upload. Keep the mesh visible with its base
+            // material color while those textures finish instead of hiding the whole mesh.
             materialHandle.BindResources(commandList);
 
             if (materialHandle.Pipeline is not { } pipeline)
@@ -266,6 +278,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         _uploadedSkinMatrices = [];
         _uploadedMorphWeights = [];
         _morphSource = null;
+        _isReadyToRender = true;
         VertexCount = 0;
         IndexCount = 0;
     }

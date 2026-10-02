@@ -49,4 +49,9 @@ public enum GameExtractionSettingGroup
     /// Settings for text and structured document assets.
     /// </summary>
     Document,
+
+    /// <summary>
+    /// Settings for preview controls.
+    /// </summary>
+    Preview,
 }

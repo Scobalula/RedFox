@@ -45,7 +45,6 @@ public static class AssetPreviewers
     /// </summary>
     public static IAssetPreviewer CreateScene()
     {
-        ScenePreviewSettings settings = new();
         return new AssetPreviewer(context =>
         {
             IReadOnlyList<Scene> scenes = context.Data switch
@@ -70,7 +69,7 @@ public static class AssetPreviewers
                 current.CaptureCameraState();
             }
 
-            return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, settings) };
+            return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, context.PreviewSettings, context.PreparedSceneBounds, context.PreparedSceneData) };
         });
     }
 

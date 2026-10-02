@@ -1,17 +1,62 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using RedFox.GameExtraction;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering;
-using System.Numerics;
 
 namespace RedFox.GameExtraction.UI.ViewModels;
 
-internal readonly record struct ScenePreviewCameraState(Vector3 OrbitTarget, float YawRadians, float PitchRadians, float Distance);
-
 /// <summary>
-/// Viewer preferences shared by every scene preview created by the same previewer, so they persist between assets.
+/// Preview preferences shared across assets and persisted with the application's settings.
 /// </summary>
 public sealed partial class ScenePreviewSettings : ObservableObject
 {
+    private static readonly GameExtractionSetting UpAxisSetting = new()
+    {
+        Name = "PreviewUpAxis",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Up axis",
+        Type = GameExtractionSettingType.Choice,
+        Options = [.. Enum.GetNames<SceneUpAxis>()],
+        DefaultValue = SceneUpAxis.Y,
+    };
+
+    private static readonly GameExtractionSetting SkinningModeSetting = new()
+    {
+        Name = "PreviewSkinningMode",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Skinning mode",
+        Type = GameExtractionSettingType.Choice,
+        Options = [.. Enum.GetNames<SkinningMode>()],
+        DefaultValue = SkinningMode.Linear,
+    };
+
+    private static readonly GameExtractionSetting LightingModeSetting = new()
+    {
+        Name = "PreviewLightingMode",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Lighting mode",
+        Type = GameExtractionSettingType.Choice,
+        Options = [.. Enum.GetNames<ScenePreviewLightingMode>()],
+        DefaultValue = ScenePreviewLightingMode.Scene,
+    };
+
+    private static readonly GameExtractionSetting AutoFitSetting = new()
+    {
+        Name = "PreviewAutoFitScene",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Auto fit scenes",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = true,
+    };
+
+    internal static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
+    [
+        UpAxisSetting,
+        SkinningModeSetting,
+        LightingModeSetting,
+        AutoFitSetting,
+    ];
+
     internal ScenePreviewCameraState? CameraState { get; set; }
 
     /// <summary>
@@ -26,11 +71,14 @@ public sealed partial class ScenePreviewSettings : ObservableObject
     [ObservableProperty]
     public partial SkinningMode SkinningMode { get; set; } = SkinningMode.Linear;
 
-    /// <summary>
-    /// Gets or sets a value indicating whether lighting follows the camera.
-    /// </summary>
     [ObservableProperty]
-    public partial bool UseViewBasedLighting { get; set; }
+    [NotifyPropertyChangedFor(nameof(UseViewBasedLighting))]
+    internal partial ScenePreviewLightingMode LightingMode { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether view-based lighting is enabled.
+    /// </summary>
+    public bool UseViewBasedLighting => LightingMode == ScenePreviewLightingMode.ViewBased;
 
     /// <summary>
     /// Gets or sets a value indicating whether animation playback is paused.
@@ -55,4 +103,20 @@ public sealed partial class ScenePreviewSettings : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial bool AutoFitScene { get; set; } = true;
+
+    internal void LoadFrom(GameExtractionSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        UpAxis = GetEnumValue(settings, UpAxisSetting, SceneUpAxis.Y);
+        SkinningMode = GetEnumValue(settings, SkinningModeSetting, SkinningMode.Linear);
+        LightingMode = GetEnumValue(settings, LightingModeSetting, ScenePreviewLightingMode.Scene);
+        AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
+    }
+
+    private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback)
+        where TEnum : struct, Enum
+    {
+        string? value = settings.GetSettingValue(setting);
+        return Enum.TryParse(value, ignoreCase: true, out TEnum parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
+    }
 }

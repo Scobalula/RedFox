@@ -2,6 +2,7 @@ using RedFox.Graphics3D.Buffers;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
 
 namespace RedFox.Graphics3D;
 
@@ -315,6 +316,15 @@ public class Mesh : SceneNode
             return;
 
         MeshNormals.Generate(this, mode);
+    }
+
+    /// <summary>Generates equal-weight vertex normals and allows the operation to be canceled.</summary>
+    /// <param name="cancellationToken">The token used to cancel normal generation.</param>
+    public void GenerateNormals(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (Normals is not { ElementCount: > 0 })
+            MeshNormals.Generate(this, NormalGenerationMode.EqualWeight, FaceWinding.CounterClockwise, cancellationToken);
     }
 
     /// <summary>

@@ -37,6 +37,7 @@ public sealed class IconResourceConverter : IValueConverter
             GameExtractionSettingGroup.Archive => "IconArchive",
             GameExtractionSettingGroup.Document => "IconFile",
             GameExtractionSettingGroup.General => "IconSettings",
+            GameExtractionSettingGroup.Preview => "IconEye",
             GameExtractionSettingGroup.Other => "IconOther",
             _ => "IconFile",
         };

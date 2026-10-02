@@ -23,6 +23,7 @@ public sealed class SettingGroupViewModel
         GameExtractionSettingGroup.Archive => "Archive Settings",
         GameExtractionSettingGroup.Document => "Document Settings",
         GameExtractionSettingGroup.General => "General Settings",
+        GameExtractionSettingGroup.Preview => "Preview Settings",
         _ => "Other Settings",
     };
 

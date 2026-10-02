@@ -3,6 +3,8 @@ using RedFox.Graphics3D.Rendering.Materials;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace RedFox.Graphics3D.Rendering;
 
@@ -11,6 +13,144 @@ namespace RedFox.Graphics3D.Rendering;
 /// </summary>
 public static class SceneTraversal
 {
+    private static readonly object PreparedPostOrderSync = new();
+    private static readonly ConditionalWeakTable<Scene, PreparedPostOrder> PreparedPostOrders = new();
+
+    /// <summary>
+    /// Builds and caches a scene's post-order node traversal. Call this during background scene preparation
+    /// when the scene graph will not be mutated concurrently.
+    /// </summary>
+    /// <param name="scene">The scene to traverse.</param>
+    /// <param name="cancellationToken">The token used to cancel traversal.</param>
+    /// <returns>The immutable node list, including the scene root as its final element.</returns>
+    public static IReadOnlyList<SceneNode> PreparePostOrder(Scene scene, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        List<SceneNode> nodes = [];
+        CollectPostOrder(scene, nodes, cancellationToken);
+        SceneNode[] preparedNodes = [.. nodes];
+        CachePreparedPostOrder(scene, preparedNodes);
+        return preparedNodes;
+    }
+
+    /// <summary>
+    /// Updates the cached version after non-structural scene changes that leave node order intact.
+    /// </summary>
+    /// <remarks>
+    /// Call this only when node membership and parent/child relationships have not changed.
+    /// </remarks>
+    /// <param name="scene">The scene whose version changed.</param>
+    /// <returns><see langword="true"/> when a prepared traversal was refreshed.</returns>
+    public static bool RefreshPreparedPostOrderVersion(Scene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        lock (PreparedPostOrderSync)
+        {
+            if (!PreparedPostOrders.TryGetValue(scene, out PreparedPostOrder? prepared))
+            {
+                return false;
+            }
+
+            CachePreparedPostOrderLocked(scene, prepared.Nodes);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Appends new direct scene children to a previously prepared traversal cache.
+    /// </summary>
+    /// <param name="scene">The scene whose direct children were appended.</param>
+    /// <param name="appendedRoots">The new direct children in scene child order.</param>
+    /// <param name="previousVersion">The scene version recorded before those children were added.</param>
+    /// <returns><see langword="true"/> when the prepared cache was updated; otherwise <see langword="false"/>.</returns>
+    public static bool AppendPreparedPostOrder(Scene scene, IReadOnlyList<SceneNode> appendedRoots, long previousVersion)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        ArgumentNullException.ThrowIfNull(appendedRoots);
+
+        lock (PreparedPostOrderSync)
+        {
+            if (!PreparedPostOrders.TryGetValue(scene, out PreparedPostOrder? prepared))
+            {
+                return false;
+            }
+
+            if (prepared.Version != previousVersion
+                || prepared.Nodes.Count == 0
+                || !ReferenceEquals(prepared.Nodes[^1], scene))
+            {
+                PreparedPostOrders.Remove(scene);
+                return false;
+            }
+
+            List<SceneNode> nodes = new(prepared.Nodes.Count + appendedRoots.Count);
+            for (int index = 0; index < prepared.Nodes.Count - 1; index++)
+            {
+                nodes.Add(prepared.Nodes[index]);
+            }
+
+            foreach (SceneNode root in appendedRoots)
+            {
+                if (ReferenceEquals(root.Parent, scene))
+                {
+                    CollectPostOrder(root, nodes, CancellationToken.None);
+                }
+            }
+
+            nodes.Add(scene);
+            CachePreparedPostOrderLocked(scene, [.. nodes]);
+            return true;
+        }
+    }
+
+    internal static bool TryGetPreparedPostOrder(Scene scene, out IReadOnlyList<SceneNode> nodes)
+    {
+        lock (PreparedPostOrderSync)
+        {
+            if (PreparedPostOrders.TryGetValue(scene, out PreparedPostOrder? prepared))
+            {
+                if (prepared.Version == scene.Version)
+                {
+                    nodes = prepared.Nodes;
+                    return true;
+                }
+
+                PreparedPostOrders.Remove(scene);
+            }
+        }
+
+        nodes = [];
+        return false;
+    }
+
+    internal static void CachePreparedPostOrder(Scene scene, IReadOnlyList<SceneNode> nodes)
+    {
+        lock (PreparedPostOrderSync)
+        {
+            CachePreparedPostOrderLocked(scene, nodes);
+        }
+    }
+
+    private static void CachePreparedPostOrderLocked(Scene scene, IReadOnlyList<SceneNode> nodes)
+    {
+        PreparedPostOrders.Remove(scene);
+        PreparedPostOrders.Add(scene, new PreparedPostOrder(scene.Version, nodes));
+    }
+
+    private static void CollectPostOrder(SceneNode node, List<SceneNode> nodes, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (node.Children is not null)
+        {
+            foreach (SceneNode child in node.Children)
+            {
+                CollectPostOrder(child, nodes, cancellationToken);
+            }
+        }
+
+        nodes.Add(node);
+    }
+
     internal static void CollectPostOrder(SceneNode node, List<SceneNode> nodes)
     {
         ArgumentNullException.ThrowIfNull(node);
@@ -26,6 +166,8 @@ public static class SceneTraversal
 
         nodes.Add(node);
     }
+
+    private sealed record PreparedPostOrder(long Version, IReadOnlyList<SceneNode> Nodes);
 
     internal static void Update(IReadOnlyList<SceneNode> nodes, ICommandList commandList, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {

@@ -134,7 +134,7 @@ public partial class MainWindow : Window
         return result.FirstOrDefault()?.TryGetLocalPath();
     }
 
-    private void OnSettingsRequested()
+    private async void OnSettingsRequested()
     {
         if (DataContext is not MainWindowViewModel viewModel)
         {
@@ -143,7 +143,8 @@ public partial class MainWindow : Window
 
         SettingsWindow settingsWindow = new();
         settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
-        settingsWindow.ShowDialog(this);
+        await settingsWindow.ShowDialog(this);
+        viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
     }
 
     private static void OpenPluginsWindow(Window owner, MainWindowViewModel viewModel)

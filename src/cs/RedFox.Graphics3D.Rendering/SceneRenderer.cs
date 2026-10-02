@@ -32,7 +32,7 @@ public sealed class SceneRenderer : IDisposable
     private readonly object _backgroundImageLoadSync = new();
     private readonly Thread _backgroundImageLoadThread;
     private readonly IGraphicsDevice _graphicsDevice;
-    private readonly List<SceneNode> _sceneTraversalNodes = [];
+    private IReadOnlyList<SceneNode> _sceneTraversalNodes = [];
     private readonly List<(SceneNode Node, IRenderHandle Handle)> _sceneTraversalHandles = [];
     private RenderFrameContext? _frameContext;
 
@@ -263,6 +263,11 @@ public sealed class SceneRenderer : IDisposable
     TryQueueBackgroundImageLoad(sceneTraversalNodes, scene);
 
         _clearAndStateResetPass.Execute(context);
+        if (_graphicsDevice is IFrameBufferUploadBudget uploadBudget)
+        {
+            uploadBudget.BeginFrameBufferUploads();
+        }
+
         SceneTraversal.Update(sceneTraversalNodes, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
         UpdateSceneRenderHandles(sceneTraversalNodes);
         UpdateSkybox(scene.Skybox, scene);
@@ -296,7 +301,7 @@ public sealed class SceneRenderer : IDisposable
         ArgumentNullException.ThrowIfNull(scene);
         _sceneTraversalScene = null;
         _sceneTraversalVersion = -1;
-        _sceneTraversalNodes.Clear();
+        _sceneTraversalNodes = [];
         _sceneTraversalHandles.Clear();
         ReleaseSkyboxResources(scene.Skybox);
         ReleaseGridResources(scene.Grid);
@@ -356,8 +361,19 @@ public sealed class SceneRenderer : IDisposable
             return _sceneTraversalNodes;
         }
 
-        _sceneTraversalNodes.Clear();
-        SceneTraversal.CollectPostOrder(scene.RootNode, _sceneTraversalNodes);
+        if (SceneTraversal.TryGetPreparedPostOrder(scene, out IReadOnlyList<SceneNode> preparedNodes))
+        {
+            _sceneTraversalNodes = preparedNodes;
+        }
+        else
+        {
+            List<SceneNode> nodes = [];
+            SceneTraversal.CollectPostOrder(scene.RootNode, nodes);
+            SceneNode[] collectedNodes = [.. nodes];
+            SceneTraversal.CachePreparedPostOrder(scene, collectedNodes);
+            _sceneTraversalNodes = collectedNodes;
+        }
+
         _sceneTraversalScene = scene;
         _sceneTraversalVersion = scene.Version;
         return _sceneTraversalNodes;
@@ -551,7 +567,6 @@ public sealed class SceneRenderer : IDisposable
         for (int i = 0; i < completedBackgroundImageLoads.Count; i++)
         {
             (Texture texture, Image image) = completedBackgroundImageLoads[i];
-
             if (texture.Data is null)
             {
                 texture.Data = image;

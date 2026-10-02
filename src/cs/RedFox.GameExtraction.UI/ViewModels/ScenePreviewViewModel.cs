@@ -18,6 +18,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
     private readonly List<Animation> _animations = [];
     private readonly List<Animation> _appendedAnimations = [];
+    private readonly IReadOnlyDictionary<Scene, ScenePreviewBounds> _preparedSceneBounds;
+    private readonly IReadOnlyDictionary<Scene, ScenePreviewData> _preparedSceneData;
+    private readonly HashSet<Scene> _initialScenePreparationPending;
+    private readonly HashSet<Scene> _previewLightsAddedScenes = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Scene, AnimationPlayer[]> _allAnimationPlayersByScene = new(ReferenceEqualityComparer.Instance);
     private Animation? _selectedAnimation;
     private bool _updatingSelection;
 
@@ -45,16 +50,6 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// Gets a value indicating whether more than one scene is available.
     /// </summary>
     public bool HasMultipleScenes => Scenes.Count > 1;
-
-    /// <summary>
-    /// Gets the up-axis options.
-    /// </summary>
-    public IReadOnlyList<SceneUpAxis> UpAxisOptions { get; } = Enum.GetValues<SceneUpAxis>();
-
-    /// <summary>
-    /// Gets the skinning mode options.
-    /// </summary>
-    public IReadOnlyList<SkinningMode> SkinningModeOptions { get; } = Enum.GetValues<SkinningMode>();
 
     /// <summary>
     /// Gets or sets the index of the displayed scene.
@@ -103,10 +98,23 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// </summary>
     /// <param name="scenes">The scenes to preview. The first scene is shown initially.</param>
     /// <param name="settings">The viewer preferences shared with other scene previews.</param>
-    public ScenePreviewViewModel(IReadOnlyList<Scene> scenes, ScenePreviewSettings settings)
+    /// <param name="preparedSceneBounds">Optional scene bounds computed before the scenes reach the UI thread.</param>
+    /// <param name="preparedSceneData">Optional scene traversal data computed before the scenes reach the UI thread.</param>
+    public ScenePreviewViewModel(
+        IReadOnlyList<Scene> scenes,
+        ScenePreviewSettings settings,
+        IReadOnlyDictionary<Scene, ScenePreviewBounds>? preparedSceneBounds = null,
+        IReadOnlyDictionary<Scene, ScenePreviewData>? preparedSceneData = null)
     {
         ArgumentNullException.ThrowIfNull(scenes);
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        _preparedSceneBounds = preparedSceneBounds ?? new Dictionary<Scene, ScenePreviewBounds>(ReferenceEqualityComparer.Instance);
+        _preparedSceneData = preparedSceneData ?? new Dictionary<Scene, ScenePreviewData>(ReferenceEqualityComparer.Instance);
+        _initialScenePreparationPending = new HashSet<Scene>(_preparedSceneData.Keys, ReferenceEqualityComparer.Instance);
+        foreach (Scene scene in _preparedSceneData.Keys)
+        {
+            _allAnimationPlayersByScene[scene] = [.. scene.AnimationPlayers];
+        }
         Settings.PropertyChanged += OnSettingsChanged;
         Scenes = scenes;
         SceneNames = [.. scenes.Select(scene => scene.Name)];
@@ -140,6 +148,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             return false;
         }
 
+        int previousAppendedAnimationCount = _appendedAnimations.Count;
+        long sceneVersionBeforeAppending = scene.Version;
         foreach (Animation animation in _appendedAnimations)
         {
             animation.MoveTo(null, ReparentTransformMode.PreserveExisting);
@@ -154,9 +164,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             _appendedAnimations.Add(animation);
         }
 
+        if (previousAppendedAnimationCount == 0)
+        {
+            SceneTraversal.AppendPreparedPostOrder(scene, animations.Cast<SceneNode>().ToArray(), sceneVersionBeforeAppending);
+        }
+
         _selectedAnimation = animations[0];
         RefreshAnimations(scene);
-        ConfigureAnimationPlayers(scene);
+        ConfigureAnimationPlayers(scene, rebuildPlayers: true, resetPose: true);
         UpdateStats(scene);
         SceneInvalidated?.Invoke();
         return true;
@@ -175,7 +190,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         }
 
         _selectedAnimation = value > 0 && value <= _animations.Count ? _animations[value - 1] : null;
-        ConfigureAnimationPlayers(scene);
+        ConfigureAnimationPlayers(scene, rebuildPlayers: _appendedAnimations.Count > 0);
+        if (_appendedAnimations.Count == 0)
+        {
+            SceneTraversal.RefreshPreparedPostOrderVersion(scene);
+        }
+
         if (Settings.AutoFitScene)
         {
             FitScene(scene, true);
@@ -209,6 +229,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
             case nameof(ScenePreviewSettings.ShowBones):
                 SetBoneVisibility(scene, Settings.ShowBones);
+                if (_appendedAnimations.Count == 0)
+                {
+                    SceneTraversal.RefreshPreparedPostOrderVersion(scene);
+                }
+
                 RecomputeBoundsAndFitCamera(Settings.AutoFitScene);
                 SceneInvalidated?.Invoke();
                 break;
@@ -256,9 +281,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         return scene.EnumerateDescendants<Mesh>().Any() || scene.EnumerateDescendants<SkeletonBone>().Any();
     }
 
-    private static void SetBoneVisibility(Scene scene, bool isVisible)
+    private void SetBoneVisibility(Scene scene, bool isVisible)
     {
-        foreach (SkeletonBone bone in scene.EnumerateDescendants<SkeletonBone>())
+        IEnumerable<SkeletonBone> bones = _preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData)
+            ? preparedData.Bones
+            : scene.EnumerateDescendants<SkeletonBone>();
+        foreach (SkeletonBone bone in bones)
         {
             bone.ShowSkeletonBone = isVisible;
         }
@@ -350,11 +378,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         grid.MinimumPixelsBetweenCells = 2.5f;
     }
 
-    private static void EnsurePreviewLights(Scene scene, SceneBounds bounds)
+    private static SceneNode[] EnsurePreviewLights(Scene scene, SceneBounds bounds, bool? hasLights = null)
     {
-        if (scene.EnumerateDescendants<Light>().Any())
+        if (hasLights ?? scene.EnumerateDescendants<Light>().Any())
         {
-            return;
+            return [];
         }
 
         if (!bounds.IsValid)
@@ -364,7 +392,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             fallback.Color = new Vector3(1.0f, 0.98f, 0.9f);
             fallback.Intensity = 1.0f;
             fallback.Enabled = true;
-            return;
+            return [fallback];
         }
 
         float lightDistance = MathF.Max(bounds.Radius, 1.0f) * 1.85f;
@@ -374,15 +402,19 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             (Vector3.Normalize(new Vector3(-1.15f, 0.4f, -0.7f)), new Vector3(0.55f, 0.66f, 0.95f), 0.2f),
             (Vector3.Normalize(new Vector3(-0.2f, 0.95f, 1.15f)), new Vector3(0.82f, 0.88f, 1.0f), 0.34f),
         ];
+        Light[] addedLights = new Light[lights.Length];
 
         for (int index = 0; index < lights.Length; index++)
         {
             Light light = scene.RootNode.AddNode<Light>($"PreviewLight_{index + 1}");
+            addedLights[index] = light;
             light.Position = bounds.Center + (lights[index].Direction * lightDistance);
             light.Color = lights[index].Color;
             light.Intensity = lights[index].Intensity;
             light.Enabled = true;
         }
+
+        return addedLights;
     }
 
     private void ShowScene(Scene? scene)
@@ -412,7 +444,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         bool fitCamera = Settings.AutoFitScene || Settings.CameraState is null;
         SceneViewportController viewportController = CreateViewportController(scene, Settings.CameraState);
         ViewportController = viewportController;
-        ConfigureAnimationPlayers(scene);
+        ConfigureAnimationPlayers(scene, rebuildPlayers: _appendedAnimations.Count > 0);
+        if (_appendedAnimations.Count == 0)
+        {
+            SceneTraversal.RefreshPreparedPostOrderVersion(scene);
+        }
+
         FitScene(scene, fitCamera);
         ActiveScene = scene;
         CaptureCameraState();
@@ -440,9 +477,33 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             return;
         }
 
-        SceneBounds bounds = viewportController.RecomputeBounds() ? GetAxisAdjustedBounds(viewportController.Bounds, scene.UpAxis) : SceneBounds.Invalid;
+        SceneBounds sceneBounds;
+        if (_preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData))
+        {
+            sceneBounds = Settings.ShowBones ? preparedData.Bounds.WithBones : preparedData.Bounds.WithoutBones;
+            viewportController.SetBounds(sceneBounds);
+        }
+        else if (_preparedSceneBounds.TryGetValue(scene, out ScenePreviewBounds preparedBounds))
+        {
+            sceneBounds = Settings.ShowBones ? preparedBounds.WithBones : preparedBounds.WithoutBones;
+            viewportController.SetBounds(sceneBounds);
+        }
+        else
+        {
+            sceneBounds = viewportController.RecomputeBounds() ? viewportController.Bounds : SceneBounds.Invalid;
+        }
+
+        SceneBounds bounds = GetAxisAdjustedBounds(sceneBounds, scene.UpAxis);
         ConfigureGrid(scene.Grid, bounds);
-        EnsurePreviewLights(scene, bounds);
+        long sceneVersionBeforeLights = scene.Version;
+        bool? hasLights = _previewLightsAddedScenes.Contains(scene) ? true : preparedData?.HasLights;
+        SceneNode[] addedLights = EnsurePreviewLights(scene, bounds, hasLights);
+        if (addedLights.Length > 0)
+        {
+            _previewLightsAddedScenes.Add(scene);
+            SceneTraversal.AppendPreparedPostOrder(scene, addedLights, sceneVersionBeforeLights);
+        }
+
         if (fitCamera && bounds.IsValid)
         {
             viewportController.FitCameraToScene();
@@ -463,22 +524,49 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void ConfigureAnimationPlayers(Scene scene)
+    private void ConfigureAnimationPlayers(Scene scene, bool rebuildPlayers = false, bool resetPose = true)
     {
-        foreach (SceneNode node in scene.EnumerateDescendants())
+        bool useWorkerPreparedPose = !rebuildPlayers && _initialScenePreparationPending.Remove(scene);
+        if (resetPose && !useWorkerPreparedPose)
         {
-            node.ResetLiveTransform();
-        }
-
-        foreach (Mesh mesh in scene.EnumerateDescendants<Mesh>())
-        {
-            if (mesh.Morph is { } morph)
+            IEnumerable<SceneNode> nodes = _preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData)
+                ? preparedData.Nodes
+                : scene.EnumerateDescendants();
+            foreach (SceneNode node in nodes)
             {
-                Array.Clear(morph.Weights);
+                node.ResetLiveTransform();
+            }
+
+            IEnumerable<Mesh> meshes = preparedData?.Meshes ?? scene.EnumerateDescendants<Mesh>();
+            foreach (Mesh mesh in meshes)
+            {
+                if (mesh.Morph is { } morph)
+                {
+                    Array.Clear(morph.Weights);
+                }
             }
         }
 
-        scene.CreateAnimationPlayers();
+        if (rebuildPlayers || !_preparedSceneData.ContainsKey(scene))
+        {
+            scene.CreateAnimationPlayers();
+            _allAnimationPlayersByScene[scene] = [.. scene.AnimationPlayers];
+        }
+        else if (_allAnimationPlayersByScene.TryGetValue(scene, out AnimationPlayer[]? allPlayers))
+        {
+            scene.AnimationPlayers.Clear();
+            scene.AnimationPlayers.AddRange(allPlayers);
+        }
+
+        _initialScenePreparationPending.Remove(scene);
+        if (resetPose && !useWorkerPreparedPose)
+        {
+            foreach (AnimationPlayer player in scene.AnimationPlayers)
+            {
+                player.ResetAll();
+            }
+        }
+
         if (_selectedAnimation is { } selected)
         {
             scene.AnimationPlayers.RemoveAll(player => !player.Layers.Exists(layer => ReferenceEquals(layer.Animation, selected)));
@@ -495,7 +583,15 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         _animations.Clear();
         if (scene is not null)
         {
-            _animations.AddRange(scene.EnumerateDescendants<Animation>());
+            if (_preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData))
+            {
+                _animations.AddRange(preparedData.Animations);
+                _animations.AddRange(_appendedAnimations);
+            }
+            else
+            {
+                _animations.AddRange(scene.EnumerateDescendants<Animation>());
+            }
         }
 
         _updatingSelection = true;
@@ -506,6 +602,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
     private void UpdateStats(Scene scene)
     {
+        if (_preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData))
+        {
+            StatsDisplay = $"{preparedData.VertexCount:N0} vertices  •  {preparedData.FaceCount:N0} faces  •  {preparedData.BoneCount:N0} bones  •  {_animations.Count:N0} animations";
+            return;
+        }
+
         int vertexCount = scene.EnumerateDescendants<Mesh>().Sum(mesh => mesh.VertexCount);
         int faceCount = scene.EnumerateDescendants<Mesh>().Sum(mesh => mesh.FaceCount);
         int boneCount = scene.EnumerateDescendants<SkeletonBone>().Count();

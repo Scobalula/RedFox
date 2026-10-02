@@ -17,19 +17,9 @@
                     <TextBlock Text="Animation"/>
                     <ComboBox Width="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
                 </StackPanel>
-                <StackPanel Classes="preview-field">
-                    <TextBlock Text="Up axis"/>
-                    <ComboBox Width="70" ItemsSource="{Binding UpAxisOptions}" SelectedItem="{Binding Settings.UpAxis}"/>
-                </StackPanel>
-                <StackPanel Classes="preview-field">
-                    <TextBlock Text="Skinning"/>
-                    <ComboBox Width="130" ItemsSource="{Binding SkinningModeOptions}" SelectedItem="{Binding Settings.SkinningMode}"/>
-                </StackPanel>
-                <CheckBox Content="View lighting" IsChecked="{Binding Settings.UseViewBasedLighting}"/>
                 <CheckBox Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}"/>
                 <CheckBox Content="Grid" IsChecked="{Binding Settings.ShowGrid}"/>
                 <CheckBox Content="Bones" IsChecked="{Binding Settings.ShowBones}"/>
-                <CheckBox Content="Auto fit" IsChecked="{Binding Settings.AutoFitScene}"/>
                 <Button Content="Fit scene" Click="OnFitClick"/>
             </WrapPanel>
         </Border>

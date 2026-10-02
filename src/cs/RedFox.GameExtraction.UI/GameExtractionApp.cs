@@ -17,6 +17,7 @@ public static class GameExtractionApp
 
         string settingsPath = GameExtractionSettings.GetDefaultSettingsPath(config.AppName);
         config.Settings.LoadFrom(settingsPath);
+        config.PreviewSettings.LoadFrom(config.Settings);
 
         App.CurrentConfig = config;
 

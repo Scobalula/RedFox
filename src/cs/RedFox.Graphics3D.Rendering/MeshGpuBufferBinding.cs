@@ -19,6 +19,8 @@ public sealed class MeshGpuBufferBinding
     private GpuBufferElementType _elementType = GpuBufferElementType.Unknown;
     private int _sizeBytes;
     private int _strideBytes;
+    private int _uploadedBytes;
+    private bool _incrementalUploadPending;
 
     private MeshGpuBufferBinding(DataBuffer? data, string shaderName, BufferUsage usage, int strideKind, bool normalizeIndexElementType, Func<MeshGpuBufferBinding, IGraphicsDevice, bool>? customUpdater)
     {
@@ -61,6 +63,11 @@ public sealed class MeshGpuBufferBinding
     /// Gets the total number of source components represented by the uploaded data.
     /// </summary>
     public int TotalComponentCount { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the current buffer is still being uploaded across frames.
+    /// </summary>
+    public bool HasPendingUpload => _incrementalUploadPending;
 
     /// <summary>
     /// Creates a mesh binding for a vertex input stream.
@@ -132,7 +139,7 @@ public sealed class MeshGpuBufferBinding
             return _customUpdater(this, graphicsDevice);
         }
 
-        if (HasGpuBuffer)
+        if (HasGpuBuffer && !_incrementalUploadPending)
         {
             return true;
         }
@@ -170,7 +177,58 @@ public sealed class MeshGpuBufferBinding
             data = GetRequiredGpuBufferData(new DataBuffer<uint>(sourceData.ToArray<uint>(), sourceData.ValueCount, sourceData.ComponentCount), ShaderName);
         }
 
-        return UpdateBinding(graphicsDevice, data);
+        return graphicsDevice is IFrameBufferUploadBudget uploadBudget
+            ? UpdateBindingIncrementally(graphicsDevice, uploadBudget, data)
+            : UpdateBinding(graphicsDevice, data);
+    }
+
+    private bool UpdateBindingIncrementally(IGraphicsDevice graphicsDevice, IFrameBufferUploadBudget uploadBudget, GpuBufferData data)
+    {
+        int stride = GetStride(data);
+        if (data.Bytes.IsEmpty || stride <= 0)
+        {
+            Release();
+            return false;
+        }
+
+        if (GpuBuffer is null
+            || GpuBuffer.IsDisposed
+            || _sizeBytes != data.SizeBytes
+            || _strideBytes != stride
+            || _elementType != data.ElementType
+            || GpuBuffer.SizeBytes != data.SizeBytes
+            || GpuBuffer.StrideBytes != stride
+            || GpuBuffer.Usage != Usage
+            || GpuBuffer.ElementType != data.ElementType)
+        {
+            GpuBuffer?.Dispose();
+            GpuBuffer = null;
+            _sizeBytes = data.SizeBytes;
+            _strideBytes = stride;
+            _elementType = data.ElementType;
+            _uploadedBytes = 0;
+            _incrementalUploadPending = true;
+        }
+
+        if (GpuBuffer is null)
+        {
+            if (uploadBudget.RemainingBufferUploadBytes <= 0)
+            {
+                TotalComponentCount = data.TotalComponentCount;
+                return false;
+            }
+
+            GpuBuffer = graphicsDevice.CreateBuffer(data.SizeBytes, stride, Usage, data.ElementType);
+        }
+
+        if (_uploadedBytes < data.SizeBytes)
+        {
+            _uploadedBytes += uploadBudget.UploadBufferRange(GpuBuffer, _uploadedBytes, data.Bytes[_uploadedBytes..]);
+        }
+
+        TotalComponentCount = data.TotalComponentCount;
+        _incrementalUploadPending = _uploadedBytes < data.SizeBytes;
+        return !_incrementalUploadPending;
     }
 
     /// <summary>
@@ -234,6 +292,8 @@ public sealed class MeshGpuBufferBinding
         _strideBytes = 0;
         _elementType = GpuBufferElementType.Unknown;
         TotalComponentCount = 0;
+        _uploadedBytes = 0;
+        _incrementalUploadPending = false;
     }
 
     private static GpuBufferData GetRequiredGpuBufferData(DataBuffer buffer, string bufferName)

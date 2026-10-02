@@ -30,6 +30,12 @@ public sealed class AvaloniaOpenGlImageControl : OpenGlControlBase, ICustomHitTe
         AvaloniaProperty.Register<AvaloniaOpenGlImageControl, ImageSlice?>(nameof(Slice));
 
     /// <summary>
+    /// Defines the <see cref="FallbackSlice"/> property.
+    /// </summary>
+    public static readonly StyledProperty<ImageSlice?> FallbackSliceProperty =
+        AvaloniaProperty.Register<AvaloniaOpenGlImageControl, ImageSlice?>(nameof(FallbackSlice));
+
+    /// <summary>
     /// Defines the <see cref="Options"/> property.
     /// </summary>
     public static readonly StyledProperty<ImageViewOptions> OptionsProperty =
@@ -72,6 +78,7 @@ public sealed class AvaloniaOpenGlImageControl : OpenGlControlBase, ICustomHitTe
     static AvaloniaOpenGlImageControl()
     {
         SliceProperty.Changed.AddClassHandler<AvaloniaOpenGlImageControl>((control, e) => control.OnSliceChanged(e));
+        FallbackSliceProperty.Changed.AddClassHandler<AvaloniaOpenGlImageControl>((control, _) => control.RequestNextFrameRendering());
         OptionsProperty.Changed.AddClassHandler<AvaloniaOpenGlImageControl>((control, e) => control.OnOptionsChanged(e));
         ClearColorProperty.Changed.AddClassHandler<AvaloniaOpenGlImageControl>((control, _) => control.RequestNextFrameRendering());
     }
@@ -92,6 +99,15 @@ public sealed class AvaloniaOpenGlImageControl : OpenGlControlBase, ICustomHitTe
     {
         get => GetValue(SliceProperty);
         set => SetValue(SliceProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the lower-resolution slice displayed while the selected slice is uploaded.
+    /// </summary>
+    public ImageSlice? FallbackSlice
+    {
+        get => GetValue(FallbackSliceProperty);
+        set => SetValue(FallbackSliceProperty, value);
     }
 
     /// <summary>
@@ -194,7 +210,11 @@ public sealed class AvaloniaOpenGlImageControl : OpenGlControlBase, ICustomHitTe
 
         _renderer.ClearColor = ClearColor;
         _renderer.Resize(width, height);
-        _renderer.Render(Slice, _offset, (float)_zoom, Options);
+        _renderer.Render(Slice, FallbackSlice, _offset, (float)_zoom, Options);
+        if (_renderer.IsTextureUploadPending)
+        {
+            RequestNextFrameRendering();
+        }
 
         bool isSliceSupported = _renderer.IsSliceSupported;
         if (isSliceSupported != _isSliceSupported)

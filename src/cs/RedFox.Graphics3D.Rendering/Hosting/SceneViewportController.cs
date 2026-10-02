@@ -100,6 +100,16 @@ public sealed class SceneViewportController
     }
 
     /// <summary>
+    /// Sets bounds that were computed for the controlled scene by an external preparation step.
+    /// </summary>
+    /// <param name="bounds">The prepared world-space bounds, or <see cref="SceneBounds.Invalid"/> when none were found.</param>
+    public void SetBounds(SceneBounds bounds)
+    {
+        Bounds = bounds;
+        HasBounds = bounds.IsValid;
+    }
+
+    /// <summary>
     /// Fits the orbit camera to the current computed bounds.
     /// </summary>
     /// <returns><see langword="true"/> when bounds were available and the camera was updated; otherwise <see langword="false"/>.</returns>

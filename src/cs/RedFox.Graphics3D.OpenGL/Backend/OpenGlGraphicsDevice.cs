@@ -13,7 +13,7 @@ namespace RedFox.Graphics3D.OpenGL;
 /// <summary>
 /// Represents the concrete OpenGL graphics device implementation.
 /// </summary>
-public sealed class OpenGlGraphicsDevice : IGraphicsDevice
+public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureUploadBudget
 {
     private const string AngleTextureCompressionDxt3Extension = "GL_ANGLE_texture_compression_dxt3";
     private const string AngleTextureCompressionDxt5Extension = "GL_ANGLE_texture_compression_dxt5";
@@ -35,7 +35,16 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     private readonly bool _supportsRgtcTextureCompression;
     private readonly bool _supportsS3tcTextureCompression;
     private readonly bool _supportsS3tcSrgbTextureCompression;
+    private int _remainingBufferUploadBytes;
     private bool _disposed;
+
+    /// <summary>
+    /// Gets or sets the maximum mesh-buffer and texture payload uploaded during one render frame.
+    /// </summary>
+    public int BufferUploadBudgetBytesPerFrame { get; set; } = 4 * 1024 * 1024;
+
+    /// <inheritdoc/>
+    public int RemainingBufferUploadBytes => _remainingBufferUploadBytes;
 
     /// <summary>
     /// Gets a value indicating whether compute workloads are supported.
@@ -250,6 +259,195 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
+    public void BeginFrameBufferUploads()
+    {
+        ThrowIfDisposed();
+        if (BufferUploadBudgetBytesPerFrame <= 0)
+        {
+            throw new InvalidOperationException($"{nameof(BufferUploadBudgetBytesPerFrame)} must be positive.");
+        }
+
+        _remainingBufferUploadBytes = BufferUploadBudgetBytesPerFrame;
+    }
+
+    /// <inheritdoc/>
+    public unsafe int UploadBufferRange(IGpuBuffer buffer, int byteOffset, ReadOnlySpan<byte> data)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(buffer);
+        OpenGlBuffer openGlBuffer = buffer as OpenGlBuffer
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlBuffer)}.");
+
+        if (byteOffset < 0 || byteOffset > openGlBuffer.SizeBytes - data.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        }
+
+        if (data.IsEmpty || _remainingBufferUploadBytes <= 0)
+        {
+            return 0;
+        }
+
+        int byteCount = Math.Min(data.Length, _remainingBufferUploadBytes);
+        int stride = openGlBuffer.StrideBytes;
+        if (stride > 0 && byteCount < data.Length)
+        {
+            byteCount -= byteCount % stride;
+            if (byteCount == 0)
+            {
+                byteCount = Math.Min(stride, data.Length);
+            }
+        }
+
+        if (stride > 0 && (byteOffset % stride != 0 || byteCount % stride != 0))
+        {
+            throw new ArgumentException("Incremental buffer uploads must align to complete elements.", nameof(data));
+        }
+
+        GL gl = _context.Gl;
+        gl.BindBuffer(openGlBuffer.Target, openGlBuffer.Handle);
+        fixed (byte* dataPointer = data)
+        {
+            gl.BufferSubData((GLEnum)openGlBuffer.Target, (nint)byteOffset, (nuint)byteCount, dataPointer);
+        }
+
+        if (openGlBuffer.Usage.HasFlag(BufferUsage.Sampled) && openGlBuffer.SampledTextureTarget == TextureTarget.Texture2D)
+        {
+            UpdateEmbeddedSampledTextureRange(openGlBuffer, byteOffset, data[..byteCount]);
+        }
+
+        gl.BindBuffer(openGlBuffer.Target, 0);
+        _remainingBufferUploadBytes -= byteCount;
+        return byteCount;
+    }
+
+    /// <inheritdoc/>
+    public unsafe int UploadTextureRange(IGpuTexture texture, Image image, int sliceIndex, int byteOffset)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(texture);
+        ArgumentNullException.ThrowIfNull(image);
+
+        OpenGlTexture openGlTexture = texture as OpenGlTexture
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)}.");
+        if ((uint)sliceIndex >= (uint)image.SliceCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sliceIndex));
+        }
+
+        ref readonly ImageSlice slice = ref image.Slices[sliceIndex];
+        TextureTarget target = image.IsCubemap
+            ? (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + slice.ArrayIndex)
+            : TextureTarget.Texture2D;
+        return UploadTextureRange(openGlTexture, slice, target, slice.MipLevel, image.Format, byteOffset);
+    }
+
+    /// <inheritdoc/>
+    public IGpuTexture CreateTextureStorage(int width, int height, ImageFormat format, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        return CreateTexture(width, height, format, usage);
+    }
+
+    /// <inheritdoc/>
+    public unsafe int UploadTextureRange(IGpuTexture texture, ImageSlice slice, int byteOffset)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(texture);
+        OpenGlTexture openGlTexture = texture as OpenGlTexture
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)}.");
+        return UploadTextureRange(openGlTexture, slice, TextureTarget.Texture2D, 0, slice.Format, byteOffset);
+    }
+
+    private unsafe int UploadTextureRange(OpenGlTexture openGlTexture, ImageSlice slice, TextureTarget target, int mipLevel, ImageFormat format, int byteOffset)
+    {
+        if (byteOffset < 0 || byteOffset > slice.SlicePitch || byteOffset % slice.RowPitch != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(byteOffset));
+        }
+
+        if (byteOffset == slice.SlicePitch || _remainingBufferUploadBytes <= 0)
+        {
+            return 0;
+        }
+
+        if (!TryGetTextureFormat(format, TextureUsage.Sampled, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{format}' for sampled usage.");
+        }
+
+        int totalRows = slice.IsBlockCompressed ? (slice.Height + 3) / 4 : slice.Height;
+        int firstRow = byteOffset / slice.RowPitch;
+        int availableRows = totalRows - firstRow;
+        int rows = Math.Min(availableRows, Math.Max(1, _remainingBufferUploadBytes / slice.RowPitch));
+        int byteCount = checked(rows * slice.RowPitch);
+        int y = slice.IsBlockCompressed ? firstRow * 4 : firstRow;
+        int uploadHeight = slice.IsBlockCompressed ? Math.Min(rows * 4, slice.Height - y) : rows;
+        GL gl = _context.Gl;
+        gl.BindTexture(openGlTexture.Target, openGlTexture.Handle);
+        if (byteOffset == 0)
+        {
+            UploadTextureLevel(gl, target, mipLevel, slice.Width, slice.Height, format, internalFormat, pixelFormat, pixelType, isCompressed, ReadOnlySpan<byte>.Empty);
+        }
+
+        fixed (byte* dataPointer = slice.PixelSpan[byteOffset..(byteOffset + byteCount)])
+        {
+            if (isCompressed)
+            {
+                gl.CompressedTexSubImage2D(
+                    target,
+                    mipLevel,
+                    0,
+                    y,
+                    (uint)slice.Width,
+                    (uint)uploadHeight,
+                    (InternalFormat)internalFormat,
+                    (uint)byteCount,
+                    dataPointer);
+            }
+            else
+            {
+                gl.GetInteger(GLEnum.UnpackAlignment, out int previousUnpackAlignment);
+                gl.PixelStore(PixelStoreParameter.UnpackAlignment, GetTextureUploadAlignment(slice.RowPitch));
+                gl.TexSubImage2D(
+                    (GLEnum)target,
+                    mipLevel,
+                    0,
+                    y,
+                    (uint)slice.Width,
+                    (uint)uploadHeight,
+                    (GLEnum)pixelFormat,
+                    (GLEnum)pixelType,
+                    dataPointer);
+                gl.PixelStore(PixelStoreParameter.UnpackAlignment, previousUnpackAlignment);
+            }
+        }
+
+        gl.BindTexture(openGlTexture.Target, 0);
+        _remainingBufferUploadBytes -= byteCount;
+        return byteCount;
+    }
+
+    /// <inheritdoc/>
+    public void SetTextureMipRange(IGpuTexture texture, int baseMipLevel, int maxMipLevel)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(texture);
+        ArgumentOutOfRangeException.ThrowIfNegative(baseMipLevel);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxMipLevel, baseMipLevel);
+
+        OpenGlTexture openGlTexture = texture as OpenGlTexture
+            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)}.");
+        GL gl = _context.Gl;
+        gl.BindTexture(openGlTexture.Target, openGlTexture.Handle);
+        gl.TexParameter(openGlTexture.Target, TextureParameterName.TextureBaseLevel, baseMipLevel);
+        gl.TexParameter(openGlTexture.Target, TextureParameterName.TextureMaxLevel, maxMipLevel);
+        gl.BindTexture(openGlTexture.Target, 0);
+    }
+
+    /// <inheritdoc/>
     public IGpuShader CreateShader(ReadOnlySpan<byte> utf8Source, ShaderStage stage)
     {
         ThrowIfDisposed();
@@ -349,6 +547,27 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         }
 
         return CreateTexture2D(image, usage);
+    }
+
+    /// <inheritdoc/>
+    public IGpuTexture CreateTextureStorage(Image image, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(image);
+
+        if (image.Depth != 1)
+        {
+            throw new NotSupportedException("OpenGL texture upload currently supports 2D image slices only.");
+        }
+
+        if (!image.IsCubemap && image.ArraySize != 1)
+        {
+            throw new NotSupportedException("OpenGL texture arrays are not supported by the current renderer abstraction.");
+        }
+
+        return image.IsCubemap
+            ? CreateCubemapTexture(image, usage, uploadPixels: false)
+            : CreateTexture2D(image, usage, uploadPixels: false);
     }
 
     /// <inheritdoc/>
@@ -512,7 +731,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return new OpenGlTexture(gl, handle, width, height, format, usage);
     }
 
-    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage)
+    private unsafe IGpuTexture CreateTexture2D(Image image, TextureUsage usage, bool uploadPixels = true)
     {
         if (!TryGetTextureFormat(image.Format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
         {
@@ -531,6 +750,11 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
 
         for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
         {
+            if (!uploadPixels)
+            {
+                continue;
+            }
+
             ref readonly ImageSlice slice = ref image.GetSlice(mipLevel);
             UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
         }
@@ -539,7 +763,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage);
     }
 
-    private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage)
+    private unsafe IGpuTexture CreateCubemapTexture(Image image, TextureUsage usage, bool uploadPixels = true)
     {
         if (image.Width <= 0 || image.Height <= 0 || image.Width != image.Height)
         {
@@ -572,6 +796,11 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
             TextureTarget faceTarget = (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + faceIndex);
             for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
             {
+                if (!uploadPixels)
+                {
+                    continue;
+                }
+
                 ref readonly ImageSlice slice = ref image.GetSlice(mipLevel, faceIndex);
                 UploadTextureLevel(gl, faceTarget, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
             }
@@ -663,6 +892,53 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice
         fixed (byte* uploadPointer = uploadData)
         {
             gl.TexSubImage2D(GLEnum.Texture2D, 0, 0, 0, (uint)width, (uint)height, (GLEnum)pixelFormat, (GLEnum)pixelType, uploadPointer);
+        }
+
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        gl.PixelStore(PixelStoreParameter.UnpackAlignment, previousUnpackAlignment);
+    }
+
+    private unsafe void UpdateEmbeddedSampledTextureRange(OpenGlBuffer buffer, int byteOffset, ReadOnlySpan<byte> data)
+    {
+        if (byteOffset % buffer.StrideBytes != 0 || data.Length % buffer.StrideBytes != 0)
+        {
+            throw new ArgumentException("Sampled-buffer uploads must align to complete elements.", nameof(data));
+        }
+
+        GL gl = _context.Gl;
+        GetEmbeddedSampledTextureDimensions(buffer.SizeBytes, buffer.StrideBytes, out int width, out _);
+        GetEmbeddedSampledTextureFormat(buffer.StrideBytes, buffer.ElementType, out _, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType);
+
+        int rowPitch = checked(width * buffer.StrideBytes);
+        int firstElement = byteOffset / buffer.StrideBytes;
+        int remainingElements = data.Length / buffer.StrideBytes;
+        int sourceOffset = 0;
+        gl.GetInteger(GLEnum.UnpackAlignment, out int previousUnpackAlignment);
+        gl.PixelStore(PixelStoreParameter.UnpackAlignment, GetTextureUploadAlignment(rowPitch));
+        gl.BindTexture(TextureTarget.Texture2D, buffer.SampledTextureHandle);
+
+        fixed (byte* dataPointer = data)
+        {
+            while (remainingElements > 0)
+            {
+                int x = firstElement % width;
+                int y = firstElement / width;
+                int rowElements = Math.Min(remainingElements, width - x);
+                int rowBytes = checked(rowElements * buffer.StrideBytes);
+                gl.TexSubImage2D(
+                    GLEnum.Texture2D,
+                    0,
+                    x,
+                    y,
+                    (uint)rowElements,
+                    1,
+                    (GLEnum)pixelFormat,
+                    (GLEnum)pixelType,
+                    dataPointer + sourceOffset);
+                firstElement += rowElements;
+                remainingElements -= rowElements;
+                sourceOffset += rowBytes;
+            }
         }
 
         gl.BindTexture(TextureTarget.Texture2D, 0);

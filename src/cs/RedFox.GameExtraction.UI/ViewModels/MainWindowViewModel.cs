@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO.Enumeration;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
@@ -22,6 +23,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly RangeObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly SynchronizationContext? _uiSynchronizationContext;
     private readonly Timer _searchFilterTimer;
+    private readonly Timer _previewSelectionTimer;
     private readonly object _progressUpdateLock = new();
     private readonly object _filterCancellationLock = new();
     private string _assetNameFilter = string.Empty;
@@ -34,7 +36,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private int _filterOptionsGeneration;
     private bool _progressUpdatePosted;
     private bool _isPreviewWindowOpen;
+    private volatile bool _isDisposed;
     private AssetRowViewModel[]? _pendingPreviewSelection;
+    private AssetRowViewModel[]? _debouncedPreviewSelection;
+    private int _previewDebounceGeneration;
     private int _exportFailureCount;
 
     /// <summary>
@@ -267,9 +272,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         _uiSynchronizationContext = SynchronizationContext.Current;
         _searchFilterTimer = new Timer(OnSearchFilterTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+        _previewSelectionTimer = new Timer(OnPreviewSelectionTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
         _config = config;
         _assetManager = config.AssetManagerFactory();
-        Preview = new PreviewViewModel(_assetManager, config.Previewers);
+        Preview = new PreviewViewModel(_assetManager, config.Previewers, config.PreviewSettings);
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
         _assetManager.AssetExportFailed += OnAssetExportFailed;
@@ -502,10 +508,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (value)
         {
+            CancelScheduledPreviewRefresh();
             _ = Preview.UpdateSelectionAsync(selection);
         }
         else
         {
+            CancelScheduledPreviewRefresh();
             Preview.Clear();
         }
     }
@@ -513,7 +521,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <inheritdoc/>
     public void Dispose()
     {
+        _isDisposed = true;
         _searchFilterTimer.Dispose();
+        CancelScheduledPreviewRefresh();
+        _previewSelectionTimer.Dispose();
         lock (_filterCancellationLock)
         {
             _filterCancellationSource?.Cancel();
@@ -609,6 +620,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (_isPreviewWindowOpen)
         {
+            CancelScheduledPreviewRefresh();
             _ = Preview.UpdateSelectionAsync(selection);
         }
         else
@@ -623,8 +635,42 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (_isPreviewWindowOpen)
         {
-            _ = Preview.UpdateSelectionAsync(selection);
+            _debouncedPreviewSelection = selection;
+            Interlocked.Increment(ref _previewDebounceGeneration);
+            Preview.Cancel();
+            _previewSelectionTimer.Change(TimeSpan.FromMilliseconds(120), Timeout.InfiniteTimeSpan);
         }
+    }
+
+    private void OnPreviewSelectionTimerElapsed(object? state)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        int generation = Volatile.Read(ref _previewDebounceGeneration);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isDisposed || generation != Volatile.Read(ref _previewDebounceGeneration) || !_isPreviewWindowOpen)
+            {
+                return;
+            }
+
+            AssetRowViewModel[]? selection = _debouncedPreviewSelection;
+            _debouncedPreviewSelection = null;
+            if (selection is not null)
+            {
+                _ = Preview.UpdateSelectionAsync(selection);
+            }
+        });
+    }
+
+    private void CancelScheduledPreviewRefresh()
+    {
+        Interlocked.Increment(ref _previewDebounceGeneration);
+        _previewSelectionTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _debouncedPreviewSelection = null;
     }
 
     [RelayCommand]

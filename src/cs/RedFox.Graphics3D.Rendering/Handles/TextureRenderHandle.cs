@@ -31,6 +31,11 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     private int _payloadLength;
     private ulong _lastUpdateFrameIndex = ulong.MaxValue;
     private int _width;
+    private int _uploadByteOffset;
+    private bool _textureUploadPending;
+    private int[] _uploadSliceIndices = [];
+    private int _uploadSlicePosition;
+    private int _availableBaseMip = -1;
 
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
@@ -48,16 +53,17 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     /// </summary>
     /// <param name="commandList">The active command list.</param>
     /// <param name="slot">The binding slot to populate.</param>
-    internal void Bind(ICommandList commandList, int slot)
+    internal bool Bind(ICommandList commandList, int slot)
     {
         ThrowIfDisposed();
 
-        if (_gpuTexture is null)
+        if (_gpuTexture is null || (_textureUploadPending && _availableBaseMip < 0))
         {
-            return;
+            return false;
         }
 
         commandList.BindTexture(slot, _gpuTexture);
+        return true;
     }
 
     /// <inheritdoc/>
@@ -102,7 +108,21 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
             return;
         }
 
-        if (_gpuTexture is not null
+        if (_textureUploadPending
+            && ReferenceEquals(_image, image)
+            && _payloadLength == image.PixelMemory.Length)
+        {
+            if (_graphicsDevice is IFrameTextureUploadBudget continuationBudget)
+            {
+                UploadPendingImage(image, continuationBudget);
+            }
+
+            _lastUpdateFrameIndex = frameIndex;
+            return;
+        }
+
+        if (!_textureUploadPending
+            && _gpuTexture is not null
             && _width == image.Width
             && _height == image.Height
             && _arraySize == image.ArraySize
@@ -118,7 +138,26 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
         ReleaseTexture();
         _failedImage = null;
-        _gpuTexture = _graphicsDevice.CreateTexture(image, usage);
+        if (_graphicsDevice is IFrameTextureUploadBudget uploadBudget)
+        {
+            _gpuTexture = uploadBudget.CreateTextureStorage(image, usage);
+            _textureUploadPending = true;
+            _uploadSliceIndices = uploadBudget is IProgressiveTextureUploadBudget ? GetMipUploadOrder(image) : [.. Enumerable.Range(0, image.SliceCount)];
+            _image = image;
+            _width = image.Width;
+            _height = image.Height;
+            _arraySize = image.ArraySize;
+            _mipLevels = image.MipLevels;
+            _isCubemap = image.IsCubemap;
+            _format = image.Format;
+            _payloadLength = image.PixelMemory.Length;
+            UploadPendingImage(image, uploadBudget);
+        }
+        else
+        {
+            _gpuTexture = _graphicsDevice.CreateTexture(image, usage);
+        }
+
         _width = image.Width;
         _height = image.Height;
         _arraySize = image.ArraySize;
@@ -147,6 +186,11 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
     private bool NeedsPerFrameUpdate()
     {
+        if (_textureUploadPending)
+        {
+            return true;
+        }
+
         if (_texture.Data is not { } image)
         {
             if (_gpuTexture is not null)
@@ -177,6 +221,11 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     {
         _gpuTexture?.Dispose();
         _gpuTexture = null;
+        _uploadByteOffset = 0;
+        _textureUploadPending = false;
+        _uploadSliceIndices = [];
+        _uploadSlicePosition = 0;
+        _availableBaseMip = -1;
         _width = 0;
         _height = 0;
         _arraySize = 0;
@@ -185,5 +234,59 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         _format = ImageFormat.Unknown;
         _image = null;
         _payloadLength = 0;
+    }
+
+    private void UploadPendingImage(Image image, IFrameTextureUploadBudget uploadBudget)
+    {
+        while (_textureUploadPending && uploadBudget.RemainingBufferUploadBytes > 0)
+        {
+            if (_uploadSlicePosition >= _uploadSliceIndices.Length)
+            {
+                _textureUploadPending = false;
+                return;
+            }
+
+            int sliceIndex = _uploadSliceIndices[_uploadSlicePosition];
+            ref readonly ImageSlice slice = ref image.Slices[sliceIndex];
+            int uploadedBytes = uploadBudget.UploadTextureRange(_gpuTexture!, image, sliceIndex, _uploadByteOffset);
+            if (uploadedBytes <= 0)
+            {
+                return;
+            }
+
+            _uploadByteOffset += uploadedBytes;
+            if (_uploadByteOffset >= slice.SlicePitch)
+            {
+                int completedMipLevel = slice.MipLevel;
+                _uploadSlicePosition++;
+                _uploadByteOffset = 0;
+                if (uploadBudget is IProgressiveTextureUploadBudget progressiveBudget
+                    && (_uploadSlicePosition >= _uploadSliceIndices.Length || image.Slices[_uploadSliceIndices[_uploadSlicePosition]].MipLevel != completedMipLevel))
+                {
+                    _availableBaseMip = completedMipLevel;
+                    progressiveBudget.SetTextureMipRange(_gpuTexture!, _availableBaseMip, image.MipLevels - 1);
+                }
+            }
+        }
+
+        _textureUploadPending = _uploadSlicePosition < _uploadSliceIndices.Length;
+    }
+
+    private static int[] GetMipUploadOrder(Image image)
+    {
+        ImageSlice[] slices = image.Slices.ToArray();
+        int[] sliceIndices = [.. Enumerable.Range(0, slices.Length)];
+        Array.Sort(sliceIndices, (left, right) =>
+        {
+            int mipComparison = slices[right].MipLevel.CompareTo(slices[left].MipLevel);
+            if (mipComparison != 0)
+            {
+                return mipComparison;
+            }
+
+            int arrayComparison = slices[left].ArrayIndex.CompareTo(slices[right].ArrayIndex);
+            return arrayComparison != 0 ? arrayComparison : slices[left].DepthIndex.CompareTo(slices[right].DepthIndex);
+        });
+        return sliceIndices;
     }
 }

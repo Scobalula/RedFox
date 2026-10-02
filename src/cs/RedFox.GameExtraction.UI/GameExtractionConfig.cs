@@ -1,3 +1,5 @@
+using RedFox.GameExtraction.UI.ViewModels;
+
 namespace RedFox.GameExtraction.UI;
 
 /// <summary>
@@ -70,6 +72,8 @@ public sealed class GameExtractionConfig
     /// </code>
     /// </remarks>
     public IReadOnlyList<IAssetPreviewer> Previewers { get; init; } = AssetPreviewers.CreateDefault();
+
+    internal ScenePreviewSettings PreviewSettings { get; init; } = new();
 
     /// <summary>
     /// Gets the file picker filter string, using the WinForms-style format "Label|*.ext|All Files|*.*".

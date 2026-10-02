@@ -204,13 +204,17 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, binding.Texture, () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
 
             commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
+            textureHandle.Update(commandList);
             textureHandle.Bind(commandList, binding.Slot);
         }
 
         Texture? diffuseTexture = GetDiffuseTextureSnapshot();
-        if (diffuseTexture is not null && TryBindTexture(commandList, diffuseTexture, DiffuseTextureSlot, DiffuseTextureUniformName))
+        if (diffuseTexture is not null)
         {
-            commandList.SetUniformInt(HasDiffuseMapUniformName, 1);
+            if (TryBindTexture(commandList, diffuseTexture, DiffuseTextureSlot, DiffuseTextureUniformName))
+            {
+                commandList.SetUniformInt(HasDiffuseMapUniformName, 1);
+            }
         }
     }
 
@@ -224,8 +228,8 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
 
         commandList.SetUniformInt(samplerUniform, slot);
-        textureHandle.Bind(commandList, slot);
-        return true;
+        textureHandle.Update(commandList);
+        return textureHandle.Bind(commandList, slot);
     }
 
     private static bool HasTextureData(Texture texture)

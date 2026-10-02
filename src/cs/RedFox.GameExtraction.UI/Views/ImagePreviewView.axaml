@@ -42,6 +42,7 @@
             <g3d:AvaloniaOpenGlImageControl x:Name="Viewer"
                                             ClearColor="{DynamicResource ScenePreviewClearColor}"
                                             Slice="{Binding Slice}"
+                                            FallbackSlice="{Binding FallbackSlice}"
                                             Options="{Binding Settings.Options}"
                                             PointerTexel="{Binding PointerTexel, Mode=OneWayToSource}"/>
             <Border Classes="preview-overlay"

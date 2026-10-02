@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using RedFox.Graphics3D.Buffers;
 
 namespace RedFox.Graphics3D;
@@ -50,6 +51,10 @@ public static class MeshNormals
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="mesh"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the mesh lacks <see cref="Mesh.Positions"/> or <see cref="Mesh.FaceIndices"/>.</exception>
     public static void Generate(Mesh mesh, NormalGenerationMode mode, FaceWinding faceWinding)
+        => Generate(mesh, mode, faceWinding, CancellationToken.None);
+
+    /// <summary>Computes per-vertex normals and checks for cancellation during large mesh operations.</summary>
+    public static void Generate(Mesh mesh, NormalGenerationMode mode, FaceWinding faceWinding, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
@@ -67,9 +72,9 @@ public static class MeshNormals
 
         switch (mode)
         {
-            case NormalGenerationMode.EqualWeight:    AccumulateEqualWeight(faceIndices, faceCount, positions, vertexCount, accum);    break;
-            case NormalGenerationMode.WeightedByArea: AccumulateWeightedByArea(faceIndices, faceCount, positions, vertexCount, accum); break;
-            default:                                  AccumulateWeightedByAngle(faceIndices, faceCount, positions, vertexCount, accum); break;
+            case NormalGenerationMode.EqualWeight:    AccumulateEqualWeight(faceIndices, faceCount, positions, vertexCount, accum, cancellationToken);    break;
+            case NormalGenerationMode.WeightedByArea: AccumulateWeightedByArea(faceIndices, faceCount, positions, vertexCount, accum, cancellationToken); break;
+            default:                                  AccumulateWeightedByAngle(faceIndices, faceCount, positions, vertexCount, accum, cancellationToken); break;
         }
 
         float[] normalData = GC.AllocateUninitializedArray<float>(vertexCount * 3);
@@ -77,10 +82,14 @@ public static class MeshNormals
 
         for (int v = 0; v < vertexCount; v++)
         {
+            if ((v & 4095) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
+
             Vector3 n = accum[v].LengthSquared() > Epsilon * Epsilon ? Vector3.Normalize(accum[v]) : Vector3.Zero;
             normalSpan[v] = clockwise ? -n : n;
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         mesh.Normals = new DataBuffer<float>(normalData, 1, 3);
     }
 
@@ -104,9 +113,15 @@ public static class MeshNormals
     /// <param name="vertexCount">Total vertex count.</param>
     /// <param name="accum">Per-vertex accumulation array to which contributions are added in-place.</param>
     public static void AccumulateEqualWeight(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum)
+        => AccumulateEqualWeight(faceIndices, faceCount, positions, vertexCount, accum, CancellationToken.None);
+
+    private static void AccumulateEqualWeight(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum, CancellationToken cancellationToken)
     {
         for (int face = 0; face < faceCount; face++)
         {
+            if ((face & 4095) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
+
             int i0 = faceIndices.Get<int>(face * 3, 0, 0);
             int i1 = faceIndices.Get<int>(face * 3 + 1, 0, 0);
             int i2 = faceIndices.Get<int>(face * 3 + 2, 0, 0);
@@ -139,9 +154,15 @@ public static class MeshNormals
     /// <param name="vertexCount">Total vertex count.</param>
     /// <param name="accum">Per-vertex accumulation array to which contributions are added in-place.</param>
     public static void AccumulateWeightedByAngle(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum)
+        => AccumulateWeightedByAngle(faceIndices, faceCount, positions, vertexCount, accum, CancellationToken.None);
+
+    private static void AccumulateWeightedByAngle(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum, CancellationToken cancellationToken)
     {
         for (int face = 0; face < faceCount; face++)
         {
+            if ((face & 4095) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
+
             int i0 = faceIndices.Get<int>(face * 3, 0, 0);
             int i1 = faceIndices.Get<int>(face * 3 + 1, 0, 0);
             int i2 = faceIndices.Get<int>(face * 3 + 2, 0, 0);
@@ -180,9 +201,15 @@ public static class MeshNormals
     /// <param name="vertexCount">Total vertex count.</param>
     /// <param name="accum">Per-vertex accumulation array to which contributions are added in-place.</param>
     public static void AccumulateWeightedByArea(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum)
+        => AccumulateWeightedByArea(faceIndices, faceCount, positions, vertexCount, accum, CancellationToken.None);
+
+    private static void AccumulateWeightedByArea(DataBuffer faceIndices, int faceCount, DataBuffer positions, int vertexCount, Vector3[] accum, CancellationToken cancellationToken)
     {
         for (int face = 0; face < faceCount; face++)
         {
+            if ((face & 4095) == 0)
+                cancellationToken.ThrowIfCancellationRequested();
+
             int i0 = faceIndices.Get<int>(face * 3, 0, 0);
             int i1 = faceIndices.Get<int>(face * 3 + 1, 0, 0);
             int i2 = faceIndices.Get<int>(face * 3 + 2, 0, 0);
