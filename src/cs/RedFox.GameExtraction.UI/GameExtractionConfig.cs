@@ -106,11 +106,6 @@ public sealed class GameExtractionConfig
     public IReadOnlyList<string> MetadataColumns { get; init; } = [];
 
     /// <summary>
-    /// Gets the function used to build the shared handler configuration from persisted settings.
-    /// </summary>
-    public required Func<GameExtractionSettings, GameExtractionConfiguration> ConfigurationFactory { get; init; }
-
-    /// <summary>
     /// Gets the mutable settings used by the application.
     /// </summary>
     public required GameExtractionSettings Settings { get; init; }

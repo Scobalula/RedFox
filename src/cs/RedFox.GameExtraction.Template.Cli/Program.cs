@@ -7,7 +7,6 @@ internal static class Program
     private static Task<int> Main(string[] args) => GameExtractionCommandLineApp.RunAsync(new GameExtractionCommandLineConfig
     {
         AssetManagerFactory = TemplateAssetManagerFactory.Create,
-        ConfigurationFactory = TemplateSettings.CreateConfiguration,
         Settings = TemplateSettings.CreateDefaults(),
         SettingDefinitions = TemplateSettings.Definitions,
         Title = "ZIP Explorer",

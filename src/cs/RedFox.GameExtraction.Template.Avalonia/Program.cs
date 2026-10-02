@@ -22,7 +22,6 @@ internal static class Program
             SupportsDirectorySources = false,
             SupportsProcessSources = true,
             MetadataColumns = ["CompressedSize", "ArchivePath"],
-            ConfigurationFactory = TemplateSettings.CreateConfiguration,
             Settings = TemplateSettings.CreateDefaults(),
             SettingDefinitions = TemplateSettings.Definitions,
             About = new AboutConfig

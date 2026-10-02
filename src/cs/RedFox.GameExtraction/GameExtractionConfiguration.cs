@@ -49,6 +49,7 @@ public sealed class GameExtractionConfiguration
             object typedValue = setting.Type switch
             {
                 GameExtractionSettingType.Boolean when bool.TryParse(value, out bool booleanValue) => booleanValue,
+                GameExtractionSettingType.TextArray => value.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
                 _ => value,
             };
             SetOption(setting.Name, typedValue);

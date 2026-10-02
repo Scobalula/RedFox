@@ -16,8 +16,7 @@ internal sealed class HandlerTools(AssetManager assetManager, AssetDataReader da
 
         try
         {
-            GameExtractionConfiguration configuration = config.ConfigurationFactory();
-            AssetReadResult result = await assetManager.ReadAsync(asset, configuration, CancellationToken.None);
+            AssetReadResult result = await assetManager.ReadAsync(asset, config.Configuration, CancellationToken.None);
 
             return $"Handler: {result.Handler.GetType().Name}\n{Summarize(result.Data)}";
         }
@@ -31,8 +30,7 @@ internal sealed class HandlerTools(AssetManager assetManager, AssetDataReader da
     public async Task<string> ExportAssets([Description("Name substring or wildcard pattern.")] string? pattern = null, [Description("Asset type.")] string? type = null, [Description("Output directory override.")] string? outputDirectory = null)
     {
         AssetFilter filter = new(string.IsNullOrEmpty(pattern) ? null : pattern, string.IsNullOrEmpty(type) ? null : type);
-        GameExtractionConfiguration defaults = config.ConfigurationFactory();
-        GameExtractionConfiguration export = new() { Options = new(defaults.Options) };
+        GameExtractionConfiguration export = new() { Options = new(config.Configuration.Options) };
         if (!string.IsNullOrWhiteSpace(outputDirectory))
         {
             export.SetOption("OutputDirectory", outputDirectory);

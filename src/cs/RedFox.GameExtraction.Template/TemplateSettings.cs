@@ -67,17 +67,4 @@ public static class TemplateSettings
         },
     };
 
-    /// <summary>
-    /// Builds the shared handler configuration from persisted setting values.
-    /// </summary>
-    /// <param name="settings">The persisted settings.</param>
-    /// <returns>The shared handler configuration.</returns>
-    public static GameExtractionConfiguration CreateConfiguration(GameExtractionSettings settings)
-    {
-        ArgumentNullException.ThrowIfNull(settings);
-
-        GameExtractionConfiguration configuration = new();
-        configuration.ApplySettings(settings, Definitions);
-        return configuration;
-    }
 }

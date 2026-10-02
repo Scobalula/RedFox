@@ -11,6 +11,11 @@ public enum GameExtractionSettingType
     Text,
 
     /// <summary>
+    /// A delimited text value exposed as an array of strings to handlers.
+    /// </summary>
+    TextArray,
+
+    /// <summary>
     /// A path to a file.
     /// </summary>
     FilePath,

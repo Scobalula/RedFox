@@ -77,7 +77,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// <summary>
     /// Gets a value indicating whether the setting holds a text value.
     /// </summary>
-    public bool IsText => Type == GameExtractionSettingType.Text;
+    public bool IsText => Type is GameExtractionSettingType.Text or GameExtractionSettingType.TextArray;
 
     /// <summary>
     /// Gets a value indicating whether the setting uses a browseable path editor.

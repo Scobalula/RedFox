@@ -22,12 +22,11 @@ public partial class SettingsWindow : Window
     /// </summary>
     /// <param name="settings">The settings to edit.</param>
     /// <param name="settingDefinitions">The settings to display.</param>
-    /// <param name="previewers">The previewers that may contribute settings.</param>
     /// <param name="appName">The application name used for persistence.</param>
     /// <param name="openPlugins">Optional callback invoked when the user opens the plugins window.</param>
-    public void Initialize(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, IReadOnlyList<IAssetPreviewer> previewers, string appName, Action? openPlugins = null)
+    public void Initialize(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName, Action? openPlugins = null)
     {
-        SettingsWindowViewModel viewModel = new(settings, settingDefinitions, previewers, appName);
+        SettingsWindowViewModel viewModel = new(settings, settingDefinitions, appName);
         DataContext = viewModel;
 
         viewModel.BrowseSettingRequested += OnBrowseSettingRequested;

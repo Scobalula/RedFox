@@ -1023,8 +1023,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private GameExtractionConfiguration CreateConfiguration()
     {
-        GameExtractionConfiguration configuration = _config.ConfigurationFactory(_config.Settings);
-        configuration.ApplySettings(_config.Settings, _config.SettingDefinitions.Concat(_config.Previewers.SelectMany(previewer => previewer.SettingDefinitions)));
+        GameExtractionConfiguration configuration = new();
+        configuration.ApplySettings(_config.Settings, _config.SettingDefinitions);
         return configuration;
     }
 

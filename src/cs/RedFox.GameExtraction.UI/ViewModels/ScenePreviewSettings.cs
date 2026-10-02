@@ -49,7 +49,11 @@ public sealed partial class ScenePreviewSettings : ObservableObject
         DefaultValue = true,
     };
 
-    internal static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
+    /// <summary>
+    /// Gets the optional setting definitions for the built-in scene preview preferences.
+    /// Add these to an application's setting definitions to expose them in its settings UI.
+    /// </summary>
+    public static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
     [
         UpAxisSetting,
         SkinningModeSetting,
