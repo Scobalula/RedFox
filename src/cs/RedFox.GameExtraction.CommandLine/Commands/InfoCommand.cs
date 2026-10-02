@@ -29,7 +29,7 @@ internal sealed class InfoCommand : ICommandLineCommand
         }
 
         AddRow(session, grid, "Settings", session.SettingsPath);
-        AddRow(session, grid, "Output", Path.GetFullPath(session.CreateExportConfiguration().OutputDirectory));
+        AddRow(session, grid, "Output", Path.GetFullPath(session.CreateConfiguration().GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory())));
         AddRow(session, grid, "Readers", string.Join(", ", session.Manager.SourceReaders.Select(reader => reader.GetType().Name)));
         AddRow(session, grid, "Handlers", string.Join(", ", session.Manager.Handlers.Select(handler => handler.GetType().Name)));
         AddRow(session, grid, "Sources", $"{session.Manager.Sources.Count:N0}");

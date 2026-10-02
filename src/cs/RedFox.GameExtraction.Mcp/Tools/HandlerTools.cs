@@ -16,7 +16,8 @@ internal sealed class HandlerTools(AssetManager assetManager, AssetDataReader da
 
         try
         {
-            AssetReadResult result = await assetManager.ReadAsync(asset);
+            GameExtractionConfiguration configuration = config.ConfigurationFactory();
+            AssetReadResult result = await assetManager.ReadAsync(asset, configuration, CancellationToken.None);
 
             return $"Handler: {result.Handler.GetType().Name}\n{Summarize(result.Data)}";
         }
@@ -26,19 +27,16 @@ internal sealed class HandlerTools(AssetManager assetManager, AssetDataReader da
         }
     }
 
-    [McpServerTool(Name = "export_assets"), Description("Exports assets matching a name pattern and type using the tool's export configuration. Returns a success count and each failure.")]
+    [McpServerTool(Name = "export_assets"), Description("Exports assets matching a name pattern and type using the tool's shared configuration. Returns a success count and each failure.")]
     public async Task<string> ExportAssets([Description("Name substring or wildcard pattern.")] string? pattern = null, [Description("Asset type.")] string? type = null, [Description("Output directory override.")] string? outputDirectory = null)
     {
         AssetFilter filter = new(string.IsNullOrEmpty(pattern) ? null : pattern, string.IsNullOrEmpty(type) ? null : type);
-        ExportConfiguration defaults = config.ExportConfigurationFactory();
-        ExportConfiguration export = new()
+        GameExtractionConfiguration defaults = config.ConfigurationFactory();
+        GameExtractionConfiguration export = new() { Options = new(defaults.Options) };
+        if (!string.IsNullOrWhiteSpace(outputDirectory))
         {
-            OutputDirectory = outputDirectory ?? defaults.OutputDirectory,
-            Overwrite = defaults.Overwrite,
-            ExportReferences = defaults.ExportReferences,
-            PreserveDirectoryStructure = defaults.PreserveDirectoryStructure,
-            Options = defaults.Options
-        };
+            export.SetOption("OutputDirectory", outputDirectory);
+        }
 
         List<string> failures = [];
         int succeeded = 0;
@@ -56,7 +54,7 @@ internal sealed class HandlerTools(AssetManager assetManager, AssetDataReader da
             }
         }
 
-        return $"Exported {succeeded} assets to {export.OutputDirectory}. Failures: {failures.Count}\n{string.Join('\n', failures.Take(50))}";
+        return $"Exported {succeeded} assets to {export.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory())}. Failures: {failures.Count}\n{string.Join('\n', failures.Take(50))}";
     }
 
     private static string Summarize(object? data)

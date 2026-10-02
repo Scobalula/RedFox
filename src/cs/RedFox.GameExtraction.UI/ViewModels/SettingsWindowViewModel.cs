@@ -17,15 +17,17 @@ public partial class SettingsWindowViewModel : ObservableObject
     /// </summary>
     /// <param name="settings">The settings object to edit.</param>
     /// <param name="settingDefinitions">The settings to display.</param>
+    /// <param name="previewers">The previewers that may contribute settings.</param>
     /// <param name="appName">The application name used for persistence.</param>
-    public SettingsWindowViewModel(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName)
+    public SettingsWindowViewModel(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, IReadOnlyList<IAssetPreviewer> previewers, string appName)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(settingDefinitions);
+        ArgumentNullException.ThrowIfNull(previewers);
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         _appName = appName;
 
-        Groups = [.. settingDefinitions.Concat(ScenePreviewSettings.SettingDefinitions)
+        Groups = [.. settingDefinitions.Concat(previewers.SelectMany(previewer => previewer.SettingDefinitions))
             .DistinctBy(setting => setting.Name, StringComparer.OrdinalIgnoreCase)
             .GroupBy(setting => setting.Group)
             .OrderBy(group => GetGroupOrder(group.Key))

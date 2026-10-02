@@ -275,7 +275,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _previewSelectionTimer = new Timer(OnPreviewSelectionTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
         _config = config;
         _assetManager = config.AssetManagerFactory();
-        Preview = new PreviewViewModel(_assetManager, config.Previewers, config.PreviewSettings);
+        Preview = new PreviewViewModel(_assetManager, CreateConfiguration, config.Previewers, config.PreviewSettings);
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
         _assetManager.AssetExportFailed += OnAssetExportFailed;
@@ -1021,6 +1021,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         await ExportAssetsAsync(SelectedAssets).ConfigureAwait(false);
     }
 
+    private GameExtractionConfiguration CreateConfiguration()
+    {
+        GameExtractionConfiguration configuration = _config.ConfigurationFactory(_config.Settings);
+        configuration.ApplySettings(_config.Settings, _config.SettingDefinitions.Concat(_config.Previewers.SelectMany(previewer => previewer.SettingDefinitions)));
+        return configuration;
+    }
+
     private async Task ExportAssetsAsync(IEnumerable<AssetRowViewModel> rows)
     {
         List<AssetRowViewModel> rowList = [.. rows];
@@ -1043,7 +1050,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            ExportConfiguration configuration = _config.ExportConfigurationFactory(_config.Settings);
+            GameExtractionConfiguration configuration = CreateConfiguration();
             IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
             await Task.Run(() => _assetManager.ExportAsync([.. rowList.Select(row => row.Asset)], configuration, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
@@ -1056,7 +1063,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             progressVm.ProgressValue = 100;
             progressVm.IsIndeterminate = false;
             progressVm.IsCompleted = true;
-            progressVm.OpenExportFolderCommand = new RelayCommand(() => OpenExportFolder(progressVm, configuration.OutputDirectory));
+            progressVm.OpenExportFolderCommand = new RelayCommand(() => OpenExportFolder(progressVm, configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory())));
             StatusText = summary;
             completed = true;
         }

@@ -1,7 +1,7 @@
 namespace RedFox.GameExtraction.Template;
 
 /// <summary>
-/// Provides the setting definitions, defaults, and export configuration mapping shared by the template frontends.
+/// Provides the setting definitions, defaults, and shared configuration mapping for the template frontends.
 /// </summary>
 public static class TemplateSettings
 {
@@ -68,22 +68,16 @@ public static class TemplateSettings
     };
 
     /// <summary>
-    /// Builds an export configuration from persisted setting values.
+    /// Builds the shared handler configuration from persisted setting values.
     /// </summary>
     /// <param name="settings">The persisted settings.</param>
-    /// <returns>The export configuration.</returns>
-    public static ExportConfiguration CreateExportConfiguration(GameExtractionSettings settings)
+    /// <returns>The shared handler configuration.</returns>
+    public static GameExtractionConfiguration CreateConfiguration(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
 
-        string? outputDirectory = settings.Values.TryGetValue("OutputDirectory", out string? configuredOutputDirectory) ? configuredOutputDirectory : null;
-
-        return new ExportConfiguration
-        {
-            OutputDirectory = string.IsNullOrWhiteSpace(outputDirectory) ? GameExtractionSettings.GetDefaultOutputDirectory() : outputDirectory,
-            Overwrite = settings.Values.TryGetValue("Overwrite", out string? overwriteValue) && bool.TryParse(overwriteValue, out bool overwrite) && overwrite,
-            ExportReferences = settings.Values.TryGetValue("ExportReferences", out string? exportReferencesValue) && bool.TryParse(exportReferencesValue, out bool exportReferences) && exportReferences,
-            PreserveDirectoryStructure = !settings.Values.TryGetValue("PreserveDirectoryStructure", out string? preserveDirectoryStructureValue) || (bool.TryParse(preserveDirectoryStructureValue, out bool preserveDirectoryStructure) && preserveDirectoryStructure),
-        };
+        GameExtractionConfiguration configuration = new();
+        configuration.ApplySettings(settings, Definitions);
+        return configuration;
     }
 }

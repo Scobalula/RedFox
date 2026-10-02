@@ -142,7 +142,7 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
+        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.Previewers, viewModel.Config.AppName, openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         await settingsWindow.ShowDialog(this);
         viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
     }

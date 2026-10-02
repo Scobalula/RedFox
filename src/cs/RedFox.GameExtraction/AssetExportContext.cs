@@ -5,8 +5,6 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class AssetExportContext
 {
-    private static readonly IReadOnlyDictionary<string, object?> EmptyOptions = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-
     private readonly IProgress<string>? _progress;
     private readonly CancellationToken _cancellationToken;
 
@@ -31,14 +29,14 @@ public sealed class AssetExportContext
     public IReadOnlyDictionary<string, object?> SourceOptions => Request.Options;
 
     /// <summary>
-    /// Gets the export configuration used for the operation.
+    /// Gets the shared settings and options used for the operation.
     /// </summary>
-    public ExportConfiguration ExportConfiguration { get; }
+    public GameExtractionConfiguration Configuration { get; }
 
     /// <summary>
-    /// Gets the arbitrary export options associated with the operation.
+    /// Gets the setting values and additional options associated with the operation.
     /// </summary>
-    public IReadOnlyDictionary<string, object?> ExportOptions => ExportConfiguration.Options is { } options ? (IReadOnlyDictionary<string, object?>)options : EmptyOptions;
+    public IReadOnlyDictionary<string, object?> Options => Configuration.Options;
 
     /// <summary>
     /// Gets the relative output directory applied to the current export scope.
@@ -58,17 +56,17 @@ public sealed class AssetExportContext
     /// <summary>Gets the cancellation token for this export operation.</summary>
     public CancellationToken CancellationToken => _cancellationToken;
 
-    internal AssetExportContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, ExportConfiguration exportConfiguration, string relativeOutputDirectory, IProgress<string>? progress, CancellationToken cancellationToken)
-        : this(assetManager, source, request, exportConfiguration, relativeOutputDirectory, progress, cancellationToken, null)
+    internal AssetExportContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, GameExtractionConfiguration configuration, string relativeOutputDirectory, IProgress<string>? progress, CancellationToken cancellationToken)
+        : this(assetManager, source, request, configuration, relativeOutputDirectory, progress, cancellationToken, null)
     {
     }
 
-    internal AssetExportContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, ExportConfiguration exportConfiguration, string relativeOutputDirectory, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
+    internal AssetExportContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, GameExtractionConfiguration configuration, string relativeOutputDirectory, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));
         Source = source ?? throw new ArgumentNullException(nameof(source));
         Request = request ?? throw new ArgumentNullException(nameof(request));
-        ExportConfiguration = exportConfiguration ?? throw new ArgumentNullException(nameof(exportConfiguration));
+        Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         RelativeOutputDirectory = AssetManager.NormalizeRelativeOutputDirectory(relativeOutputDirectory);
         _progress = progress;
         _cancellationToken = cancellationToken;
@@ -84,7 +82,7 @@ public sealed class AssetExportContext
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        string relativeDirectory = ExportConfiguration.PreserveDirectoryStructure ? Path.GetDirectoryName(global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name)) ?? string.Empty : string.Empty;
+        string relativeDirectory = Configuration.GetOption("PreserveDirectoryStructure", true) ? Path.GetDirectoryName(global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name)) ?? string.Empty : string.Empty;
 
         return ResolveOutputDirectory(relativeDirectory);
     }
@@ -98,7 +96,7 @@ public sealed class AssetExportContext
     {
         ArgumentNullException.ThrowIfNull(asset);
 
-        string relativePath = ExportConfiguration.PreserveDirectoryStructure ? global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(asset.Name);
+        string relativePath = Configuration.GetOption("PreserveDirectoryStructure", true) ? global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(asset.Name);
 
         return ResolveOutputPath(relativePath);
     }
@@ -116,7 +114,7 @@ public sealed class AssetExportContext
 
         string fileName = Path.GetFileNameWithoutExtension(asset.Name)
             + (extension.StartsWith('.') ? extension : $".{extension}");
-        string relativeDirectory = ExportConfiguration.PreserveDirectoryStructure ? Path.GetDirectoryName(global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name)) ?? string.Empty : string.Empty;
+        string relativeDirectory = Configuration.GetOption("PreserveDirectoryStructure", true) ? Path.GetDirectoryName(global::RedFox.GameExtraction.AssetManager.NormalizeVirtualPath(asset.Name)) ?? string.Empty : string.Empty;
         string relativePath = string.IsNullOrWhiteSpace(relativeDirectory) ? fileName : Path.Combine(relativeDirectory, fileName);
 
         return ResolveOutputPath(relativePath);
@@ -129,7 +127,7 @@ public sealed class AssetExportContext
     /// <returns>The resolved absolute output path.</returns>
     public string ResolveOutputPath(string relativePath)
     {
-        string outputRoot = Path.GetFullPath(ExportConfiguration.OutputDirectory);
+        string outputRoot = Path.GetFullPath(Configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
         string outputPath = Path.GetFullPath(Path.Combine(OutputDirectory, AssetManager.NormalizeRelativeOutputDirectory(relativePath)));
         EnsurePathIsWithinRoot(outputRoot, outputPath);
         return outputPath;
@@ -148,7 +146,7 @@ public sealed class AssetExportContext
     /// <returns>The resolved absolute output directory.</returns>
     public string ResolveOutputDirectory(string relativePath)
     {
-        string outputRoot = Path.GetFullPath(ExportConfiguration.OutputDirectory);
+        string outputRoot = Path.GetFullPath(Configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
         string combinedRelativePath = AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativePath);
         string outputPath = string.IsNullOrWhiteSpace(combinedRelativePath) ? outputRoot : Path.GetFullPath(Path.Combine(outputRoot, combinedRelativePath));
         EnsurePathIsWithinRoot(outputRoot, outputPath);
@@ -180,13 +178,13 @@ public sealed class AssetExportContext
     public bool TryGetSourceOption<T>(string key, out T? value) => TryGetOption(SourceOptions, key, out value);
 
     /// <summary>
-    /// Attempts to resolve a typed export option.
+    /// Attempts to resolve a typed setting value or configuration option.
     /// </summary>
     /// <typeparam name="T">The option type.</typeparam>
     /// <param name="key">The option key.</param>
     /// <param name="value">The resolved option value when available.</param>
     /// <returns><see langword="true"/> when the option is present and of the requested type; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetExportOption<T>(string key, out T? value) => TryGetOption(ExportOptions, key, out value);
+    public bool TryGetConfigurationOption<T>(string key, out T? value) => TryGetOption(Options, key, out value);
 
     /// <summary>
     /// Recursively exports another asset as part of the current export batch, placed within the current scope's output directory.
@@ -195,7 +193,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(Asset asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return AssetManager.ExportAsync(asset, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, RelativeOutputDirectory, Configuration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -206,7 +204,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(Asset asset, string relativeOutputDirectory)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return AssetManager.ExportAsync(asset, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), Configuration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -220,7 +218,7 @@ public sealed class AssetExportContext
         ArgumentNullException.ThrowIfNull(result);
         if (!ReferenceEquals(result.Asset, asset))
             throw new ArgumentException($"The result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.", nameof(result));
-        return AssetManager.ExportAsync(asset, result, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, result, RelativeOutputDirectory, Configuration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -235,7 +233,7 @@ public sealed class AssetExportContext
         ArgumentNullException.ThrowIfNull(result);
         if (!ReferenceEquals(result.Asset, asset))
             throw new ArgumentException($"The result belongs to '{result.Asset.Name}' but the asset being exported is '{asset.Name}'.", nameof(result));
-        return AssetManager.ExportAsync(asset, result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(asset, result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), Configuration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -245,7 +243,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(AssetReadResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return AssetManager.ExportAsync(result, RelativeOutputDirectory, ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(result, RelativeOutputDirectory, Configuration, _progress, _cancellationToken);
     }
 
     /// <summary>
@@ -256,7 +254,7 @@ public sealed class AssetExportContext
     public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return AssetManager.ExportAsync(result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), ExportConfiguration, _progress, _cancellationToken);
+        return AssetManager.ExportAsync(result, AssetManager.CombineRelativePaths(RelativeOutputDirectory, relativeOutputDirectory), Configuration, _progress, _cancellationToken);
     }
 
     private static void EnsurePathIsWithinRoot(string root, string path)

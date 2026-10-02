@@ -57,7 +57,7 @@ public sealed class AudioHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
 
         string outputPath = context.ResolveAssetPath(asset);
-        return Task.FromResult(!File.Exists(outputPath) || context.ExportConfiguration.Overwrite);
+        return Task.FromResult(!File.Exists(outputPath) || context.Configuration.GetOption("Overwrite", false));
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public sealed class AudioHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
 
         string outputPath = context.ResolveAssetPath(result.Asset);
-        if (File.Exists(outputPath) && !context.ExportConfiguration.Overwrite)
+        if (File.Exists(outputPath) && !context.Configuration.GetOption("Overwrite", false))
         {
             return;
         }

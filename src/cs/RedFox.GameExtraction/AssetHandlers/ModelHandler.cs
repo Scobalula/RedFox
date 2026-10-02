@@ -23,13 +23,13 @@ public abstract class ModelHandler : IAssetHandler
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scenes = result.GetData<Scene[]>();
 
-        string relativeAssetPath = context.ExportConfiguration.PreserveDirectoryStructure ? AssetManager.NormalizeVirtualPath(result.Asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(result.Asset.Name));
+        string relativeAssetPath = context.Configuration.GetOption("PreserveDirectoryStructure", true) ? AssetManager.NormalizeVirtualPath(result.Asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(result.Asset.Name));
         string outputDirectory = context.ResolveOutputDirectory(relativeAssetPath);
 
-        var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
-        var relativeImages = context.ExportConfiguration.GetOption("RelativeModelImages", false);
-        var relativeToMaterial = context.ExportConfiguration.GetOption("RelativeToMaterialImages", false);
-        var skipExistingImages = context.ExportConfiguration.GetOption("SkipExistingImages", true);
+        var imageFormats = context.Configuration.GetOption("ImageFormats", TextureHandler.DefaultFormats);
+        var relativeImages = context.Configuration.GetOption("RelativeModelImages", false);
+        var relativeToMaterial = context.Configuration.GetOption("RelativeToMaterialImages", false);
+        var skipExistingImages = context.Configuration.GetOption("SkipExistingImages", true);
 
         // Each scene holds its own clones of shared materials and textures, so every clone must point at the
         // exported image, while each image is only written once.
@@ -56,7 +56,7 @@ public abstract class ModelHandler : IAssetHandler
             }
         }
 
-        var modelFormats = context.ExportConfiguration.GetOption("ModelFormats", DefaultFormats);
+        var modelFormats = context.Configuration.GetOption("ModelFormats", DefaultFormats);
 
         Directory.CreateDirectory(outputDirectory);
 
@@ -75,12 +75,12 @@ public abstract class ModelHandler : IAssetHandler
     /// <inheritdoc/>
     public async Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken)
     {
-        if (!context.ExportConfiguration.GetOption("SkipExistingModels", false))
+        if (!context.Configuration.GetOption("SkipExistingModels", false))
             return true;
 
         // For now - a basic directory check is best we can do, as we would have no context on lods, formats, images, etc.
         // We could potentially do a wildcard check against let's say asset.Name*.semodel, etc.
-        string relativeAssetPath = context.ExportConfiguration.PreserveDirectoryStructure ? AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(asset.Name));
+        string relativeAssetPath = context.Configuration.GetOption("PreserveDirectoryStructure", true) ? AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(asset.Name));
         return !Directory.Exists(context.ResolveOutputDirectory(relativeAssetPath));
     }
 

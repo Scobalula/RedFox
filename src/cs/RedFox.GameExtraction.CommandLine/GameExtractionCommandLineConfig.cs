@@ -13,9 +13,9 @@ public sealed class GameExtractionCommandLineConfig
     public required Func<AssetManager> AssetManagerFactory { get; init; }
 
     /// <summary>
-    /// Gets the function used to build export configuration values from persisted settings.
+    /// Gets the function used to build the shared handler configuration from persisted settings.
     /// </summary>
-    public required Func<GameExtractionSettings, ExportConfiguration> ExportConfigurationFactory { get; init; }
+    public required Func<GameExtractionSettings, GameExtractionConfiguration> ConfigurationFactory { get; init; }
 
     /// <summary>
     /// Gets the mutable settings used by the application. Persisted values are loaded over these defaults on startup.

@@ -90,10 +90,10 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     public void RequestExit() => IsExitRequested = true;
 
     /// <summary>
-    /// Builds an export configuration from the current settings.
+    /// Builds the shared handler configuration from the current settings.
     /// </summary>
-    /// <returns>The export configuration.</returns>
-    public ExportConfiguration CreateExportConfiguration() => Config.ExportConfigurationFactory(Config.Settings);
+    /// <returns>The shared handler configuration.</returns>
+    public GameExtractionConfiguration CreateConfiguration() => GameExtractionCommandLineApp.CreateConfiguration(Config);
 
     /// <summary>
     /// Persists the current settings.
@@ -170,7 +170,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     /// <returns>A task representing the operation.</returns>
     public async Task ExportAsync(IReadOnlyList<Asset> assets, CancellationToken cancellationToken)
     {
-        ExportConfiguration configuration = CreateExportConfiguration();
+        GameExtractionConfiguration configuration = CreateConfiguration();
         List<(Asset Asset, Exception Exception)> failures = [];
         Stopwatch stopwatch = Stopwatch.StartNew();
         bool printAssets = bool.TryParse(Settings.GetSettingValue(PrintExportedAssetsSetting), out bool print) && print;
@@ -232,7 +232,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
             Manager.AssetExportCompleted -= OnAssetExportCompleted;
         }
 
-        WriteExportSummary(assets.Count - skipped - failures.Count, skipped, failures, stopwatch.Elapsed, configuration.OutputDirectory);
+        WriteExportSummary(assets.Count - skipped - failures.Count, skipped, failures, stopwatch.Elapsed, configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
     }
 
     /// <summary>

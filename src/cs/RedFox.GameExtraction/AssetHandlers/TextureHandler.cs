@@ -20,8 +20,8 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     {
         var manager = context.AssetManager.GetRequiredService<ImageTranslatorService>().Manager;
         var texture = result.GetData<Texture>();
-        var skipExisting = context.ExportConfiguration.GetOption("SkipExistingImages", true);
-        var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", DefaultFormats);
+        var skipExisting = context.Configuration.GetOption("SkipExistingImages", true);
+        var imageFormats = context.Configuration.GetOption("ImageFormats", DefaultFormats);
 
         ExportTexture(texture, imageFormats, manager, context.ResolveOutputPath(texture.Name), skipExisting);
     }
@@ -47,10 +47,10 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     /// <inheritdoc/>
     public virtual async Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken)
     {
-        if (!context.ExportConfiguration.GetOption("SkipExistingImages", true))
+        if (!context.Configuration.GetOption("SkipExistingImages", true))
             return true;
 
-        var imageFormats = context.ExportConfiguration.GetOption("ImageFormats", DefaultFormats);
+        var imageFormats = context.Configuration.GetOption("ImageFormats", DefaultFormats);
         string fullPath = context.ResolveAssetPath(asset);
 
         foreach (var format in imageFormats)

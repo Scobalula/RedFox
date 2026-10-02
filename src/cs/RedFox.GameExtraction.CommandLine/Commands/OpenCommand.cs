@@ -11,7 +11,7 @@ internal sealed class OpenCommand : ICommandLineCommand
 
     public Task ExecuteAsync(CommandLineSession session, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
     {
-        string directory = Path.GetFullPath(session.CreateExportConfiguration().OutputDirectory);
+        string directory = Path.GetFullPath(session.CreateConfiguration().GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
 
         Directory.CreateDirectory(directory);
         Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true })?.Dispose();

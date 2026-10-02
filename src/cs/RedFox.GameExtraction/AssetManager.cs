@@ -498,7 +498,7 @@ public sealed class AssetManager
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        ReadAsync(asset, parentContext: null, userData: null, CancellationToken.None);
+        ReadAsync(asset, parentContext: null, configuration: new GameExtractionConfiguration(), userData: null, CancellationToken.None);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler.
@@ -507,7 +507,17 @@ public sealed class AssetManager
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
-        ReadAsync(asset, parentContext: null, userData: null, cancellationToken);
+        ReadAsync(asset, parentContext: null, configuration: new GameExtractionConfiguration(), userData: null, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset using the first compatible registered handler and the supplied shared configuration.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="configuration">The settings and operation options made available to the handler.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext: null, configuration, userData: null, cancellationToken);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler, carrying optional user-defined data through the read context.
@@ -517,7 +527,7 @@ public sealed class AssetManager
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset, object? userData, CancellationToken cancellationToken) =>
-        ReadAsync(asset, parentContext: null, userData, cancellationToken);
+        ReadAsync(asset, parentContext: null, configuration: new GameExtractionConfiguration(), userData, cancellationToken);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler, recording the result as a reference on the supplied parent context.
@@ -532,7 +542,18 @@ public sealed class AssetManager
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, CancellationToken cancellationToken) =>
-        ReadAsync(asset, parentContext, userData: null, cancellationToken);
+        ReadAsync(asset, parentContext, configuration: parentContext?.Configuration ?? new GameExtractionConfiguration(), userData: null, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset and records it as a reference on the supplied parent context using the supplied configuration.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="parentContext">The parent context that receives the result as a reference.</param>
+    /// <param name="configuration">The settings and operation options made available to the handler.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext, configuration, userData: null, cancellationToken);
 
     /// <summary>
     /// Reads an asset using the first compatible registered handler, recording the result as a reference on the supplied parent context.
@@ -548,9 +569,22 @@ public sealed class AssetManager
     /// <param name="userData">Optional user-defined data attached to the read operation.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, object? userData, CancellationToken cancellationToken)
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, object? userData, CancellationToken cancellationToken) =>
+        ReadAsync(asset, parentContext, configuration: parentContext?.Configuration ?? new GameExtractionConfiguration(), userData, cancellationToken);
+
+    /// <summary>
+    /// Reads an asset with shared configuration and optional user data.
+    /// </summary>
+    /// <param name="asset">The asset to read.</param>
+    /// <param name="parentContext">The parent context that receives the result as a reference.</param>
+    /// <param name="configuration">The settings and operation options made available to the handler.</param>
+    /// <param name="userData">Optional user-defined data attached to the operation.</param>
+    /// <param name="cancellationToken">The cancellation token for the operation.</param>
+    /// <returns>The handler-produced read result.</returns>
+    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, GameExtractionConfiguration configuration, object? userData, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(configuration);
         cancellationToken.ThrowIfCancellationRequested();
 
         IAssetSource source = GetRequiredSource(asset);
@@ -560,7 +594,7 @@ public sealed class AssetManager
 
         try
         {
-            AssetReadContext context = new(this, source, sourceRequest, userData, cancellationToken);
+            AssetReadContext context = new(this, source, sourceRequest, parentContext?.Configuration ?? configuration, userData, cancellationToken);
             AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
 
             foreach (AssetReadResult reference in context.References)
@@ -588,37 +622,37 @@ public sealed class AssetManager
     /// Exports a single asset.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <returns>A task that completes when the export finishes.</returns>
-    public Task ExportAsync(Asset asset, ExportConfiguration configuration) =>
+    public Task ExportAsync(Asset asset, GameExtractionConfiguration configuration) =>
         ExportAsync(asset, configuration, null, CancellationToken.None);
 
     /// <summary>
     /// Exports a single asset.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
-    public Task ExportAsync(Asset asset, ExportConfiguration configuration, IProgress<string> progress) =>
+    public Task ExportAsync(Asset asset, GameExtractionConfiguration configuration, IProgress<string> progress) =>
         ExportAsync(asset, configuration, progress, CancellationToken.None);
 
     /// <summary>
     /// Exports a single asset.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(Asset asset, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+    public Task ExportAsync(Asset asset, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
         ExportAsync(asset, configuration, null, cancellationToken);
 
     /// <summary>
     /// Exports a single asset.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(Asset asset, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+    public Task ExportAsync(Asset asset, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
         ExportAsync(asset, string.Empty, configuration, progress, cancellationToken);
 
     /// <summary>
@@ -626,8 +660,8 @@ public sealed class AssetManager
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
-    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration) =>
+    /// <param name="configuration">The shared configuration to apply.</param>
+    public Task ExportAsync(Asset asset, AssetReadResult result, GameExtractionConfiguration configuration) =>
         ExportAsync(asset, result, configuration, null, CancellationToken.None);
 
     /// <summary>
@@ -635,9 +669,9 @@ public sealed class AssetManager
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
-    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, IProgress<string> progress) =>
+    public Task ExportAsync(Asset asset, AssetReadResult result, GameExtractionConfiguration configuration, IProgress<string> progress) =>
         ExportAsync(asset, result, configuration, progress, CancellationToken.None);
 
     /// <summary>
@@ -645,9 +679,9 @@ public sealed class AssetManager
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+    public Task ExportAsync(Asset asset, AssetReadResult result, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
         ExportAsync(asset, result, configuration, null, cancellationToken);
 
     /// <summary>
@@ -655,10 +689,10 @@ public sealed class AssetManager
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">A read result whose <see cref="AssetReadResult.Asset"/> matches <paramref name="asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task ExportAsync(Asset asset, AssetReadResult result, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    public async Task ExportAsync(Asset asset, AssetReadResult result, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(result);
@@ -676,36 +710,36 @@ public sealed class AssetManager
     /// Exports an asset identified by its read result, bypassing the manager's read step.
     /// </summary>
     /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
-    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration) =>
+    /// <param name="configuration">The shared configuration to apply.</param>
+    public Task ExportAsync(AssetReadResult result, GameExtractionConfiguration configuration) =>
         ExportAsync(result, string.Empty, configuration, null, CancellationToken.None);
 
     /// <summary>
     /// Exports an asset identified by its read result, bypassing the manager's read step.
     /// </summary>
     /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
-    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, IProgress<string> progress) =>
+    public Task ExportAsync(AssetReadResult result, GameExtractionConfiguration configuration, IProgress<string> progress) =>
         ExportAsync(result, string.Empty, configuration, progress, CancellationToken.None);
 
     /// <summary>
     /// Exports an asset identified by its read result, bypassing the manager's read step.
     /// </summary>
     /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+    public Task ExportAsync(AssetReadResult result, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
         ExportAsync(result, string.Empty, configuration, null, cancellationToken);
 
     /// <summary>
     /// Exports an asset identified by its read result, bypassing the manager's read step.
     /// </summary>
     /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(AssetReadResult result, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+    public Task ExportAsync(AssetReadResult result, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
         ExportAsync(result, string.Empty, configuration, progress, cancellationToken);
 
     /// <summary>
@@ -713,10 +747,10 @@ public sealed class AssetManager
     /// </summary>
     /// <param name="result">The read result to export. The asset is taken from <see cref="AssetReadResult.Asset"/>.</param>
     /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    public Task ExportAsync(AssetReadResult result, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(result);
         return ExportAsync(result.Asset, result, relativeOutputDirectory, configuration, progress, cancellationToken);
@@ -726,36 +760,36 @@ public sealed class AssetManager
     /// Exports a collection of assets.
     /// </summary>
     /// <param name="assets">The assets to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
-    public Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration) =>
+    /// <param name="configuration">The shared configuration to apply.</param>
+    public Task ExportAsync(IEnumerable<Asset> assets, GameExtractionConfiguration configuration) =>
         ExportAsync(assets, configuration, null, CancellationToken.None);
 
     /// <summary>
     /// Exports a collection of assets.
     /// </summary>
     /// <param name="assets">The assets to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
-    public Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration, IProgress<string> progress) =>
+    public Task ExportAsync(IEnumerable<Asset> assets, GameExtractionConfiguration configuration, IProgress<string> progress) =>
         ExportAsync(assets, configuration, progress, CancellationToken.None);
 
     /// <summary>
     /// Exports a collection of assets.
     /// </summary>
     /// <param name="assets">The assets to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration, CancellationToken cancellationToken) =>
+    public Task ExportAsync(IEnumerable<Asset> assets, GameExtractionConfiguration configuration, CancellationToken cancellationToken) =>
         ExportAsync(assets, configuration, null, cancellationToken);
 
     /// <summary>
     /// Exports a collection of assets.
     /// </summary>
     /// <param name="assets">The assets to export.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public async Task ExportAsync(IEnumerable<Asset> assets, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
+    public async Task ExportAsync(IEnumerable<Asset> assets, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -779,31 +813,31 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, ExportConfiguration)"/>
+    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, GameExtractionConfiguration)"/>
     /// overload and by <see cref="AssetExportContext"/> for recursive exports. Reads the asset via the handler.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+    public Task ExportAsync(Asset asset, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
         ExportAsync(asset, relativeOutputDirectory, configuration, progress, cancellationToken, null);
 
     /// <summary>
-    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, ExportConfiguration)"/>
+    /// Per-asset export pipeline called by every public <see cref="ExportAsync(Asset, GameExtractionConfiguration)"/>
     /// overload and by <see cref="AssetExportContext"/> for recursive exports. Reads the asset via the handler.
     /// </summary>
     /// <param name="asset">The asset to export.</param>
     /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <param name="userData">Optional user-defined data attached to the export operation.</param>
-    public Task ExportAsync(Asset asset, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData) =>
+    public Task ExportAsync(Asset asset, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData) =>
         ExportAssetAsync(asset, null, relativeOutputDirectory, configuration, progress, cancellationToken, userData);
 
-    private async Task ExportAssetAsync(Asset asset, AssetReadResult? result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
+    private async Task ExportAssetAsync(Asset asset, AssetReadResult? result, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -827,7 +861,7 @@ public sealed class AssetManager
             return;
         }
 
-        AssetReadResult exportResult = result ?? await ReadAsync(asset, userData, cancellationToken).ConfigureAwait(false);
+        AssetReadResult exportResult = result ?? await ReadAsync(asset, parentContext: null, configuration, userData, cancellationToken).ConfigureAwait(false);
 
         progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
 
@@ -854,10 +888,10 @@ public sealed class AssetManager
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">The already-read result to export.</param>
     /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
+    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken) =>
         ExportAsync(asset, result, relativeOutputDirectory, configuration, progress, cancellationToken, null);
 
     /// <summary>
@@ -866,11 +900,11 @@ public sealed class AssetManager
     /// <param name="asset">The asset to export.</param>
     /// <param name="result">The already-read result to export.</param>
     /// <param name="relativeOutputDirectory">The relative output directory rooted at the configuration's output directory.</param>
-    /// <param name="configuration">The export configuration to apply.</param>
+    /// <param name="configuration">The shared configuration to apply.</param>
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <param name="userData">Optional user-defined data attached to the export operation.</param>
-    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, ExportConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
+    public Task ExportAsync(Asset asset, AssetReadResult result, string relativeOutputDirectory, GameExtractionConfiguration configuration, IProgress<string>? progress, CancellationToken cancellationToken, object? userData)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(result);

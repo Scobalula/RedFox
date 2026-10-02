@@ -69,7 +69,7 @@ public sealed class ModelHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
 
         string outputPath = context.ResolveAssetPath(asset);
-        bool shouldExport = !File.Exists(outputPath) || context.ExportConfiguration.Overwrite;
+        bool shouldExport = !File.Exists(outputPath) || context.Configuration.GetOption("Overwrite", false);
         return Task.FromResult(shouldExport);
     }
 
@@ -89,7 +89,7 @@ public sealed class ModelHandler : IAssetHandler
         SceneTranslatorManager translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         string outputPath = context.ResolveAssetPath(result.Asset);
 
-        if (File.Exists(outputPath) && !context.ExportConfiguration.Overwrite)
+        if (File.Exists(outputPath) && !context.Configuration.GetOption("Overwrite", false))
         {
             return;
         }

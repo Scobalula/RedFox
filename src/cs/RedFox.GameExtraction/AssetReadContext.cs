@@ -28,6 +28,11 @@ public sealed class AssetReadContext
     public IReadOnlyDictionary<string, object?> SourceOptions => Request.Options;
 
     /// <summary>
+    /// Gets the shared configuration used for this read and its referenced reads.
+    /// </summary>
+    public GameExtractionConfiguration Configuration { get; }
+
+    /// <summary>
     /// Gets optional user-defined data attached to the read operation.
     /// </summary>
     public object? UserData { get; }
@@ -48,16 +53,12 @@ public sealed class AssetReadContext
     /// </remarks>
     public IReadOnlyList<AssetReadResult> References => _references;
 
-    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request)
-        : this(assetManager, source, request, null, CancellationToken.None)
-    {
-    }
-
-    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, object? userData, CancellationToken cancellationToken)
+    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, GameExtractionConfiguration configuration, object? userData, CancellationToken cancellationToken)
     {
         AssetManager = assetManager;
         Source = source;
         Request = request;
+        Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         UserData = userData;
         CancellationToken = cancellationToken;
     }
@@ -83,7 +84,7 @@ public sealed class AssetReadContext
     /// <param name="asset">The asset to read.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset) =>
-        AssetManager.ReadAsync(asset, this, CancellationToken);
+        AssetManager.ReadAsync(asset, this, Configuration, userData: null, CancellationToken);
 
     /// <summary>
     /// Reads another asset through the owning manager and tracks the result as a reference on this context.
@@ -92,7 +93,7 @@ public sealed class AssetReadContext
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
     public Task<AssetReadResult> ReadAsync(Asset asset, CancellationToken cancellationToken) =>
-        AssetManager.ReadAsync(asset, this, cancellationToken);
+        AssetManager.ReadAsync(asset, this, Configuration, userData: null, cancellationToken);
 
     internal void AddReference(AssetReadResult result) => _references.Add(result);
 }

@@ -11,9 +11,9 @@ public sealed class GameExtractionMcpConfig
     public required Func<AssetManager> AssetManagerFactory { get; init; }
 
     /// <summary>
-    /// Gets or initializes a factory function that creates default ExportConfiguration instances.
+    /// Gets or initializes a factory function that creates default GameExtractionConfiguration instances.
     /// </summary>
-    public required Func<ExportConfiguration> ExportConfigurationFactory { get; init; }
+    public required Func<GameExtractionConfiguration> ConfigurationFactory { get; init; }
 
     /// <summary>
     /// Gets or initializes the name of the MCP server. Defaults to "RedFox".

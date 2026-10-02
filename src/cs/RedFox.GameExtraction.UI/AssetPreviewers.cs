@@ -70,7 +70,7 @@ public static class AssetPreviewers
             }
 
             return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, context.PreviewSettings, context.PreparedSceneBounds, context.PreparedSceneData) };
-        });
+        }, ScenePreviewSettings.SettingDefinitions);
     }
 
     /// <summary>

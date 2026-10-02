@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Controls;
+using RedFox.GameExtraction;
 
 namespace RedFox.GameExtraction.UI;
 
@@ -8,6 +9,9 @@ namespace RedFox.GameExtraction.UI;
 /// </summary>
 public interface IAssetPreviewer
 {
+    /// <summary>Gets the settings this previewer exposes in the application settings window.</summary>
+    IReadOnlyList<GameExtractionSetting> SettingDefinitions => [];
+
     /// <summary>
     /// Attempts to create a preview for the supplied read result.
     /// </summary>

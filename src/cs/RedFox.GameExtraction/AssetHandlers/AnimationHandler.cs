@@ -20,7 +20,7 @@ public abstract class AnimationHandler : IAssetHandler
 
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scene = result.GetData<Scene>();
-        foreach (var format in context.ExportConfiguration.GetOption("AnimationFormats", DefaultFormats))
+        foreach (var format in context.Configuration.GetOption("AnimationFormats", DefaultFormats))
         {
             string outputPath = context.ResolveAssetPath(result.Asset, format);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
@@ -31,10 +31,10 @@ public abstract class AnimationHandler : IAssetHandler
     /// <inheritdoc/>
     public Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken)
     {
-        if (!context.ExportConfiguration.GetOption("SkipExistingAnimations", false))
+        if (!context.Configuration.GetOption("SkipExistingAnimations", false))
             return Task.FromResult(true);
 
-        var formats = context.ExportConfiguration.GetOption("AnimationFormats", DefaultFormats);
+        var formats = context.Configuration.GetOption("AnimationFormats", DefaultFormats);
 
         return Task.FromResult(!formats.All(format => File.Exists(context.ResolveAssetPath(asset, format))));
     }

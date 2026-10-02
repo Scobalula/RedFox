@@ -9,8 +9,9 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// <summary>
 /// Reads the payload of the most recently selected asset and asks the configured previewers to create a view for it.
 /// </summary>
-public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers, ScenePreviewSettings scenePreviewSettings) : ObservableObject
+public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtractionConfiguration> configurationFactory, IReadOnlyList<IAssetPreviewer> previewers, ScenePreviewSettings scenePreviewSettings) : ObservableObject
 {
+    private readonly Func<GameExtractionConfiguration> _configurationFactory = configurationFactory;
     private readonly ScenePreviewSettings _scenePreviewSettings = scenePreviewSettings;
     private readonly SemaphoreSlim _readGate = new(1, 1);
     private CancellationTokenSource? _loadCancellation;
@@ -135,7 +136,7 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
     /// </summary>
     /// <param name="assetManager">The asset manager used to read selected assets.</param>
     /// <param name="previewers">The previewers used to display asset payloads.</param>
-    public PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers) : this(assetManager, previewers, new())
+    public PreviewViewModel(AssetManager assetManager, IReadOnlyList<IAssetPreviewer> previewers) : this(assetManager, () => new(), previewers, new())
     {
     }
 
@@ -180,8 +181,9 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
             // Asset handlers can do substantial synchronous parsing before their first await. Start the
             // read on a worker so that its synchronous work and continuations stay off the UI thread.
+            GameExtractionConfiguration configuration = _configurationFactory();
             AssetReadResult result = await Task.Run(
-                () => assetManager.ReadAsync(selectedAsset.Asset, cancellationToken),
+                () => assetManager.ReadAsync(selectedAsset.Asset, configuration, cancellationToken),
                 cancellationToken).ConfigureAwait(true);
             if (loadVersion != _loadVersion)
             {
@@ -198,7 +200,7 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
 
             PayloadTypeDisplay = result.Data is null ? "None" : FormatTypeName(result.Data.GetType());
             ReferenceCount = result.References.Count;
-            SetContent(CreateContent(result, preparedSceneData));
+            SetContent(CreateContent(result, preparedSceneData, configuration));
             StatusText = Content is null ? $"No preview for {PayloadTypeDisplay}" : $"Ready ({PayloadTypeDisplay})";
         }
         catch (OperationCanceledException)
@@ -337,9 +339,9 @@ public partial class PreviewViewModel(AssetManager assetManager, IReadOnlyList<I
         return preparedData;
     }
 
-    private Control? CreateContent(AssetReadResult result, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData)
+    private Control? CreateContent(AssetReadResult result, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, GameExtractionConfiguration configuration)
     {
-        AssetPreviewContext context = new(result, assetManager, Content, preparedSceneData, _scenePreviewSettings);
+        AssetPreviewContext context = new(result, assetManager, configuration, Content, preparedSceneData, _scenePreviewSettings);
         foreach (IAssetPreviewer previewer in previewers)
         {
             if (previewer.TryCreatePreview(context, out Control? preview))

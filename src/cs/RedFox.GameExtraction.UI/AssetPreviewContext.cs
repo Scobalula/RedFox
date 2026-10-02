@@ -26,6 +26,11 @@ public sealed class AssetPreviewContext
     public AssetManager AssetManager { get; }
 
     /// <summary>
+    /// Gets the shared settings and operation options used to read the asset.
+    /// </summary>
+    public GameExtractionConfiguration Configuration { get; }
+
+    /// <summary>
     /// Gets the currently displayed preview, if any.
     /// </summary>
     public Control? CurrentPreview { get; }
@@ -42,10 +47,11 @@ public sealed class AssetPreviewContext
     /// </summary>
     public IReadOnlyDictionary<Scene, ScenePreviewData> PreparedSceneData { get; }
 
-    internal AssetPreviewContext(AssetReadResult readResult, AssetManager assetManager, Control? currentPreview, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, ScenePreviewSettings previewSettings)
+    internal AssetPreviewContext(AssetReadResult readResult, AssetManager assetManager, GameExtractionConfiguration configuration, Control? currentPreview, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, ScenePreviewSettings previewSettings)
     {
         ReadResult = readResult ?? throw new ArgumentNullException(nameof(readResult));
         AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));
+        Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         CurrentPreview = currentPreview;
         PreviewSettings = previewSettings ?? throw new ArgumentNullException(nameof(previewSettings));
         PreparedSceneData = preparedSceneData ?? throw new ArgumentNullException(nameof(preparedSceneData));

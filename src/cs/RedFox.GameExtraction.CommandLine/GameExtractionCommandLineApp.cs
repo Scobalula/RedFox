@@ -29,7 +29,7 @@ public static class GameExtractionCommandLineApp
             await GameExtractionMcpServer.RunAsync(new GameExtractionMcpConfig
             {
                 AssetManagerFactory = config.AssetManagerFactory,
-                ExportConfigurationFactory = () => config.ExportConfigurationFactory(config.Settings),
+                ConfigurationFactory = () => CreateConfiguration(config),
                 Name = config.AppName,
                 Version = config.Version,
             }).ConfigureAwait(false);
@@ -66,5 +66,12 @@ public static class GameExtractionCommandLineApp
         HashSet<string> customNames = new(config.Commands.SelectMany(command => command.Aliases.Prepend(command.Name)), StringComparer.OrdinalIgnoreCase);
 
         return [.. builtInCommands.Where(command => !customNames.Contains(command.Name)), .. config.Commands];
+    }
+
+    internal static GameExtractionConfiguration CreateConfiguration(GameExtractionCommandLineConfig config)
+    {
+        GameExtractionConfiguration configuration = config.ConfigurationFactory(config.Settings);
+        configuration.ApplySettings(config.Settings, config.SettingDefinitions);
+        return configuration;
     }
 }
