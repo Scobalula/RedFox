@@ -14,8 +14,9 @@ public sealed class AudioHandler : IAssetHandler
     /// Determines whether the asset is a WAVE file.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
+    /// <param name="configuration">The shared settings and options.</param>
     /// <returns><see langword="true"/> when the asset has a .wav extension.</returns>
-    public bool CanHandle(Asset asset)
+    public bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(asset);
         return string.Equals(Path.GetExtension(asset.Name), ".wav", StringComparison.OrdinalIgnoreCase);

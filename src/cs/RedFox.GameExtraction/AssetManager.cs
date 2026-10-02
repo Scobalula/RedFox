@@ -132,14 +132,7 @@ public sealed class AssetManager
     {
         ArgumentNullException.ThrowIfNull(handler);
         lock (_sourceLock)
-        {
             _handlers.Add(handler);
-            foreach (Asset asset in _assets)
-            {
-                if (!asset.TryGetHandler(out _) && handler.CanHandle(asset))
-                    asset.SetHandler(handler);
-            }
-        }
     }
 
     /// <summary>
@@ -248,18 +241,15 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// Finds the first registered handler that can process the supplied asset.
+    /// Finds the first registered handler that can process the supplied asset with the provided configuration.
     /// </summary>
     /// <param name="asset">The asset to inspect.</param>
+    /// <param name="configuration">The shared settings and options to consider.</param>
     /// <returns>The matching handler, or <see langword="null"/> when none can process the asset.</returns>
-    public IAssetHandler? FindHandler(Asset asset)
+    public IAssetHandler? FindHandler(Asset asset, GameExtractionConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(asset);
-
-        if (asset.TryGetHandler(out IAssetHandler? cachedHandler))
-        {
-            return cachedHandler;
-        }
+        ArgumentNullException.ThrowIfNull(configuration);
 
         IAssetHandler[] handlers;
         lock (_sourceLock)
@@ -267,9 +257,8 @@ public sealed class AssetManager
 
         foreach (IAssetHandler handler in handlers)
         {
-            if (handler.CanHandle(asset))
+            if (handler.CanHandle(asset, configuration))
             {
-                asset.SetHandler(handler);
                 return handler;
             }
         }
@@ -588,7 +577,7 @@ public sealed class AssetManager
         cancellationToken.ThrowIfCancellationRequested();
 
         IAssetSource source = GetRequiredSource(asset);
-        IAssetHandler handler = GetRequiredHandler(asset);
+        IAssetHandler handler = GetRequiredHandler(asset, parentContext?.Configuration ?? configuration);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
         AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source));
 
@@ -846,7 +835,7 @@ public sealed class AssetManager
 
         IAssetSource source = GetRequiredSource(asset);
         string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
-        IAssetHandler handler = GetRequiredHandler(asset);
+        IAssetHandler handler = GetRequiredHandler(asset, configuration);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
         AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken, userData);
 
@@ -986,13 +975,14 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// Returns the first registered handler that can process the supplied asset, or throws when none is available.
+    /// Returns the first registered handler that can process the supplied asset with the provided configuration, or throws when none is available.
     /// </summary>
     /// <param name="asset">The asset to process.</param>
+    /// <param name="configuration">The shared settings and options to consider.</param>
     /// <returns>The matching handler.</returns>
     /// <exception cref="NotSupportedException">Thrown when no registered handler can process the asset.</exception>
-    public IAssetHandler GetRequiredHandler(Asset asset) =>
-        FindHandler(asset) ?? throw new NotSupportedException($"No registered asset handler can process '{asset.Name}'.");
+    public IAssetHandler GetRequiredHandler(Asset asset, GameExtractionConfiguration configuration) =>
+        FindHandler(asset, configuration) ?? throw new NotSupportedException($"No registered asset handler can process '{asset.Name}'.");
 
     /// <summary>
     /// Returns the request that was used to mount the supplied source, or throws when none is associated.
@@ -1038,8 +1028,6 @@ public sealed class AssetManager
                 asset.AttachSource(source);
                 _assets.Add(asset);
 
-                if (!asset.TryGetHandler(out _))
-                    FindHandler(asset);
             }
         }
     }

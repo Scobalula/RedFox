@@ -156,14 +156,16 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
         ErrorMessage = null;
         ReferenceCount = 0;
         PayloadTypeDisplay = "-";
-        HandlerDisplay = selectedAsset is null ? "-" : assetManager.FindHandler(selectedAsset.Asset)?.GetType().Name ?? "Unknown Handler";
-
         if (selectedAsset is null)
         {
+            HandlerDisplay = "-";
             SetContent(null);
             StatusText = "Waiting for selection";
             return;
         }
+
+        GameExtractionConfiguration configuration = _configurationFactory();
+        HandlerDisplay = assetManager.FindHandler(selectedAsset.Asset, configuration)?.GetType().Name ?? "Unknown Handler";
 
         int loadVersion = ++_loadVersion;
         CancellationTokenSource cancellation = new();
@@ -181,7 +183,6 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
 
             // Asset handlers can do substantial synchronous parsing before their first await. Start the
             // read on a worker so that its synchronous work and continuations stay off the UI thread.
-            GameExtractionConfiguration configuration = _configurationFactory();
             AssetReadResult result = await Task.Run(
                 () => assetManager.ReadAsync(selectedAsset.Asset, configuration, cancellationToken),
                 cancellationToken).ConfigureAwait(true);

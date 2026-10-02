@@ -65,7 +65,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     }
 
     /// <inheritdoc/>
-    public abstract bool CanHandle(Asset asset);
+    public abstract bool CanHandle(Asset asset, GameExtractionConfiguration configuration);
 
     /// <inheritdoc/>
     public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);

@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 namespace RedFox.GameExtraction.Mcp.Tools;
 
 [McpServerToolType]
-internal sealed class AssetTools(AssetManager assetManager, AssetDataReader dataReader)
+internal sealed class AssetTools(AssetManager assetManager, AssetDataReader dataReader, GameExtractionMcpConfig config)
 {
     [McpServerTool(Name = "search_assets"), Description("Searches mounted assets by name (substring or wildcard) and type. Returns one asset per line plus the total count.")]
     public string SearchAssets([Description("Name substring or wildcard pattern.")] string? pattern = null, [Description("Asset type, e.g. a handler-defined type name.")] string? type = null, [Description("Rows to skip.")] int offset = 0, [Description("Maximum rows to return.")] int limit = 50)
@@ -28,7 +28,7 @@ internal sealed class AssetTools(AssetManager assetManager, AssetDataReader data
     public string GetAsset([Description("Full asset name.")] string name)
     {
         Asset asset = dataReader.GetAsset(name);
-        IAssetHandler? handler = assetManager.FindHandler(asset);
+        IAssetHandler? handler = assetManager.FindHandler(asset, config.Configuration);
         StringBuilder builder = new();
 
         builder.AppendLine($"Name: {asset.Name}");

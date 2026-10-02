@@ -16,8 +16,9 @@ public sealed class ModelHandler : IAssetHandler
     /// Determines whether this handler can process the supplied asset.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
+    /// <param name="configuration">The shared settings and options.</param>
     /// <returns>Always <see langword="true"/> for this template handler.</returns>
-    public bool CanHandle(Asset asset)
+    public bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
         return asset.Name.EndsWith(".semodel");
     }

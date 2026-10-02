@@ -40,7 +40,7 @@ public abstract class AnimationHandler : IAssetHandler
     }
 
     /// <inheritdoc/>
-    public abstract bool CanHandle(Asset asset);
+    public abstract bool CanHandle(Asset asset, GameExtractionConfiguration configuration);
 
     /// <inheritdoc/>
     public abstract Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken);

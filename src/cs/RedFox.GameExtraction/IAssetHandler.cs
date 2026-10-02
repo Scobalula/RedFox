@@ -9,8 +9,9 @@ public interface IAssetHandler
     /// Determines whether the handler can process the supplied asset.
     /// </summary>
     /// <param name="asset">The asset to inspect.</param>
+    /// <param name="configuration">The shared settings and options to consider.</param>
     /// <returns><see langword="true"/> when the handler can process the asset; otherwise, <see langword="false"/>.</returns>
-    bool CanHandle(Asset asset);
+    bool CanHandle(Asset asset, GameExtractionConfiguration configuration);
 
     /// <summary>
     /// Reads an asset for preview or export.

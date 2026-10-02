@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace RedFox.GameExtraction;
 
 /// <summary>
@@ -8,8 +6,6 @@ namespace RedFox.GameExtraction;
 public sealed class Asset
 {
     private static readonly Dictionary<string, object?> EmptyMetadata = new(StringComparer.OrdinalIgnoreCase);
-
-    private IAssetHandler? _handler;
 
     /// <summary>
     /// Gets the mounted source that owns the asset when available.
@@ -161,18 +157,6 @@ public sealed class Asset
     internal void DetachSource()
     {
         Source = null;
-    }
-
-    internal bool TryGetHandler([NotNullWhen(true)] out IAssetHandler? handler)
-    {
-        handler = _handler;
-        return handler is not null;
-    }
-
-    internal void SetHandler(IAssetHandler handler)
-    {
-        ArgumentNullException.ThrowIfNull(handler);
-        _handler ??= handler;
     }
 
     /// <summary>

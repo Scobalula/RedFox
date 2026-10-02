@@ -19,8 +19,9 @@ public sealed class ImageHandler : TextureHandler
     /// Determines whether the asset is an image the built-in translators can read.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
+    /// <param name="configuration">The shared settings and options.</param>
     /// <returns><see langword="true"/> when the asset has a supported image extension.</returns>
-    public override bool CanHandle(Asset asset)
+    public override bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(asset);
         return Extensions.Contains(Path.GetExtension(asset.Name));
