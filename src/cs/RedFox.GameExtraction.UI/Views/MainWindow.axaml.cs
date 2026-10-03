@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Closed += OnWindowClosed;
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
     }
 
     /// <summary>
@@ -69,6 +71,7 @@ public partial class MainWindow : Window
         viewModel.FolderDialogRequested += OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested += OnProcessSelectionRequested;
         viewModel.PreviewRequested += OnPreviewRequested;
+        viewModel.AssetSelectionRestoreRequested += OnAssetSelectionRestoreRequested;
     }
 
     private void UnsubscribeFromViewModel(MainWindowViewModel viewModel)
@@ -80,6 +83,7 @@ public partial class MainWindow : Window
         viewModel.FolderDialogRequested -= OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested -= OnProcessSelectionRequested;
         viewModel.PreviewRequested -= OnPreviewRequested;
+        viewModel.AssetSelectionRestoreRequested -= OnAssetSelectionRestoreRequested;
     }
 
     private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
@@ -87,6 +91,30 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel && sender is ListBox listBox)
         {
             viewModel.SetSelectedAssets(listBox.SelectedItems?.OfType<AssetRowViewModel>() ?? Enumerable.Empty<AssetRowViewModel>());
+        }
+    }
+
+    private void OnAssetSelectionRestoreRequested(IReadOnlyList<int> indexes)
+    {
+        AssetListBox.Selection.BeginBatchUpdate();
+
+        try
+        {
+            AssetListBox.Selection.Clear();
+
+            foreach (int index in indexes)
+            {
+                AssetListBox.Selection.Select(index);
+            }
+        }
+        finally
+        {
+            AssetListBox.Selection.EndBatchUpdate();
+        }
+
+        if (indexes.Count > 0)
+        {
+            AssetListBox.ScrollIntoView(indexes[^1]);
         }
     }
 
@@ -201,6 +229,19 @@ public partial class MainWindow : Window
         }
 
         _previewWindow.Activate();
+    }
+
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_previewWindow is null || e.Source is TextBox || DataContext is not MainWindowViewModel { Preview.Content: IPreviewKeyHandler handler })
+        {
+            return;
+        }
+
+        if (handler.HandleKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+        }
     }
 
     private void OnPreviewWindowClosed(object? sender, EventArgs e)

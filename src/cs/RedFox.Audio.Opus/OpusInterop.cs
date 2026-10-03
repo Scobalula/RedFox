@@ -13,7 +13,7 @@ namespace RedFox.Audio.Opus;
 
 internal partial class OpusInterop
 {
-    private const string Library = "opus";
+    private const string Library = "Native/opus";
 
     [LibraryImport(Library, EntryPoint = "opus_encoder_create", SetLastError = true)]
     public static partial IntPtr EncoderCreate(int sampleRate, int channels, int application, out int error);
@@ -24,26 +24,20 @@ internal partial class OpusInterop
     [LibraryImport(Library, EntryPoint = "opus_encode", SetLastError = true)]
     public static partial int Encode(IntPtr encoder, ReadOnlySpan<short> pcm, int frameSize, Span<byte> data, int maxDataBytes);
 
-    [LibraryImport(Library, EntryPoint = "opus_decoder_create", SetLastError = true)]
-    public static partial IntPtr DecoderCreate(int sampleRate, int channels, out int error);
+    [LibraryImport(Library, EntryPoint = "opus_multistream_decoder_create", SetLastError = true)]
+    public static partial IntPtr MultistreamDecoderCreate(int sampleRate, int channels, int streams, int coupledStreams, ReadOnlySpan<byte> mapping, out int error);
 
-    [LibraryImport(Library, EntryPoint = "opus_decoder_destroy", SetLastError = true)]
-    public static partial void DecoderDestroy(IntPtr decoder);
+    [LibraryImport(Library, EntryPoint = "opus_multistream_decoder_destroy", SetLastError = true)]
+    public static partial void MultistreamDecoderDestroy(IntPtr decoder);
 
-    [LibraryImport(Library, EntryPoint = "opus_decode", SetLastError = true)]
-    public static partial int Decode(IntPtr decoder, ReadOnlySpan<byte> data, int length, Span<short> pcm, int frameSize, int decodeFec);
+    [LibraryImport(Library, EntryPoint = "opus_multistream_decode_float", SetLastError = true)]
+    public static partial int MultistreamDecodeFloat(IntPtr decoder, ReadOnlySpan<byte> data, int length, Span<float> pcm, int frameSize, int decodeFec);
 
     [LibraryImport(Library, EntryPoint = "opus_encoder_ctl", SetLastError = true)]
     public static partial int EncoderCtlSet(IntPtr encoder, int request, int value);
 
     [LibraryImport(Library, EntryPoint = "opus_encoder_ctl", SetLastError = true)]
     public static partial int EncoderCtlGetInt(IntPtr encoder, int request, out int value);
-
-    [LibraryImport(Library, EntryPoint = "opus_decoder_ctl", SetLastError = true)]
-    public static partial int DecoderCtlSet(IntPtr decoder, int request, int value);
-
-    [LibraryImport(Library, EntryPoint = "opus_decoder_ctl", SetLastError = true)]
-    public static partial int DecoderCtlGetInt(IntPtr decoder, int request, out int value);
 
     [LibraryImport(Library, EntryPoint = "opus_packet_get_nb_samples", SetLastError = true)]
     public static partial int PacketGetNbSamples(ReadOnlySpan<byte> data, int length, int sampleRate);

@@ -9,10 +9,10 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// <summary>
 /// Reads the payload of the most recently selected asset and asks the configured previewers to create a view for it.
 /// </summary>
-public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtractionConfiguration> configurationFactory, IReadOnlyList<IAssetPreviewer> previewers, ScenePreviewSettings scenePreviewSettings) : ObservableObject
+public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtractionConfiguration> configurationFactory, IReadOnlyList<IAssetPreviewer> previewers, PreviewSettings previewSettings) : ObservableObject
 {
     private readonly Func<GameExtractionConfiguration> _configurationFactory = configurationFactory;
-    private readonly ScenePreviewSettings _scenePreviewSettings = scenePreviewSettings;
+    private readonly PreviewSettings _previewSettings = previewSettings;
     private readonly SemaphoreSlim _readGate = new(1, 1);
     private CancellationTokenSource? _loadCancellation;
     private int _loadVersion;
@@ -342,7 +342,7 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
 
     private Control? CreateContent(AssetReadResult result, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, GameExtractionConfiguration configuration)
     {
-        AssetPreviewContext context = new(result, assetManager, configuration, Content, preparedSceneData, _scenePreviewSettings);
+        AssetPreviewContext context = new(result, assetManager, configuration, Content, preparedSceneData, _previewSettings);
         foreach (IAssetPreviewer previewer in previewers)
         {
             if (previewer.TryCreatePreview(context, out Control? preview))

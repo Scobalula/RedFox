@@ -7,14 +7,15 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
+using System.Buffers.Binary;
+
 namespace RedFox.Audio.ADPCM;
 
 /// <summary>
-/// Audio codec for Microsoft ADPCM (MS-ADPCM), a block-based adaptive differential
-/// pulse-code modulation format commonly found in WAV files.
-/// Supports mono and stereo encoding and decoding.
+/// Codec implementation for MS-ADPCM (Microsoft Adaptive Differential Pulse Code Modulation) audio format.
+/// Supports both encoding and decoding of MS-ADPCM audio with mono and stereo variants.
 /// </summary>
-public sealed class MsAdpcmCodec : AudioCodec
+public sealed class MsAdpcmCodec : AdpcmCodec
 {
     private static readonly (short Coeff1, short Coeff2)[] CoefficientSets =
     [
@@ -28,107 +29,65 @@ public sealed class MsAdpcmCodec : AudioCodec
         768, 614, 512, 409, 307, 230, 230, 230,
     ];
 
+    /// <summary>
+    /// The RIFF WAVE format tag for MS-ADPCM (0x02).
+    /// </summary>
+    public const ushort WaveFormatTag = 0x02;
+
+    /// <inheritdoc/>
+    public override string Id => "ms-adpcm";
+
     /// <inheritdoc/>
     public override string Name => "MS-ADPCM";
 
     /// <inheritdoc/>
-    public override AudioCodecFlags Flags => AudioCodecFlags.SupportsEncoding | AudioCodecFlags.SupportsDecoding;
-
-    /// <summary>
-    /// Gets the number of decoded PCM samples per block for the given format.
-    /// </summary>
-    /// <param name="format">The audio format describing the block structure.</param>
-    /// <returns>The number of interleaved samples produced per block.</returns>
-    public static int GetSamplesPerBlock(AudioFormat format)
-    {
-        if (format.Channels is not (1 or 2))
-            throw new ArgumentOutOfRangeException(nameof(format), "MS-ADPCM supports mono and stereo audio.");
-
-        var headerSize = 7 * format.Channels;
-        var dataBytes = format.BlockAlign - headerSize;
-        return format.Channels == 1
-            ? 2 + dataBytes * 2
-            : (2 + dataBytes) * 2;
-    }
+    public override int GetFramesPerBlock(int channels, int blockAlign) => channels == 1 ? 2 + ((blockAlign - 7) * 2) : 2 + (blockAlign - 14);
 
     /// <inheritdoc/>
-    public override int GetMaxDecodedSize(int encodedSize, AudioFormat format)
+    public override byte[] CreateSetup(int framesPerBlock)
     {
-        if (format.BlockAlign <= 0)
-            return 0;
+        byte[] setup = new byte[4 + (CoefficientSets.Length * 4)];
 
-        var blocks = encodedSize / format.BlockAlign;
-        return blocks * GetSamplesPerBlock(format);
-    }
+        BinaryPrimitives.WriteUInt16LittleEndian(setup, (ushort)framesPerBlock);
+        BinaryPrimitives.WriteUInt16LittleEndian(setup.AsSpan(2), (ushort)CoefficientSets.Length);
 
-    /// <inheritdoc/>
-    public override int GetMaxEncodedSize(int sampleCount, AudioFormat format)
-    {
-        var samplesPerBlock = GetSamplesPerBlock(format);
-        if (samplesPerBlock <= 0)
-            return 0;
-
-        var blocks = (sampleCount + samplesPerBlock - 1) / samplesPerBlock;
-        return blocks * format.BlockAlign;
-    }
-
-    /// <inheritdoc/>
-    public override int Decode(ReadOnlySpan<byte> source, Span<short> destination, AudioFormat format)
-    {
-        var blockAlign = format.BlockAlign;
-        var channels = format.Channels;
-        var blockCount = source.Length / blockAlign;
-        var written = 0;
-
-        for (var b = 0; b < blockCount; b++)
+        for (int i = 0; i < CoefficientSets.Length; i++)
         {
-            var blockOffset = b * blockAlign;
-            var block = source.Slice(blockOffset, blockAlign);
-
-            if (channels == 1)
-            {
-                written += DecodeMonoBlock(block, destination[written..]);
-            }
-            else
-            {
-                written += DecodeStereoBlock(block, destination[written..]);
-            }
+            BinaryPrimitives.WriteInt16LittleEndian(setup.AsSpan(4 + (i * 4)), CoefficientSets[i].Coeff1);
+            BinaryPrimitives.WriteInt16LittleEndian(setup.AsSpan(6 + (i * 4)), CoefficientSets[i].Coeff2);
         }
 
-        return written;
+        return setup;
     }
 
     /// <inheritdoc/>
-    public override int Encode(ReadOnlySpan<short> source, Span<byte> destination, AudioFormat format)
+    public override void DecodeBlock(ReadOnlySpan<byte> block, Span<short> output, int channels)
     {
-        var blockAlign = format.BlockAlign;
-        var channels = format.Channels;
-        var samplesPerBlock = GetSamplesPerBlock(format);
-        var written = 0;
-        var samplePos = 0;
+        if (channels == 1)
+            DecodeMonoBlock(block, output);
+        else
+            DecodeStereoBlock(block, output);
+    }
 
-        while (samplePos < source.Length)
+    /// <inheritdoc/>
+    public override void EncodeBlock(ReadOnlySpan<short> samples, Span<byte> block, int channels, Span<int> channelState)
+    {
+        block.Clear();
+
+        for (int channel = 0; channel < channels; channel++)
         {
-            var remaining = source.Length - samplePos;
-            var blockSamples = Math.Min(remaining, samplesPerBlock);
+            short initialDelta = (short)Math.Clamp(channelState[channel], 16, short.MaxValue);
+            int predictor = SelectPredictor(samples, channel, channels, initialDelta);
+            short delta = initialDelta;
 
-            if (written + blockAlign > destination.Length)
-                break;
+            block[channel] = (byte)predictor;
+            BinaryPrimitives.WriteInt16LittleEndian(block[(channels + (channel * 2))..], initialDelta);
+            BinaryPrimitives.WriteInt16LittleEndian(block[((3 * channels) + (channel * 2))..], samples[channels + channel]);
+            BinaryPrimitives.WriteInt16LittleEndian(block[((5 * channels) + (channel * 2))..], samples[channel]);
 
-            if (channels == 1)
-            {
-                EncodeMonoBlock(source.Slice(samplePos, blockSamples), destination.Slice(written, blockAlign));
-            }
-            else
-            {
-                EncodeStereoBlock(source.Slice(samplePos, blockSamples), destination.Slice(written, blockAlign));
-            }
-
-            samplePos += blockSamples;
-            written += blockAlign;
+            EncodeChannel(samples, block[(7 * channels)..], channel, channels, predictor, ref delta);
+            channelState[channel] = delta;
         }
-
-        return written;
     }
 
     private static int DecodeMonoBlock(ReadOnlySpan<byte> block, Span<short> output)
@@ -219,87 +178,50 @@ public sealed class MsAdpcmCodec : AudioCodec
         delta = (short)Math.Clamp(newDelta, 16, 32767);
     }
 
-    private static byte EncodeNibble(short target, short coeff1, short coeff2, ref short sample1, ref short sample2, ref short delta)
+    private static int SelectPredictor(ReadOnlySpan<short> samples, int channel, int channels, short initialDelta)
     {
-        var predicted = (coeff1 * sample1 + coeff2 * sample2) >> 8;
-        var error = target - predicted;
-        var nibble = delta != 0 ? Math.Clamp(error / delta, -8, 7) : 0;
+        int best = 0;
+        long bestError = long.MaxValue;
 
-        if (nibble < 0)
-            nibble += 16;
-
-        DecodeSample(nibble, coeff1, coeff2, ref sample1, ref sample2, ref delta);
-        return (byte)nibble;
-    }
-
-    private static void EncodeMonoBlock(ReadOnlySpan<short> samples, Span<byte> block)
-    {
-        var coeff1 = CoefficientSets[0].Coeff1;
-        var coeff2 = CoefficientSets[0].Coeff2;
-        var delta = (short)16;
-        var sample1 = samples.Length > 1 ? samples[1] : samples[0];
-        var sample2 = samples[0];
-
-        block[0] = 0;
-        block[1] = (byte)(delta & 0xFF);
-        block[2] = (byte)((delta >> 8) & 0xFF);
-        block[3] = (byte)(sample1 & 0xFF);
-        block[4] = (byte)((sample1 >> 8) & 0xFF);
-        block[5] = (byte)(sample2 & 0xFF);
-        block[6] = (byte)((sample2 >> 8) & 0xFF);
-
-        var inPos = 2;
-        var outPos = 7;
-
-        while (outPos < block.Length && inPos < samples.Length)
+        for (int predictor = 0; predictor < CoefficientSets.Length; predictor++)
         {
-            var high = EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta);
-            var low = inPos < samples.Length ? EncodeNibble(samples[inPos++], coeff1, coeff2, ref sample1, ref sample2, ref delta) : (byte)0;
-            block[outPos++] = (byte)((high << 4) | low);
+            short delta = initialDelta;
+            long error = EncodeChannel(samples, Span<byte>.Empty, channel, channels, predictor, ref delta);
+
+            if (error < bestError)
+            {
+                best = predictor;
+                bestError = error;
+            }
         }
 
-        while (outPos < block.Length)
-            block[outPos++] = 0;
+        return best;
     }
 
-    private static void EncodeStereoBlock(ReadOnlySpan<short> samples, Span<byte> block)
+    private static long EncodeChannel(ReadOnlySpan<short> samples, Span<byte> data, int channel, int channels, int predictor, ref short delta)
     {
-        var (leftCoeff1, leftCoeff2) = CoefficientSets[0];
-        var leftDelta = (short)16;
-        var leftSample1 = samples.Length > 2 ? samples[2] : (samples.Length > 0 ? samples[0] : (short)0);
-        var leftSample2 = samples.Length > 0 ? samples[0] : (short)0;
+        (short coeff1, short coeff2) = CoefficientSets[predictor];
+        short sample2 = samples[channel];
+        short sample1 = samples[channels + channel];
+        int framesPerBlock = samples.Length / channels;
+        long error = 0;
 
-        var (rightCoeff1, rightCoeff2) = CoefficientSets[0];
-        var rightDelta = (short)16;
-        var rightSample1 = samples.Length > 3 ? samples[3] : (samples.Length > 1 ? samples[1] : (short)0);
-        var rightSample2 = samples.Length > 1 ? samples[1] : (short)0;
-
-        block[0] = 0;
-        block[1] = 0;
-        block[2] = (byte)(leftDelta & 0xFF);
-        block[3] = (byte)((leftDelta >> 8) & 0xFF);
-        block[4] = (byte)(rightDelta & 0xFF);
-        block[5] = (byte)((rightDelta >> 8) & 0xFF);
-        block[6] = (byte)(leftSample1 & 0xFF);
-        block[7] = (byte)((leftSample1 >> 8) & 0xFF);
-        block[8] = (byte)(rightSample1 & 0xFF);
-        block[9] = (byte)((rightSample1 >> 8) & 0xFF);
-        block[10] = (byte)(leftSample2 & 0xFF);
-        block[11] = (byte)((leftSample2 >> 8) & 0xFF);
-        block[12] = (byte)(rightSample2 & 0xFF);
-        block[13] = (byte)((rightSample2 >> 8) & 0xFF);
-
-        var inPos = 4;
-        var outPos = 14;
-
-        while (outPos < block.Length && inPos + 1 < samples.Length)
+        for (int frame = 2; frame < framesPerBlock; frame++)
         {
-            var left = EncodeNibble(samples[inPos++], leftCoeff1, leftCoeff2, ref leftSample1, ref leftSample2, ref leftDelta);
-            var right = EncodeNibble(samples[inPos++], rightCoeff1, rightCoeff2, ref rightSample1, ref rightSample2, ref rightDelta);
-            block[outPos++] = (byte)((left << 4) | right);
+            short target = samples[(frame * channels) + channel];
+            int predicted = ((coeff1 * sample1) + (coeff2 * sample2)) >> 8;
+            int nibble = Math.Clamp((int)Math.Round((double)(target - predicted) / delta), -8, 7) & 0x0F;
+
+            DecodeSample(nibble, coeff1, coeff2, ref sample1, ref sample2, ref delta);
+            error += (long)(target - sample1) * (target - sample1);
+
+            if (data.IsEmpty)
+                continue;
+
+            int index = ((frame - 2) * channels) + channel;
+            data[index / 2] |= (byte)(index % 2 == 0 ? nibble << 4 : nibble);
         }
 
-        while (outPos < block.Length)
-            block[outPos++] = 0;
+        return error;
     }
 }

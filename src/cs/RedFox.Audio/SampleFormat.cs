@@ -10,23 +10,37 @@
 namespace RedFox.Audio;
 
 /// <summary>
-/// Flags that describe the capabilities of an <see cref="AudioCodec"/>.
+/// Specifies the data type and encoding used for individual audio samples.
 /// </summary>
-[Flags]
-public enum AudioCodecFlags
+public enum SampleFormat
 {
     /// <summary>
-    /// Indicates no extra capabilities.
+    /// Unsigned 8-bit integer samples.
     /// </summary>
-    None = 0,
+    UInt8,
 
     /// <summary>
-    /// Indicates the codec supports decoding compressed audio to PCM.
+    /// Signed 16-bit integer samples.
     /// </summary>
-    SupportsDecoding = 1,
+    Int16,
 
     /// <summary>
-    /// Indicates the codec supports encoding PCM to compressed audio.
+    /// Signed 24-bit integer samples.
     /// </summary>
-    SupportsEncoding = 2,
+    Int24,
+
+    /// <summary>
+    /// Signed 32-bit integer samples.
+    /// </summary>
+    Int32,
+
+    /// <summary>
+    /// 32-bit floating point samples (single precision).
+    /// </summary>
+    Float32,
+
+    /// <summary>
+    /// 64-bit floating point samples (double precision).
+    /// </summary>
+    Float64,
 }

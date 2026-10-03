@@ -10,7 +10,7 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
 /// Drives the 3D preview for one or more scenes: scene and animation selection and viewport fitting. Viewer preferences live in the
-/// shared <see cref="ScenePreviewSettings"/>. Animation-only payloads can be appended to the displayed model so animations are browsed without reloading the mesh.
+/// shared <see cref="PreviewSettings"/>. Animation-only payloads can be appended to the displayed model so animations are browsed without reloading the mesh.
 /// </summary>
 public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 {
@@ -34,7 +34,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the viewer preferences shared with other scene previews.
     /// </summary>
-    public ScenePreviewSettings Settings { get; }
+    public PreviewSettings Settings { get; }
 
     /// <summary>
     /// Gets the available scenes.
@@ -102,7 +102,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// <param name="preparedSceneData">Optional scene traversal data computed before the scenes reach the UI thread.</param>
     public ScenePreviewViewModel(
         IReadOnlyList<Scene> scenes,
-        ScenePreviewSettings settings,
+        PreviewSettings settings,
         IReadOnlyDictionary<Scene, ScenePreviewBounds>? preparedSceneBounds = null,
         IReadOnlyDictionary<Scene, ScenePreviewData>? preparedSceneData = null)
     {
@@ -212,22 +212,22 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         switch (e.PropertyName)
         {
-            case nameof(ScenePreviewSettings.UpAxis):
+            case nameof(PreviewSettings.UpAxis):
                 scene.UpAxis = Settings.UpAxis;
                 FitScene(scene, Settings.AutoFitScene);
                 SceneInvalidated?.Invoke();
                 break;
 
-            case nameof(ScenePreviewSettings.IsAnimationPaused):
+            case nameof(PreviewSettings.IsAnimationPaused):
                 scene.IsAnimationPaused = Settings.IsAnimationPaused;
                 break;
 
-            case nameof(ScenePreviewSettings.ShowGrid):
+            case nameof(PreviewSettings.ShowGrid):
                 scene.Grid.Enabled = Settings.ShowGrid;
                 SceneInvalidated?.Invoke();
                 break;
 
-            case nameof(ScenePreviewSettings.ShowBones):
+            case nameof(PreviewSettings.ShowBones):
                 SetBoneVisibility(scene, Settings.ShowBones);
                 if (_appendedAnimations.Count == 0)
                 {
@@ -238,7 +238,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 SceneInvalidated?.Invoke();
                 break;
 
-            case nameof(ScenePreviewSettings.AutoFitScene):
+            case nameof(PreviewSettings.AutoFitScene):
                 if (Settings.AutoFitScene)
                 {
                     FitScene(scene, true);

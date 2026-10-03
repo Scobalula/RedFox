@@ -10,7 +10,7 @@
 namespace RedFox.Audio;
 
 /// <summary>
-/// Plays a decoded <see cref="AudioBuffer"/> through an audio output backend.
+/// Plays an <see cref="AudioClip"/> through an audio output backend.
 /// </summary>
 public interface IAudioPlayer : IDisposable
 {
@@ -20,12 +20,12 @@ public interface IAudioPlayer : IDisposable
     AudioPlaybackState State { get; }
 
     /// <summary>
-    /// Gets the duration of the loaded buffer, or <see cref="TimeSpan.Zero"/> when nothing is loaded.
+    /// Gets the duration of the loaded clip, or <see cref="TimeSpan.Zero"/> when nothing is loaded.
     /// </summary>
     TimeSpan Duration { get; }
 
     /// <summary>
-    /// Gets or sets the playback position within the loaded buffer.
+    /// Gets or sets the playback position within the loaded clip.
     /// </summary>
     TimeSpan Position { get; set; }
 
@@ -35,18 +35,18 @@ public interface IAudioPlayer : IDisposable
     float Volume { get; set; }
 
     /// <summary>
-    /// Gets or sets whether playback restarts from the beginning when the end of the buffer is reached.
+    /// Gets or sets whether playback restarts from the beginning when the end of the clip is reached.
     /// </summary>
     bool IsLooping { get; set; }
 
     /// <summary>
-    /// Stops any current playback and loads the supplied buffer.
+    /// Stops any current playback and loads the supplied clip, which is streamed through its decoder while it plays.
     /// </summary>
-    /// <param name="buffer">The 16-bit interleaved PCM buffer to play.</param>
-    void Load(AudioBuffer buffer);
+    /// <param name="clip">The clip to play.</param>
+    void Load(AudioClip clip);
 
     /// <summary>
-    /// Starts or resumes playback of the loaded buffer.
+    /// Starts or resumes playback of the loaded clip.
     /// </summary>
     void Play();
 

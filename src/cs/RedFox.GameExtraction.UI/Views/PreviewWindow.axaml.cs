@@ -1,4 +1,7 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using RedFox.GameExtraction.UI.ViewModels;
 
 namespace RedFox.GameExtraction.UI.Views;
 
@@ -13,5 +16,14 @@ public partial class PreviewWindow : Window
     public PreviewWindow()
     {
         InitializeComponent();
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is PreviewViewModel { Content: IPreviewKeyHandler handler } && handler.HandleKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+        }
     }
 }

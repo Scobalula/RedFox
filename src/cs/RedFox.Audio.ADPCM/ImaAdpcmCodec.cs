@@ -7,13 +7,15 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 
+using System.Buffers.Binary;
+
 namespace RedFox.Audio.ADPCM;
 
 /// <summary>
-/// Audio codec for IMA ADPCM (Interactive Multimedia Association Adaptive Differential Pulse-Code Modulation).
-/// Supports mono and stereo encoding and decoding of raw IMA ADPCM block data.
+/// Codec implementation for IMA ADPCM (Interactive Multimedia Association Adaptive Differential Pulse Code Modulation) audio format.
+/// Supports both encoding and decoding of IMA ADPCM audio with mono and stereo variants.
 /// </summary>
-public sealed class ImaAdpcmCodec : AudioCodec
+public sealed class ImaAdpcmCodec : AdpcmCodec
 {
     private static readonly int[] StepTable =
     [
@@ -32,113 +34,59 @@ public sealed class ImaAdpcmCodec : AudioCodec
 
     private static readonly int[] IndexTable = [-1, -1, -1, -1, 2, 4, 6, 8];
 
+    /// <summary>
+    /// The RIFF WAVE format tag for IMA ADPCM (0x11).
+    /// </summary>
+    public const ushort WaveFormatTag = 0x11;
+
+    /// <inheritdoc/>
+    public override string Id => "ima-adpcm";
+
     /// <inheritdoc/>
     public override string Name => "IMA ADPCM";
 
     /// <inheritdoc/>
-    public override AudioCodecFlags Flags => AudioCodecFlags.SupportsEncoding | AudioCodecFlags.SupportsDecoding;
+    public override int GetFramesPerBlock(int channels, int blockAlign) => channels == 1 ? 1 + ((blockAlign - 4) * 2) : 1 + ((blockAlign - 8) / 8 * 8);
 
-    /// <summary>
-    /// Gets the number of decoded PCM samples per block for the given format.
-    /// </summary>
-    /// <param name="format">The audio format describing the block structure.</param>
-    /// <returns>The number of interleaved samples produced per block.</returns>
-    public static int GetSamplesPerBlock(AudioFormat format)
+    /// <inheritdoc/>
+    public override byte[] CreateSetup(int framesPerBlock) => [(byte)framesPerBlock, (byte)(framesPerBlock >> 8)];
+
+    /// <inheritdoc/>
+    public override void DecodeBlock(ReadOnlySpan<byte> block, Span<short> output, int channels)
     {
-        if (format.Channels is not (1 or 2))
-            throw new ArgumentOutOfRangeException(nameof(format), "IMA ADPCM supports mono and stereo audio.");
-
-        var headerSize = 4 * format.Channels;
-
-        return format.Channels == 1
-            ? 1 + (format.BlockAlign - headerSize) * 2
-            : (1 + (format.BlockAlign - headerSize) / 8 * 8) * format.Channels;
+        if (channels == 1)
+            DecodeMonoBlock(block, output, 4);
+        else
+            DecodeStereoBlock(block, output, 8);
     }
 
     /// <inheritdoc/>
-    public override int GetMaxDecodedSize(int encodedSize, AudioFormat format)
+    public override void EncodeBlock(ReadOnlySpan<short> samples, Span<byte> block, int channels, Span<int> channelState)
     {
-        if (format.BlockAlign <= 0)
-            return 0;
+        block.Clear();
 
-        var blocks = encodedSize / format.BlockAlign;
-        return blocks * GetSamplesPerBlock(format);
-    }
+        int framesPerBlock = samples.Length / channels;
+        int headerSize = 4 * channels;
 
-    /// <inheritdoc/>
-    public override int GetMaxEncodedSize(int sampleCount, AudioFormat format)
-    {
-        var samplesPerBlock = GetSamplesPerBlock(format);
-        if (samplesPerBlock <= 0)
-            return 0;
-
-        var blocks = (sampleCount + samplesPerBlock - 1) / samplesPerBlock;
-        return blocks * format.BlockAlign;
-    }
-
-    /// <inheritdoc/>
-    public override int Decode(ReadOnlySpan<byte> source, Span<short> destination, AudioFormat format)
-    {
-        var blockAlign = format.BlockAlign;
-        var channels = format.Channels;
-        var headerSize = 4 * channels;
-        var samplesPerBlock = GetSamplesPerBlock(format);
-        var blockCount = source.Length / blockAlign;
-        var written = 0;
-
-        for (var b = 0; b < blockCount; b++)
+        for (int channel = 0; channel < channels; channel++)
         {
-            var blockOffset = b * blockAlign;
-            var blockEnd = written + samplesPerBlock;
+            short predictor = samples[channel];
+            int stepIndex = Math.Clamp(channelState[channel], 0, 88);
 
-            if (channels == 1)
+            BinaryPrimitives.WriteInt16LittleEndian(block[(channel * 4)..], predictor);
+            block[(channel * 4) + 2] = (byte)stepIndex;
+
+            for (int frame = 1; frame < framesPerBlock; frame++)
             {
-                DecodeMonoBlock(source.Slice(blockOffset, blockAlign), destination[written..blockEnd], headerSize);
-            }
-            else
-            {
-                DecodeStereoBlock(source.Slice(blockOffset, blockAlign), destination[written..blockEnd], headerSize);
+                int index = frame - 1;
+                int offset = headerSize + (index / 8 * 4 * channels) + (channel * 4) + (index % 8 / 2);
+                byte nibble = EncodeNibble(samples[(frame * channels) + channel], ref predictor, ref stepIndex);
+
+                block[offset] |= (byte)(index % 2 == 0 ? nibble : nibble << 4);
             }
 
-            written = blockEnd;
+            channelState[channel] = stepIndex;
         }
-
-        return written;
-    }
-
-    /// <inheritdoc/>
-    public override int Encode(ReadOnlySpan<short> source, Span<byte> destination, AudioFormat format)
-    {
-        var blockAlign = format.BlockAlign;
-        var channels = format.Channels;
-        var headerSize = 4 * channels;
-        var samplesPerBlock = GetSamplesPerBlock(format);
-        var written = 0;
-        var samplePos = 0;
-
-        while (samplePos < source.Length)
-        {
-            var remaining = source.Length - samplePos;
-            var blockSamples = Math.Min(remaining, samplesPerBlock);
-            var blockOffset = written;
-
-            if (blockOffset + blockAlign > destination.Length)
-                break;
-
-            if (channels == 1)
-            {
-                EncodeMonoBlock(source.Slice(samplePos, blockSamples), destination.Slice(blockOffset, blockAlign), headerSize);
-            }
-            else
-            {
-                EncodeStereoBlock(source.Slice(samplePos, blockSamples), destination.Slice(blockOffset, blockAlign), headerSize);
-            }
-
-            samplePos += blockSamples;
-            written += blockAlign;
-        }
-
-        return written;
     }
 
     private static void DecodeMonoBlock(ReadOnlySpan<byte> block, Span<short> output, int headerSize)
@@ -246,76 +194,5 @@ public sealed class ImaAdpcmCodec : AudioCodec
         stepIndex = Math.Clamp(stepIndex + IndexTable[encoded & 7], 0, 88);
 
         return encoded;
-    }
-
-    private static void EncodeMonoBlock(ReadOnlySpan<short> samples, Span<byte> block, int headerSize)
-    {
-        block.Clear();
-        var predictor = samples[0];
-        var stepIndex = 0;
-
-        block[0] = (byte)(predictor & 0xFF);
-        block[1] = (byte)((predictor >> 8) & 0xFF);
-        block[2] = 0;
-        block[3] = 0;
-
-        var inPos = 1;
-        for (var i = headerSize; i < block.Length && inPos < samples.Length; i++)
-        {
-            var low = EncodeNibble(samples[inPos++], ref predictor, ref stepIndex);
-
-            var high = (byte)0;
-            if (inPos < samples.Length)
-                high = EncodeNibble(samples[inPos++], ref predictor, ref stepIndex);
-
-            block[i] = (byte)(low | (high << 4));
-        }
-    }
-
-    private static void EncodeStereoBlock(ReadOnlySpan<short> samples, Span<byte> block, int headerSize)
-    {
-        var leftPredictor = samples[0];
-        var leftStepIndex = 0;
-
-        var rightPredictor = samples.Length > 1 ? samples[1] : (short)0;
-        var rightStepIndex = 0;
-
-        block[0] = (byte)(leftPredictor & 0xFF);
-        block[1] = (byte)((leftPredictor >> 8) & 0xFF);
-        block[2] = 0;
-        block[3] = 0;
-
-        block[4] = (byte)(rightPredictor & 0xFF);
-        block[5] = (byte)((rightPredictor >> 8) & 0xFF);
-        block[6] = 0;
-        block[7] = 0;
-
-        block[headerSize..].Clear();
-        var frame = 1;
-        var outputPos = headerSize;
-        while (outputPos + 7 < block.Length && frame < samples.Length / 2)
-        {
-            for (var i = 0; i < 4; i++)
-            {
-                var low = frame < samples.Length / 2 ? EncodeNibble(samples[frame * 2], ref leftPredictor, ref leftStepIndex) : (byte)0;
-                frame++;
-                var high = frame < samples.Length / 2 ? EncodeNibble(samples[frame * 2], ref leftPredictor, ref leftStepIndex) : (byte)0;
-                frame++;
-                block[outputPos + i] = (byte)(low | (high << 4));
-            }
-
-            outputPos += 4;
-            var rightFrame = frame - 8;
-            for (var i = 0; i < 4; i++)
-            {
-                var lowFrame = rightFrame + i * 2;
-                var highFrame = lowFrame + 1;
-                var low = highFrame < samples.Length / 2 ? EncodeNibble(samples[lowFrame * 2 + 1], ref rightPredictor, ref rightStepIndex) : (byte)0;
-                var high = highFrame < samples.Length / 2 ? EncodeNibble(samples[highFrame * 2 + 1], ref rightPredictor, ref rightStepIndex) : (byte)0;
-                block[outputPos + i] = (byte)(low | (high << 4));
-            }
-
-            outputPos += 4;
-        }
     }
 }

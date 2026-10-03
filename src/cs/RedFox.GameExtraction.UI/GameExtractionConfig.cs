@@ -73,7 +73,7 @@ public sealed class GameExtractionConfig
     /// </remarks>
     public IReadOnlyList<IAssetPreviewer> Previewers { get; init; } = AssetPreviewers.CreateDefault();
 
-    internal ScenePreviewSettings PreviewSettings { get; init; } = new();
+    internal PreviewSettings PreviewSettings { get; init; } = new();
 
     /// <summary>
     /// Gets the file picker filter string, using the WinForms-style format "Label|*.ext|All Files|*.*".

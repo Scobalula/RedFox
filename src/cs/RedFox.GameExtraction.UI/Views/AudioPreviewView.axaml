@@ -39,7 +39,7 @@
             </DockPanel>
         </Border>
 
-        <controls:AudioWaveformControl Audio="{Binding Audio}"
+        <controls:AudioWaveformControl Peaks="{Binding Peaks}"
                                        Position="{Binding PositionFraction}"
                                        SeekCommand="{Binding SeekCommand}"/>
     </DockPanel>

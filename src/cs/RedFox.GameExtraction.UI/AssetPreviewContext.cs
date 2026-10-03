@@ -35,7 +35,7 @@ public sealed class AssetPreviewContext
     /// </summary>
     public Control? CurrentPreview { get; }
 
-    internal ScenePreviewSettings PreviewSettings { get; }
+    internal PreviewSettings PreviewSettings { get; }
 
     /// <summary>
     /// Gets scene bounds prepared off the UI thread for the built-in scene previewer.
@@ -47,7 +47,7 @@ public sealed class AssetPreviewContext
     /// </summary>
     public IReadOnlyDictionary<Scene, ScenePreviewData> PreparedSceneData { get; }
 
-    internal AssetPreviewContext(AssetReadResult readResult, AssetManager assetManager, GameExtractionConfiguration configuration, Control? currentPreview, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, ScenePreviewSettings previewSettings)
+    internal AssetPreviewContext(AssetReadResult readResult, AssetManager assetManager, GameExtractionConfiguration configuration, Control? currentPreview, IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData, PreviewSettings previewSettings)
     {
         ReadResult = readResult ?? throw new ArgumentNullException(nameof(readResult));
         AssetManager = assetManager ?? throw new ArgumentNullException(nameof(assetManager));

@@ -6,17 +6,27 @@ using RedFox.Audio.OpenAL;
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
-/// Plays an <see cref="AudioBuffer"/> through an <see cref="IAudioPlayer"/> that is opened on first use.
+/// Plays an <see cref="AudioClip"/> through an <see cref="IAudioPlayer"/> that is opened on first use.
 /// </summary>
 public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposable
 {
+    private const int PeakResolution = 8192;
+
+    private readonly CancellationTokenSource _peaksCancellation = new();
     private IAudioPlayer? _player;
     private bool _playerUnavailable;
+    private bool _disposed;
 
     /// <summary>
-    /// Gets the buffer being previewed.
+    /// Gets the clip being previewed.
     /// </summary>
-    public AudioBuffer Audio { get; }
+    public AudioClip Clip { get; }
+
+    /// <summary>
+    /// Gets the per-channel min/max waveform peaks, which are built in the background and are <see langword="null"/> until then.
+    /// </summary>
+    [ObservableProperty]
+    public partial (float Min, float Max)[][]? Peaks { get; private set; }
 
     /// <summary>
     /// Gets the sample rate, channel, and frame summary.
@@ -36,7 +46,7 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     public partial string TimeDisplay { get; private set; }
 
     /// <summary>
-    /// Gets a value indicating whether the buffer is playing.
+    /// Gets a value indicating whether the clip is playing.
     /// </summary>
     [ObservableProperty]
     public partial bool IsPlaying { get; private set; }
@@ -74,13 +84,40 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     /// <summary>
     /// Initializes a new instance of the <see cref="AudioPreviewViewModel"/> class.
     /// </summary>
-    /// <param name="audio">The buffer to preview.</param>
-    public AudioPreviewViewModel(AudioBuffer audio)
+    /// <param name="clip">The clip to preview.</param>
+    public AudioPreviewViewModel(AudioClip clip) : this(clip, false)
     {
-        Audio = audio ?? throw new ArgumentNullException(nameof(audio));
-        int frameCount = audio.Samples.Length / Math.Max(1, audio.Channels);
-        InfoDisplay = $"{audio.SampleRate:N0} Hz  •  {audio.Channels} channel{(audio.Channels == 1 ? string.Empty : "s")}  •  16-bit PCM  •  {frameCount:N0} frames";
-        TimeDisplay = $"{FormatTime(TimeSpan.Zero)} / {FormatTime(audio.Duration)}";
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AudioPreviewViewModel"/> class.
+    /// </summary>
+    /// <param name="clip">The clip to preview.</param>
+    /// <param name="autoPlay">Whether playback starts immediately.</param>
+    public AudioPreviewViewModel(AudioClip clip, bool autoPlay)
+    {
+        Clip = clip ?? throw new ArgumentNullException(nameof(clip));
+
+        int channels = clip.Format.Channels;
+        string encoding = clip.Encoded is { } encoded ? encoded.Codec.Name : DescribeSamples(clip.GetBuffer());
+        string length = clip.FrameCount < 0 ? "unknown length" : $"{clip.FrameCount:N0} frames";
+        InfoDisplay = $"{clip.Format.SampleRate:N0} Hz  •  {channels} channel{(channels == 1 ? string.Empty : "s")}  •  {encoding}  •  {length}";
+        TimeDisplay = $"{FormatTime(TimeSpan.Zero)} / {FormatTime(clip.Duration)}";
+
+        if (clip.IsDecoded || clip.Encoded!.Codec.CanDecode)
+        {
+            _ = LoadPeaksAsync();
+        }
+        else
+        {
+            ErrorMessage = $"{clip.Encoded.Codec.Name} audio cannot be decoded.";
+            _playerUnavailable = true;
+        }
+
+        if (autoPlay)
+        {
+            TogglePlayback();
+        }
     }
 
     /// <summary>
@@ -94,16 +131,38 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
         }
 
         AudioPlaybackState state = _player.State;
-        TimeSpan position = state == AudioPlaybackState.Stopped ? TimeSpan.Zero : _player.Position;
+        TimeSpan position = _player.Position;
         IsPlaying = state == AudioPlaybackState.Playing;
         IsActive = state != AudioPlaybackState.Stopped;
-        PositionFraction = Audio.Duration > TimeSpan.Zero ? position / Audio.Duration : 0.0;
-        TimeDisplay = $"{FormatTime(position)} / {FormatTime(Audio.Duration)}";
+        PositionFraction = Clip.Duration > TimeSpan.Zero ? position / Clip.Duration : 0.0;
+        TimeDisplay = $"{FormatTime(position)} / {FormatTime(Clip.Duration)}";
+    }
+
+    /// <summary>
+    /// Moves the playback position by the given offset, clamped to the clip.
+    /// </summary>
+    /// <param name="offset">The offset to move by, which is negative to move backwards.</param>
+    public void SeekBy(TimeSpan offset)
+    {
+        if (EnsurePlayer() is { } player)
+        {
+            TimeSpan position = player.Position + offset;
+            player.Position = position < TimeSpan.Zero ? TimeSpan.Zero : position > Clip.Duration ? Clip.Duration : position;
+            RefreshPlayback();
+        }
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _peaksCancellation.Cancel();
+        _peaksCancellation.Dispose();
         _player?.Dispose();
         _player = null;
     }
@@ -116,6 +175,23 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     partial void OnIsLoopingChanged(bool value)
     {
         _player?.IsLooping = value;
+    }
+
+    private async Task LoadPeaksAsync()
+    {
+        CancellationToken cancellationToken = _peaksCancellation.Token;
+
+        try
+        {
+            Peaks = await Task.Run(() => WaveformPeaks.Build(Clip, PeakResolution, cancellationToken), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ErrorMessage = exception.Message;
+        }
     }
 
     [RelayCommand]
@@ -150,9 +226,14 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     {
         if (EnsurePlayer() is { } player)
         {
-            player.Position = Audio.Duration * Math.Clamp(fraction, 0.0, 1.0);
+            player.Position = Clip.Duration * Math.Clamp(fraction, 0.0, 1.0);
             RefreshPlayback();
         }
+    }
+
+    private static string DescribeSamples(AudioBuffer buffer)
+    {
+        return $"{buffer.ValidBitsPerSample}-bit {(SampleFormatInfo.IsFloat(buffer.SampleFormat) ? "float" : "PCM")}";
     }
 
     private static string FormatTime(TimeSpan time)
@@ -162,7 +243,7 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
 
     private IAudioPlayer? EnsurePlayer()
     {
-        if (_player is not null || _playerUnavailable)
+        if (_player is not null || _playerUnavailable || _disposed)
         {
             return _player;
         }
@@ -170,7 +251,7 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
         try
         {
             IAudioPlayer player = new OpenAlAudioPlayer { Volume = (float)Volume, IsLooping = IsLooping };
-            player.Load(Audio);
+            player.Load(Clip);
             _player = player;
             ErrorMessage = null;
         }

@@ -90,8 +90,8 @@ public static class AssetPreviewers
     /// <summary>
     /// Creates the standard audio playback previewer.
     /// </summary>
-    public static IAssetPreviewer CreateAudio() => AssetPreviewer.For<AudioBuffer>(audio =>
-        new AudioPreviewView { DataContext = new AudioPreviewViewModel(audio) });
+    public static IAssetPreviewer CreateAudio() => new AssetPreviewer(context =>
+        context.Data is AudioClip clip ? new AudioPreviewView { DataContext = new AudioPreviewViewModel(clip, context.PreviewSettings.AutoPlayAudio) } : null);
 
     /// <summary>
     /// Creates the standard table previewer for dictionary and enumerable table payloads.

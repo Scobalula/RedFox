@@ -1,15 +1,18 @@
 using System.IO.Compression;
 using RedFox.Audio;
+using RedFox.Audio.IO.Wav;
 using RedFox.GameExtraction;
 using RedFox.IO.FileSystem;
 
 namespace RedFox.GameExtraction.Template;
 
 /// <summary>
-/// Reads WAVE entries as audio buffers for preview and exports the original file bytes.
+/// Reads WAVE entries as audio clips for preview and exports the original file bytes.
 /// </summary>
 public sealed class AudioHandler : IAssetHandler
 {
+    private readonly WavAudioTranslator _translator = new();
+
     /// <summary>
     /// Determines whether the asset is a WAVE file.
     /// </summary>
@@ -28,7 +31,7 @@ public sealed class AudioHandler : IAssetHandler
     /// <param name="asset">The asset to read.</param>
     /// <param name="context">The read context for the operation.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    /// <returns>A read result containing the decoded <see cref="AudioBuffer"/>.</returns>
+    /// <returns>A read result containing the <see cref="AudioClip"/>.</returns>
     public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
@@ -39,7 +42,7 @@ public sealed class AudioHandler : IAssetHandler
         return new AssetReadResult
         {
             Asset = asset,
-            Data = WaveFile.Read(data),
+            Data = _translator.Read(data),
             Handler = this,
         };
     }

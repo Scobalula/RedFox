@@ -29,7 +29,7 @@ bc7.Encode(ldrPixels, bc7Compressed, width, height);
 bc6h.Encode(hdrPixels, bc6hCompressed, width, height);
 
 Measure("BC7 Encode", width, height, iterations: 12, () => bc7.Encode(ldrPixels, bc7Compressed, width, height));
-Measure("BC7 EncodeFast", width, height, iterations: 20, () => bc7.EncodeFast(ldrPixels, bc7Compressed, width, height));
+Measure("BC7 EncodeFast", width, height, iterations: 20, () => BC7Codec.EncodeFast(ldrPixels, bc7Compressed, width, height));
 Measure("BC7 Decode", width, height, iterations: 80, () => bc7.Decode(bc7Compressed, decodeBuffer, width, height));
 
 Console.WriteLine();

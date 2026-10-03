@@ -3,20 +3,19 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
-using RedFox.Audio;
 
 namespace RedFox.GameExtraction.UI.Controls;
 
 /// <summary>
-/// Draws per-channel min/max peaks for an <see cref="AudioBuffer"/> with a playhead. Clicking or dragging executes
+/// Draws per-channel min/max waveform peaks with a playhead. Clicking or dragging executes
 /// <see cref="SeekCommand"/> with the fraction of the duration under the pointer.
 /// </summary>
 public sealed class AudioWaveformControl : Control
 {
     /// <summary>
-    /// Defines the <see cref="Audio"/> property.
+    /// Defines the <see cref="Peaks"/> property.
     /// </summary>
-    public static readonly StyledProperty<AudioBuffer?> AudioProperty = AvaloniaProperty.Register<AudioWaveformControl, AudioBuffer?>(nameof(Audio));
+    public static readonly StyledProperty<(float Min, float Max)[][]?> PeaksProperty = AvaloniaProperty.Register<AudioWaveformControl, (float Min, float Max)[][]?>(nameof(Peaks));
 
     /// <summary>
     /// Defines the <see cref="Position"/> property.
@@ -33,21 +32,21 @@ public sealed class AudioWaveformControl : Control
     private static readonly IPen CenterLinePen = new Pen(Brush.Parse("#2A2A2F"));
     private static readonly IPen PlayheadPen = new Pen(Brush.Parse("#F4F4F8"), 1.5);
 
-    private (float Min, float Max)[][] _peaks = [];
+    private (float Min, float Max)[][] _columns = [];
 
     static AudioWaveformControl()
     {
-        AffectsRender<AudioWaveformControl>(AudioProperty, PositionProperty);
-        AudioProperty.Changed.AddClassHandler<AudioWaveformControl>((control, _) => control._peaks = []);
+        AffectsRender<AudioWaveformControl>(PeaksProperty, PositionProperty);
+        PeaksProperty.Changed.AddClassHandler<AudioWaveformControl>((control, _) => control._columns = []);
     }
 
     /// <summary>
-    /// Gets or sets the displayed buffer.
+    /// Gets or sets the per-channel min/max peaks to draw, spread evenly across the width of the control.
     /// </summary>
-    public AudioBuffer? Audio
+    public (float Min, float Max)[][]? Peaks
     {
-        get => GetValue(AudioProperty);
-        set => SetValue(AudioProperty, value);
+        get => GetValue(PeaksProperty);
+        set => SetValue(PeaksProperty, value);
     }
 
     /// <summary>
@@ -74,39 +73,39 @@ public sealed class AudioWaveformControl : Control
         Rect bounds = new(Bounds.Size);
         context.FillRectangle(BackgroundBrush, bounds);
 
-        AudioBuffer? audio = Audio;
-        if (audio is null || audio.Channels <= 0 || bounds.Width < 1 || bounds.Height < 1)
+        (float Min, float Max)[][]? peaks = Peaks;
+        if (peaks is null || peaks.Length == 0 || peaks[0].Length == 0 || bounds.Width < 1 || bounds.Height < 1)
         {
             return;
         }
 
         int width = (int)bounds.Width;
-        if (_peaks.Length == 0 || _peaks[0].Length != width)
+        if (_columns.Length == 0 || _columns[0].Length != width)
         {
-            _peaks = BuildPeaks(audio, width);
+            _columns = [.. peaks.Select(channel => WaveformPeaks.Reduce(channel, width))];
         }
 
         IBrush waveBrush = this.TryFindResource("AccentBrush", out object? resource) && resource is IBrush accent ? accent : FallbackWaveBrush;
-        double laneHeight = bounds.Height / audio.Channels;
+        double laneHeight = bounds.Height / _columns.Length;
 
-        for (int channel = 0; channel < _peaks.Length; channel++)
+        for (int channel = 0; channel < _columns.Length; channel++)
         {
             double centerY = (channel * laneHeight) + (laneHeight * 0.5);
             double amplitude = Math.Max(1.0, (laneHeight * 0.5) - 3.0);
-            (float Min, float Max)[] peaks = _peaks[channel];
+            (float Min, float Max)[] column = _columns[channel];
 
             StreamGeometry geometry = new();
             using (StreamGeometryContext figure = geometry.Open())
             {
-                figure.BeginFigure(new Point(0, centerY - (peaks[0].Max * amplitude)), true);
+                figure.BeginFigure(new Point(0, centerY - (column[0].Max * amplitude)), true);
                 for (int x = 1; x < width; x++)
                 {
-                    figure.LineTo(new Point(x, centerY - (peaks[x].Max * amplitude)));
+                    figure.LineTo(new Point(x, centerY - (column[x].Max * amplitude)));
                 }
 
                 for (int x = width - 1; x >= 0; x--)
                 {
-                    figure.LineTo(new Point(x, centerY - (peaks[x].Min * amplitude)));
+                    figure.LineTo(new Point(x, centerY - (column[x].Min * amplitude)));
                 }
 
                 figure.EndFigure(true);
@@ -146,40 +145,6 @@ public sealed class AudioWaveformControl : Control
     {
         base.OnPointerReleased(e);
         e.Pointer.Capture(null);
-    }
-
-    private static (float Min, float Max)[][] BuildPeaks(AudioBuffer audio, int width)
-    {
-        ReadOnlySpan<short> samples = audio.Samples.Span;
-        int channels = audio.Channels;
-        int frameCount = samples.Length / channels;
-        (float Min, float Max)[][] peaks = new (float, float)[channels][];
-        for (int channel = 0; channel < channels; channel++)
-        {
-            peaks[channel] = new (float, float)[width];
-        }
-
-        for (int x = 0; x < width; x++)
-        {
-            int start = (int)((long)x * frameCount / width);
-            int end = Math.Min(frameCount, Math.Max(start + 1, (int)((long)(x + 1) * frameCount / width)));
-
-            for (int channel = 0; channel < channels; channel++)
-            {
-                float min = 0.0f;
-                float max = 0.0f;
-                for (int frame = start; frame < end; frame++)
-                {
-                    float value = samples[(frame * channels) + channel] / 32768.0f;
-                    min = Math.Min(min, value);
-                    max = Math.Max(max, value);
-                }
-
-                peaks[channel][x] = (min, max);
-            }
-        }
-
-        return peaks;
     }
 
     private void Seek(PointerEventArgs e)

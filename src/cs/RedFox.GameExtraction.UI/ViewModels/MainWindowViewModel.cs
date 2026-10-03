@@ -36,6 +36,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private int _filterOptionsGeneration;
     private bool _progressUpdatePosted;
     private bool _isPreviewWindowOpen;
+    private bool _isReplacingAssetsView;
     private volatile bool _isDisposed;
     private AssetRowViewModel[]? _pendingPreviewSelection;
     private AssetRowViewModel[]? _debouncedPreviewSelection;
@@ -250,6 +251,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public event Action? SourceManagerRequested;
 
     /// <summary>
+    /// Raised after the filtered asset view is rebuilt, with the indexes of the selected assets that are visible in it in selection order, so the view can restore its selection.
+    /// </summary>
+    public event Action<IReadOnlyList<int>>? AssetSelectionRestoreRequested;
+
+    /// <summary>
     /// Raised when file paths are needed from the view.
     /// </summary>
     public event Func<Task<IReadOnlyList<string>>>? FileDialogRequested;
@@ -449,8 +455,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="selectedAssets">The selected asset rows.</param>
     public void SetSelectedAssets(IEnumerable<AssetRowViewModel> selectedAssets)
     {
+        if (_isReplacingAssetsView)
+        {
+            return;
+        }
+
         AssetRowViewModel[] selection = [.. selectedAssets];
-        if (selection.Length == 0 && SelectedAssets.Any(asset => !_assetsView.Contains(asset)))
+        if (selection.SequenceEqual(SelectedAssets) || (selection.Length == 0 && SelectedAssets.Any(asset => !_assetsView.Contains(asset))))
         {
             return;
         }
@@ -1367,6 +1378,34 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return completion.Task;
     }
 
+    private void ReplaceAssetsView(AssetRowViewModel[] visibleAssets)
+    {
+        HashSet<AssetRowViewModel> selected = [.. SelectedAssets];
+        Dictionary<AssetRowViewModel, int> visibleIndexes = [];
+
+        for (int index = 0; index < visibleAssets.Length && visibleIndexes.Count < selected.Count; index++)
+        {
+            if (selected.Contains(visibleAssets[index]))
+            {
+                visibleIndexes[visibleAssets[index]] = index;
+            }
+        }
+
+        int[] visibleSelection = [.. SelectedAssets.Where(visibleIndexes.ContainsKey).Select(asset => visibleIndexes[asset])];
+
+        _isReplacingAssetsView = true;
+
+        try
+        {
+            _assetsView.ReplaceAll(visibleAssets);
+            AssetSelectionRestoreRequested?.Invoke(visibleSelection);
+        }
+        finally
+        {
+            _isReplacingAssetsView = false;
+        }
+    }
+
     private void ApplyFilter()
     {
         int generation = ++_filterGeneration;
@@ -1417,7 +1456,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                     return;
                 }
 
-                _assetsView.ReplaceAll(visibleAssets);
+                ReplaceAssetsView(visibleAssets);
                 FilteredCount = visibleAssets.Length;
             });
         }

@@ -8,7 +8,7 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// <summary>
 /// Preview preferences shared across assets and persisted with the application's settings.
 /// </summary>
-public sealed partial class ScenePreviewSettings : ObservableObject
+public sealed partial class PreviewSettings : ObservableObject
 {
     private static readonly GameExtractionSetting UpAxisSetting = new()
     {
@@ -49,8 +49,17 @@ public sealed partial class ScenePreviewSettings : ObservableObject
         DefaultValue = true,
     };
 
+    private static readonly GameExtractionSetting AutoPlayAudioSetting = new()
+    {
+        Name = "PreviewAutoPlayAudio",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Auto-play audio",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = false,
+    };
+
     /// <summary>
-    /// Gets the optional setting definitions for the built-in scene preview preferences.
+    /// Gets the optional setting definitions for the built-in preview preferences.
     /// Add these to an application's setting definitions to expose them in its settings UI.
     /// </summary>
     public static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
@@ -59,6 +68,7 @@ public sealed partial class ScenePreviewSettings : ObservableObject
         SkinningModeSetting,
         LightingModeSetting,
         AutoFitSetting,
+        AutoPlayAudioSetting,
     ];
 
     internal ScenePreviewCameraState? CameraState { get; set; }
@@ -108,6 +118,12 @@ public sealed partial class ScenePreviewSettings : ObservableObject
     [ObservableProperty]
     public partial bool AutoFitScene { get; set; } = true;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether audio previews start playing as soon as they are shown.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool AutoPlayAudio { get; set; }
+
     internal void LoadFrom(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -115,6 +131,7 @@ public sealed partial class ScenePreviewSettings : ObservableObject
         SkinningMode = GetEnumValue(settings, SkinningModeSetting, SkinningMode.Linear);
         LightingMode = GetEnumValue(settings, LightingModeSetting, ScenePreviewLightingMode.Scene);
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
+        AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
     }
 
     private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback)
