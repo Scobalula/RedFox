@@ -54,7 +54,18 @@ public abstract class AudioClipHandler : IAssetHandler
     /// <param name="manager">The audio translator manager.</param>
     /// <param name="path">The output path of the clip, its extension is replaced by each format.</param>
     /// <param name="skipExisting">Whether to skip formats whose file already exists.</param>
-    public static void ExportClip(AudioClip clip, IReadOnlyList<string> formats, AudioTranslatorManager manager, string path, bool skipExisting)
+    public static void ExportClip(AudioClip clip, IReadOnlyList<string> formats, AudioTranslatorManager manager, string path, bool skipExisting) => ExportClip(clip, formats, manager, path, skipExisting, new AudioTranslatorOptions());
+
+    /// <summary>
+    /// Exports the given clip to each of the specified formats using the supplied translator options.
+    /// </summary>
+    /// <param name="clip">The clip to export.</param>
+    /// <param name="formats">The formats to export the clip to, as file extensions.</param>
+    /// <param name="manager">The audio translator manager.</param>
+    /// <param name="path">The output path of the clip, its extension is replaced by each format.</param>
+    /// <param name="skipExisting">Whether to skip formats whose file already exists.</param>
+    /// <param name="options">The options passed to each translator.</param>
+    public static void ExportClip(AudioClip clip, IReadOnlyList<string> formats, AudioTranslatorManager manager, string path, bool skipExisting, AudioTranslatorOptions options)
     {
         foreach (var format in formats)
         {
@@ -64,7 +75,7 @@ public abstract class AudioClipHandler : IAssetHandler
                 continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            manager.Write(filePath, clip);
+            manager.Write(filePath, clip, options);
         }
     }
 }
