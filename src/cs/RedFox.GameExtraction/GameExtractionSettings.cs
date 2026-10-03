@@ -1,3 +1,4 @@
+using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
 namespace RedFox.GameExtraction;
@@ -111,9 +112,15 @@ public sealed class GameExtractionSettings
     /// Resolves the default export directory.
     /// </summary>
     /// <returns>The default export directory.</returns>
-    public static string GetDefaultOutputDirectory()
+    public static string GetDefaultOutputDirectory() => "Exports";
+
+    /// <summary>
+    /// Resolves the default export directory.
+    /// </summary>
+    /// <returns>The default export directory.</returns>
+    public static string GetDefaultOutputDirectory(string appName)
     {
         string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        return Path.Combine(documents, VendorDirectoryName, "Exports");
+        return Path.Combine(documents, appName, "Exports");
     }
 }

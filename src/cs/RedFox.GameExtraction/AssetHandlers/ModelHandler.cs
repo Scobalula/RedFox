@@ -22,7 +22,7 @@ public abstract class ModelHandler : IAssetHandler
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scenes = result.GetData<Scene[]>();
 
-        string relativeAssetPath = context.Configuration.GetOption("PreserveDirectoryStructure", true) ? AssetManager.NormalizeVirtualPath(result.Asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(result.Asset.Name));
+        string relativeAssetPath = AssetManager.NormalizeVirtualPath(result.Asset.Name);
         string outputDirectory = context.ResolveOutputDirectory(relativeAssetPath);
 
         if (context.Configuration.GetOption("ExportModelImages", true))
@@ -83,8 +83,7 @@ public abstract class ModelHandler : IAssetHandler
 
         // For now - a basic directory check is best we can do, as we would have no context on lods, formats, images, etc.
         // We could potentially do a wildcard check against let's say asset.Name*.semodel, etc.
-        string relativeAssetPath = context.Configuration.GetOption("PreserveDirectoryStructure", true) ? AssetManager.NormalizeVirtualPath(asset.Name) : Path.GetFileName(AssetManager.NormalizeVirtualPath(asset.Name));
-        return !Directory.Exists(context.ResolveOutputDirectory(relativeAssetPath));
+        return !Directory.Exists(context.ResolveOutputDirectory(AssetManager.NormalizeVirtualPath(asset.Name)));
     }
 
     /// <inheritdoc/>
