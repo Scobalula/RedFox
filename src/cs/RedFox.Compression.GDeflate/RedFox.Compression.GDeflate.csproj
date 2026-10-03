@@ -13,12 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Native\gdeflate.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Native\libgdeflate.dll" Pack="true" PackagePath="runtimeFiles">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Update="runtimes\win-x64\native\libgdeflate.dll" Link="libgdeflate.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\libgdeflate.dll" />
   </ItemGroup>
 
   <ItemGroup>

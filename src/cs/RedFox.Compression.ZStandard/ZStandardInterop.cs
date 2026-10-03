@@ -12,7 +12,7 @@ namespace RedFox.Compression.ZStandard;
 
 internal partial class ZStandardInterop
 {
-    private const string ZSTDLibrary = "Native\\libzstd";
+    private const string ZSTDLibrary = "libzstd";
 
     [LibraryImport(ZSTDLibrary, EntryPoint = "ZSTD_compress", SetLastError = true)]
     public static partial nuint Compress(Span<byte> destination, nuint destinationCapacity, ReadOnlySpan<byte> source, nuint sourceSize, int compressionLevel);

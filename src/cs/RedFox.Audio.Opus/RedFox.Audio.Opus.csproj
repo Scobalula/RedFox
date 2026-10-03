@@ -14,9 +14,7 @@
 
   <ItemGroup>
     <None Include="..\..\..\licenses\Opus-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
-    <None Update="Native\opus.dll" Pack="true" PackagePath="runtimeFiles">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Update="runtimes\win-x64\native\opus.dll" Link="opus.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\opus.dll" />
   </ItemGroup>
 
 </Project>

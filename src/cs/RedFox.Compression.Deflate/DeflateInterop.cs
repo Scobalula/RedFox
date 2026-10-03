@@ -40,7 +40,7 @@ internal unsafe partial class DeflateInterop
 
     public const int MZDefaultStrategy = 0;
 
-    private const string Library = "Native\\miniz";
+    private const string Library = "miniz";
 
     [LibraryImport(Library, EntryPoint = "mz_deflateInit2", SetLastError = true)]
     public static partial int DeflateInit(ref MZStream pStream, DeflateLevel level, int method, int window_bits, int mem_level, int strategy);

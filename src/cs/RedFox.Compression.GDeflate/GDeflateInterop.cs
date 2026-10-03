@@ -12,7 +12,7 @@ namespace RedFox.Compression.GDeflate
 {
     internal partial class GDeflateInterop
     {
-        private const string Library = "Native\\libgdeflate";
+        private const string Library = "libgdeflate";
 
         [LibraryImport(Library, EntryPoint = "libdeflate_alloc_gdeflate_decompressor", SetLastError = true)]
         public static partial nint CreateDecompressor();

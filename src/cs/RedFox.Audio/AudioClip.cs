@@ -54,6 +54,12 @@ public sealed class AudioClip
     public long? LoopEnd { get; set; }
 
     /// <summary>
+    /// Gets the descriptive tags of the audio, keyed by case-insensitive Vorbis comment field names
+    /// such as <c>TITLE</c>, <c>ARTIST</c>, <c>ALBUM</c>, <c>DATE</c>, <c>GENRE</c>, and <c>COMMENT</c>.
+    /// </summary>
+    public Dictionary<string, string> Tags { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="AudioClip"/> class with decoded audio buffer.
     /// </summary>
     /// <param name="buffer">The decoded audio buffer.</param>

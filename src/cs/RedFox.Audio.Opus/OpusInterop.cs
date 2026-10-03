@@ -13,7 +13,7 @@ namespace RedFox.Audio.Opus;
 
 internal partial class OpusInterop
 {
-    private const string Library = "Native/opus";
+    private const string Library = "opus";
 
     [LibraryImport(Library, EntryPoint = "opus_encoder_create", SetLastError = true)]
     public static partial IntPtr EncoderCreate(int sampleRate, int channels, int application, out int error);

@@ -13,9 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Native\libzstd.dll" Pack="true" PackagePath="runtimeFiles">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Update="runtimes\win-x64\native\libzstd.dll" Link="libzstd.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\libzstd.dll" />
   </ItemGroup>
 
   <ItemGroup>

@@ -100,7 +100,7 @@ public sealed class CompressionNativeCodecTests
 
     private static bool HasNativeLibrary(string fileName)
     {
-        string libraryPath = Path.Combine(AppContext.BaseDirectory, "Native", fileName);
+        string libraryPath = Path.Combine(AppContext.BaseDirectory, fileName);
         return File.Exists(libraryPath);
     }
 }

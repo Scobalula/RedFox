@@ -162,6 +162,26 @@ public sealed class WavAudioTranslatorTests
     }
 
     [Fact]
+    public void WriteRead_Tags_AreStoredInInfoChunk()
+    {
+        WavAudioTranslator translator = new();
+        AudioClip source = new(CreateNoise(new AudioFormat(22050, 1), SampleFormat.Int16, 100));
+        source.Tags["TITLE"] = "Odd";
+        source.Tags["ARTIST"] = "Even!";
+        source.Tags["IKEY"] = "custom";
+        source.Tags["DISCNUMBER"] = "1";
+
+        byte[] file = Write(translator, source);
+        AudioClip clip = translator.Read(file);
+
+        Assert.Equal(3, clip.Tags.Count);
+        Assert.Equal("Odd", clip.Tags["TITLE"]);
+        Assert.Equal("Even!", clip.Tags["ARTIST"]);
+        Assert.Equal("custom", clip.Tags["IKEY"]);
+        Assert.Equal(file, Write(translator, clip));
+    }
+
+    [Fact]
     public void Read_Pcm_WrapsSourceMemoryWithoutCopying()
     {
         WavAudioTranslator translator = new();

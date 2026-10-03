@@ -9,13 +9,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RedFox.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RedFox.Audio\RedFox.Audio.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Native\libFLAC.dll" Pack="true" PackagePath="runtimeFiles">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Update="runtimes\win-x64\native\libFLAC.dll" Link="libFLAC.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\libFLAC.dll" />
   </ItemGroup>
 
   <ItemGroup>

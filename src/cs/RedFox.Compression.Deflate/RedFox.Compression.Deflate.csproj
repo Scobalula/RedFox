@@ -13,9 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Native\miniz.dll" Pack="true" PackagePath="runtimeFiles">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    <None Update="runtimes\win-x64\native\miniz.dll" Link="miniz.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\miniz.dll" />
   </ItemGroup>
 
   <ItemGroup>

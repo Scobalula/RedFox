@@ -25,6 +25,7 @@ public static class TemplateAssetManagerFactory
 
         manager.RegisterService<SceneTranslatorService>();
         manager.RegisterService<ImageTranslatorService>();
+        manager.RegisterService<AudioTranslatorService>();
 
         return manager;
     }

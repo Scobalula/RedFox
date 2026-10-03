@@ -12,7 +12,7 @@ namespace RedFox.Compression.LZ4
 {
     internal partial class LZ4Interop
     {
-        private const string Library = "Native\\liblz4";
+        private const string Library = "liblz4";
 
         public const int MaxInputSize = 0x7E000000;
 

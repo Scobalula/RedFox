@@ -84,6 +84,7 @@ public sealed class WavAudioTranslator : AudioTranslator
         Memory<byte>? samples = null;
         long frameCount = -1;
         (long Start, long End)? loop = null;
+        Dictionary<string, string> tags = [];
         int offset = 12;
 
         while (offset + 8 <= span.Length)
@@ -100,6 +101,8 @@ public sealed class WavAudioTranslator : AudioTranslator
                 frameCount = BinaryPrimitives.ReadUInt32LittleEndian(chunk.Span);
             else if (id.SequenceEqual("smpl"u8))
                 loop = ReadLoop(chunk.Span);
+            else if (id.SequenceEqual("LIST"u8) && WavInfoChunk.IsInfo(chunk.Span))
+                WavInfoChunk.Read(chunk.Span, tags);
 
             offset += 8 + size + (size & 1);
         }
@@ -110,6 +113,9 @@ public sealed class WavAudioTranslator : AudioTranslator
         AudioClip clip = CreateClip(fmt, sampleData, frameCount);
         clip.LoopStart = loop?.Start;
         clip.LoopEnd = loop?.End;
+
+        foreach ((string field, string value) in tags)
+            clip.Tags[field] = value;
 
         return clip;
     }
@@ -141,6 +147,15 @@ public sealed class WavAudioTranslator : AudioTranslator
 
         if (clip.LoopStart is { } loopStart && clip.LoopEnd is { } loopEnd)
             WriteLoop(writer, clip.Format.SampleRate, loopStart, loopEnd);
+
+        byte[] info = WavInfoChunk.Create(clip.Tags);
+
+        if (info.Length > 0)
+        {
+            long list = BeginChunk(writer, "LIST"u8);
+            writer.Write(info);
+            EndChunk(writer, list);
+        }
 
         EndChunk(writer, riff);
     }

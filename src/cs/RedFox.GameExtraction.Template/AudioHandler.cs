@@ -1,108 +1,67 @@
 using System.IO.Compression;
-using RedFox.Audio;
-using RedFox.Audio.IO.Wav;
+using RedFox.Audio.IO;
 using RedFox.GameExtraction;
+using RedFox.GameExtraction.AssetHandlers;
 using RedFox.IO.FileSystem;
 
 namespace RedFox.GameExtraction.Template;
 
 /// <summary>
-/// Reads WAVE entries as audio clips for preview and exports the original file bytes.
+/// Reads audio entries as audio clips through the audio translators and exports them to the configured audio formats.
 /// </summary>
-public sealed class AudioHandler : IAssetHandler
+public sealed class AudioHandler : AudioClipHandler
 {
-    private readonly WavAudioTranslator _translator = new();
+    private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".wav", ".flac" };
 
     /// <summary>
-    /// Determines whether the asset is a WAVE file.
+    /// Determines whether the asset is audio the built-in translators can read.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
     /// <param name="configuration">The shared settings and options.</param>
-    /// <returns><see langword="true"/> when the asset has a .wav extension.</returns>
-    public bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
+    /// <returns><see langword="true"/> when the asset has a supported audio extension.</returns>
+    public override bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return string.Equals(Path.GetExtension(asset.Name), ".wav", StringComparison.OrdinalIgnoreCase);
+        return Extensions.Contains(Path.GetExtension(asset.Name));
     }
 
     /// <summary>
-    /// Reads and decodes the WAVE entry.
+    /// Reads the audio entry through the audio translators without decoding it.
     /// </summary>
     /// <param name="asset">The asset to read.</param>
     /// <param name="context">The read context for the operation.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    /// <returns>A read result containing the <see cref="AudioClip"/>.</returns>
-    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken)
+    /// <returns>A read result containing the <see cref="RedFox.Audio.AudioClip"/>.</returns>
+    public override async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext context, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(context);
 
-        byte[] data = await ReadAllBytesAsync(asset, cancellationToken).ConfigureAwait(false);
+        AudioTranslatorManager manager = context.AssetManager.GetRequiredService<AudioTranslatorService>().Manager;
+        using MemoryStream buffer = new();
+
+        await using (Stream stream = OpenAssetStream(asset))
+        {
+            await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
+        }
+
+        buffer.Position = 0;
 
         return new AssetReadResult
         {
             Asset = asset,
-            Data = _translator.Read(data),
+            Data = manager.Read(buffer, asset.Name),
             Handler = this,
         };
     }
 
-    /// <summary>
-    /// Determines whether the asset should be exported.
-    /// </summary>
-    /// <param name="asset">The asset being exported.</param>
-    /// <param name="context">The export context for the operation.</param>
-    /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    /// <returns><see langword="true"/> when export should continue; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken)
+    private static Stream OpenAssetStream(Asset asset)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(asset);
-        ArgumentNullException.ThrowIfNull(context);
-
-        string outputPath = context.ResolveAssetPath(asset);
-        return Task.FromResult(!File.Exists(outputPath) || context.Configuration.GetOption("Overwrite", false));
-    }
-
-    /// <summary>
-    /// Exports the original WAVE file bytes.
-    /// </summary>
-    /// <param name="result">The read result for the asset.</param>
-    /// <param name="context">The export context for the operation.</param>
-    /// <param name="cancellationToken">The cancellation token for the operation.</param>
-    /// <returns>A task that completes when the export has finished.</returns>
-    public async Task ExportAsync(AssetReadResult result, AssetExportContext context, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(result);
-        ArgumentNullException.ThrowIfNull(context);
-
-        string outputPath = context.ResolveAssetPath(result.Asset);
-        if (File.Exists(outputPath) && !context.Configuration.GetOption("Overwrite", false))
-        {
-            return;
-        }
-
-        string? outputDirectory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(outputDirectory))
-        {
-            Directory.CreateDirectory(outputDirectory);
-        }
-
-        byte[] data = await ReadAllBytesAsync(result.Asset, cancellationToken).ConfigureAwait(false);
-        await AtomicFileWriter.WriteAllBytesAsync(outputPath, data, cancellationToken).ConfigureAwait(false);
-    }
-
-    private static async Task<byte[]> ReadAllBytesAsync(Asset asset, CancellationToken cancellationToken)
-    {
-        await using Stream stream = asset.DataSource switch
+        return asset.DataSource switch
         {
             VirtualFile file => file.Open(),
             ZipArchiveEntry entry => entry.Open(),
             _ => throw new InvalidOperationException($"AudioHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
         };
-
-        using MemoryStream buffer = new();
-        await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-        return buffer.ToArray();
     }
 }
