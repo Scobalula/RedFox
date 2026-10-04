@@ -77,6 +77,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     public partial Scene? ActiveScene { get; private set; }
 
     /// <summary>
+    /// Gets whether the displayed scene is a model that animations can be appended to.
+    /// </summary>
+    public bool HasModel => ActiveScene is { } scene && IsModel(scene);
+
+    /// <summary>
     /// Gets the viewport controller bound to the renderer.
     /// </summary>
     [ObservableProperty]

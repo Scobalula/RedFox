@@ -201,8 +201,13 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
 
             PayloadTypeDisplay = result.Data is null ? "None" : FormatTypeName(result.Data.GetType());
             ReferenceCount = result.References.Count;
-            SetContent(CreateContent(result, preparedSceneData, configuration));
-            StatusText = Content is null ? $"No preview for {PayloadTypeDisplay}" : $"Ready ({PayloadTypeDisplay})";
+
+            Control? content = CreateContent(result, preparedSceneData, configuration);
+
+            if (content is not null || !HasLoadedModel())
+                SetContent(content);
+
+            StatusText = content is null ? $"No preview for {PayloadTypeDisplay}" : $"Ready ({PayloadTypeDisplay})";
         }
         catch (OperationCanceledException)
         {
@@ -211,9 +216,11 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
         {
             if (loadVersion == _loadVersion)
             {
-                SetContent(null);
+                if (!HasLoadedModel())
+                    SetContent(null);
+
                 ErrorMessage = exception.Message;
-                StatusText = "Preview failed";
+                StatusText = $"Preview failed: {exception.Message}";
             }
         }
         finally
@@ -353,6 +360,8 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
 
         return null;
     }
+
+    private bool HasLoadedModel() => Content?.DataContext is ScenePreviewViewModel { HasModel: true };
 
     private void SetContent(Control? content)
     {
