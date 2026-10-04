@@ -119,4 +119,9 @@ public sealed class GameExtractionConfig
     /// Gets the optional About window configuration with description and links.
     /// </summary>
     public AboutConfig? About { get; init; }
+
+    /// <summary>
+    /// Gets the optional donation details. When set, a donate button is shown in the sidebar and the donation window opens on first launch.
+    /// </summary>
+    public DonationConfig? Donation { get; init; }
 }

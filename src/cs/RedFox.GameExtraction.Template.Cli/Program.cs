@@ -19,5 +19,10 @@ internal static class Program
             Accent = "#007000",
         },
         MetadataColumns = ["CompressedSize"],
+        Donation = new DonationConfig
+        {
+            Url = "https://github.com/sponsors/Scobalula",
+            Message = "ZIP Explorer is free and always will be. If it saved you some time, consider buying me a coffee!",
+        },
     }, args);
 }

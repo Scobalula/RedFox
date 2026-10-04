@@ -12,6 +12,7 @@ internal static class WelcomeView
         CommandLineTheme theme = session.Theme;
         GameExtractionCommandLineConfig config = session.Config;
         string author = config.Author is null ? string.Empty : $" · {Markup.Escape(config.Author)}";
+        string donation = config.Donation is null ? string.Empty : $" · [{DonationView.HeartColor}]♥[/] [{theme.Muted} link={Markup.Escape(config.Donation.Url)}]Donate: {Markup.Escape(config.Donation.Url)}[/]";
 
         console.WriteLine();
 
@@ -25,7 +26,7 @@ internal static class WelcomeView
             console.WriteLine();
         }
 
-        console.MarkupLine($"[bold]{Markup.Escape(config.Title)}[/] [{theme.Muted}]v{Markup.Escape(config.Version)}{author}[/]");
+        console.MarkupLine($"[bold]{Markup.Escape(config.Title)}[/] [{theme.Muted}]v{Markup.Escape(config.Version)}{author}[/]{donation}");
         console.MarkupLine($"[{theme.Muted}]{Markup.Escape(config.Description)}[/]");
         console.WriteLine();
 

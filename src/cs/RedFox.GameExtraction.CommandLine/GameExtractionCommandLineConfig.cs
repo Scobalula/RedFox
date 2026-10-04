@@ -55,6 +55,12 @@ public sealed class GameExtractionCommandLineConfig
     public string? Banner { get; init; }
 
     /// <summary>
+    /// Gets the optional donation details. When set, the donation message is shown on every interactive launch and
+    /// the user is asked to donate on the first launch.
+    /// </summary>
+    public DonationConfig? Donation { get; init; }
+
+    /// <summary>
     /// Gets the color scheme used by the shell.
     /// </summary>
     public CommandLineTheme Theme { get; init; } = new();

@@ -158,6 +158,10 @@
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
+    <Style Selector="PathIcon.heart-icon">
+        <Setter Property="Foreground" Value="{DynamicResource HeartBrush}"/>
+    </Style>
+
     <Style Selector="PathIcon.destructive-icon">
         <Setter Property="Foreground" Value="{DynamicResource ThemeDestructiveBrush}"/>
     </Style>

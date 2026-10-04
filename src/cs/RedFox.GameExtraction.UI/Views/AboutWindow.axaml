@@ -11,7 +11,7 @@
     <Border Classes="panel" Margin="12" Padding="24,20">
         <StackPanel Spacing="14">
             <StackPanel HorizontalAlignment="Center" Spacing="6">
-                <Image x:Name="AppIcon" Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center"/>
+                <Image x:Name="AppIcon" Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center" RenderOptions.BitmapInterpolationMode="HighQuality"/>
                 <TextBlock x:Name="AppTitle" Classes="title" FontSize="20" HorizontalAlignment="Center"/>
                 <TextBlock x:Name="AppVersion" Classes="status-text" HorizontalAlignment="Center"/>
             </StackPanel>

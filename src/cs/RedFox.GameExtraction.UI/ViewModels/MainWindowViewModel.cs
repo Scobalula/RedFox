@@ -213,6 +213,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public bool HasSidebarIcon => SidebarIconPath is not null;
 
     /// <summary>
+    /// Gets a value indicating whether a donation link is configured.
+    /// </summary>
+    public bool CanDonate => _config.Donation is not null;
+
+    /// <summary>
     /// Gets a value indicating whether file sources can be loaded.
     /// </summary>
     public bool CanLoadFiles { get; private set; }
@@ -250,6 +255,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public partial string StatusText { get; set; } = "Ready";
 
     /// <summary>
+    /// Opens the donation window when this is the first launch with a donation link configured.
+    /// </summary>
+    public void PromptDonationOnFirstLaunch()
+    {
+        if (_config.Donation is null || !DonationConfig.TryMarkPrompted(_config.Settings))
+        {
+            return;
+        }
+
+        _config.Settings.Save(GameExtractionSettings.GetDefaultSettingsPath(_config.AppName));
+        DonateRequested?.Invoke(true);
+    }
+
+    /// <summary>
     /// Raised when the settings window should be opened.
     /// </summary>
     public event Action? SettingsRequested;
@@ -258,6 +277,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Raised when the about window should be opened.
     /// </summary>
     public event Action? AboutRequested;
+
+    /// <summary>
+    /// Raised when the donation window should be opened, indicating whether it is the one-time first launch prompt.
+    /// </summary>
+    public event Action<bool>? DonateRequested;
 
     /// <summary>
     /// Raised when the preview window should be opened.
@@ -709,6 +733,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void OpenAbout()
     {
         AboutRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    private void OpenDonate()
+    {
+        DonateRequested?.Invoke(false);
     }
 
     partial void OnSourceCountChanged(int value)

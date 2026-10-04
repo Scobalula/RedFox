@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RedFox.GameExtraction.UI.Views.DonateWindow"
+        Title="Support"
+        Width="420"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <Border Classes="panel" Margin="12" Padding="24,20">
+        <StackPanel Spacing="14">
+            <StackPanel HorizontalAlignment="Center" Spacing="6">
+                <Panel x:Name="LogoSection" Width="56" Height="56" HorizontalAlignment="Center">
+                    <Image x:Name="AppIcon" Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                    <PathIcon Classes="heart-icon" Data="{StaticResource IconHeart}" Width="22" Height="22" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                </Panel>
+                <PathIcon x:Name="HeartIcon" Classes="heart-icon" Data="{StaticResource IconHeart}" Width="44" Height="44" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="AppTitle" Classes="title" FontSize="20" HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <TextBlock x:Name="AppDescription" Classes="status-text" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="340" HorizontalAlignment="Center"/>
+
+            <StackPanel x:Name="MessageSection" Spacing="14">
+                <Separator Classes="sidebar-sep"/>
+                <TextBlock x:Name="DonationMessage" TextWrapping="Wrap" TextAlignment="Center" FontStyle="Italic" MaxWidth="340" HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <StackPanel Spacing="6" HorizontalAlignment="Center">
+                <Button Classes="accent-btn" HorizontalContentAlignment="Center" MinWidth="180" Click="OnDonateClick">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource IconHeart}"/>
+                        <TextBlock Text="Donate"/>
+                    </StackPanel>
+                </Button>
+                <Button Classes="secondary-btn" Content="Maybe Later" HorizontalAlignment="Center" Click="OnCloseClick"/>
+                <TextBlock x:Name="ShownOnceNotice" Classes="status-text" Text="This won't be shown again." FontSize="11" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

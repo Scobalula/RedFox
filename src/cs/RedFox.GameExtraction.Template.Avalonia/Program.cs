@@ -28,6 +28,11 @@ internal static class Program
             {
                 Description = "A minimal Avalonia shell for ZIP-backed RedFox.GameExtraction sources.",
             },
+            Donation = new DonationConfig
+            {
+                Url = "https://github.com/sponsors/Scobalula",
+                Message = "ZIP Explorer is free and always will be. If it saved you some time, consider buying me a coffee!",
+            },
         });
     }
 }

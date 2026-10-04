@@ -25,6 +25,7 @@ internal sealed class CommandLineShell(CommandLineSession session)
             if (session.IsInteractive)
             {
                 WelcomeView.Render(session);
+                DonationView.Render(session);
             }
 
             if (session.Config.Startup is not null)

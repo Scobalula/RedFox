@@ -38,6 +38,12 @@
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Spacing="2">
                         <Separator Classes="sidebar-sep"/>
+                        <Button Classes="sidebar-btn" Command="{Binding OpenDonateCommand}" IsVisible="{Binding CanDonate}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <PathIcon Classes="heart-icon" Data="{StaticResource IconHeart}"/>
+                                <TextBlock Text="Donate"/>
+                            </StackPanel>
+                        </Button>
                         <Button Classes="sidebar-btn" Command="{Binding OpenSettingsCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <PathIcon Data="{StaticResource IconSettings}"/>

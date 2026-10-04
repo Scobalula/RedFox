@@ -79,7 +79,7 @@ public partial class AboutWindow : Window
         Close();
     }
 
-    private static Bitmap? LoadIcon(string? path)
+    internal static Bitmap? LoadIcon(string? path)
     {
         if (string.IsNullOrEmpty(path))
             return null;

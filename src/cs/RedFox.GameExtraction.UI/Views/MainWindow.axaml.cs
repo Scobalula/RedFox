@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Closed += OnWindowClosed;
+        Opened += OnWindowOpened;
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
     }
 
@@ -66,6 +67,7 @@ public partial class MainWindow : Window
     {
         viewModel.SettingsRequested += OnSettingsRequested;
         viewModel.AboutRequested += OnAboutRequested;
+        viewModel.DonateRequested += OnDonateRequested;
         viewModel.SourceManagerRequested += OnSourceManagerRequested;
         viewModel.FileDialogRequested += OnFileDialogRequested;
         viewModel.FolderDialogRequested += OnFolderDialogRequested;
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
     {
         viewModel.SettingsRequested -= OnSettingsRequested;
         viewModel.AboutRequested -= OnAboutRequested;
+        viewModel.DonateRequested -= OnDonateRequested;
         viewModel.SourceManagerRequested -= OnSourceManagerRequested;
         viewModel.FileDialogRequested -= OnFileDialogRequested;
         viewModel.FolderDialogRequested -= OnFolderDialogRequested;
@@ -193,6 +196,26 @@ public partial class MainWindow : Window
         AboutWindow aboutWindow = new();
         aboutWindow.Initialize(viewModel.Config);
         aboutWindow.ShowDialog(this);
+    }
+
+    private void OnDonateRequested(bool isFirstLaunch)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        DonateWindow donateWindow = new();
+        donateWindow.Initialize(viewModel.Config, isFirstLaunch);
+        donateWindow.ShowDialog(this);
+    }
+
+    private void OnWindowOpened(object? sender, EventArgs args)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.PromptDonationOnFirstLaunch();
+        }
     }
 
     private void OnSourceManagerRequested()
