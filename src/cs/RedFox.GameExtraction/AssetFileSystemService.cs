@@ -44,6 +44,12 @@ public sealed class AssetFileSystemService
                     if (asset.DataSource is not VirtualFile file)
                         continue;
 
+                    if (IsAtPath(file, asset.Name))
+                    {
+                        addedFiles.Add(file);
+                        continue;
+                    }
+
                     FileSystem.AddFile(AssetManager.NormalizeVirtualPath(asset.Name), file);
                     addedFiles.Add(file);
                 }
@@ -86,6 +92,51 @@ public sealed class AssetFileSystemService
             directory = directory.Parent;
 
         return directory;
+    }
+
+    private bool IsAtPath(VirtualFile file, string path)
+    {
+        if (file.Parent is null)
+            return false;
+
+        int end = path.Length;
+        if (!ConsumePathSegment(path, file.Name, ref end))
+            return false;
+
+        for (VirtualDirectory? directory = file.Parent; directory is not null; directory = directory.Parent)
+        {
+            if (ReferenceEquals(directory, FileSystem.Root))
+                return end == 0;
+
+            if (!ConsumePathSegment(path, directory.Name, ref end))
+                return false;
+        }
+
+        return false;
+    }
+
+    private static bool ConsumePathSegment(string path, string segment, ref int end)
+    {
+        ReadOnlySpan<char> segmentSpan = segment.AsSpan();
+        if (segment is "." or ".." || segmentSpan.Trim().Length != segmentSpan.Length)
+            return false;
+
+        ReadOnlySpan<char> pathSpan = path.AsSpan();
+        int start = end - segment.Length;
+        if (start < 0 || !pathSpan.Slice(start, segment.Length).Equals(segment, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (start > 0)
+        {
+            if (pathSpan[start - 1] != Path.DirectorySeparatorChar)
+                return false;
+
+            end = start - 1;
+            return true;
+        }
+
+        end = 0;
+        return true;
     }
 
     private static void RemoveEmptyDirectories(VirtualDirectory directory)
