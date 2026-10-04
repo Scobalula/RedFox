@@ -88,10 +88,14 @@ public static class AssetPreviewers
     }
 
     /// <summary>
-    /// Creates the standard audio playback previewer.
+    /// Creates the standard audio playback previewer for a single clip or a list of clips, such as the media of a sound bank.
     /// </summary>
-    public static IAssetPreviewer CreateAudio() => new AssetPreviewer(context =>
-        context.Data is AudioClip clip ? new AudioPreviewView { DataContext = new AudioPreviewViewModel(clip, context.PreviewSettings.AutoPlayAudio) } : null);
+    public static IAssetPreviewer CreateAudio() => new AssetPreviewer(context => context.Data switch
+    {
+        AudioClip clip => new AudioPreviewView { DataContext = new AudioPreviewViewModel(clip, context.PreviewSettings.AutoPlayAudio) },
+        IReadOnlyList<AudioClip> { Count: > 0 } clips => new AudioPreviewView { DataContext = new AudioPreviewViewModel(clips, context.PreviewSettings.AutoPlayAudio) },
+        _ => null,
+    });
 
     /// <summary>
     /// Creates the standard table previewer for dictionary and enumerable table payloads.

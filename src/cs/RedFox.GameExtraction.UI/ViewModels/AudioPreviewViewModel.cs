@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.Audio;
@@ -6,21 +7,44 @@ using RedFox.Audio.OpenAL;
 namespace RedFox.GameExtraction.UI.ViewModels;
 
 /// <summary>
-/// Plays an <see cref="AudioClip"/> through an <see cref="IAudioPlayer"/> that is opened on first use.
+/// Plays one of a list of <see cref="AudioClip"/> instances through an <see cref="IAudioPlayer"/> that is opened on first use.
 /// </summary>
 public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposable
 {
     private const int PeakResolution = 8192;
 
-    private readonly CancellationTokenSource _peaksCancellation = new();
+    private readonly bool _autoPlay;
+    private CancellationTokenSource? _peaksCancellation;
     private IAudioPlayer? _player;
     private bool _playerUnavailable;
     private bool _disposed;
 
     /// <summary>
+    /// Gets the clips that can be previewed.
+    /// </summary>
+    public IReadOnlyList<AudioClip> Clips { get; }
+
+    /// <summary>
+    /// Gets the display names of the clips.
+    /// </summary>
+    public IReadOnlyList<string> ClipNames { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether more than one clip is available.
+    /// </summary>
+    public bool HasMultipleClips => Clips.Count > 1;
+
+    /// <summary>
+    /// Gets or sets the index of the clip being previewed.
+    /// </summary>
+    [ObservableProperty]
+    public partial int SelectedClipIndex { get; set; }
+
+    /// <summary>
     /// Gets the clip being previewed.
     /// </summary>
-    public AudioClip Clip { get; }
+    [ObservableProperty]
+    public partial AudioClip Clip { get; private set; }
 
     /// <summary>
     /// Gets the per-channel min/max waveform peaks, which are built in the background and are <see langword="null"/> until then.
@@ -31,7 +55,8 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     /// <summary>
     /// Gets the sample rate, channel, and frame summary.
     /// </summary>
-    public string InfoDisplay { get; }
+    [ObservableProperty]
+    public partial string InfoDisplay { get; private set; }
 
     /// <summary>
     /// Gets the playback position as a fraction of the duration.
@@ -85,7 +110,7 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     /// Initializes a new instance of the <see cref="AudioPreviewViewModel"/> class.
     /// </summary>
     /// <param name="clip">The clip to preview.</param>
-    public AudioPreviewViewModel(AudioClip clip) : this(clip, false)
+    public AudioPreviewViewModel(AudioClip clip) : this([clip], false)
     {
     }
 
@@ -94,30 +119,25 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
     /// </summary>
     /// <param name="clip">The clip to preview.</param>
     /// <param name="autoPlay">Whether playback starts immediately.</param>
-    public AudioPreviewViewModel(AudioClip clip, bool autoPlay)
+    public AudioPreviewViewModel(AudioClip clip, bool autoPlay) : this([clip], autoPlay)
     {
-        Clip = clip ?? throw new ArgumentNullException(nameof(clip));
+    }
 
-        int channels = clip.Format.Channels;
-        string encoding = clip.Encoded is { } encoded ? encoded.Codec.Name : DescribeSamples(clip.GetBuffer());
-        string length = clip.FrameCount < 0 ? "unknown length" : $"{clip.FrameCount:N0} frames";
-        InfoDisplay = $"{clip.Format.SampleRate:N0} Hz  •  {channels} channel{(channels == 1 ? string.Empty : "s")}  •  {encoding}  •  {length}";
-        TimeDisplay = $"{FormatTime(TimeSpan.Zero)} / {FormatTime(clip.Duration)}";
+    /// <summary>
+    /// Initializes a new instance of the <see cref="AudioPreviewViewModel"/> class.
+    /// </summary>
+    /// <param name="clips">The clips to preview, the first of which is selected.</param>
+    /// <param name="autoPlay">Whether playback starts immediately and whenever another clip is selected.</param>
+    public AudioPreviewViewModel(IReadOnlyList<AudioClip> clips, bool autoPlay)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        ArgumentOutOfRangeException.ThrowIfZero(clips.Count, nameof(clips));
 
-        if (clip.IsDecoded || clip.Encoded!.Codec.CanDecode)
-        {
-            _ = LoadPeaksAsync();
-        }
-        else
-        {
-            ErrorMessage = $"{clip.Encoded.Codec.Name} audio cannot be decoded.";
-            _playerUnavailable = true;
-        }
+        Clips = clips;
+        ClipNames = [.. clips.Select((clip, index) => string.IsNullOrEmpty(clip.Name) ? $"Clip {index + 1}" : clip.Name)];
+        _autoPlay = autoPlay;
 
-        if (autoPlay)
-        {
-            TogglePlayback();
-        }
+        ShowClip(clips[0]);
     }
 
     /// <summary>
@@ -161,10 +181,18 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
         }
 
         _disposed = true;
-        _peaksCancellation.Cancel();
-        _peaksCancellation.Dispose();
+        _peaksCancellation?.Cancel();
+        _peaksCancellation?.Dispose();
         _player?.Dispose();
         _player = null;
+    }
+
+    partial void OnSelectedClipIndexChanged(int value)
+    {
+        if (value >= 0 && value < Clips.Count)
+        {
+            ShowClip(Clips[value]);
+        }
     }
 
     partial void OnVolumeChanged(double value)
@@ -177,20 +205,67 @@ public sealed partial class AudioPreviewViewModel : ObservableObject, IDisposabl
         _player?.IsLooping = value;
     }
 
-    private async Task LoadPeaksAsync()
+    [MemberNotNull(nameof(Clip), nameof(InfoDisplay), nameof(TimeDisplay))]
+    private void ShowClip(AudioClip clip)
     {
-        CancellationToken cancellationToken = _peaksCancellation.Token;
+        _peaksCancellation?.Cancel();
+        _peaksCancellation?.Dispose();
+        _peaksCancellation = null;
+        _player?.Dispose();
+        _player = null;
+        _playerUnavailable = false;
 
+        int channels = clip.Format.Channels;
+        string encoding = clip.Encoded is { } encoded ? encoded.Codec.Name : DescribeSamples(clip.GetBuffer());
+        string length = clip.FrameCount < 0 ? "unknown length" : $"{clip.FrameCount:N0} frames";
+
+        Clip = clip;
+        Peaks = null;
+        PositionFraction = 0.0;
+        IsPlaying = false;
+        IsActive = false;
+        InfoDisplay = $"{clip.Format.SampleRate:N0} Hz  •  {channels} channel{(channels == 1 ? string.Empty : "s")}  •  {encoding}  •  {length}";
+        TimeDisplay = $"{FormatTime(TimeSpan.Zero)} / {FormatTime(clip.Duration)}";
+        ErrorMessage = null;
+        OnPropertyChanged(nameof(CanPlay));
+
+        if (clip.IsDecoded || clip.Encoded!.Codec.CanDecode)
+        {
+            _peaksCancellation = new CancellationTokenSource();
+            _ = LoadPeaksAsync(clip, _peaksCancellation.Token);
+        }
+        else
+        {
+            _playerUnavailable = true;
+            ErrorMessage = $"{clip.Encoded.Codec.Name} audio cannot be decoded.";
+        }
+
+        if (_autoPlay)
+        {
+            TogglePlayback();
+        }
+    }
+
+    private async Task LoadPeaksAsync(AudioClip clip, CancellationToken cancellationToken)
+    {
         try
         {
-            Peaks = await Task.Run(() => WaveformPeaks.Build(Clip, PeakResolution, cancellationToken), cancellationToken);
+            (float Min, float Max)[][] peaks = await Task.Run(() => WaveformPeaks.Build(clip, PeakResolution, cancellationToken), cancellationToken);
+
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                Peaks = peaks;
+            }
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                ErrorMessage = exception.Message;
+            }
         }
     }
 

@@ -19,6 +19,11 @@ public sealed class AudioClip
     private AudioBuffer? _buffer;
 
     /// <summary>
+    /// Gets or sets the name of the clip, used for display and for naming exported files.
+    /// </summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets the encoded audio data, if available.
     /// </summary>
     public EncodedAudio? Encoded { get; private set; }
