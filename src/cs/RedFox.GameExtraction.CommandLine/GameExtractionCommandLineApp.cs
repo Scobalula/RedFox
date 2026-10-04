@@ -22,6 +22,8 @@ public static class GameExtractionCommandLineApp
     /// <summary>
     /// Runs the shell. Leading path arguments are mounted before the prompt opens. When the arguments
     /// contain slash commands, they are run in order and the application exits without prompting.
+    /// The <c>--verbose</c> (<c>-v</c>) flag enables debug-level console and file logging, while
+    /// <c>--quiet</c> (<c>-q</c>) limits logging to warnings and errors.
     /// </summary>
     /// <param name="config">The application configuration.</param>
     /// <param name="args">The command line arguments.</param>
@@ -32,15 +34,16 @@ public static class GameExtractionCommandLineApp
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(args);
 
-        if (configureLogging is null)
-            GameExtractionLogging.Configure(config.AppName);
-        else
-            GameExtractionLogging.Configure(config.AppName, configureLogging);
+        config.Settings.LoadFrom(GameExtractionSettings.GetDefaultSettingsPath(config.AppName));
 
-        if (args is ["--mcp"])
+        GameExtractionLogOptions logOptions = new();
+        string[] effectiveArgs = GameExtractionLogging.ApplyArguments(args, logOptions);
+        configureLogging?.Invoke(logOptions);
+        GameExtractionLogging.Configure(config.AppName, logOptions);
+        GameExtractionLogging.ApplySettings(config.Settings);
+
+        if (effectiveArgs is ["--mcp"])
         {
-            config.Settings.LoadFrom(GameExtractionSettings.GetDefaultSettingsPath(config.AppName));
-
             await GameExtractionMcpServer.RunAsync(new GameExtractionMcpConfig
             {
                 AssetManagerFactory = config.AssetManagerFactory,
@@ -55,9 +58,8 @@ public static class GameExtractionCommandLineApp
         Console.OutputEncoding = Encoding.UTF8;
 
         CommandLineSession session = new(config, config.AssetManagerFactory(), AnsiConsole.Console, CreateCommands(config));
-        config.Settings.LoadFrom(session.SettingsPath);
 
-        return await new CommandLineShell(session).RunAsync(args).ConfigureAwait(false);
+        return await new CommandLineShell(session).RunAsync(effectiveArgs).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<ICommandLineCommand> CreateCommands(GameExtractionCommandLineConfig config)
@@ -66,6 +68,7 @@ public static class GameExtractionCommandLineApp
         [
             new HelpCommand(),
             new MountCommand(),
+            new MountDirCommand(),
             new UnmountCommand(),
             new SourcesCommand(),
             new ListCommand(),

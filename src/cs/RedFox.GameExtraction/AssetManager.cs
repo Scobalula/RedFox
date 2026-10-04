@@ -11,7 +11,6 @@ public sealed class AssetManager
 {
     private const int DefaultHeaderLength = 4096;
 
-    private readonly ILogger<AssetManager> _logger;
     private readonly List<IAssetSourceReader> _sourceReaders = [];
     private readonly List<IAssetHandler> _handlers = [];
     private readonly List<IAssetSource> _sources = [];
@@ -36,8 +35,19 @@ public sealed class AssetManager
     public AssetManager(ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
-        _logger = loggerFactory.CreateLogger<AssetManager>();
+        LoggerFactory = loggerFactory;
+        Logger = loggerFactory.CreateLogger<AssetManager>();
     }
+
+    /// <summary>
+    /// Gets the logger factory supplied by the manager's creator.
+    /// </summary>
+    public ILoggerFactory LoggerFactory { get; }
+
+    /// <summary>
+    /// Gets the logger used by the manager, its source readers, and its asset handlers.
+    /// </summary>
+    public ILogger Logger { get; }
 
     /// <summary>
     /// Occurs after a source has been mounted successfully.
@@ -143,7 +153,7 @@ public sealed class AssetManager
         lock (_sourceLock)
             _sourceReaders.Add(reader);
 
-        _logger.LogDebug("Registered source reader {Reader}", reader.GetType().Name);
+        Logger.LogDebug("Registered source reader {Reader}", reader.GetType().Name);
     }
 
     /// <summary>
@@ -156,7 +166,7 @@ public sealed class AssetManager
         lock (_sourceLock)
             _handlers.Add(handler);
 
-        _logger.LogDebug("Registered asset handler {Handler}", handler.GetType().Name);
+        Logger.LogDebug("Registered asset handler {Handler}", handler.GetType().Name);
     }
 
     /// <summary>
@@ -257,12 +267,12 @@ public sealed class AssetManager
         {
             if (reader.CanOpen(request))
             {
-                _logger.LogDebug("Selected source reader {Reader} for {Description}", reader.GetType().Name, request.Description);
+                Logger.LogDebug("Selected source reader {Reader} for {Description}", reader.GetType().Name, request.Description);
                 return reader;
             }
         }
 
-        _logger.LogDebug("No source reader can open {Description}", request.Description);
+        Logger.LogDebug("No source reader can open {Description}", request.Description);
         return null;
     }
 
@@ -285,12 +295,12 @@ public sealed class AssetManager
         {
             if (handler.CanHandle(asset, configuration))
             {
-                _logger.LogDebug("Selected handler {Handler} for asset {Asset}", handler.GetType().Name, asset.Name);
+                Logger.LogDebug("Selected handler {Handler} for asset {Asset}", handler.GetType().Name, asset.Name);
                 return handler;
             }
         }
 
-        _logger.LogDebug("No registered handler can process asset {Asset}", asset.Name);
+        Logger.LogDebug("No registered handler can process asset {Asset}", asset.Name);
         return null;
     }
 
@@ -609,7 +619,7 @@ public sealed class AssetManager
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
         AssetReadStarting?.Invoke(this, new AssetReadEventArgs(asset, source));
 
-        _logger.LogDebug("Reading asset {Asset} from source {Source}", asset.Name, source.Name);
+        Logger.LogDebug("Reading asset {Asset} from source {Source}", asset.Name, source.Name);
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         try
@@ -626,7 +636,7 @@ public sealed class AssetManager
 
             AssetReadCompleted?.Invoke(this, new AssetReadCompletedEventArgs(asset, source, result));
 
-            _logger.LogDebug("Read asset {Asset} with {Handler} in {ElapsedMilliseconds} ms", asset.Name, handler.GetType().Name, stopwatch.Elapsed.TotalMilliseconds);
+            Logger.LogInformation("Read asset {Asset} with {Handler} in {ElapsedMilliseconds} ms", asset.Name, handler.GetType().Name, stopwatch.Elapsed.TotalMilliseconds);
             return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -635,7 +645,7 @@ public sealed class AssetManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to read asset {Asset} from source {Source}", asset.Name, source.Name);
+            Logger.LogError(ex, "Failed to read asset {Asset} from source {Source}", asset.Name, source.Name);
             OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Read, ex, source, asset, null));
             throw;
         }
@@ -817,7 +827,14 @@ public sealed class AssetManager
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        foreach (Asset asset in assets)
+        Asset[] assetArray = [.. assets];
+        string outputDirectory = Path.GetFullPath(configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        int failedCount = 0;
+
+        Logger.LogInformation("Exporting {AssetCount} assets to {OutputDirectory}", assetArray.Length, outputDirectory);
+
+        foreach (Asset asset in assetArray)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
@@ -830,9 +847,12 @@ public sealed class AssetManager
             }
             catch (Exception exception)
             {
+                failedCount++;
                 AssetExportFailed?.Invoke(this, new AssetExportFailedEventArgs(asset, exception));
             }
         }
+
+        Logger.LogInformation("Exported {ExportedCount} of {AssetCount} assets ({FailedCount} failed) to {OutputDirectory} in {ElapsedMilliseconds} ms", assetArray.Length - failedCount, assetArray.Length, failedCount, outputDirectory, stopwatch.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>
@@ -879,7 +899,7 @@ public sealed class AssetManager
 
         if (!shouldExport)
         {
-            _logger.LogDebug("Skipped asset {Asset}", asset.Name);
+            Logger.LogInformation("Skipped asset {Asset}", asset.Name);
             progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Skipped {asset.Name}" : $"Skipped {asset.Name} -> {normalizedDir}");
             AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: true));
             return;
@@ -887,7 +907,7 @@ public sealed class AssetManager
 
         AssetReadResult exportResult = result ?? await ReadAsync(asset, parentContext: null, configuration, userData, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Exporting asset {Asset} to {OutputDirectory}", asset.Name, normalizedDir);
+        Logger.LogDebug("Exporting asset {Asset} to {OutputDirectory}", asset.Name, normalizedDir);
         Stopwatch stopwatch = Stopwatch.StartNew();
         progress?.Report(string.IsNullOrWhiteSpace(normalizedDir) ? $"Exporting {asset.Name}" : $"Exporting {asset.Name} -> {normalizedDir}");
 
@@ -901,14 +921,14 @@ public sealed class AssetManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to export asset {Asset}", asset.Name);
+            Logger.LogError(ex, "Failed to export asset {Asset}", asset.Name);
             OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Export, ex, source, asset, normalizedDir));
             throw;
         }
 
         AssetExportCompleted?.Invoke(this, new AssetExportCompletedEventArgs(asset, source, configuration, normalizedDir, skipped: false));
 
-        _logger.LogDebug("Exported asset {Asset} with {Handler} in {ElapsedMilliseconds} ms", asset.Name, handler.GetType().Name, stopwatch.Elapsed.TotalMilliseconds);
+        Logger.LogInformation("Exported asset {Asset} with {Handler} in {ElapsedMilliseconds} ms", asset.Name, handler.GetType().Name, stopwatch.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>
@@ -1132,7 +1152,7 @@ public sealed class AssetManager
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
 
-        _logger.LogInformation("Mounting source {Kind} {Location}", request.Kind, request.Location);
+        Logger.LogDebug("Mounting source {Kind} {Location}", request.Kind, request.Location);
 
         IAssetSourceReader reader = FindSourceReader(request) ?? throw new NotSupportedException($"No registered source reader can open {request.Description}.");
 
@@ -1148,7 +1168,7 @@ public sealed class AssetManager
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to mount source {Kind} {Location}", request.Kind, request.Location);
+            Logger.LogError(exception, "Failed to mount source {Kind} {Location}", request.Kind, request.Location);
             OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, exception));
             throw;
         }
@@ -1161,12 +1181,12 @@ public sealed class AssetManager
             RegisterSource(source, request);
             SourceMounted?.Invoke(this, new SourceEventArgs(source));
 
-            _logger.LogInformation("Mounted source {Source} with {AssetCount} assets in {ElapsedMilliseconds} ms", source.Name, source.Assets.Count, stopwatch.Elapsed.TotalMilliseconds);
+            Logger.LogInformation("Mounted source {Source} with {AssetCount} assets in {ElapsedMilliseconds} ms", source.Name, source.Assets.Count, stopwatch.Elapsed.TotalMilliseconds);
             return source;
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to register mounted source {Source}", source.Name);
+            Logger.LogError(exception, "Failed to register mounted source {Source}", source.Name);
 
             if (sourceRegistrationAttempted)
                 UnregisterSource(source);
@@ -1187,7 +1207,7 @@ public sealed class AssetManager
                 return false;
         }
 
-        _logger.LogDebug("Unloading source {Source}", source.Name);
+        Logger.LogDebug("Unloading source {Source}", source.Name);
         SourceUnloading?.Invoke(this, new SourceEventArgs(source));
 
         try
@@ -1196,7 +1216,7 @@ public sealed class AssetManager
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Failed to unload source {Source}", source.Name);
+            Logger.LogError(exception, "Failed to unload source {Source}", source.Name);
             OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Unload, exception, source, null, null));
             throw;
         }
@@ -1204,7 +1224,7 @@ public sealed class AssetManager
         UnregisterSource(source);
         SourceUnloaded?.Invoke(this, new SourceEventArgs(source));
 
-        _logger.LogInformation("Unloaded source {Source}", source.Name);
+        Logger.LogInformation("Unloaded source {Source}", source.Name);
         return true;
     }
 }

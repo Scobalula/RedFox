@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Spectre.Console;
 
 namespace RedFox.GameExtraction.CommandLine;
@@ -96,9 +97,13 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     public GameExtractionConfiguration CreateConfiguration() => GameExtractionCommandLineApp.CreateConfiguration(Config);
 
     /// <summary>
-    /// Persists the current settings.
+    /// Persists the current settings and applies the logging verbosity they configure.
     /// </summary>
-    public void SaveSettings() => Config.Settings.Save(SettingsPath);
+    public void SaveSettings()
+    {
+        Config.Settings.Save(SettingsPath);
+        GameExtractionLogging.ApplySettings(Config.Settings);
+    }
 
     /// <summary>
     /// Mounts a file or directory. Wildcards in the file name mount every matching file.
@@ -174,9 +179,12 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
         List<(Asset Asset, Exception Exception)> failures = [];
         Stopwatch stopwatch = Stopwatch.StartNew();
         bool printAssets = bool.TryParse(Settings.GetSettingValue(PrintExportedAssetsSetting), out bool print) && print;
+        string outputDirectory = configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory());
         Asset? currentAsset = null;
         bool isCurrentSkipped = false;
         int skipped = 0;
+
+        Manager.Logger.LogInformation("Exporting {AssetCount} assets to {OutputDirectory}", assets.Count, Path.GetFullPath(outputDirectory));
 
         void OnAssetExportCompleted(object? sender, AssetExportCompletedEventArgs eventArgs)
         {
@@ -232,7 +240,10 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
             Manager.AssetExportCompleted -= OnAssetExportCompleted;
         }
 
-        WriteExportSummary(assets.Count - skipped - failures.Count, skipped, failures, stopwatch.Elapsed, configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()));
+        int exported = assets.Count - skipped - failures.Count;
+
+        WriteExportSummary(exported, skipped, failures, stopwatch.Elapsed, outputDirectory);
+        Manager.Logger.LogInformation("Exported {ExportedCount} of {AssetCount} assets ({SkippedCount} skipped, {FailedCount} failed) to {OutputDirectory} in {ElapsedMilliseconds} ms", exported, assets.Count, skipped, failures.Count, Path.GetFullPath(outputDirectory), stopwatch.Elapsed.TotalMilliseconds);
     }
 
     /// <summary>
@@ -281,7 +292,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
         {
             if (!Config.SupportsDirectorySources)
             {
-                throw new NotSupportedException($"Directory sources are not supported: {path}");
+                throw new NotSupportedException($"Directory sources are not supported: {path}. Use /mountdir to mount every supported file in a folder.");
             }
 
             return AssetSourceRequest.ForDirectory(path, Config.SourceOptions);
