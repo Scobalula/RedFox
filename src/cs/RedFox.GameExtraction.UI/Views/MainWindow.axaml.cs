@@ -118,11 +118,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnAssetDoubleTapped(object? sender, TappedEventArgs args)
+    private async void OnAssetDoubleTapped(object? sender, TappedEventArgs args)
     {
         if (DataContext is MainWindowViewModel viewModel && FindRowItem<AssetRowViewModel>(args.Source) is { } row)
         {
-            viewModel.OpenPreview(row);
+            await viewModel.ExportAssetAsync(row);
         }
     }
 

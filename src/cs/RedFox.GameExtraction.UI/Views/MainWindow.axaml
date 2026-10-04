@@ -147,13 +147,81 @@
                                             Spacing="8"
                                             VerticalAlignment="Center">
                                     <TextBlock Classes="status-text" Text="Type" VerticalAlignment="Center"/>
-                                    <ComboBox Width="142"
-                                              ItemsSource="{Binding AssetTypeOptions}"
-                                              SelectedItem="{Binding SelectedAssetType, Mode=TwoWay}"/>
+                                    <Button Classes="filter-select-btn"
+                                            Width="200"
+                                            ToolTip.Tip="{Binding AssetTypeFilterSummary}">
+                                        <Button.Flyout>
+                                            <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
+                                                <Border Classes="asset-filter-flyout" Width="200" MaxHeight="360">
+                                                    <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
+                                                        <StackPanel Spacing="6">
+                                                            <CheckBox Content="All types" IsChecked="{Binding IsAllAssetTypesSelected, Mode=TwoWay}"/>
+                                                            <Separator/>
+                                                            <ItemsControl ItemsSource="{Binding AssetTypeFilterOptions}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
+                                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                                            <TextBlock Text="{Binding Name}"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       ToolTip.Tip="{Binding Name}"/>
+                                                                        </CheckBox>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Text="{Binding AssetTypeFilterSummary}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <PathIcon Grid.Column="1"
+                                                      Data="{StaticResource IconChevronDown}"
+                                                      Width="10"
+                                                      Height="10"
+                                                      VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Button>
                                     <TextBlock Classes="status-text" Text="Source" VerticalAlignment="Center"/>
-                                    <ComboBox Width="158"
-                                              ItemsSource="{Binding AssetSourceOptions}"
-                                              SelectedItem="{Binding SelectedAssetSource, Mode=TwoWay}"/>
+                                    <Button Classes="filter-select-btn"
+                                            Width="300"
+                                            ToolTip.Tip="{Binding AssetSourceFilterSummary}">
+                                        <Button.Flyout>
+                                            <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
+                                                <Border Classes="asset-filter-flyout" Width="300" MaxHeight="360">
+                                                    <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
+                                                        <StackPanel Spacing="6">
+                                                            <CheckBox Content="All sources" IsChecked="{Binding IsAllAssetSourcesSelected, Mode=TwoWay}"/>
+                                                            <Separator/>
+                                                            <ItemsControl ItemsSource="{Binding AssetSourceFilterOptions}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
+                                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                                            <TextBlock Text="{Binding Name}"
+                                                                                       TextTrimming="CharacterEllipsis"
+                                                                                       ToolTip.Tip="{Binding Name}"/>
+                                                                        </CheckBox>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <TextBlock Text="{Binding AssetSourceFilterSummary}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <PathIcon Grid.Column="1"
+                                                      Data="{StaticResource IconChevronDown}"
+                                                      Width="10"
+                                                      Height="10"
+                                                      VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Button>
                                     <TextBlock Classes="status-text" Text="Sort" VerticalAlignment="Center"/>
                                     <ComboBox Width="112"
                                               ItemsSource="{Binding SortOptions}"

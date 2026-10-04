@@ -42,6 +42,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private AssetRowViewModel[]? _debouncedPreviewSelection;
     private int _previewDebounceGeneration;
     private int _exportFailureCount;
+    private bool _isAllAssetTypesSelected = true;
+    private bool _isAllAssetSourcesSelected = true;
+    private bool _isUpdatingFilterSelection;
 
     /// <summary>
     /// Gets the application configuration.
@@ -106,26 +109,42 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public IReadOnlyList<string> SortOptions { get; } = ["Name", "Type", "Information"];
 
     /// <summary>
-    /// Gets the asset types available in the current source set.
+    /// Gets the asset types available for filtering.
     /// </summary>
-    public IReadOnlyList<string> AssetTypeOptions { get; private set; } = ["All types"];
+    public ObservableCollection<AssetFilterOptionViewModel> AssetTypeFilterOptions { get; } = [];
 
     /// <summary>
-    /// Gets the sources available in the current asset set.
+    /// Gets the sources available for filtering.
     /// </summary>
-    public IReadOnlyList<string> AssetSourceOptions { get; private set; } = ["All sources"];
+    public ObservableCollection<AssetFilterOptionViewModel> AssetSourceFilterOptions { get; } = [];
 
     /// <summary>
-    /// Gets or sets the type selected for filtering.
+    /// Gets or sets whether all asset types are included in the filter.
     /// </summary>
-    [ObservableProperty]
-    public partial string SelectedAssetType { get; set; } = "All types";
+    public bool IsAllAssetTypesSelected
+    {
+        get => _isAllAssetTypesSelected;
+        set => SetAllFilterOptionsSelected(value, isTypeFilter: true);
+    }
 
     /// <summary>
-    /// Gets or sets the source selected for filtering.
+    /// Gets or sets whether all sources are included in the filter.
     /// </summary>
-    [ObservableProperty]
-    public partial string SelectedAssetSource { get; set; } = "All sources";
+    public bool IsAllAssetSourcesSelected
+    {
+        get => _isAllAssetSourcesSelected;
+        set => SetAllFilterOptionsSelected(value, isTypeFilter: false);
+    }
+
+    /// <summary>
+    /// Gets the text shown by the asset type filter button.
+    /// </summary>
+    public string AssetTypeFilterSummary => GetFilterSummary("All types", "type", AssetTypeFilterOptions, _isAllAssetTypesSelected);
+
+    /// <summary>
+    /// Gets the text shown by the source filter button.
+    /// </summary>
+    public string AssetSourceFilterSummary => GetFilterSummary("All sources", "source", AssetSourceFilterOptions, _isAllAssetSourcesSelected);
 
     /// <summary>
     /// Gets or sets the asset sort field.
@@ -568,10 +587,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnFilteredCountChanged(int value) => OnPropertyChanged(nameof(NoMatchingAssets));
 
     partial void OnSortByChanged(string value) => ApplyFilter();
-
-    partial void OnSelectedAssetTypeChanged(string value) => ApplyFilter();
-
-    partial void OnSelectedAssetSourceChanged(string value) => ApplyFilter();
 
     [RelayCommand]
     private Task LoadSource()
@@ -1023,13 +1038,24 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task ExportAll()
     {
-        await ExportAssetsAsync(AllAssets).ConfigureAwait(false);
+        await ExportAssetsAsync(AssetsView.ToArray()).ConfigureAwait(false);
     }
 
     [RelayCommand]
     private async Task ExportSelected()
     {
         await ExportAssetsAsync(SelectedAssets).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Exports the specified asset row.
+    /// </summary>
+    /// <param name="asset">The asset row to export.</param>
+    /// <returns>A task that completes when the export finishes.</returns>
+    public Task ExportAssetAsync(AssetRowViewModel asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        return ExportAssetsAsync([asset]);
     }
 
     private GameExtractionConfiguration CreateConfiguration()
@@ -1419,21 +1445,23 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         AssetRowViewModel[] allAssets = [.. _allAssets];
         string[] nameFilters = _assetNameFilter.Contains('*') || _assetNameFilter.Contains('?') ? _assetNameFilter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [_assetNameFilter];
-        string selectedType = SelectedAssetType;
-        string selectedSource = SelectedAssetSource;
+        string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
+        string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
+        bool includeAllTypes = _isAllAssetTypesSelected;
+        bool includeAllSources = _isAllAssetSourcesSelected;
         string sortBy = SortBy;
         IComparer<Asset>? comparer = sortBy == "Information" ? GetAssetInformationComparer() : null;
-        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedType, selectedSource, sortBy, comparer, cancellationSource);
+        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
     }
 
-    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[] nameFilters, string selectedType, string selectedSource, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
         try
         {
             CancellationToken cancellationToken = cancellationSource.Token;
             AssetRowViewModel[]? visibleAssets = await Task.Run(() =>
             {
-                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, selectedType, selectedSource, cancellationToken);
+                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, cancellationToken);
                 IOrderedEnumerable<AssetRowViewModel> sortedAssets = sortBy switch
                 {
                     "Type" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
@@ -1487,7 +1515,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[] nameFilters, string selectedType, string selectedSource, CancellationToken cancellationToken)
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
     {
         foreach (AssetRowViewModel asset in assets)
         {
@@ -1496,18 +1524,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 yield break;
             }
 
-            if (IsVisibleAssetRow(asset, nameFilters, selectedType, selectedSource))
+            if (IsVisibleAssetRow(asset, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources))
             {
                 yield return asset;
             }
         }
     }
 
-    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[] nameFilters, string selectedType, string selectedSource)
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
     {
         bool matchesName = MatchesNameFilter(asset.Name, nameFilters);
-        bool matchesType = string.IsNullOrEmpty(selectedType) || string.Equals(selectedType, "All types", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.Type, selectedType, StringComparison.OrdinalIgnoreCase);
-        bool matchesSource = string.IsNullOrEmpty(selectedSource) || string.Equals(selectedSource, "All sources", StringComparison.OrdinalIgnoreCase) || string.Equals(asset.SourceName, selectedSource, StringComparison.OrdinalIgnoreCase);
+        bool matchesType = includeAllTypes || selectedTypes.Contains(asset.Type, StringComparer.OrdinalIgnoreCase);
+        bool matchesSource = includeAllSources || selectedSources.Contains(asset.SourceName, StringComparer.OrdinalIgnoreCase);
         return matchesName && matchesType && matchesSource;
     }
 
@@ -1566,8 +1594,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private async Task UpdateAssetFilterOptionsAsync(int generation, (string Type, string Source)[] values)
     {
         (string[] types, string[] sources) = await Task.Run(() => (
-            new[] { "All types" }.Concat(values.Select(value => value.Type).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type, StringComparer.OrdinalIgnoreCase)).ToArray(),
-            new[] { "All sources" }.Concat(values.Select(value => value.Source).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(source => source, StringComparer.OrdinalIgnoreCase)).ToArray())).ConfigureAwait(false);
+            values.Select(value => value.Type).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(type => type, StringComparer.OrdinalIgnoreCase).ToArray(),
+            values.Select(value => value.Source).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(source => source, StringComparer.OrdinalIgnoreCase).ToArray())).ConfigureAwait(false);
 
         PostToUiThread(() =>
         {
@@ -1576,21 +1604,140 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            AssetTypeOptions = types;
-            AssetSourceOptions = sources;
-            OnPropertyChanged(nameof(AssetTypeOptions));
-            OnPropertyChanged(nameof(AssetSourceOptions));
+            string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
+            string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
+            ReplaceFilterOptions(AssetTypeFilterOptions, types, selectedTypes, isTypeFilter: true);
+            ReplaceFilterOptions(AssetSourceFilterOptions, sources, selectedSources, isTypeFilter: false);
 
-            if (!AssetTypeOptions.Contains(SelectedAssetType, StringComparer.OrdinalIgnoreCase))
+            if (selectedTypes.Length > 0 && !AssetTypeFilterOptions.Any(option => option.IsSelected))
             {
-                SelectedAssetType = "All types";
+                _isAllAssetTypesSelected = true;
             }
 
-            if (!AssetSourceOptions.Contains(SelectedAssetSource, StringComparer.OrdinalIgnoreCase))
+            if (selectedSources.Length > 0 && !AssetSourceFilterOptions.Any(option => option.IsSelected))
             {
-                SelectedAssetSource = "All sources";
+                _isAllAssetSourcesSelected = true;
             }
+
+            NotifyAssetTypeFilterChanged();
+            NotifyAssetSourceFilterChanged();
+            ApplyFilter();
         });
+    }
+
+    private void ReplaceFilterOptions(ObservableCollection<AssetFilterOptionViewModel> options, string[] names, string[] selectedNames, bool isTypeFilter)
+    {
+        HashSet<string> selected = new(selectedNames, StringComparer.OrdinalIgnoreCase);
+        options.Clear();
+        foreach (string name in names)
+        {
+            options.Add(new AssetFilterOptionViewModel(name, selected.Contains(name), () => OnFilterOptionSelectionChanged(isTypeFilter)));
+        }
+    }
+
+    private void SetAllFilterOptionsSelected(bool value, bool isTypeFilter)
+    {
+        if (_isUpdatingFilterSelection)
+        {
+            return;
+        }
+
+        bool currentValue = isTypeFilter ? _isAllAssetTypesSelected : _isAllAssetSourcesSelected;
+        if (currentValue == value)
+        {
+            return;
+        }
+
+        _isUpdatingFilterSelection = true;
+        try
+        {
+            if (isTypeFilter)
+            {
+                _isAllAssetTypesSelected = value;
+                if (value)
+                {
+                    foreach (AssetFilterOptionViewModel option in AssetTypeFilterOptions)
+                    {
+                        option.IsSelected = false;
+                    }
+                }
+            }
+            else
+            {
+                _isAllAssetSourcesSelected = value;
+                if (value)
+                {
+                    foreach (AssetFilterOptionViewModel option in AssetSourceFilterOptions)
+                    {
+                        option.IsSelected = false;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _isUpdatingFilterSelection = false;
+        }
+
+        if (isTypeFilter)
+        {
+            NotifyAssetTypeFilterChanged();
+        }
+        else
+        {
+            NotifyAssetSourceFilterChanged();
+        }
+
+        ApplyFilter();
+    }
+
+    private void OnFilterOptionSelectionChanged(bool isTypeFilter)
+    {
+        if (_isUpdatingFilterSelection)
+        {
+            return;
+        }
+
+        if (isTypeFilter)
+        {
+            _isAllAssetTypesSelected = false;
+            NotifyAssetTypeFilterChanged();
+        }
+        else
+        {
+            _isAllAssetSourcesSelected = false;
+            NotifyAssetSourceFilterChanged();
+        }
+
+        ApplyFilter();
+    }
+
+    private void NotifyAssetTypeFilterChanged()
+    {
+        OnPropertyChanged(nameof(IsAllAssetTypesSelected));
+        OnPropertyChanged(nameof(AssetTypeFilterSummary));
+    }
+
+    private void NotifyAssetSourceFilterChanged()
+    {
+        OnPropertyChanged(nameof(IsAllAssetSourcesSelected));
+        OnPropertyChanged(nameof(AssetSourceFilterSummary));
+    }
+
+    private static string GetFilterSummary(string allLabel, string itemName, IEnumerable<AssetFilterOptionViewModel> options, bool includeAll)
+    {
+        if (includeAll)
+        {
+            return allLabel;
+        }
+
+        int count = options.Count(option => option.IsSelected);
+        return count switch
+        {
+            0 => $"No {itemName}s",
+            1 => $"1 {itemName}",
+            _ => $"{count} {itemName}s",
+        };
     }
 
     private static string? ResolveIconPath(string? path)

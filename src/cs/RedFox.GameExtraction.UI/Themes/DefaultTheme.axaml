@@ -442,6 +442,58 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
     </Style>
 
+    <Style Selector="Button.filter-select-btn">
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Button.filter-select-btn:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+    </Style>
+
+    <Style Selector="Button.filter-select-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.filter-select-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+    </Style>
+
+    <Style Selector="FlyoutPresenter.asset-filter-presenter">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="Border.asset-filter-flyout">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="6"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox.asset-filter-option">
+        <Setter Property="MinHeight" Value="28"/>
+        <Setter Property="Padding" Value="4,3"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="CheckBox.asset-filter-option:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+    </Style>
+
     <Style Selector="ComboBoxItem">
         <Setter Property="Padding" Value="9,6"/>
         <Setter Property="Background" Value="Transparent"/>
