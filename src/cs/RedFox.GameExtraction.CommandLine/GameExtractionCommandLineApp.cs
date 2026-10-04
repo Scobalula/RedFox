@@ -17,10 +17,25 @@ public static class GameExtractionCommandLineApp
     /// <param name="config">The application configuration.</param>
     /// <param name="args">The command line arguments.</param>
     /// <returns>The process exit code: 0 on success, 1 on failure, and 130 when cancelled.</returns>
-    public static async Task<int> RunAsync(GameExtractionCommandLineConfig config, string[] args)
+    public static Task<int> RunAsync(GameExtractionCommandLineConfig config, string[] args) => RunAsync(config, args, null);
+
+    /// <summary>
+    /// Runs the shell. Leading path arguments are mounted before the prompt opens. When the arguments
+    /// contain slash commands, they are run in order and the application exits without prompting.
+    /// </summary>
+    /// <param name="config">The application configuration.</param>
+    /// <param name="args">The command line arguments.</param>
+    /// <param name="configureLogging">A callback that customizes the shared file logging behavior.</param>
+    /// <returns>The process exit code: 0 on success, 1 on failure, and 130 when cancelled.</returns>
+    public static async Task<int> RunAsync(GameExtractionCommandLineConfig config, string[] args, Action<GameExtractionLogOptions>? configureLogging)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(args);
+
+        if (configureLogging is null)
+            GameExtractionLogging.Configure(config.AppName);
+        else
+            GameExtractionLogging.Configure(config.AppName, configureLogging);
 
         if (args is ["--mcp"])
         {

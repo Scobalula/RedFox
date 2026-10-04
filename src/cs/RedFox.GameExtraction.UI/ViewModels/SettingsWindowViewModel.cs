@@ -105,7 +105,7 @@ public partial class SettingsWindowViewModel : ObservableObject
     {
         try
         {
-            var logsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), _appName, "logs");
+            string logsDirectory = GameExtractionLogging.GetLogDirectory(_appName);
 
             if (!Directory.Exists(logsDirectory))
                 Directory.CreateDirectory(logsDirectory);

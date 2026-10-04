@@ -307,7 +307,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (!_assetManager.TryGetService(out PluginsService? plugins))
         {
-            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RedFox", config.AppName, "plugins");
+            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "plugins");
             plugins = new PluginsService(pluginsDirectory);
             PythonPluginHost? pythonHost = null;
             try

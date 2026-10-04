@@ -8,7 +8,6 @@ namespace RedFox.GameExtraction;
 /// </summary>
 public sealed class GameExtractionSettings
 {
-    private const string VendorDirectoryName = "RedFox";
     private const string SettingsFileName = "settings.json";
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.General)
     {
@@ -105,7 +104,7 @@ public sealed class GameExtractionSettings
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
 
         string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(root, VendorDirectoryName, appName, SettingsFileName);
+        return Path.Combine(root, appName, SettingsFileName);
     }
 
     /// <summary>

@@ -11,9 +11,22 @@ public static class GameExtractionApp
     /// This method blocks until the application window is closed.
     /// </summary>
     /// <param name="config">The game extraction configuration.</param>
-    public static void Run(GameExtractionConfig config)
+    public static void Run(GameExtractionConfig config) => Run(config, null);
+
+    /// <summary>
+    /// Builds and runs the Avalonia application with the provided configuration and logging options.
+    /// This method blocks until the application window is closed.
+    /// </summary>
+    /// <param name="config">The game extraction configuration.</param>
+    /// <param name="configureLogging">A callback that customizes the shared file logging behavior.</param>
+    public static void Run(GameExtractionConfig config, Action<GameExtractionLogOptions>? configureLogging)
     {
         ArgumentNullException.ThrowIfNull(config);
+
+        if (configureLogging is null)
+            GameExtractionLogging.Configure(config.AppName);
+        else
+            GameExtractionLogging.Configure(config.AppName, configureLogging);
 
         string settingsPath = GameExtractionSettings.GetDefaultSettingsPath(config.AppName);
         config.Settings.LoadFrom(settingsPath);
