@@ -1,4 +1,6 @@
-namespace RedFox.GameExtraction.Template;
+using RedFox.GameExtraction;
+
+namespace ToolName.Sources;
 
 internal static class ZipPathUtility
 {
@@ -28,12 +30,16 @@ internal static class ZipPathUtility
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         if (Path.IsPathRooted(path))
+        {
             throw new InvalidDataException("ZIP entry paths must be relative.");
+        }
 
         string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         if (parts.Any(part => part is "." or ".."))
+        {
             throw new InvalidDataException("ZIP entry paths cannot contain dot segments.");
+        }
 
         return string.Join(Path.DirectorySeparatorChar, parts);
     }

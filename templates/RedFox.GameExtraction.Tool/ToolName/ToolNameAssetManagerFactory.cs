@@ -1,15 +1,16 @@
 using RedFox.GameExtraction;
+using ToolName.Handlers;
+using ToolName.Sources;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName;
 
 /// <summary>
-/// Creates preconfigured <see cref="AssetManager"/> instances for ZIP-backed template applications.
+/// Creates preconfigured <see cref="AssetManager"/> instances for ToolName applications.
 /// </summary>
-public static class TemplateAssetManagerFactory
+public static class ToolNameAssetManagerFactory
 {
     /// <summary>
-    /// Creates an <see cref="AssetManager"/> configured with ZIP mounting, model, animation, image, audio, and raw export support,
-    /// and a shared virtual file system service.
+    /// Creates an <see cref="AssetManager"/> configured with ZIP mounting, the enabled asset handlers, and a shared virtual file system service.
     /// </summary>
     /// <returns>A configured asset manager.</returns>
     public static AssetManager Create()
@@ -17,15 +18,22 @@ public static class TemplateAssetManagerFactory
         AssetManager manager = new();
         manager.RegisterService(new AssetFileSystemService(manager));
         manager.RegisterSourceReader(new ZipAssetSourceReader());
+
+#if MODEL_SUPPORT
         manager.RegisterHandler(new ModelHandler());
         manager.RegisterHandler(new AnimationHandler());
-        manager.RegisterHandler(new ImageHandler());
-        manager.RegisterHandler(new AudioHandler());
-        manager.RegisterHandler(new RawAssetHandler());
-
         manager.RegisterService<SceneTranslatorService>();
+#endif
+#if IMAGE_SUPPORT
+        manager.RegisterHandler(new ImageHandler());
         manager.RegisterService<ImageTranslatorService>();
+#endif
+#if AUDIO_SUPPORT
+        manager.RegisterHandler(new AudioHandler());
         manager.RegisterService<AudioTranslatorService>();
+#endif
+
+        manager.RegisterHandler(new RawAssetHandler());
 
         return manager;
     }

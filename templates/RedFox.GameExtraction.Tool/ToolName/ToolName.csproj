@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ModelSupport>MODEL_SUPPORT_PARAM</ModelSupport>
+    <ImageSupport>IMAGE_SUPPORT_PARAM</ImageSupport>
+    <AudioSupport>AUDIO_SUPPORT_PARAM</AudioSupport>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ModelSupport)' != 'false'">
+    <DefineConstants>$(DefineConstants);MODEL_SUPPORT</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ImageSupport)' != 'false'">
+    <DefineConstants>$(DefineConstants);IMAGE_SUPPORT</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(AudioSupport)' != 'false'">
+    <DefineConstants>$(DefineConstants);AUDIO_SUPPORT</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RedFox.GameExtraction" />
+    <PackageReference Include="RedFox.IO" />
+  </ItemGroup>
+
+</Project>

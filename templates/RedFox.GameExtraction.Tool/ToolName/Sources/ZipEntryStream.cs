@@ -1,4 +1,4 @@
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Sources;
 
 internal sealed class ZipEntryStream(Stream stream, SemaphoreSlim archiveLock) : Stream
 {
@@ -53,7 +53,9 @@ internal sealed class ZipEntryStream(Stream stream, SemaphoreSlim archiveLock) :
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
             DisposeStream();
+        }
 
         base.Dispose(disposing);
     }

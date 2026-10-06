@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="RedFox.GameExtraction" Version="REDFOX_VERSION" />
+    <PackageVersion Include="RedFox.GameExtraction.CommandLine" Version="REDFOX_VERSION" />
+    <PackageVersion Include="RedFox.GameExtraction.UI" Version="REDFOX_VERSION" />
+    <PackageVersion Include="RedFox.IO" Version="REDFOX_VERSION" />
+  </ItemGroup>
+</Project>

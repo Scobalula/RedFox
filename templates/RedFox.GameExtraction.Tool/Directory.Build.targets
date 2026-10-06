@@ -1,0 +1,28 @@
+<Project>
+  <Target Name="ValidateToolNameBuildType" BeforeTargets="PrepareForBuild">
+    <Error
+      Condition="'$(BuildType)' != 'Alpha' And '$(BuildType)' != 'Debug' And '$(BuildType)' != 'Beta' And '$(BuildType)' != 'Release'"
+      Text="BuildType must be Alpha, Debug, Beta, or Release. Current value: '$(BuildType)'." />
+  </Target>
+
+  <Target Name="SetToolNameVersionMetadata" BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup>
+      <AssemblyMetadata Include="BuildNumber" Value="$(BuildNumber)" />
+      <AssemblyMetadata Include="BuildType" Value="$(BuildType)" />
+    </ItemGroup>
+  </Target>
+
+  <Target
+    Name="IncrementLocalBuildNumber"
+    AfterTargets="Build"
+    Condition="'$(DesignTimeBuild)' != 'true' And '$(ToolNameBuildNumberOverridden)' != 'true' And '$(MSBuildProjectName)' == 'ToolName.UI'">
+    <PropertyGroup>
+      <ToolNameNextBuildNumber>$([MSBuild]::Add($(BuildNumber), 1))</ToolNameNextBuildNumber>
+    </PropertyGroup>
+
+    <WriteLinesToFile
+      File="$(ToolNameBuildNumberFile)"
+      Lines="$(ToolNameNextBuildNumber)"
+      Overwrite="true" />
+  </Target>
+</Project>

@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
 using RedFox.GameExtraction;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Sources;
 
 /// <summary>
 /// Represents a mounted ZIP archive that exposes discovered assets.
@@ -22,8 +22,7 @@ public sealed class ZipAssetSource : IAssetSource
     /// <param name="archiveStream">The underlying archive stream.</param>
     /// <param name="archive">The open ZIP archive.</param>
     /// <param name="assets">The assets discovered in the archive.</param>
-    public ZipAssetSource(string name, Stream archiveStream, ZipArchive archive, IReadOnlyList<Asset> assets)
-        : this(name, archiveStream, archive, assets, new SemaphoreSlim(1, 1))
+    public ZipAssetSource(string name, Stream archiveStream, ZipArchive archive, IReadOnlyList<Asset> assets) : this(name, archiveStream, archive, assets, new SemaphoreSlim(1, 1))
     {
     }
 
@@ -73,7 +72,9 @@ public sealed class ZipAssetSource : IAssetSource
         try
         {
             if (_disposed)
+            {
                 return;
+            }
 
             _disposed = true;
             _archive.Dispose();

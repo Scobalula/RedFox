@@ -31,7 +31,7 @@ $version = "$dateVersion-local.g$commit.t$stamp"
 
 Write-Host "Packing RedFox as $version into $FeedPath"
 # Embed portable PDBs and source so Visual Studio can step into local-feed packages without a separate symbol server.
-& dotnet pack $solutionPath --configuration Release --output $FeedPath "-p:Version=$version" "-p:DebugType=embedded" "-p:EmbedAllSources=true" "-p:IncludeSymbols=false"
+& dotnet pack $solutionPath --configuration Release --output $FeedPath "-p:Version=$version" "-p:DebugType=embedded" "-p:EmbedAllSources=true" "-p:Optimize=false" "-p:IncludeSymbols=false"
 if ($LASTEXITCODE -ne 0) {
     throw "RedFox pack failed with exit code $LASTEXITCODE"
 }

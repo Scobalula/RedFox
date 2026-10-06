@@ -1,0 +1,130 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Scobalula",
+  "classifications": [ "RedFox", "Game Extraction" ],
+  "identity": "RedFox.GameExtraction.Tool",
+  "groupIdentity": "RedFox.GameExtraction",
+  "name": "RedFox Game Extraction Tool",
+  "shortName": "redfox-tool",
+  "description": "A RedFox.GameExtraction tool with a main library, Avalonia UI, and command line projects.",
+  "tags": {
+    "language": "C#",
+    "type": "solution",
+    "editorTreatAs": "solution",
+    "vs_parametersToHide": "RedFoxVersion"
+  },
+  "sourceName": "ToolName",
+  "preferNameDirectory": true,
+  "guids": [
+    "7093AAD3-2371-4556-B5A1-EE7A20E92F6D",
+    "E1C273D9-9CD9-49F1-A9BF-781AEE2B848E",
+    "4A3C5DE1-E5D8-4CCF-A4DA-6B853B5B7B44"
+  ],
+  "primaryOutputs": [
+    {
+      "path": "ToolName.app.sln"
+    },
+    {
+      "path": "ToolName\\ToolName.csproj"
+    }
+  ],
+  "symbols": {
+    "HostIdentifier": {
+      "type": "bind",
+      "binding": "HostIdentifier"
+    },
+    "Framework": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "net10.0",
+      "replaces": "net10.0",
+      "choices": [
+        {
+          "choice": "net10.0",
+          "description": "Target net10.0"
+        }
+      ],
+      "description": "The target framework for the generated projects."
+    },
+    "DisplayName": {
+      "type": "parameter",
+      "datatype": "string",
+      "description": "The display name shown in the title bar and banner. Defaults to the project name."
+    },
+    "DisplayNameReplacer": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "DisplayName",
+        "fallbackVariableName": "name"
+      },
+      "replaces": "DISPLAY_NAME"
+    },
+    "Description": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "Asset extraction tool.",
+      "replaces": "DESCRIPTION_TEXT",
+      "description": "The description shown in the sidebar, banner, and about window."
+    },
+    "ModelSupport": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "true",
+      "replaces": "MODEL_SUPPORT_PARAM",
+      "description": "Generate model and animation support code backed by RedFox.Graphics3D."
+    },
+    "ImageSupport": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "true",
+      "replaces": "IMAGE_SUPPORT_PARAM",
+      "description": "Generate image and texture support code backed by RedFox.Imaging."
+    },
+    "AudioSupport": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "true",
+      "replaces": "AUDIO_SUPPORT_PARAM",
+      "description": "Generate audio support code backed by RedFox.Audio."
+    },
+    "RedFoxVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "2026.10.4.1",
+      "replaces": "REDFOX_VERSION",
+      "description": "The RedFox NuGet package version referenced by the generated projects."
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "condition": "(!ModelSupport)",
+          "exclude": [
+            "ToolName/Handlers/ModelHandler.cs",
+            "ToolName/Handlers/AnimationHandler.cs"
+          ]
+        },
+        {
+          "condition": "(!ImageSupport)",
+          "exclude": [
+            "ToolName/Handlers/ImageHandler.cs"
+          ]
+        },
+        {
+          "condition": "(!AudioSupport)",
+          "exclude": [
+            "ToolName/Handlers/AudioHandler.cs"
+          ]
+        },
+        {
+          "condition": "(HostIdentifier == \"dotnetcli\" || HostIdentifier == \"dotnetcli-preview\")",
+          "rename": {
+            "ToolName.app.sln": "ToolName.sln"
+          }
+        }
+      ]
+    }
+  ]
+}

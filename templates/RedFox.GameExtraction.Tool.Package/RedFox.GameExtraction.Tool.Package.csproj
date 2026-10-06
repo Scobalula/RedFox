@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>RedFox.GameExtraction.Tool.Templates</PackageId>
+    <PackageType>Template</PackageType>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Title>RedFox Game Extraction Tool Templates</Title>
+    <Description>dotnet new templates for creating RedFox.GameExtraction tools.</Description>
+    <Authors>Scobalula</Authors>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <IsPackable>true</IsPackable>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\RedFox.GameExtraction.Tool\**\*" Exclude="..\RedFox.GameExtraction.Tool\**\bin\**;..\RedFox.GameExtraction.Tool\**\obj\**" Pack="true" PackagePath="%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Remove="**\*" />
+    <EmbeddedResource Remove="**\*" />
+  </ItemGroup>
+
+</Project>

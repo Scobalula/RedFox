@@ -1,26 +1,26 @@
-using System.Diagnostics;
-using System.IO.Compression;
 using RedFox.GameExtraction;
-using RedFox.Graphics3D;
-using RedFox.Graphics3D.IO;
 using RedFox.IO.FileSystem;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Handlers;
 
 /// <summary>
 /// Reads and exports assets as raw byte-for-byte files.
 /// </summary>
-public sealed class ModelHandler : IAssetHandler
+/// <remarks>
+/// Registered last so specialized handlers take precedence.
+/// </remarks>
+public sealed class RawAssetHandler : IAssetHandler
 {
     /// <summary>
     /// Determines whether this handler can process the supplied asset.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
     /// <param name="configuration">The shared settings and options.</param>
-    /// <returns>Always <see langword="true"/> for this template handler.</returns>
+    /// <returns><see langword="true"/> when raw asset reading is enabled; otherwise, <see langword="false"/>.</returns>
     public bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
-        return asset.Name.EndsWith(".semodel");
+        ArgumentNullException.ThrowIfNull(asset);
+        return configuration.GetOption("ReadRawAssets", true);
     }
 
     /// <summary>
@@ -36,22 +36,14 @@ public sealed class ModelHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(context);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
-
-
-        await using var stream = OpenAssetStream(asset);
-        await using var buffer = new MemoryStream();
+        await using Stream stream = OpenAssetStream(asset);
+        using MemoryStream buffer = new();
         await stream.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-        buffer.Position = 0;
-        await buffer.FlushAsync(cancellationToken);
-
-        var scene = await translator.ReadAsync(buffer, asset.Name, new(), cancellationToken);
-
 
         return new AssetReadResult
         {
             Asset = asset,
-            Data = scene,
+            Data = buffer.ToArray(),
             Handler = this,
         };
     }
@@ -65,9 +57,9 @@ public sealed class ModelHandler : IAssetHandler
     /// <returns><see langword="true"/> when export should continue; otherwise, <see langword="false"/>.</returns>
     public Task<bool> ShouldExportAsync(Asset asset, AssetExportContext context, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
         string outputPath = context.ResolveAssetPath(asset);
         bool shouldExport = !File.Exists(outputPath) || context.Configuration.GetOption("Overwrite", false);
@@ -86,8 +78,6 @@ public sealed class ModelHandler : IAssetHandler
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(context);
 
-        Scene scene = result.GetData<Scene>();
-        SceneTranslatorManager translator = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         string outputPath = context.ResolveAssetPath(result.Asset);
 
         if (File.Exists(outputPath) && !context.Configuration.GetOption("Overwrite", false))
@@ -95,22 +85,8 @@ public sealed class ModelHandler : IAssetHandler
             return;
         }
 
-        string? outputDirectory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrWhiteSpace(outputDirectory))
-        {
-            Directory.CreateDirectory(outputDirectory);
-        }
-
-        await translator.WriteAsync(outputPath, scene, new(), cancellationToken).ConfigureAwait(false);
+        await AtomicFileWriter.WriteAllBytesAsync(outputPath, result.GetData<byte[]>(), cancellationToken).ConfigureAwait(false);
     }
 
-    private static Stream OpenAssetStream(Asset asset)
-    {
-        return asset.DataSource switch
-        {
-            VirtualFile file => file.Open(),
-            ZipArchiveEntry entry => entry.Open(),
-            _ => throw new InvalidOperationException($"ModelHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
-        };
-    }
+    private static Stream OpenAssetStream(Asset asset) => asset.DataSource is VirtualFile file ? file.Open() : throw new InvalidOperationException($"RawAssetHandler expects a {nameof(VirtualFile)} data source.");
 }

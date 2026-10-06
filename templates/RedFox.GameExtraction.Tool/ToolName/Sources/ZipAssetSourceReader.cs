@@ -2,7 +2,7 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using RedFox.GameExtraction;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Sources;
 
 /// <summary>
 /// Opens standard ZIP archives as <see cref="IAssetSource"/> instances.
@@ -44,8 +44,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(assetManager);
 
-        string location = request.Location
-            ?? throw new InvalidOperationException("ZIP requests must provide a file location.");
+        string location = request.Location ?? throw new InvalidOperationException("ZIP requests must provide a file location.");
 
         if (!File.Exists(location))
         {
@@ -60,6 +59,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
         {
             archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
             List<Asset> assets = [];
+
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -74,12 +74,17 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
                 Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["ArchivePath"] = location, }, null, ZipPathUtility.GetAssetCategory(entry.Name));
 
                 assets.Add(asset);
+
                 if (assets.Count % 128 == 0)
+                {
                     progress?.Report($"Mounted {asset.Name}");
+                }
             }
 
             if (assets.Count > 0 && assets.Count % 128 != 0)
+            {
                 progress?.Report($"Mounted {assets[^1].Name}");
+            }
 
             IAssetSource source = new ZipAssetSource(request.DisplayName, stream, archive, assets, archiveLock);
             return Task.FromResult(source);

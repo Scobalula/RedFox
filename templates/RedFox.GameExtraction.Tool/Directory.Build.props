@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <Configurations>Alpha;Debug;Beta;Release</Configurations>
+    <ToolNameBuildNumberFile>$(MSBuildThisFileDirectory)build-number.txt</ToolNameBuildNumberFile>
+    <ToolNameBuildNumberOverridden Condition="'$(BuildNumber)' != ''">true</ToolNameBuildNumberOverridden>
+    <BuildNumber Condition="'$(BuildNumber)' == '' and Exists('$(ToolNameBuildNumberFile)')">$([System.IO.File]::ReadAllText('$(ToolNameBuildNumberFile)').Trim())</BuildNumber>
+    <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <BuildDate Condition="'$(BuildDate)' == ''">$([System.DateTime]::UtcNow.ToString("yyyy.M.d"))</BuildDate>
+    <BuildType Condition="'$(BuildType)' == '' and '$(Configuration)' == ''">Debug</BuildType>
+    <BuildType Condition="'$(BuildType)' == ''">$(Configuration)</BuildType>
+
+    <Version>$(BuildDate).$(BuildNumber)</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InformationalVersion>$(Version)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Alpha' Or '$(Configuration)' == 'Beta'">
+    <Optimize>true</Optimize>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+</Project>

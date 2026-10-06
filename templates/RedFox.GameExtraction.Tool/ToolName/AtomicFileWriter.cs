@@ -1,4 +1,4 @@
-namespace RedFox.GameExtraction.Template;
+namespace ToolName;
 
 internal static class AtomicFileWriter
 {
@@ -24,7 +24,7 @@ internal static class AtomicFileWriter
             }
             catch (IOException)
             {
-                // A best-effort cleanup must not mask the original conversion result.
+                // A best-effort cleanup must not mask the original write result.
             }
         }
     }

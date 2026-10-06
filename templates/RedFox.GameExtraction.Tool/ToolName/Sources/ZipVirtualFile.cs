@@ -1,7 +1,7 @@
 using System.IO.Compression;
 using RedFox.IO.FileSystem;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Sources;
 
 /// <summary>
 /// Exposes a ZIP archive entry through the shared virtual file system.
@@ -11,8 +11,7 @@ public sealed class ZipVirtualFile : VirtualFile
     private readonly ZipArchiveEntry _entry;
     private readonly SemaphoreSlim _archiveLock;
 
-    internal ZipVirtualFile(ZipArchiveEntry entry, SemaphoreSlim archiveLock)
-        : base(entry?.Name ?? throw new ArgumentNullException(nameof(entry)), entry.Length)
+    internal ZipVirtualFile(ZipArchiveEntry entry, SemaphoreSlim archiveLock) : base(entry?.Name ?? throw new ArgumentNullException(nameof(entry)), entry.Length)
     {
         _entry = entry;
         _archiveLock = archiveLock ?? throw new ArgumentNullException(nameof(archiveLock));

@@ -1,28 +1,27 @@
-using System.IO.Compression;
 using RedFox.Audio.IO;
 using RedFox.GameExtraction;
-using RedFox.GameExtraction.AssetHandlers;
 using RedFox.IO.FileSystem;
+using BaseAudioClipHandler = RedFox.GameExtraction.AssetHandlers.AudioClipHandler;
 
-namespace RedFox.GameExtraction.Template;
+namespace ToolName.Handlers;
 
 /// <summary>
 /// Reads audio entries as audio clips through the audio translators and exports them to the configured audio formats.
 /// </summary>
-public sealed class AudioHandler : AudioClipHandler
+public sealed class AudioHandler : BaseAudioClipHandler
 {
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".wav", ".flac" };
 
     /// <summary>
-    /// Determines whether the asset is audio the built-in translators can read.
+    /// Determines whether this handler can process the supplied asset.
     /// </summary>
     /// <param name="asset">The asset being evaluated.</param>
     /// <param name="configuration">The shared settings and options.</param>
-    /// <returns><see langword="true"/> when the asset has a supported audio extension.</returns>
+    /// <returns><see langword="true"/> when audio support is enabled and the asset has a supported audio extension.</returns>
     public override bool CanHandle(Asset asset, GameExtractionConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        return Extensions.Contains(Path.GetExtension(asset.Name));
+        return configuration.GetOption("AudioSupport", true) && Extensions.Contains(Path.GetExtension(asset.Name));
     }
 
     /// <summary>
@@ -36,8 +35,10 @@ public sealed class AudioHandler : AudioClipHandler
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(context);
+        cancellationToken.ThrowIfCancellationRequested();
 
         AudioTranslatorManager manager = context.AssetManager.GetRequiredService<AudioTranslatorService>().Manager;
+
         using MemoryStream buffer = new();
 
         await using (Stream stream = OpenAssetStream(asset))
@@ -55,13 +56,5 @@ public sealed class AudioHandler : AudioClipHandler
         };
     }
 
-    private static Stream OpenAssetStream(Asset asset)
-    {
-        return asset.DataSource switch
-        {
-            VirtualFile file => file.Open(),
-            ZipArchiveEntry entry => entry.Open(),
-            _ => throw new InvalidOperationException($"AudioHandler expects a {nameof(VirtualFile)} or {nameof(ZipArchiveEntry)} data source."),
-        };
-    }
+    private static Stream OpenAssetStream(Asset asset) => asset.DataSource is VirtualFile file ? file.Open() : throw new InvalidOperationException($"AudioHandler expects a {nameof(VirtualFile)} data source.");
 }
