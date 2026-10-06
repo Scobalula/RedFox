@@ -10,7 +10,7 @@ public sealed class Asset
     /// <summary>
     /// Gets the mounted source that owns the asset when available.
     /// </summary>
-    public IAssetSource? Source { get; private set; }
+    public IAssetSource? Owner { get; private set; }
 
     /// <summary>
     /// Gets the name of the asset.
@@ -37,7 +37,7 @@ public sealed class Asset
     public string? Information { get; }
 
     /// <summary>
-    /// Gets the source-specific data token used by handlers to access raw asset data.
+    /// Gets the source-specific value used by handlers to access raw asset data.
     /// </summary>
     /// <remarks>
     /// The value depends on the source type — for example a <c>ZipArchiveEntry</c> for ZIP
@@ -71,7 +71,7 @@ public sealed class Asset
     /// </summary>
     /// <param name="name">The name of the asset.</param>
     /// <param name="type">The logical asset type used for handler dispatch and display.</param>
-    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="dataSource">The source-specific value used by handlers to access raw asset data.</param>
     public Asset(string name, string type, object? dataSource)
         : this(name, type, dataSource, null, null)
     {
@@ -82,7 +82,7 @@ public sealed class Asset
     /// </summary>
     /// <param name="name">The name of the asset.</param>
     /// <param name="type">The logical asset type used for handler dispatch and display.</param>
-    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="dataSource">The source-specific value used by handlers to access raw asset data.</param>
     /// <param name="information">Optional secondary information describing the asset.</param>
     public Asset(string name, string type, object? dataSource, string? information)
         : this(name, type, dataSource, information, null)
@@ -94,7 +94,7 @@ public sealed class Asset
     /// </summary>
     /// <param name="name">The name of the asset.</param>
     /// <param name="type">The logical asset type used for handler dispatch and display.</param>
-    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="dataSource">The source-specific value used by handlers to access raw asset data.</param>
     /// <param name="information">Optional secondary information describing the asset.</param>
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
     public Asset(string name, string type, object? dataSource, string? information, IReadOnlyDictionary<string, object?>? metadata)
@@ -107,7 +107,7 @@ public sealed class Asset
     /// </summary>
     /// <param name="name">The name of the asset.</param>
     /// <param name="type">The logical asset type used for handler dispatch and display.</param>
-    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="dataSource">The source-specific value used by handlers to access raw asset data.</param>
     /// <param name="information">Optional secondary information describing the asset.</param>
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
     /// <param name="userData">Optional loader-defined data for consumers such as asset comparers.</param>
@@ -121,7 +121,7 @@ public sealed class Asset
     /// </summary>
     /// <param name="name">The name of the asset.</param>
     /// <param name="type">The logical asset type used for handler dispatch and display.</param>
-    /// <param name="dataSource">The source-specific data token used by handlers to access raw asset data.</param>
+    /// <param name="dataSource">The source-specific value used by handlers to access raw asset data.</param>
     /// <param name="information">Optional secondary information describing the asset.</param>
     /// <param name="metadata">Optional source-specific metadata associated with the asset.</param>
     /// <param name="userData">Optional loader-defined data for consumers such as asset comparers.</param>
@@ -146,17 +146,17 @@ public sealed class Asset
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        if (Source is not null && !ReferenceEquals(Source, source))
+        if (Owner is not null && !ReferenceEquals(Owner, source))
         {
             throw new InvalidOperationException("The asset is already attached to a different source.");
         }
 
-        Source = source;
+        Owner = source;
     }
 
     internal void DetachSource()
     {
-        Source = null;
+        Owner = null;
     }
 
     /// <summary>

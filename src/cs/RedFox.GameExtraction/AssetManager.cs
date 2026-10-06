@@ -1023,7 +1023,7 @@ public sealed class AssetManager
     /// <exception cref="InvalidOperationException">Thrown when the asset has no attached source or the source is not mounted.</exception>
     public IAssetSource GetRequiredSource(Asset asset)
     {
-        IAssetSource source = asset.Source ?? throw new InvalidOperationException($"The asset '{asset.Name}' is not attached to a mounted source.");
+        IAssetSource source = asset.Owner ?? throw new InvalidOperationException($"The asset '{asset.Name}' is not attached to a mounted source.");
 
         lock (_sourceLock)
         {
@@ -1103,7 +1103,7 @@ public sealed class AssetManager
             for (int readIndex = 0; readIndex < _assets.Count; readIndex++)
             {
                 Asset asset = _assets[readIndex];
-                if (ReferenceEquals(asset.Source, source))
+                if (ReferenceEquals(asset.Owner, source))
                     asset.DetachSource();
                 else
                     _assets[writeIndex++] = asset;

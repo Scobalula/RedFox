@@ -1,3 +1,5 @@
+using RedFox.IO.FileSystem;
+
 namespace RedFox.GameExtraction;
 
 /// <summary>
@@ -20,5 +22,11 @@ public interface IAssetSourceReader
     /// <param name="progress">An optional progress sink.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted asset source.</returns>
+    /// <remarks>
+    /// Readers that wish to expose assets through the shared virtual file system are responsible
+    /// for adding their <see cref="VirtualFile"/> instances to
+    /// <c>assetManager.GetRequiredService&lt;AssetFileSystemService&gt;().FileSystem</c> during the open operation.
+    /// The service automatically cleans up those files when the source is unloaded.
+    /// </remarks>
     Task<IAssetSource> OpenAsync(AssetSourceRequest request, AssetManager assetManager, IProgress<string>? progress, CancellationToken cancellationToken);
 }
