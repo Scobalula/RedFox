@@ -6,7 +6,7 @@ namespace RedFox.GameExtraction.Tests;
 [TestClass]
 public sealed class AssetFileSystemServiceTests
 {
-    private sealed class MemoryVirtualFile(string name, byte[] bytes) : VirtualFile(name, bytes.Length)
+    private sealed class MemoryVirtualFile(byte[] bytes) : VirtualFile(bytes.Length)
     {
         public byte[] Bytes { get; } = bytes;
 
@@ -53,12 +53,12 @@ public sealed class AssetFileSystemServiceTests
     public async Task ReaderAddsFiles_CustomDirectoryStructure_IsReachable()
     {
         AssetManager manager = CreateManager();
-        Asset file = new("ignored", "bin", new MemoryVirtualFile("alpha.bin", [1, 2, 3]));
+        Asset file = new("ignored", "bin", new MemoryVirtualFile([1, 2, 3]));
 
         manager.RegisterSourceReader(new TestSourceReader((_, assetManager) =>
         {
             AssetFileSystemService service = assetManager.GetRequiredService<AssetFileSystemService>();
-            service.FileSystem.AddFile("custom/path/alpha.bin", (VirtualFile)file.DataSource!);
+            service.AddFile("custom/path/alpha.bin", (VirtualFile)file.DataSource!);
 
             return new TestAssetSource("test", [file]);
         }));
@@ -75,12 +75,12 @@ public sealed class AssetFileSystemServiceTests
     public async Task UnloadSource_RemovesFilesAndPrunesEmptyDirectories()
     {
         AssetManager manager = CreateManager();
-        Asset file = new("ignored", "bin", new MemoryVirtualFile("alpha.bin", [1, 2, 3]));
+        Asset file = new("ignored", "bin", new MemoryVirtualFile([1, 2, 3]));
 
         manager.RegisterSourceReader(new TestSourceReader((_, assetManager) =>
         {
             AssetFileSystemService service = assetManager.GetRequiredService<AssetFileSystemService>();
-            service.FileSystem.AddFile("custom/path/alpha.bin", (VirtualFile)file.DataSource!);
+            service.AddFile("custom/path/alpha.bin", (VirtualFile)file.DataSource!);
 
             return new TestAssetSource("test", [file]);
         }));
@@ -99,7 +99,7 @@ public sealed class AssetFileSystemServiceTests
     public async Task ReaderDoesNotUseFileSystem_UnloadLeavesFileSystemEmpty()
     {
         AssetManager manager = CreateManager();
-        Asset file = new("ignored", "bin", new MemoryVirtualFile("alpha.bin", [1, 2, 3]));
+        Asset file = new("ignored", "bin", new MemoryVirtualFile([1, 2, 3]));
 
         manager.RegisterSourceReader(new TestSourceReader((_, _) => new TestAssetSource("test", [file])));
 
@@ -116,13 +116,13 @@ public sealed class AssetFileSystemServiceTests
     public async Task TwoSources_SharedDirectory_UnloadOneLeavesOtherFiles()
     {
         AssetManager manager = CreateManager();
-        Asset firstFile = new("first", "bin", new MemoryVirtualFile("first.bin", [1]));
-        Asset secondFile = new("second", "bin", new MemoryVirtualFile("second.bin", [2]));
+        Asset firstFile = new("first", "bin", new MemoryVirtualFile([1]));
+        Asset secondFile = new("second", "bin", new MemoryVirtualFile([2]));
 
         manager.RegisterSourceReader(new TestSourceReader((request, assetManager) =>
         {
             AssetFileSystemService service = assetManager.GetRequiredService<AssetFileSystemService>();
-            service.FileSystem.AddFile("shared/first.bin", (VirtualFile)firstFile.DataSource!);
+            service.AddFile("shared/first.bin", (VirtualFile)firstFile.DataSource!);
 
             return new TestAssetSource("first", [firstFile]);
         }, request => request.Location?.EndsWith("first.bin") == true));
@@ -130,7 +130,7 @@ public sealed class AssetFileSystemServiceTests
         manager.RegisterSourceReader(new TestSourceReader((request, assetManager) =>
         {
             AssetFileSystemService service = assetManager.GetRequiredService<AssetFileSystemService>();
-            service.FileSystem.AddFile("shared/second.bin", (VirtualFile)secondFile.DataSource!);
+            service.AddFile("shared/second.bin", (VirtualFile)secondFile.DataSource!);
 
             return new TestAssetSource("second", [secondFile]);
         }, request => request.Location?.EndsWith("second.bin") == true));

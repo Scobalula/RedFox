@@ -15,10 +15,6 @@ public sealed class Asset
     /// <summary>
     /// Gets the name of the asset.
     /// </summary>
-    /// <remarks>
-    /// This may be a simple file name, a relative path, or any identifier the source reader provides.
-    /// The asset does not interpret or normalize this value.
-    /// </remarks>
     public string Name { get; }
 
     /// <summary>
@@ -39,11 +35,6 @@ public sealed class Asset
     /// <summary>
     /// Gets the source-specific value used by handlers to access raw asset data.
     /// </summary>
-    /// <remarks>
-    /// The value depends on the source type — for example a <c>ZipArchiveEntry</c> for ZIP
-    /// archives, a pointer value for memory-backed sources, or any custom object the
-    /// source reader provides. Handlers cast this to the type they expect.
-    /// </remarks>
     public object? DataSource { get; }
 
     /// <summary>

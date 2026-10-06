@@ -6,28 +6,25 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace RedFox.IO.FileSystem;
 
 /// <summary>
-/// An abstract class that defines methods and properties to manilpulate a virtual file.
+/// An abstract class that defines a file stored within a <see cref="VirtualFileSystem"/>.
 /// </summary>
-public abstract class VirtualFile
+/// <param name="size">The size of the file in bytes.</param>
+public abstract class VirtualFile(long size)
 {
+    internal VirtualFile? Shadowed { get; set; }
+
     /// <summary>
-    /// Gets the parent directory.
+    /// Gets the parent directory, or <see langword="null"/> if the file has not been added to a file system.
     /// </summary>
     public VirtualDirectory? Parent { get; internal set; }
 
     /// <summary>
-    /// Gets or Sets the name of the file.
+    /// Gets the name of the file, assigned when the file is added to a file system.
     /// </summary>
-    public string Name { get; set; }
+    public string Name { get; internal set; } = string.Empty;
 
     /// <summary>
     /// Gets the extension of the file.
@@ -35,111 +32,74 @@ public abstract class VirtualFile
     public string Extension => Path.GetExtension(Name);
 
     /// <summary>
-    /// Gets the full path of the file.
+    /// Gets the full path of the file, using '/' as the separator.
     /// </summary>
-    public string FullPath => Parent == null ? Name : Path.Combine(Parent.FullPath, Name);
+    public string FullPath => Parent is null || Parent.Parent is null ? Name : $"{Parent.FullPath}/{Name}";
 
     /// <summary>
-    /// Gets the full directory path where the file is stored.
+    /// Gets whether another file added later at the same path is hiding this file.
     /// </summary>
-    public string? DirectoryPath => Parent?.FullPath;
-
-    /// <summary>
-    /// Gets the size of the file.
-    /// </summary>
-    public long Size { get; private set; }
-
-    /// <summary>
-    /// Gets or sets the custom data associated with the file.
-    /// </summary>
-    public object? Data { get; set; }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="VirtualFile"/> class with the given name and size.
-    /// </summary>
-    /// <param name="name">The name of the file.</param>
-    /// <param name="size">The size of the file in bytes.</param>
-    protected VirtualFile(string name, long size)
+    public bool IsShadowed
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentNullException(nameof(name), "Empty name provided.");
-        if (name.IndexOfAny(VirtualFileSystem.InvalidFileNameChars) > -1)
-            throw new ArgumentException("Name contains invalid characters.", nameof(name));
-
-        Name = name;
-        Size = size;
-    }
-
-    /// <summary>
-    /// Moves the this file into the provided directory.
-    /// </summary>
-    /// <param name="newParent">The directory to move this file into.</param>
-    public void MoveTo(VirtualDirectory? newParent)
-    {
-        if (newParent == Parent)
-            return;
-
-        Parent?._files.Remove(this);
-        Parent = newParent;
-
-        if (newParent is not null && !newParent._files.Add(this))
+        get
         {
-            throw new IOException($"Directory: {newParent.FullPath} already contains a file with the name: {Name}");
+            if (Parent is not { } parent)
+                return false;
+
+            lock (parent._syncRoot)
+                return parent._files.TryGetValue(Name, out var visible) && visible != this;
         }
     }
 
     /// <summary>
-    /// Opens the file as a <see cref="Stream"/>.
+    /// Gets the size of the file in bytes.
     /// </summary>
-    /// <returns>Resulting stream of bytes.</returns>
+    public long Size { get; } = size;
+
+    /// <summary>
+    /// Gets or sets custom data associated with the file.
+    /// </summary>
+    public object? Tag { get; set; }
+
+    /// <summary>
+    /// Opens the file for reading.
+    /// </summary>
+    /// <returns>A stream containing the file contents.</returns>
     public abstract Stream Open();
 
-    /// <inheritdoc/>
-    public override int GetHashCode()
-    {
-        return StringComparer.OrdinalIgnoreCase.GetHashCode(Name);
-    }
-
-    /// <inheritdoc/>
-    public override bool Equals(object? obj)
-    {
-        if (obj is VirtualFile directory)
-            return directory.Name.Equals(Name, StringComparison.OrdinalIgnoreCase);
-
-        return base.Equals(obj);
-    }
-
-    /// <inheritdoc/>
-    public override string ToString()
-    {
-        return Name;
-    }
-
     /// <summary>
-    /// Creates all directories and subdirectories on-disk.
+    /// Reads the contents of the file into a byte array.
     /// </summary>
-    public void CreateDirectory()
-    {
-        if (Parent is null)
-            return;
-
-        Directory.CreateDirectory(Parent.FullPath);
-    }
-
-    /// <summary>
-    /// Writes the contents of the file. The file will be created if it does not exist, and overwritten if it does.
-    /// </summary>
-    public void WriteAllBytes() => WriteAllBytes(FullPath);
-
-    /// <summary>
-    /// Writes the contents of the file to the given file path. The file will be created if it does not exist, and overwritten if it does.
-    /// </summary>
-    /// <param name="filePath">The path to write the file to.</param>
-    public virtual void WriteAllBytes(string filePath)
+    /// <returns>A byte array containing the file contents.</returns>
+    public virtual byte[] ReadAllBytes()
     {
         using var stream = Open();
-        using var output = File.Create(filePath);
+
+        var buffer = new byte[Size];
+        stream.ReadExactly(buffer);
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Extracts the file to disk. An existing file is not overwritten.
+    /// </summary>
+    /// <param name="destinationFileName">The path of the file to create.</param>
+    public void ExtractToFile(string destinationFileName) => ExtractToFile(destinationFileName, false);
+
+    /// <summary>
+    /// Extracts the file to disk.
+    /// </summary>
+    /// <param name="destinationFileName">The path of the file to create.</param>
+    /// <param name="overwrite"><see langword="true"/> to overwrite an existing file; otherwise, <see langword="false"/>.</param>
+    public virtual void ExtractToFile(string destinationFileName, bool overwrite)
+    {
+        using var stream = Open();
+        using var output = new FileStream(destinationFileName, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write);
 
         stream.CopyTo(output);
     }
+
+    /// <inheritdoc/>
+    public override string ToString() => Name;
 }

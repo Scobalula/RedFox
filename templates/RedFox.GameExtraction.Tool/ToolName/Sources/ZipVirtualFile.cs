@@ -11,7 +11,7 @@ public sealed class ZipVirtualFile : VirtualFile
     private readonly ZipArchiveEntry _entry;
     private readonly SemaphoreSlim _archiveLock;
 
-    internal ZipVirtualFile(ZipArchiveEntry entry, SemaphoreSlim archiveLock) : base(entry?.Name ?? throw new ArgumentNullException(nameof(entry)), entry.Length)
+    internal ZipVirtualFile(ZipArchiveEntry entry, SemaphoreSlim archiveLock) : base(entry?.Length ?? throw new ArgumentNullException(nameof(entry)))
     {
         _entry = entry;
         _archiveLock = archiveLock ?? throw new ArgumentNullException(nameof(archiveLock));

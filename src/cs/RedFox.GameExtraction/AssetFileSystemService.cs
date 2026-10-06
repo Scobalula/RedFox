@@ -3,17 +3,19 @@ using RedFox.IO.FileSystem;
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Optional service that provides a shared virtual file system and cleans up
-/// files placed there by source readers when their sources are unloaded.
+/// Optional service that provides a shared virtual file system and removes the files and directories
+/// a source reader added through it when that source is unloaded or fails to mount.
 /// </summary>
 public sealed class AssetFileSystemService
 {
-    private readonly object _fileSystemLock = new();
+    private readonly Lock _lock = new();
+    private readonly Dictionary<IAssetSource, AssetFileSystemEntries> _sourceEntries = new(ReferenceEqualityComparer.Instance);
+    private AssetFileSystemEntries _pendingEntries = new();
 
     /// <summary>
-    /// Gets or sets the asset manager responsible for handling asset operations.
+    /// Gets the asset manager responsible for handling asset operations.
     /// </summary>
-    public AssetManager Manager { get; set; }
+    public AssetManager Manager { get; }
 
     /// <summary>
     /// Gets the shared virtual file system.
@@ -27,29 +29,103 @@ public sealed class AssetFileSystemService
     public AssetFileSystemService(AssetManager manager)
     {
         Manager = manager;
+        Manager.SourceMounted += ManagerSourceMounted;
+        Manager.SourceMountFailed += ManagerSourceMountFailed;
         Manager.SourceUnloading += ManagerSourceUnloading;
+    }
+
+    /// <summary>
+    /// Creates all directories in the given path for the source currently being mounted.
+    /// </summary>
+    /// <param name="path">The directory path.</param>
+    /// <returns>The directory at the end of the path.</returns>
+    public VirtualDirectory CreateDirectory(string path)
+    {
+        var directory = FileSystem.CreateDirectory(path);
+
+        lock (_lock)
+            _pendingEntries.TopLevelDirectories.Add(GetTopLevelDirectory(directory));
+
+        return directory;
+    }
+
+    /// <summary>
+    /// Adds a file for the source currently being mounted. Throws if the path is already occupied.
+    /// </summary>
+    /// <param name="path">The full path of the file, including its name.</param>
+    /// <param name="file">The file to add.</param>
+    /// <returns><see langword="true"/> once the file has been added.</returns>
+    public bool AddFile(string path, VirtualFile file) => AddFile(path, file, FileCollisionBehavior.Throw);
+
+    /// <summary>
+    /// Adds a file for the source currently being mounted.
+    /// </summary>
+    /// <param name="path">The full path of the file, including its name.</param>
+    /// <param name="file">The file to add.</param>
+    /// <param name="behavior">How to handle a file that already exists at the given path.</param>
+    /// <returns><see langword="true"/> if the file was added; <see langword="false"/> if it was skipped.</returns>
+    public bool AddFile(string path, VirtualFile file, FileCollisionBehavior behavior)
+    {
+        if (!FileSystem.AddFile(path, file, behavior))
+            return false;
+
+        lock (_lock)
+        {
+            _pendingEntries.Files.Add(file);
+            _pendingEntries.TopLevelDirectories.Add(GetTopLevelDirectory(file.Parent!));
+        }
+
+        return true;
+    }
+
+    private void ManagerSourceMounted(object? sender, SourceEventArgs e)
+    {
+        lock (_lock)
+        {
+            _sourceEntries[e.Source] = _pendingEntries;
+            _pendingEntries = new();
+        }
+    }
+
+    private void ManagerSourceMountFailed(object? sender, AssetOperationFailedEventArgs e)
+    {
+        lock (_lock)
+        {
+            RemoveEntries(_pendingEntries);
+            _pendingEntries = new();
+
+            if (e.Source is not null && _sourceEntries.Remove(e.Source, out var entries))
+                RemoveEntries(entries);
+        }
     }
 
     private void ManagerSourceUnloading(object? sender, SourceEventArgs e)
     {
-        lock (_fileSystemLock)
+        lock (_lock)
         {
-            HashSet<VirtualDirectory> topLevelDirectories = new(ReferenceEqualityComparer.Instance);
+            if (_sourceEntries.Remove(e.Source, out var entries))
+                RemoveEntries(entries);
+        }
+    }
 
-            foreach (Asset asset in e.Source.Assets)
-            {
-                if (asset.DataSource is not VirtualFile file)
-                    continue;
+    private void RemoveEntries(AssetFileSystemEntries entries)
+    {
+        foreach (VirtualFile file in entries.Files)
+            FileSystem.RemoveFile(file);
 
-                if (file.Parent is not null && file.Parent != FileSystem.Root)
-                    topLevelDirectories.Add(GetTopLevelDirectory(file.Parent));
-
-                file.MoveTo(null);
-            }
-
-            foreach (VirtualDirectory directory in topLevelDirectories)
+        foreach (VirtualDirectory directory in entries.TopLevelDirectories)
+        {
+            if (directory != FileSystem.Root)
                 RemoveEmptyDirectories(directory);
         }
+    }
+
+    private void RemoveEmptyDirectories(VirtualDirectory directory)
+    {
+        foreach (VirtualDirectory child in directory.Directories)
+            RemoveEmptyDirectories(child);
+
+        FileSystem.RemoveDirectory(directory);
     }
 
     private static VirtualDirectory GetTopLevelDirectory(VirtualDirectory directory)
@@ -58,14 +134,5 @@ public sealed class AssetFileSystemService
             directory = directory.Parent;
 
         return directory;
-    }
-
-    private static void RemoveEmptyDirectories(VirtualDirectory directory)
-    {
-        foreach (VirtualDirectory child in directory.Directories)
-            RemoveEmptyDirectories(child);
-
-        if (directory.Files.Count == 0 && directory.Directories.Count == 0)
-            directory.MoveTo(null);
     }
 }

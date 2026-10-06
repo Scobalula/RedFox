@@ -12,7 +12,7 @@ namespace RedFox.Tests.IO;
 
 public sealed class VirtualFileSystemTests
 {
-    private sealed class MemoryVirtualFile(string name, byte[] bytes) : VirtualFile(name, bytes.Length)
+    private sealed class MemoryVirtualFile(byte[] bytes) : VirtualFile(bytes.Length)
     {
         public override Stream Open() => new MemoryStream(bytes, writable: false);
     }
@@ -21,13 +21,13 @@ public sealed class VirtualFileSystemTests
     public void CreateDirectoriesAndAddFile_BuildsTreeAndFindsFile()
     {
         VirtualFileSystem fileSystem = new();
-        MemoryVirtualFile file = new("test.bin", [1, 2, 3]);
+        MemoryVirtualFile file = new([1, 2, 3]);
 
         fileSystem.AddFile("root\\sub\\test.bin", file);
 
         Assert.True(fileSystem.TryGetFile("root\\sub\\test.bin", out VirtualFile? found));
         Assert.Same(file, found);
-        Assert.Equal("root\\sub\\test.bin", found.FullPath);
+        Assert.Equal("root/sub/test.bin", found.FullPath);
         Assert.Equal(".bin", found.Extension);
     }
 
@@ -35,12 +35,12 @@ public sealed class VirtualFileSystemTests
     public void EnumerateFilesAndDirectories_RespectsSearchPatternAndDepth()
     {
         VirtualFileSystem fileSystem = new();
-        fileSystem.AddFile("a\\alpha.txt", new MemoryVirtualFile("alpha.txt", [1]));
-        fileSystem.AddFile("a\\b\\beta.dat", new MemoryVirtualFile("beta.dat", [2]));
-        fileSystem.AddFile("a\\b\\gamma.txt", new MemoryVirtualFile("gamma.txt", [3]));
+        fileSystem.AddFile("a\\alpha.txt", new MemoryVirtualFile([1]));
+        fileSystem.AddFile("a\\b\\beta.dat", new MemoryVirtualFile([2]));
+        fileSystem.AddFile("a\\b\\gamma.txt", new MemoryVirtualFile([3]));
 
-        VirtualFile[] allTextFiles = fileSystem.EnumerateFiles(null, "*.txt", SearchOption.AllDirectories).ToArray();
-        VirtualDirectory[] topDirectories = fileSystem.Root.EnumerateDirectories(null, "*", SearchOption.TopDirectoryOnly).ToArray();
+        VirtualFile[] allTextFiles = fileSystem.Root.EnumerateFiles("*.txt", SearchOption.AllDirectories).ToArray();
+        VirtualDirectory[] topDirectories = fileSystem.Root.EnumerateDirectories().ToArray();
 
         Assert.Equal(2, allTextFiles.Length);
         Assert.Single(topDirectories);
@@ -50,50 +50,25 @@ public sealed class VirtualFileSystemTests
     [Fact]
     public void GetFile_WhenMissing_Throws()
     {
-        VirtualDirectory directory = new("root");
+        VirtualFileSystem fileSystem = new();
 
-        Assert.Throws<FileNotFoundException>(() => directory.GetFile("missing.txt"));
+        Assert.Throws<FileNotFoundException>(() => fileSystem.GetFile("missing.txt"));
     }
 
     [Fact]
-    public void MoveTo_DetectsDuplicateFileNames()
+    public void AddFile_DetectsDuplicateFileNames()
     {
-        VirtualDirectory root = new("root");
-        VirtualDirectory target = root.CreateDirectory("target");
-        MemoryVirtualFile first = new("same.txt", [1]);
-        MemoryVirtualFile second = new("same.txt", [2]);
-        first.MoveTo(target);
+        VirtualFileSystem fileSystem = new();
+        fileSystem.AddFile("target\\same.txt", new MemoryVirtualFile([1]));
 
-        Assert.Throws<IOException>(() => second.MoveTo(target));
-    }
-
-    [Fact]
-    public void MoveTo_DetectsDuplicateDirectoryNames()
-    {
-        VirtualDirectory root = new("root");
-        VirtualDirectory parent = root.CreateDirectory("p");
-        VirtualDirectory first = new("child");
-        VirtualDirectory second = new("child");
-        first.MoveTo(parent);
-
-        Assert.Throws<IOException>(() => second.MoveTo(parent));
-    }
-
-    [Fact]
-    public void ValidityHelpers_ReturnExpectedResults()
-    {
-        Assert.True(VirtualFileSystem.IsValidFileName("hello.txt"));
-        Assert.True(VirtualFileSystem.IsValidDirectoryName("folder"));
-        Assert.True(VirtualFileSystem.IsValidFullPath("one\\two\\file.bin"));
-        Assert.False(VirtualFileSystem.IsValidFileName(" "));
-        Assert.False(VirtualFileSystem.IsValidFullPath(""));
+        Assert.Throws<IOException>(() => fileSystem.AddFile("target\\same.txt", new MemoryVirtualFile([2])));
     }
 
     [Fact]
     public void TryGetDirectory_And_TryGetFile_WorkCaseInsensitiveForDirectories()
     {
         VirtualFileSystem fileSystem = new();
-        fileSystem.AddFile("Root\\Child\\Name.bin", new MemoryVirtualFile("Name.bin", [9]));
+        fileSystem.AddFile("Root\\Child\\Name.bin", new MemoryVirtualFile([9]));
 
         Assert.True(fileSystem.Root.TryGetDirectory("root\\child", out VirtualDirectory? directory));
         Assert.NotNull(directory);

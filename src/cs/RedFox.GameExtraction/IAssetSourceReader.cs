@@ -23,10 +23,9 @@ public interface IAssetSourceReader
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The mounted asset source.</returns>
     /// <remarks>
-    /// Readers that wish to expose assets through the shared virtual file system are responsible
-    /// for adding their <see cref="VirtualFile"/> instances to
-    /// <c>assetManager.GetRequiredService&lt;AssetFileSystemService&gt;().FileSystem</c> during the open operation.
-    /// The service automatically cleans up those files when the source is unloaded.
+    /// Readers that wish to expose files through the shared virtual file system add them with
+    /// <see cref="AssetFileSystemService.AddFile(string, VirtualFile, FileCollisionBehavior)"/> during the open operation.
+    /// The service removes those files when the source is unloaded or fails to mount.
     /// </remarks>
     Task<IAssetSource> OpenAsync(AssetSourceRequest request, AssetManager assetManager, IProgress<string>? progress, CancellationToken cancellationToken);
 }

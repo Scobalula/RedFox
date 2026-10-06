@@ -55,6 +55,11 @@ public sealed class AssetManager
     public event EventHandler<SourceEventArgs>? SourceMounted;
 
     /// <summary>
+    /// Occurs when mounting a source fails or is cancelled.
+    /// </summary>
+    public event EventHandler<AssetOperationFailedEventArgs>? SourceMountFailed;
+
+    /// <summary>
     /// Occurs before a mounted source is unloaded.
     /// </summary>
     public event EventHandler<SourceEventArgs>? SourceUnloading;
@@ -1162,14 +1167,18 @@ public sealed class AssetManager
         {
             source = await reader.OpenAsync(request, this, progress, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
+            SourceMountFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, exception));
             throw;
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "Failed to mount source {Kind} {Location}", request.Kind, request.Location);
-            OperationFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, exception));
+
+            AssetOperationFailedEventArgs args = new(AssetOperationKind.Mount, exception);
+            OperationFailed?.Invoke(this, args);
+            SourceMountFailed?.Invoke(this, args);
             throw;
         }
 
@@ -1191,6 +1200,7 @@ public sealed class AssetManager
             if (sourceRegistrationAttempted)
                 UnregisterSource(source);
 
+            SourceMountFailed?.Invoke(this, new AssetOperationFailedEventArgs(AssetOperationKind.Mount, exception, source, null, null));
             await source.DisposeAsync().ConfigureAwait(false);
             throw;
         }

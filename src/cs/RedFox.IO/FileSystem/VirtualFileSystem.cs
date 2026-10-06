@@ -6,157 +6,215 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace RedFox.IO.FileSystem
+namespace RedFox.IO.FileSystem;
+
+/// <summary>
+/// An in-memory file system that can hold files from any number of sources, such as directories on disk or archives.
+/// </summary>
+public sealed class VirtualFileSystem
 {
+    internal static readonly char[] Separators = ['/', '\\'];
+
+    private readonly Lock _lock = new();
+
     /// <summary>
-    /// A class that provides a mechanism to store and manipulate a virtual file system.
+    /// Gets the root directory.
     /// </summary>
-    public class VirtualFileSystem
+    public VirtualDirectory Root { get; }
+
+    /// <summary>
+    /// Initializes a new, empty <see cref="VirtualFileSystem"/>.
+    /// </summary>
+    public VirtualFileSystem()
     {
-        /// <summary>
-        /// Invalid File Name Characters.
-        /// </summary>
-        internal static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
+        Root = new(null, string.Empty, _lock);
+    }
 
-        /// <summary>
-        /// Invalid Path Characters.
-        /// </summary>
-        internal static readonly char[] InvalidPathChars = Path.GetInvalidPathChars();
+    /// <summary>
+    /// Creates all directories in the given path unless they already exist.
+    /// </summary>
+    /// <param name="path">The directory path.</param>
+    /// <returns>The directory at the end of the path.</returns>
+    public VirtualDirectory CreateDirectory(string path)
+    {
+        lock (_lock)
+            return CreateDirectories(path.Split(Separators, StringSplitOptions.RemoveEmptyEntries));
+    }
 
-        /// <summary>
-        /// Gets the root directory.
-        /// </summary>
-        public VirtualDirectory Root { get; } = new();
+    /// <summary>
+    /// Adds a file to the given path, creating its parent directories. Throws if the path is already occupied.
+    /// </summary>
+    /// <param name="path">The full path of the file, including its name.</param>
+    /// <param name="file">The file to add.</param>
+    /// <returns><see langword="true"/> once the file has been added.</returns>
+    /// <exception cref="IOException">A file already exists at the given path.</exception>
+    public bool AddFile(string path, VirtualFile file) => AddFile(path, file, FileCollisionBehavior.Throw);
 
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories() => Root.EnumerateDirectories(null, "*", SearchOption.AllDirectories);
+    /// <summary>
+    /// Adds a file to the given path, creating its parent directories.
+    /// </summary>
+    /// <param name="path">The full path of the file, including its name.</param>
+    /// <param name="file">The file to add.</param>
+    /// <param name="behavior">How to handle a file that already exists at the given path.</param>
+    /// <returns><see langword="true"/> if the file was added; <see langword="false"/> if it was skipped.</returns>
+    /// <exception cref="IOException">A file already exists at the given path and <paramref name="behavior"/> is <see cref="FileCollisionBehavior.Throw"/>.</exception>
+    public bool AddFile(string path, VirtualFile file, FileCollisionBehavior behavior)
+    {
+        if (file.Parent is not null)
+            throw new InvalidOperationException($"File has already been added: {file.FullPath}");
 
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path) => Root.EnumerateDirectories(path, "*", SearchOption.AllDirectories);
+        var names = path.Split(Separators, StringSplitOptions.RemoveEmptyEntries);
 
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path, string searchPattern) => Root.EnumerateDirectories(path, searchPattern, SearchOption.AllDirectories);
+        if (names.Length == 0)
+            throw new ArgumentException("Path does not contain a file name.", nameof(path));
 
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <param name="searchOption">Specified the search option indicating whether to search all directories or only the top directory.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path, string searchPattern, SearchOption searchOption) => Root.EnumerateDirectories(path, searchPattern, searchOption);
+        var name = names[^1];
+        ValidateName(name);
 
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles() => Root.EnumerateFiles(null, "*", SearchOption.AllDirectories);
-
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path) => Root.EnumerateFiles(path, "*", SearchOption.AllDirectories);
-
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path, string searchPattern) => Root.EnumerateFiles(path, searchPattern, SearchOption.AllDirectories);
-
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from the root directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <param name="searchOption">Specified the search option indicating whether to search all directories or only the top directory.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path, string searchPattern, SearchOption searchOption) => Root.EnumerateFiles(path, searchPattern, searchOption);
-
-
-        /// <summary>Adds a file to the virtual file system, creating its parent directories.</summary>
-        /// <param name="fullPath">The destination path within the virtual file system.</param>
-        /// <param name="file">The file to add.</param>
-        public void AddFile(string fullPath, VirtualFile file)
+        lock (_lock)
         {
-            var directory = Root.CreateDirectories(Path.GetDirectoryName(fullPath)) ?? Root;
-            file.MoveTo(directory);
+            var directory = CreateDirectories(names.AsSpan()[..^1]);
+
+            if (directory._files.TryGetValue(name, out var existing))
+            {
+                if (behavior == FileCollisionBehavior.Throw)
+                    throw new IOException($"File already exists: {existing.FullPath}");
+                if (behavior == FileCollisionBehavior.KeepExisting)
+                    return false;
+
+                file.Shadowed = existing;
+            }
+
+            file.Name = name;
+            file.Parent = directory;
+            directory._files[name] = file;
+
+            return true;
         }
+    }
 
-        /// <summary>Gets a file by its path.</summary>
-        /// <param name="path">The path relative to the root directory.</param>
-        /// <returns>The matching file.</returns>
-        /// <exception cref="FileNotFoundException">The path does not identify a file.</exception>
-        public VirtualFile GetFile(string path) => Root.GetFile(path);
-
-        /// <summary>Attempts to get a file of the requested type by its path.</summary>
-        /// <typeparam name="T">The file type to find.</typeparam>
-        /// <param name="path">The path relative to the root directory.</param>
-        /// <param name="file">Receives the matching file when found.</param>
-        /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
-        public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile => Root.TryGetFile<T>(path, out file);
-
-        /// <summary>Attempts to get a file by its path.</summary>
-        /// <param name="path">The path relative to the root directory.</param>
-        /// <param name="file">Receives the matching file when found.</param>
-        /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
-        public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file) => Root.TryGetFile(path, out file);
-
-        /// <summary>Determines whether a string is valid as a file name.</summary>
-        /// <param name="name">The file name to check.</param>
-        /// <returns><see langword="true"/> if the name contains no invalid file-name characters.</returns>
-        public static bool IsValidFileName(string name) =>
-            !string.IsNullOrWhiteSpace(name) &&
-            name.IndexOfAny(InvalidFileNameChars) == -1;
-
-        /// <summary>Determines whether a string is valid as a directory name.</summary>
-        /// <param name="name">The directory name to check.</param>
-        /// <returns><see langword="true"/> if the name contains no invalid path characters.</returns>
-        public static bool IsValidDirectoryName(string name) =>
-            !string.IsNullOrWhiteSpace(name) &&
-            name.IndexOfAny(InvalidPathChars) == -1;
-
-        /// <summary>Determines whether every component of a path is a valid name.</summary>
-        /// <param name="fullPath">The path to check.</param>
-        /// <returns><see langword="true"/> if all path components are valid.</returns>
-        public static bool IsValidFullPath(string fullPath)
+    /// <summary>
+    /// Removes a file. If the file shadows another file, the shadowed file becomes visible again.
+    /// </summary>
+    /// <param name="file">The file to remove.</param>
+    /// <returns><see langword="true"/> if the file was removed; <see langword="false"/> if it was not in a file system.</returns>
+    public bool RemoveFile(VirtualFile file)
+    {
+        lock (_lock)
         {
-            if (string.IsNullOrWhiteSpace(fullPath))
+            if (file.Parent is not { } directory)
                 return false;
 
-            var parts = fullPath.Split(new[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries);
-            return parts.All(IsValidDirectoryName) || parts.SkipLast(1).All(IsValidDirectoryName) && IsValidFileName(parts.Last());
+            var visible = directory._files[file.Name];
+
+            if (visible == file)
+            {
+                if (file.Shadowed is null)
+                    directory._files.Remove(file.Name);
+                else
+                    directory._files[file.Name] = file.Shadowed;
+            }
+            else
+            {
+                while (visible.Shadowed != file)
+                    visible = visible.Shadowed!;
+
+                visible.Shadowed = file.Shadowed;
+            }
+
+            file.Parent = null;
+            file.Shadowed = null;
+
+            return true;
         }
+    }
+
+    /// <summary>
+    /// Removes an empty directory.
+    /// </summary>
+    /// <param name="directory">The directory to remove.</param>
+    /// <returns><see langword="true"/> if the directory was removed; <see langword="false"/> if it is the root, already removed, or not empty.</returns>
+    public bool RemoveDirectory(VirtualDirectory directory)
+    {
+        lock (_lock)
+        {
+            if (directory.Parent is not { } parent || directory._files.Count > 0 || directory._directories.Count > 0)
+                return false;
+
+            parent._directories.Remove(directory.Name);
+            directory.Parent = null;
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Gets a file by its path.
+    /// </summary>
+    /// <param name="path">The path relative to the root directory.</param>
+    /// <returns>The matching file.</returns>
+    /// <exception cref="FileNotFoundException">The path does not identify a file.</exception>
+    public VirtualFile GetFile(string path) => Root.GetFile(path);
+
+    /// <summary>
+    /// Attempts to get a file by its path.
+    /// </summary>
+    /// <param name="path">The path relative to the root directory.</param>
+    /// <param name="file">Receives the matching file when found.</param>
+    /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file) => Root.TryGetFile(path, out file);
+
+    /// <summary>
+    /// Attempts to get a file of the requested type by its path.
+    /// </summary>
+    /// <typeparam name="T">The file type to find.</typeparam>
+    /// <param name="path">The path relative to the root directory.</param>
+    /// <param name="file">Receives the matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile => Root.TryGetFile(path, out file);
+
+    /// <summary>
+    /// Gets a directory by its path.
+    /// </summary>
+    /// <param name="path">The path relative to the root directory.</param>
+    /// <returns>The matching directory.</returns>
+    /// <exception cref="DirectoryNotFoundException">The path does not identify a directory.</exception>
+    public VirtualDirectory GetDirectory(string path) => Root.GetDirectory(path);
+
+    /// <summary>
+    /// Attempts to get a directory by its path.
+    /// </summary>
+    /// <param name="path">The path relative to the root directory.</param>
+    /// <param name="directory">Receives the matching directory when found.</param>
+    /// <returns><see langword="true"/> if the directory exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetDirectory(string path, [NotNullWhen(true)] out VirtualDirectory? directory) => Root.TryGetDirectory(path, out directory);
+
+    private VirtualDirectory CreateDirectories(ReadOnlySpan<string> names)
+    {
+        foreach (var name in names)
+            ValidateName(name);
+
+        var directory = Root;
+
+        foreach (var name in names)
+        {
+            if (!directory._directories.TryGetValue(name, out var child))
+            {
+                child = new VirtualDirectory(directory, name, _lock);
+                directory._directories.Add(name, child);
+            }
+
+            directory = child;
+        }
+
+        return directory;
+    }
+
+    private static void ValidateName(string name)
+    {
+        if (name is "." or "..")
+            throw new ArgumentException($"Invalid name: {name}", nameof(name));
     }
 }

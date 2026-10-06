@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 using RedFox.GameExtraction;
+using RedFox.IO.FileSystem;
 
 namespace ToolName.Sources;
 
@@ -59,6 +60,7 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
         {
             archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
             List<Asset> assets = [];
+            AssetFileSystemService fileSystem = assetManager.GetRequiredService<AssetFileSystemService>();
 
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
@@ -69,9 +71,9 @@ public sealed class ZipAssetSourceReader : IAssetSourceReader
                     continue;
                 }
 
-                string assetPath = ZipPathUtility.Normalize(entry.FullName);
                 ZipVirtualFile file = new(entry, archiveLock);
-                Asset asset = new(assetPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["ArchivePath"] = location, }, null, ZipPathUtility.GetAssetCategory(entry.Name));
+                fileSystem.AddFile(ZipPathUtility.Normalize(entry.FullName), file, FileCollisionBehavior.Override);
+                Asset asset = new(file.FullPath, ZipPathUtility.GetAssetType(entry.Name), file, $"{entry.Length:N0} bytes", new Dictionary<string, object?> { ["ArchivePath"] = location, }, null, ZipPathUtility.GetAssetCategory(entry.Name));
 
                 assets.Add(asset);
 

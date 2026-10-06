@@ -6,269 +6,131 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.IO.Enumeration;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace RedFox.IO.FileSystem
+namespace RedFox.IO.FileSystem;
+
+/// <summary>
+/// A directory within a <see cref="VirtualFileSystem"/> that contains files and sub-directories.
+/// </summary>
+public sealed class VirtualDirectory
 {
+    private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
+
+    internal readonly Lock _syncRoot;
+
+    internal readonly Dictionary<string, VirtualDirectory> _directories = new(StringComparer.OrdinalIgnoreCase);
+
+    internal readonly Dictionary<string, VirtualFile> _files = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
-    /// A class to hold and manipulate a virtual directory that contains files and sub-directories.
+    /// Gets the parent directory, or <see langword="null"/> for the root directory or a removed directory.
     /// </summary>
-    public class VirtualDirectory
+    public VirtualDirectory? Parent { get; internal set; }
+
+    /// <summary>
+    /// Gets the name of the directory.
+    /// </summary>
+    public string Name { get; }
+
+    /// <summary>
+    /// Gets the full path of the directory, using '/' as the separator.
+    /// </summary>
+    public string FullPath => Parent is null || Parent.Parent is null ? Name : $"{Parent.FullPath}/{Name}";
+
+    /// <summary>
+    /// Gets a snapshot of the directories stored within this directory.
+    /// </summary>
+    public IReadOnlyCollection<VirtualDirectory> Directories
     {
-        /// <summary>
-        /// Directories stored within this directory.
-        /// </summary>
-        internal readonly HashSet<VirtualDirectory> _directories =[];
-
-        /// <summary>
-        /// Files stored within this directory.
-        /// </summary>
-        internal readonly HashSet<VirtualFile> _files = [];
-
-        /// <summary>
-        /// Gets the parent directory.
-        /// </summary>
-        public VirtualDirectory? Parent { get; private set; }
-
-        /// <summary>
-        /// Gets or Sets the name of the directory.
-        /// </summary>
-        public string Name { get; set; }
-
-        /// <summary>
-        /// Gets the full path of the directory.
-        /// </summary>
-        public string FullPath => Parent == null ? Name : Path.Combine(Parent.FullPath, Name);
-
-        /// <summary>
-        /// Gets the directories stored within this directory.
-        /// </summary>
-        public IReadOnlyCollection<VirtualDirectory> Directories => _directories;
-
-        /// <summary>
-        /// Gets the files stored within this directory.
-        /// </summary>
-        public IReadOnlyCollection<VirtualFile> Files => _files;
-
-        /// <remarks>
-        /// Initializes a new instance of the <see cref="VirtualDirectory"/>.
-        /// </remarks>
-        internal VirtualDirectory()
+        get
         {
-            Name = string.Empty;
+            lock (_syncRoot)
+                return [.. _directories.Values];
         }
+    }
 
-        /// <remarks>
-        /// Initializes a new instance of the <see cref="VirtualDirectory"/> with the provided name.
-        /// </remarks>
-        /// <param name="name">The name of the directory.</param>
-        public VirtualDirectory(string name)
+    /// <summary>
+    /// Gets a snapshot of the visible files stored within this directory.
+    /// </summary>
+    public IReadOnlyCollection<VirtualFile> Files
+    {
+        get
         {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentNullException(nameof(name), "Empty name provided.");
-            if (name.IndexOfAny(VirtualFileSystem.InvalidFileNameChars) > -1)
-                throw new ArgumentException("Name contains invalid characters.", nameof(name));
-
-            Name = name;
+            lock (_syncRoot)
+                return [.. _files.Values];
         }
+    }
 
-        /// <summary>
-        /// Moves the this directory into the provided directory.
-        /// </summary>
-        /// <param name="newParent">The directory to move this directory into.</param>
-        public void MoveTo(VirtualDirectory? newParent)
+    internal VirtualDirectory(VirtualDirectory? parent, string name, Lock syncRoot)
+    {
+        Parent = parent;
+        Name = name;
+        _syncRoot = syncRoot;
+    }
+
+    /// <summary>
+    /// Returns the directories directly within this directory.
+    /// </summary>
+    /// <returns>An enumerable collection of directories.</returns>
+    public IEnumerable<VirtualDirectory> EnumerateDirectories() => EnumerateDirectories("*", SearchOption.TopDirectoryOnly);
+
+    /// <summary>
+    /// Returns the directories directly within this directory that match a search pattern.
+    /// </summary>
+    /// <param name="searchPattern">The search pattern to match against directory names.</param>
+    /// <returns>An enumerable collection of matching directories.</returns>
+    public IEnumerable<VirtualDirectory> EnumerateDirectories(string searchPattern) => EnumerateDirectories(searchPattern, SearchOption.TopDirectoryOnly);
+
+    /// <summary>
+    /// Returns the directories within this directory that match a search pattern.
+    /// </summary>
+    /// <param name="searchPattern">The search pattern to match against directory names.</param>
+    /// <param name="searchOption">Whether to search only this directory or all sub-directories.</param>
+    /// <returns>An enumerable collection of matching directories.</returns>
+    public IEnumerable<VirtualDirectory> EnumerateDirectories(string searchPattern, SearchOption searchOption)
+    {
+        var pending = new Stack<VirtualDirectory>([this]);
+
+        while (pending.TryPop(out var directory))
         {
-            if (newParent == Parent)
-                return;
-
-            Parent?._directories.Remove(this);
-            Parent = newParent;
-
-            if (newParent is not null && !newParent._directories.Add(this))
+            foreach (var child in directory.Directories)
             {
-                throw new IOException($"Directory: {newParent.FullPath} already contains a directory with the name: {Name}");
-            }
-        }
-
-        /// <summary>
-        /// Create a new directory to this directory.
-        /// </summary>
-        /// <param name="name">The name of the directory.</param>
-        /// <returns>The resulting directory.</returns>
-        public VirtualDirectory CreateDirectory(string name)
-        {
-            var newDirectory = new VirtualDirectory(name);
-            newDirectory.MoveTo(this);
-            return newDirectory;
-        }
-
-        /// <summary>
-        /// Creates a new directory and directories within this directory.
-        /// </summary>
-        /// <param name="fullPath">The full directory path.</param>
-        /// <returns>The resulting directory at the end of the path.</returns>
-        public VirtualDirectory? CreateDirectories(string? fullPath)
-        {
-            if (string.IsNullOrWhiteSpace(fullPath))
-                return null;
-
-            var parts = fullPath.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-
-            var current = this;
-
-            for (int i = 0; i < parts.Length; i++)
-            {
-                current = current._directories.FirstOrDefault(x => x.Name.Equals(parts[i], StringComparison.OrdinalIgnoreCase)) ?? current.CreateDirectory(parts[i]);
-            }
-
-            return current;
-        }
-
-        /// <summary>Finds a directory by its path, ignoring name casing.</summary>
-        /// <param name="fullPath">The path relative to this directory.</param>
-        /// <param name="directory">Receives the matching directory when found.</param>
-        /// <returns><see langword="true"/> if the directory exists; otherwise, <see langword="false"/>.</returns>
-        public bool TryGetDirectory(string fullPath, [NotNullWhen(true)] out VirtualDirectory? directory)
-        {
-            directory = null;
-
-            if (string.IsNullOrWhiteSpace(fullPath))
-                return false;
-
-            string[] parts = fullPath.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-
-            var current = this;
-
-            for (int i = 0; i < parts.Length; i++)
-            {
-                string dirName = parts[i];
-
-                var dir = current._directories.FirstOrDefault(x => x.Name.Equals(dirName, StringComparison.OrdinalIgnoreCase));
-
-                if (dir is null)
-                {
-                    return false;
-                }
-
-                current = dir;
-            }
-
-            directory = current;
-            return true;
-        }
-
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories() => EnumerateDirectories(null, "*", SearchOption.TopDirectoryOnly);
-
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path) => EnumerateDirectories(path, "*", SearchOption.TopDirectoryOnly);
-
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path, string searchPattern) => EnumerateDirectories(path, searchPattern, SearchOption.TopDirectoryOnly);
-
-        /// <summary>
-        /// Returns an enumerable collection of the directories that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <param name="searchOption">Specified the search option indicating whether to search all directories or only the top directory.</param>
-        /// <returns>An enumerable collection of the directories within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualDirectory> EnumerateDirectories(string? path, string searchPattern, SearchOption searchOption)
-        {
-            var directory = this;
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                if (!TryGetDirectory(path, out directory))
-                {
-                    throw new DirectoryNotFoundException($"Failed to find directory: {path}");
-                }
-            }
-
-            foreach (var dir in directory._directories)
-            {
-                if (FileSystemName.MatchesWin32Expression(searchPattern, dir.Name))
-                    yield return dir;
-
+                if (FileSystemName.MatchesWin32Expression(searchPattern, child.Name))
+                    yield return child;
                 if (searchOption == SearchOption.AllDirectories)
-                {
-                    foreach (var subDir in dir.EnumerateDirectories(null, searchPattern, searchOption))
-                    {
-                        if (FileSystemName.MatchesWin32Expression(searchPattern, subDir.Name))
-                            yield return subDir;
-                    }
-                }
+                    pending.Push(child);
             }
         }
+    }
 
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles() => EnumerateFiles(null, "*", SearchOption.TopDirectoryOnly);
+    /// <summary>
+    /// Returns the files directly within this directory.
+    /// </summary>
+    /// <returns>An enumerable collection of files.</returns>
+    public IEnumerable<VirtualFile> EnumerateFiles() => EnumerateFiles("*", SearchOption.TopDirectoryOnly);
 
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path) => EnumerateFiles(path, "*", SearchOption.TopDirectoryOnly);
+    /// <summary>
+    /// Returns the files directly within this directory that match a search pattern.
+    /// </summary>
+    /// <param name="searchPattern">The search pattern to match against file names.</param>
+    /// <returns>An enumerable collection of matching files.</returns>
+    public IEnumerable<VirtualFile> EnumerateFiles(string searchPattern) => EnumerateFiles(searchPattern, SearchOption.TopDirectoryOnly);
 
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path, string searchPattern) => EnumerateFiles(path, searchPattern, SearchOption.TopDirectoryOnly);
+    /// <summary>
+    /// Returns the files within this directory that match a search pattern.
+    /// </summary>
+    /// <param name="searchPattern">The search pattern to match against file names.</param>
+    /// <param name="searchOption">Whether to search only this directory or all sub-directories.</param>
+    /// <returns>An enumerable collection of matching files.</returns>
+    public IEnumerable<VirtualFile> EnumerateFiles(string searchPattern, SearchOption searchOption)
+    {
+        var pending = new Stack<VirtualDirectory>([this]);
 
-        /// <summary>
-        /// Returns an enumerable collection of the files that meet specified criteria.
-        /// </summary>
-        /// <param name="path">The path to the directory to search. This string is not case-sensitive. If null or empty, the search starts from this directory.</param>
-        /// <param name="searchPattern">The search string to match against the names.</param>
-        /// <param name="searchOption">Specified the search option indicating whether to search all directories or only the top directory.</param>
-        /// <returns>An enumerable collection of the files within the directory that match the specified search pattern and search option.</returns>
-        /// <exception cref="DirectoryNotFoundException">Thrown if the directory could not be found.</exception>
-        public IEnumerable<VirtualFile> EnumerateFiles(string? path, string searchPattern, SearchOption searchOption)
+        while (pending.TryPop(out var directory))
         {
-            var directory = this;
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                if (!TryGetDirectory(path, out directory))
-                {
-                    throw new DirectoryNotFoundException($"Failed to find directory: {path}");
-                }
-            }
-
-            foreach (var file in directory._files)
+            foreach (var file in directory.Files)
             {
                 if (FileSystemName.MatchesWin32Expression(searchPattern, file.Name))
                     yield return file;
@@ -276,97 +138,107 @@ namespace RedFox.IO.FileSystem
 
             if (searchOption == SearchOption.AllDirectories)
             {
-                foreach (var dir in directory.EnumerateDirectories(null, "*", searchOption))
-                {
-                    foreach (var file in dir._files)
-                    {
-                        if (FileSystemName.MatchesWin32Expression(searchPattern, file.Name))
-                            yield return file;
-                    }
-                }
+                foreach (var child in directory.Directories)
+                    pending.Push(child);
             }
-        }
-
-        /// <summary>Gets a file by its path.</summary>
-        /// <param name="path">The path relative to this directory.</param>
-        /// <returns>The matching file.</returns>
-        /// <exception cref="FileNotFoundException">The path does not identify a file.</exception>
-        public VirtualFile GetFile(string path)
-        {
-            if (!TryGetFile(path, out var file))
-                throw new FileNotFoundException("Could not find file.", path);
-
-            return file;
-        }
-
-        /// <summary>Attempts to get a file of the requested type by its path.</summary>
-        /// <typeparam name="T">The file type to find.</typeparam>
-        /// <param name="path">The path relative to this directory.</param>
-        /// <param name="file">Receives the matching file when found.</param>
-        /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
-        public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile
-        {
-            file = null;
-            if (TryGetFile(path, out var foundFile) && foundFile is T typedFile)
-            {
-                file = typedFile;
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>Attempts to get a file by its path.</summary>
-        /// <param name="path">The path relative to this directory.</param>
-        /// <param name="file">Receives the matching file when found.</param>
-        /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
-        public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file)
-        {
-            file = null;
-
-            if (string.IsNullOrWhiteSpace(path))
-                return false;
-
-            string[] parts = path.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-
-            var current = this;
-
-            for (int i = 0; i < parts.Length - 1; i++)
-            {
-                string dirName = parts[i];
-
-                var dir = current._directories.FirstOrDefault(x => x.Name.Equals(dirName, StringComparison.OrdinalIgnoreCase));
-
-                if (dir is null)
-                {
-                    return false;
-                }
-
-                current = dir;
-            }
-
-            file = current._files.FirstOrDefault(x => FileSystemName.MatchesSimpleExpression(parts[^1], x.Name, true));
-            return file is not null;
-        }
-
-        /// <inheritdoc/>
-        public override int GetHashCode()
-        {
-            return StringComparer.OrdinalIgnoreCase.GetHashCode(Name);
-        }
-
-        /// <inheritdoc/>
-        public override bool Equals(object? obj)
-        {
-            if (obj is VirtualDirectory directory)
-                return directory.Name.Equals(Name, StringComparison.OrdinalIgnoreCase);
-
-            return base.Equals(obj);
-        }
-
-        /// <inheritdoc/>
-        public override string ToString()
-        {
-            return Name;
         }
     }
+
+    /// <summary>
+    /// Gets a file by its path relative to this directory.
+    /// </summary>
+    /// <param name="path">The path relative to this directory.</param>
+    /// <returns>The matching file.</returns>
+    /// <exception cref="FileNotFoundException">The path does not identify a file.</exception>
+    public VirtualFile GetFile(string path) => TryGetFile(path, out var file) ? file : throw new FileNotFoundException("Could not find file.", path);
+
+    /// <summary>
+    /// Attempts to get a file by its path relative to this directory.
+    /// </summary>
+    /// <param name="path">The path relative to this directory.</param>
+    /// <param name="file">Receives the matching file when found.</param>
+    /// <returns><see langword="true"/> if the file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetFile(string path, [NotNullWhen(true)] out VirtualFile? file)
+    {
+        file = null;
+
+        var separator = path.AsSpan().LastIndexOfAny('/', '\\');
+        var directory = this;
+
+        if (separator >= 0 && !TryGetDirectory(path[..separator], out directory))
+            return false;
+
+        lock (_syncRoot)
+            return directory._files.TryGetValue(path[(separator + 1)..], out file);
+    }
+
+    /// <summary>
+    /// Attempts to get a file of the requested type by its path relative to this directory.
+    /// </summary>
+    /// <typeparam name="T">The file type to find.</typeparam>
+    /// <param name="path">The path relative to this directory.</param>
+    /// <param name="file">Receives the matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile
+    {
+        file = TryGetFile(path, out var found) ? found as T : null;
+        return file is not null;
+    }
+
+    /// <summary>
+    /// Gets a directory by its path relative to this directory.
+    /// </summary>
+    /// <param name="path">The path relative to this directory.</param>
+    /// <returns>The matching directory.</returns>
+    /// <exception cref="DirectoryNotFoundException">The path does not identify a directory.</exception>
+    public VirtualDirectory GetDirectory(string path) => TryGetDirectory(path, out var directory) ? directory : throw new DirectoryNotFoundException($"Could not find directory: {path}");
+
+    /// <summary>
+    /// Attempts to get a directory by its path relative to this directory.
+    /// </summary>
+    /// <param name="path">The path relative to this directory. An empty path returns this directory.</param>
+    /// <param name="directory">Receives the matching directory when found.</param>
+    /// <returns><see langword="true"/> if the directory exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetDirectory(string path, [NotNullWhen(true)] out VirtualDirectory? directory)
+    {
+        directory = this;
+
+        lock (_syncRoot)
+        {
+            foreach (var name in path.Split(VirtualFileSystem.Separators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!directory._directories.TryGetValue(name, out directory))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Extracts this directory and its contents to disk. Existing files are not overwritten.
+    /// </summary>
+    /// <param name="destinationDirectoryName">The directory to extract into.</param>
+    public void ExtractToDirectory(string destinationDirectoryName) => ExtractToDirectory(destinationDirectoryName, false);
+
+    /// <summary>
+    /// Extracts this directory and its contents to disk. Characters that are invalid in file names on this platform are replaced with '_'.
+    /// </summary>
+    /// <param name="destinationDirectoryName">The directory to extract into.</param>
+    /// <param name="overwriteFiles"><see langword="true"/> to overwrite existing files; otherwise, <see langword="false"/>.</param>
+    public void ExtractToDirectory(string destinationDirectoryName, bool overwriteFiles)
+    {
+        Directory.CreateDirectory(destinationDirectoryName);
+
+        foreach (var file in Files)
+            file.ExtractToFile(Path.Join(destinationDirectoryName, GetSafeFileName(file.Name)), overwriteFiles);
+
+        foreach (var directory in Directories)
+            directory.ExtractToDirectory(Path.Join(destinationDirectoryName, GetSafeFileName(directory.Name)), overwriteFiles);
+    }
+
+    /// <inheritdoc/>
+    public override string ToString() => Name;
+
+    private static string GetSafeFileName(string name) => name.IndexOfAny(InvalidFileNameChars) < 0 ? name : string.Join('_', name.Split(InvalidFileNameChars));
 }
