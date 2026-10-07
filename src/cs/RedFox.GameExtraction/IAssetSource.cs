@@ -18,7 +18,7 @@ public interface IAssetSource : IAsyncDisposable, IDisposable
     IReadOnlyList<Asset> Assets { get; }
 
     /// <summary>
-    /// Attempts to resolve an asset by virtual path.
+    /// Attempts to resolve an asset by virtual path. Assets of different types may share a path, in which case the first match is returned.
     /// </summary>
     /// <param name="path">The virtual path of the asset to resolve.</param>
     /// <param name="asset">The resolved asset when one is found.</param>

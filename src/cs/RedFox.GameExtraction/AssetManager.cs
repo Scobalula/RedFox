@@ -1068,15 +1068,19 @@ public sealed class AssetManager
 
     private static void ValidateAssets(IReadOnlyList<Asset> assets)
     {
-        HashSet<string> seenPaths = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, HashSet<string>> seenPathsByType = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (Asset asset in assets)
         {
-            string normalizedPath = NormalizeVirtualPath(asset.Name);
-
-            if (!seenPaths.Add(normalizedPath))
+            if (!seenPathsByType.TryGetValue(asset.Type, out HashSet<string>? seenPaths))
             {
-                throw new InvalidOperationException($"An asset with the path '{asset.Name}' has already been registered for this source.");
+                seenPaths = new(StringComparer.OrdinalIgnoreCase);
+                seenPathsByType[asset.Type] = seenPaths;
+            }
+
+            if (!seenPaths.Add(NormalizeVirtualPath(asset.Name)))
+            {
+                throw new InvalidOperationException($"An asset of type '{asset.Type}' with the path '{asset.Name}' has already been registered for this source.");
             }
         }
     }

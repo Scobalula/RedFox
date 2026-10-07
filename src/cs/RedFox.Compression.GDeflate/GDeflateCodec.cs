@@ -56,7 +56,10 @@ namespace RedFox.Compression.GDeflate
                 throw new InvalidDataException("The GDeflate tile offset table is incomplete.");
 
             ReadOnlySpan<byte> payload = source[headerLength..];
-            uint compressedLength = BinaryPrimitives.ReadUInt32LittleEndian(source[8..]);
+
+            // The first offset holds the size of the last tile, as the first tile always starts at zero
+            uint lastTileStart = tileCount == 1 ? 0 : BinaryPrimitives.ReadUInt32LittleEndian(source[(8 + (tileCount - 1) * sizeof(uint))..]);
+            uint compressedLength = lastTileStart + BinaryPrimitives.ReadUInt32LittleEndian(source[8..]);
             if (compressedLength == 0 || compressedLength > payload.Length)
                 throw new InvalidDataException("The GDeflate compressed length is invalid.");
 
