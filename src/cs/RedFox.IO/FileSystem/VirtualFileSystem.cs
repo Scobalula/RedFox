@@ -176,6 +176,25 @@ public sealed class VirtualFileSystem
     public bool TryGetFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile => Root.TryGetFile(path, out file);
 
     /// <summary>
+    /// Attempts to get the first file whose name matches a search pattern.
+    /// Only the final path segment is treated as a pattern; the directory path must be exact.
+    /// </summary>
+    /// <param name="path">The path relative to the root directory. The final segment is a search pattern.</param>
+    /// <param name="file">Receives the first matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryFindFirstFile(string path, [NotNullWhen(true)] out VirtualFile? file) => Root.TryFindFirstFile(path, out file);
+
+    /// <summary>
+    /// Attempts to get the first file of the requested type whose name matches a search pattern.
+    /// Only the final path segment is treated as a pattern; the directory path must be exact.
+    /// </summary>
+    /// <typeparam name="T">The file type to find.</typeparam>
+    /// <param name="path">The path relative to the root directory. The final segment is a search pattern.</param>
+    /// <param name="file">Receives the first matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryFindFirstFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile => Root.TryFindFirstFile(path, out file);
+
+    /// <summary>
     /// Gets a directory by its path.
     /// </summary>
     /// <param name="path">The path relative to the root directory.</param>

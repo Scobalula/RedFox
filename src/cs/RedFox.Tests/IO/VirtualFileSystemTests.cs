@@ -75,4 +75,21 @@ public sealed class VirtualFileSystemTests
         Assert.True(fileSystem.TryGetFile("root\\child\\Name.bin", out VirtualFile? file));
         Assert.NotNull(file);
     }
+
+    [Fact]
+    public void TryFindFirstFile_ReturnsFirstWildcardMatchInDirectory()
+    {
+        VirtualFileSystem fileSystem = new();
+        MemoryVirtualFile first = new([1]);
+        fileSystem.AddFile("a\\b\\alpha.txt", first);
+        fileSystem.AddFile("a\\b\\beta.dat", new MemoryVirtualFile([2]));
+        fileSystem.AddFile("a\\other\\gamma.txt", new MemoryVirtualFile([3]));
+
+        Assert.True(fileSystem.TryFindFirstFile("a\\b\\*.txt", out VirtualFile? file));
+        Assert.Same(first, file);
+        Assert.True(fileSystem.TryFindFirstFile<MemoryVirtualFile>("a\\b\\*.txt", out MemoryVirtualFile? typed));
+        Assert.Same(first, typed);
+        Assert.False(fileSystem.TryFindFirstFile("a\\b\\*.bin", out _));
+        Assert.False(fileSystem.TryFindFirstFile("missing\\*.txt", out _));
+    }
 }

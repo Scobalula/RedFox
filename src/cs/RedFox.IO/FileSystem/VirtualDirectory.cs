@@ -186,6 +186,54 @@ public sealed class VirtualDirectory
     }
 
     /// <summary>
+    /// Attempts to get the first file whose name matches a search pattern, relative to this directory.
+    /// Only the final path segment is treated as a pattern; the directory path must be exact.
+    /// </summary>
+    /// <param name="path">The path relative to this directory. The final segment is a search pattern.</param>
+    /// <param name="file">Receives the first matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryFindFirstFile(string path, [NotNullWhen(true)] out VirtualFile? file)
+    {
+        file = null;
+
+        var separator = path.AsSpan().LastIndexOfAny('/', '\\');
+        var directory = this;
+
+        if (separator >= 0 && !TryGetDirectory(path[..separator], out directory))
+            return false;
+
+        var pattern = path[(separator + 1)..];
+
+        lock (_syncRoot)
+        {
+            foreach (var candidate in directory._files.Values)
+            {
+                if (FileSystemName.MatchesWin32Expression(pattern, candidate.Name))
+                {
+                    file = candidate;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Attempts to get the first file of the requested type whose name matches a search pattern, relative to this directory.
+    /// Only the final path segment is treated as a pattern; the directory path must be exact.
+    /// </summary>
+    /// <typeparam name="T">The file type to find.</typeparam>
+    /// <param name="path">The path relative to this directory. The final segment is a search pattern.</param>
+    /// <param name="file">Receives the first matching file when found.</param>
+    /// <returns><see langword="true"/> if a matching file exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryFindFirstFile<T>(string path, [NotNullWhen(true)] out T? file) where T : VirtualFile
+    {
+        file = TryFindFirstFile(path, out var found) ? found as T : null;
+        return file is not null;
+    }
+
+    /// <summary>
     /// Gets a directory by its path relative to this directory.
     /// </summary>
     /// <param name="path">The path relative to this directory.</param>
