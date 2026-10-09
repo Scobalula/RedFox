@@ -1,12 +1,14 @@
-﻿
+
 
 namespace RedFox.Compression.Oodle
 {
+
     /// <summary>
     /// Oodle verbosity setting.
     /// </summary>
     public enum OodleVerbosity
     {
+
         /// <summary>
         /// Suppresses Oodle messages.
         /// </summary>

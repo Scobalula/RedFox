@@ -76,7 +76,7 @@ Please keep in mind some of these libraries aren't directly used in the project,
 | [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) | MVVM pattern support | MIT |
 | [Microsoft.TSS](https://github.com/microsoft/TSS.MSR) | TPM 2.0 TSS for hardware license binding | MIT |
 | [xUnit](https://github.com/xunit/xunit) | Unit testing | Apache 2.0 |
-| [miniz](https://github.com/richgel999/miniz) | ZLIB/Deflate compression (native) | MIT |
+| [zlib](https://zlib.net/) | Raw Deflate, zlib, and gzip compression (native) | zlib |
 | [LZ4](https://github.com/lz4/lz4) | Extremely fast compression (native, bundled via submodule) | BSD 2-Clause |
 | [libzstd](https://github.com/facebook/zstd) | ZStandard compression (native) | BSD 3-Clause |
 | [libFLAC](https://github.com/xiph/flac) | FLAC audio codec (native) | BSD 3-Clause |

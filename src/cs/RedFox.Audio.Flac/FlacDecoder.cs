@@ -112,7 +112,9 @@ internal sealed unsafe class FlacDecoder : AudioDecoder
         if (succeeded == 0)
         {
             string state = FlacInterop.GetDecoderState(_decoder);
-            FlacInterop.DecoderFlush(_decoder);
+            int flushed = FlacInterop.DecoderFlush(_decoder);
+            if (flushed == 0)
+                state += $"; decoder flush also failed: {FlacInterop.GetDecoderState(_decoder)}";
             throw new AudioException($"Failed to seek the FLAC stream to frame {frame}: {state}");
         }
 

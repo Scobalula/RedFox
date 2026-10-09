@@ -8,19 +8,28 @@
 // --------------------------------------------------------------------------------------
 using System.Runtime.InteropServices;
 
-namespace RedFox.Compression.GDeflate
+namespace RedFox.Compression.GDeflate;
+
+internal partial class GDeflateInterop
 {
-    internal partial class GDeflateInterop
-    {
-        private const string Library = "libgdeflate";
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_alloc_gdeflate_compressor")]
+    internal static partial nint CreateCompressor(int level);
 
-        [LibraryImport(Library, EntryPoint = "libdeflate_alloc_gdeflate_decompressor", SetLastError = true)]
-        public static partial nint CreateDecompressor();
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_alloc_gdeflate_decompressor")]
+    internal static partial nint CreateDecompressor();
 
-        [LibraryImport(Library, EntryPoint = "libdeflate_free_gdeflate_decompressor")]
-        public static partial void FreeDecompressor(nint decompressor);
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_free_gdeflate_compressor")]
+    internal static partial void FreeCompressor(nint context);
 
-        [LibraryImport(Library, EntryPoint = "libdeflate_gdeflate_decompress", SetLastError = true)]
-        public static partial int Decompress(nint decompressor, ReadOnlySpan<GDeflatePage> pages, nuint pageCount, Span<byte> output, nuint availableOutputSize, out nuint returnedSize);
-    }
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_free_gdeflate_decompressor")]
+    internal static partial void FreeDecompressor(nint context);
+
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_gdeflate_compress_bound")]
+    internal static partial nuint CompressBound(nint context, nuint size, out nuint pageCount);
+
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_gdeflate_compress")]
+    internal static partial nuint Compress(nint context, ReadOnlySpan<byte> source, nuint size, Span<GDeflatePage> pages, nuint pageCount);
+
+    [LibraryImport("libgdeflate", EntryPoint = "libdeflate_gdeflate_decompress")]
+    internal static partial int Decompress(nint context, ReadOnlySpan<GDeflatePage> pages, nuint pageCount, Span<byte> destination, nuint capacity, out nuint written);
 }

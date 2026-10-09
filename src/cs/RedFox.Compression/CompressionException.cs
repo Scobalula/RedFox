@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library - MIT License
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -14,6 +14,7 @@ namespace RedFox.Compression;
 /// </summary>
 public class CompressionException : Exception
 {
+
     /// <summary>
     /// Initializes a new instance of the <see cref="CompressionException"/> class.
     /// </summary>

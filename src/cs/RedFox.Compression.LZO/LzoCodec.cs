@@ -27,7 +27,7 @@ public sealed class LzoCodec : CompressionCodec
     private const int VersionMarker = 17;
 
     /// <inheritdoc/>
-    public override CompressionCodecFlags Flags => CompressionCodecFlags.None;
+    public override CompressionCodecFlags Flags => CompressionCodecFlags.Compression | CompressionCodecFlags.Decompression;
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
@@ -49,59 +49,6 @@ public sealed class LzoCodec : CompressionCodec
         {
             ArrayPool<int>.Shared.Return(matchTable);
         }
-    }
-
-    private static int Compress(ReadOnlySpan<byte> source, Span<byte> destination, int[] matchTable)
-    {
-        int destinationIndex = 0;
-        Array.Fill(matchTable, NotFound, 0, HashSize);
-
-        int sourceIndex = 0;
-        int literalStart = 0;
-        int lastStateIndex = NotFound;
-        bool wroteInstruction = false;
-
-        while (sourceIndex <= source.Length - MinMatchLength)
-        {
-            int matchKey = GetHash(source, sourceIndex);
-            int matchIndex = matchTable[matchKey];
-            matchTable[matchKey] = sourceIndex;
-
-            if (matchIndex >= 0 && sourceIndex - matchIndex <= MaxM4Distance && HasMatch(source, matchIndex, sourceIndex))
-            {
-                int matchLength = CountMatchLength(source, matchIndex, sourceIndex);
-                int matchDistance = sourceIndex - matchIndex;
-                int matchStart = sourceIndex;
-
-                EmitLiterals(source[literalStart..sourceIndex], destination, ref destinationIndex, ref wroteInstruction, ref lastStateIndex);
-                EmitMatch(matchLength, matchDistance, destination, ref destinationIndex, ref lastStateIndex);
-
-                sourceIndex += matchLength;
-                literalStart = sourceIndex;
-
-                int tableIndex = matchStart + 1;
-                while (tableIndex < sourceIndex && tableIndex <= source.Length - MinMatchLength)
-                {
-                    matchTable[GetHash(source, tableIndex)] = tableIndex;
-                    tableIndex++;
-                }
-            }
-            else
-            {
-                sourceIndex++;
-            }
-        }
-
-        EmitLiterals(source[literalStart..], destination, ref destinationIndex, ref wroteInstruction, ref lastStateIndex);
-        WriteEndMarker(destination, ref destinationIndex);
-
-        return destinationIndex;
-    }
-
-    /// <inheritdoc/>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-    {
-        throw new NotSupportedException("LzoCodec does not support dictionaries.");
     }
 
     /// <inheritdoc/>
@@ -231,12 +178,6 @@ public sealed class LzoCodec : CompressionCodec
     }
 
     /// <inheritdoc/>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-    {
-        throw new NotSupportedException("LzoCodec does not support dictionaries.");
-    }
-
-    /// <inheritdoc/>
     public override int GetMaxCompressedSize(int inputSize)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(inputSize);
@@ -250,10 +191,51 @@ public sealed class LzoCodec : CompressionCodec
         return (int)maxSize;
     }
 
-    /// <inheritdoc/>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer)
+    private static int Compress(ReadOnlySpan<byte> source, Span<byte> destination, int[] matchTable)
     {
-        throw new NotSupportedException("LZO does not store the decompressed size.");
+        int destinationIndex = 0;
+        Array.Fill(matchTable, NotFound, 0, HashSize);
+
+        int sourceIndex = 0;
+        int literalStart = 0;
+        int lastStateIndex = NotFound;
+        bool wroteInstruction = false;
+
+        while (sourceIndex <= source.Length - MinMatchLength)
+        {
+            int matchKey = GetHash(source, sourceIndex);
+            int matchIndex = matchTable[matchKey];
+            matchTable[matchKey] = sourceIndex;
+
+            if (matchIndex >= 0 && sourceIndex - matchIndex <= MaxM4Distance && HasMatch(source, matchIndex, sourceIndex))
+            {
+                int matchLength = CountMatchLength(source, matchIndex, sourceIndex);
+                int matchDistance = sourceIndex - matchIndex;
+                int matchStart = sourceIndex;
+
+                EmitLiterals(source[literalStart..sourceIndex], destination, ref destinationIndex, ref wroteInstruction, ref lastStateIndex);
+                EmitMatch(matchLength, matchDistance, destination, ref destinationIndex, ref lastStateIndex);
+
+                sourceIndex += matchLength;
+                literalStart = sourceIndex;
+
+                int tableIndex = matchStart + 1;
+                while (tableIndex < sourceIndex && tableIndex <= source.Length - MinMatchLength)
+                {
+                    matchTable[GetHash(source, tableIndex)] = tableIndex;
+                    tableIndex++;
+                }
+            }
+            else
+            {
+                sourceIndex++;
+            }
+        }
+
+        EmitLiterals(source[literalStart..], destination, ref destinationIndex, ref wroteInstruction, ref lastStateIndex);
+        WriteEndMarker(destination, ref destinationIndex);
+
+        return destinationIndex;
     }
 
     private static void CopyLiterals(ReadOnlySpan<byte> source, ref int sourceIndex, Span<byte> destination, ref int destinationIndex, int length)

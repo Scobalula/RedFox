@@ -3,23 +3,20 @@ using System.Runtime.InteropServices;
 namespace RedFox.Compression.Oodle;
 
 /// <summary>
-/// Loads the requested native Oodle library
-/// and decompresses Oodle streams with it.
+/// Decompresses Oodle data using an application-provided Oodle library.
 /// </summary>
-public sealed unsafe class OodleCodec : CompressionCodec, IDisposable
+public sealed unsafe class OodleCodec : CompressionCodec
 {
-    private readonly object _nativeLock = new();
     private nint _oodleHandle;
     private delegate* unmanaged[Cdecl]<byte*, nint, byte*, nint, int, int, int, byte*, nint, nint, void*, byte*, nint, int, nint> _oodleDecompress;
 
     /// <inheritdoc/>
-    public override CompressionCodecFlags Flags => CompressionCodecFlags.None;
+    public override CompressionCodecFlags Flags => CompressionCodecFlags.Decompression;
 
     /// <summary>
-    /// Initializes an Oodle decoder
-    /// using the specified native library.
+    /// Loads the Oodle library used to decompress data.
     /// </summary>
-    /// <param name="oodlePath">The path to the Oodle library.</param>
+    /// <param name="oodlePath">The path to the Oodle native library.</param>
     public OodleCodec(string oodlePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oodlePath);
@@ -37,70 +34,38 @@ public sealed unsafe class OodleCodec : CompressionCodec, IDisposable
     }
 
     /// <inheritdoc/>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
-    {
-        throw new NotSupportedException();
-    }
-
-    /// <inheritdoc/>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-    {
-        throw new NotSupportedException();
-    }
-
-    /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        lock (_nativeLock)
+        ObjectDisposedException.ThrowIf(_oodleHandle == 0, this);
+        if (source.IsEmpty)
+            throw new ArgumentException("The compressed source is empty.", nameof(source));
+
+        fixed (byte* sourcePointer = source)
+        fixed (byte* destinationPointer = destination)
         {
-            ObjectDisposedException.ThrowIf(_oodleHandle == 0, this);
-            if (source.IsEmpty)
-                throw new ArgumentException("The compressed source is empty.", nameof(source));
+            nint decompressedSize = _oodleDecompress(sourcePointer, source.Length, destinationPointer, destination.Length, (int)OodleFuzzSafe.Yes, (int)OodleCheckCRC.No, (int)OodleVerbosity.No, null, 0, 0, null, null, 0, (int)OodleThreading.None);
+            GC.KeepAlive(this);
+            if (decompressedSize <= 0 || decompressedSize > destination.Length)
+                throw new CompressionException("Oodle decompression failed.", "decompression", decompressedSize.ToString());
 
-            fixed (byte* sourcePointer = source)
-            fixed (byte* destinationPointer = destination)
-            {
-                nint decompressedSize = _oodleDecompress(sourcePointer, source.Length, destinationPointer, destination.Length, (int)OodleFuzzSafe.Yes, (int)OodleCheckCRC.No, (int)OodleVerbosity.No, null, 0, 0, null, null, 0, (int)OodleThreading.None);
-                if (decompressedSize <= 0 || decompressedSize > destination.Length)
-                    throw new CompressionException("Oodle decompression failed.", "decompression", decompressedSize.ToString());
-
-                return checked((int)decompressedSize);
-            }
+            return checked((int)decompressedSize);
         }
     }
 
     /// <inheritdoc/>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
+    public override void Dispose()
     {
-        throw new NotSupportedException();
+        if (_oodleHandle == 0)
+            return;
+
+        NativeLibrary.Free(_oodleHandle);
+        _oodleHandle = 0;
+        _oodleDecompress = null;
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>
-    /// Releases the handle
-    /// for the native Oodle library.
+    /// Releases the loaded native library if the codec was not disposed.
     /// </summary>
-    public void Dispose()
-    {
-        lock (_nativeLock)
-        {
-            if (_oodleHandle == 0)
-                return;
-
-            NativeLibrary.Free(_oodleHandle);
-            _oodleHandle = 0;
-            _oodleDecompress = null;
-        }
-    }
-
-    /// <inheritdoc/>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer)
-    {
-        throw new NotSupportedException();
-    }
-
-    /// <inheritdoc/>
-    public override int GetMaxCompressedSize(int inputSize)
-    {
-        throw new NotSupportedException();
-    }
+    ~OodleCodec() => Dispose();
 }

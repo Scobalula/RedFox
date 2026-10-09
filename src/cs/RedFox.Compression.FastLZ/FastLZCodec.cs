@@ -15,16 +15,8 @@ using System.Runtime.CompilerServices;
 namespace RedFox.Compression.FastLZ;
 
 /// <summary>
-/// Pure-managed implementation of the FastLZ Level 1 compression algorithm. The bit-stream produced is
-/// compatible with reference FastLZ Level 1 (no header byte, no stored uncompressed length).
+/// Compresses and decompresses FastLZ blocks.
 /// </summary>
-/// <remarks>
-/// <para>FastLZ is a small and very fast LZ77-class codec aimed at real-time compression of binary data such as
-/// game assets. Level 1 is the simpler of FastLZ's two compression levels and is the most widely used in the
-/// wild.</para>
-/// <para>The bit-stream does not store the decompressed length; callers must know (or sideband) the
-/// uncompressed size before calling <see cref="Decompress(ReadOnlySpan{byte}, Span{byte})"/>.</para>
-/// </remarks>
 public sealed class FastLZCodec : CompressionCodec
 {
     private const int HashLog = 13;
@@ -37,33 +29,18 @@ public sealed class FastLZCodec : CompressionCodec
     // (matches the reference's MAX_LEN - 2 cap). Represents (real_match_length - 2).
     private const int MaxLenParam = MaxLen - 2; // 262
 
-    /// <inheritdoc />
-    public override CompressionCodecFlags Flags => CompressionCodecFlags.None;
+    /// <inheritdoc/>
+    public override CompressionCodecFlags Flags => CompressionCodecFlags.Compression | CompressionCodecFlags.Decompression;
 
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public override int GetMaxCompressedSize(int inputSize)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(inputSize);
         // FastLZ guarantees an upper bound of input + 5% + 66 for the worst-case incompressible stream.
-        return inputSize + (inputSize / 20) + 66;
+        return checked(inputSize + (inputSize / 20) + 66);
     }
 
-    /// <inheritdoc />
-    /// <exception cref="NotSupportedException">FastLZ does not encode the decompressed size into its bit-stream.</exception>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer)
-        => throw new NotSupportedException("FastLZ does not store the decompressed size in the stream.");
-
-    /// <inheritdoc />
-    /// <exception cref="NotSupportedException">FastLZ Level 1 does not support external dictionaries.</exception>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-        => throw new NotSupportedException("FastLZCodec does not support dictionaries.");
-
-    /// <inheritdoc />
-    /// <exception cref="NotSupportedException">FastLZ Level 1 does not support external dictionaries.</exception>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-        => throw new NotSupportedException("FastLZCodec does not support dictionaries.");
-
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         int length = source.Length;
@@ -76,7 +53,7 @@ public sealed class FastLZCodec : CompressionCodec
 
             int needed = length + 1;
             if (destination.Length < needed)
-                throw new ArgumentException("Destination buffer is too small.", nameof(destination));
+                throw new CompressionException("Destination buffer is too small.");
 
             destination[0] = (byte)(length - 1);
             source.CopyTo(destination[1..]);
@@ -84,7 +61,7 @@ public sealed class FastLZCodec : CompressionCodec
         }
 
         if (destination.Length < GetMaxCompressedSize(length))
-            throw new ArgumentException("Destination buffer is too small.", nameof(destination));
+            throw new CompressionException("Destination buffer is too small.");
 
         Span<int> hashTable = stackalloc int[HashSize];
         // Slots default to 0; for the first MaxDistance bytes this means a candidate ref of 0, which is a
@@ -111,10 +88,7 @@ public sealed class FastLZCodec : CompressionCodec
                 hashTable[hash] = ip;
                 distance = ip - @ref;
 
-                matched = (uint)distance < (uint)MaxDistance
-                          && source[@ref] == source[ip]
-                          && source[@ref + 1] == source[ip + 1]
-                          && source[@ref + 2] == source[ip + 2];
+                matched = (uint)distance < (uint)MaxDistance && source[@ref] == source[ip] && source[@ref + 1] == source[ip + 1] && source[@ref + 2] == source[ip + 2];
 
                 if (ip >= ipLimit)
                     break;
@@ -158,7 +132,7 @@ public sealed class FastLZCodec : CompressionCodec
         return op;
     }
 
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         if (source.IsEmpty)
@@ -182,21 +156,21 @@ public sealed class FastLZCodec : CompressionCodec
                 if (len == 6)
                 {
                     if (ip >= ipLimit)
-                        throw new InvalidDataException("Truncated FastLZ match length byte.");
+                        throw new CompressionException("Truncated FastLZ match length byte.");
                     len += source[ip++];
                 }
 
                 if (ip >= ipLimit)
-                    throw new InvalidDataException("Truncated FastLZ match distance byte.");
+                    throw new CompressionException("Truncated FastLZ match distance byte.");
                 encodedDistance |= source[ip++];
 
                 int matchLen = len + 3;
                 int refIdx = op - encodedDistance - 1;
 
                 if (refIdx < 0)
-                    throw new InvalidDataException("FastLZ back-reference precedes the output buffer.");
+                    throw new CompressionException("FastLZ back-reference precedes the output buffer.");
                 if (op + matchLen > opLimit)
-                    throw new InvalidDataException("FastLZ destination buffer is too small.");
+                    throw new CompressionException("FastLZ destination buffer is too small.");
 
                 // Byte-by-byte copy to correctly handle overlapping ranges (RLE-style matches).
                 for (int i = 0; i < matchLen; i++)
@@ -208,9 +182,9 @@ public sealed class FastLZCodec : CompressionCodec
                 // Literal run.
                 int count = (int)(ctrl + 1);
                 if (ip + count > ipLimit)
-                    throw new InvalidDataException("Truncated FastLZ literal run.");
+                    throw new CompressionException("Truncated FastLZ literal run.");
                 if (op + count > opLimit)
-                    throw new InvalidDataException("FastLZ destination buffer is too small.");
+                    throw new CompressionException("FastLZ destination buffer is too small.");
 
                 source.Slice(ip, count).CopyTo(destination.Slice(op, count));
                 ip += count;

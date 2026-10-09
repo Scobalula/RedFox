@@ -1,12 +1,14 @@
-﻿
+
 
 namespace RedFox.Compression.Oodle
 {
+
     /// <summary>
     /// Oodle threading phase.
     /// </summary>
     public enum OodleThreading
     {
+
         /// <summary>
         /// Uses threading phase 0.
         /// </summary>

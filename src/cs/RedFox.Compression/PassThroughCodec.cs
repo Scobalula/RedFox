@@ -1,19 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace RedFox.Compression;
 
 /// <summary>
-/// A basic <see cref="CompressionCodec"/> that simply passes/copies the data to the destination buffer.
+/// Copies input without applying compression.
 /// </summary>
-public class PassThroughCodec : CompressionCodec
+public sealed class PassThroughCodec : CompressionCodec
 {
     /// <inheritdoc/>
-    public override CompressionCodecFlags Flags => CompressionCodecFlags.None;
+    public override CompressionCodecFlags Flags => CompressionCodecFlags.Compression | CompressionCodecFlags.Decompression | CompressionCodecFlags.CompressionStreams | CompressionCodecFlags.DecompressionStreams | CompressionCodecFlags.SizeInspection;
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
@@ -22,30 +15,29 @@ public class PassThroughCodec : CompressionCodec
             throw new CompressionException("Destination buffer is not large enough to store the source data.");
 
         source.CopyTo(destination);
-
         return source.Length;
     }
 
     /// <inheritdoc/>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary) => Compress(source, destination);
+    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination) => Compress(source, destination);
 
     /// <inheritdoc/>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
+    public override int GetMaxCompressedSize(int inputSize)
     {
-        if (destination.Length < source.Length)
-            throw new CompressionException("Destination buffer is not large enough to store the source data.");
-
-        source.CopyTo(destination);
-
-        return source.Length;
+        ArgumentOutOfRangeException.ThrowIfNegative(inputSize);
+        return inputSize;
     }
 
     /// <inheritdoc/>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary) => Decompress(source, destination);
+    public override bool TryGetDecompressedSize(ReadOnlySpan<byte> source, out long size)
+    {
+        size = source.Length;
+        return true;
+    }
 
     /// <inheritdoc/>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer) => compressedBuffer.Length;
+    public override Stream CreateCompressionStream(Stream destination, bool leaveOpen, long? uncompressedSize) => new OwnedStream(destination, leaveOpen, null);
 
     /// <inheritdoc/>
-    public override int GetMaxCompressedSize(int inputSize) => inputSize;
+    public override Stream CreateDecompressionStream(Stream source, bool leaveOpen, long? compressedSize) => new OwnedStream(source, leaveOpen, compressedSize);
 }

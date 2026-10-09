@@ -594,6 +594,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _currentCts?.Cancel();
         _currentCts = null;
         Preview.Clear();
+        GC.SuppressFinalize(this);
     }
 
     partial void OnSearchTextChanged(string value)

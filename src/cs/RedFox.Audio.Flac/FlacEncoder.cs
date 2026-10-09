@@ -60,19 +60,22 @@ internal sealed unsafe class FlacEncoder : AudioEncoder
         if (_encoder == IntPtr.Zero)
             throw new AudioException("Failed to create the FLAC encoder.");
 
-        FlacInterop.EncoderSetStreamableSubset(_encoder, 0);
-        FlacInterop.EncoderSetChannels(_encoder, (uint)format.Channels);
-        FlacInterop.EncoderSetBitsPerSample(_encoder, (uint)bitsPerSample);
-        FlacInterop.EncoderSetSampleRate(_encoder, (uint)format.SampleRate);
-        FlacInterop.EncoderSetCompressionLevel(_encoder, (uint)compressionLevel);
-
-        int status = FlacInterop.EncoderInitStream(_encoder, &WriteCallback, null, null, &MetadataCallback, GCHandle.ToIntPtr(_handle));
-
-        if (status != FlacInterop.Ok)
+        try
         {
-            string state = FlacInterop.GetEncoderState(_encoder);
+            ThrowIfFailed(FlacInterop.EncoderSetStreamableSubset(_encoder, 0));
+            ThrowIfFailed(FlacInterop.EncoderSetChannels(_encoder, (uint)format.Channels));
+            ThrowIfFailed(FlacInterop.EncoderSetBitsPerSample(_encoder, (uint)bitsPerSample));
+            ThrowIfFailed(FlacInterop.EncoderSetSampleRate(_encoder, (uint)format.SampleRate));
+            ThrowIfFailed(FlacInterop.EncoderSetCompressionLevel(_encoder, (uint)compressionLevel));
+
+            int status = FlacInterop.EncoderInitStream(_encoder, &WriteCallback, null, null, &MetadataCallback, GCHandle.ToIntPtr(_handle));
+            if (status != FlacInterop.Ok)
+                throw new AudioException($"Failed to initialize the FLAC encoder: {FlacInterop.GetEncoderState(_encoder)}");
+        }
+        catch
+        {
             Dispose();
-            throw new AudioException($"Failed to initialize the FLAC encoder: {state}");
+            throw;
         }
     }
 

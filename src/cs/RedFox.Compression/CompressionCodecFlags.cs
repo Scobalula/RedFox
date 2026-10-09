@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library - MIT License
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -6,26 +6,47 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
+
 namespace RedFox.Compression;
 
 /// <summary>
-/// Flags to dictate features a <see cref="CompressionCodec"/> supports.
+/// Describes the operations and features supported by a compression codec.
 /// </summary>
 [Flags]
 public enum CompressionCodecFlags
 {
     /// <summary>
-    /// Indicates no extra features supported.
+    /// Indicates no supported operations or features.
     /// </summary>
-    None,
+    None					= 0,
 
     /// <summary>
-    /// Indicates the codec supports dictionaries.
+    /// Indicates buffer-based compression support.
     /// </summary>
-    SupportsDictionaries,
+    Compression				= 1,
 
     /// <summary>
-    /// Indicates the codec can obtain the size of the source from the input.
+    /// Indicates buffer-based decompression support.
     /// </summary>
-    SupportsKnownSize,
+    Decompression			= 2,
+
+    /// <summary>
+    /// Indicates compression stream support.
+    /// </summary>
+    CompressionStreams		= 4,
+
+    /// <summary>
+    /// Indicates decompression stream support.
+    /// </summary>
+    DecompressionStreams	= 8,
+
+    /// <summary>
+    /// Indicates preset dictionary support.
+    /// </summary>
+    Dictionaries			= 16,
+
+    /// <summary>
+    /// Indicates that decompressed size metadata can be inspected.
+    /// </summary>
+    SizeInspection			= 32
 }

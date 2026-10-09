@@ -1,12 +1,14 @@
-﻿
+
 
 namespace RedFox.Compression.Oodle
 {
+
     /// <summary>
     /// Oodle fuzz-safety setting.
     /// </summary>
     public enum OodleFuzzSafe
     {
+
         /// <summary>
         /// Disables fuzz-safe mode.
         /// </summary>

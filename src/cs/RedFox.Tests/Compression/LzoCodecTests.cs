@@ -19,7 +19,7 @@ public sealed class LzoCodecTests
 
         Assert.Equal(source.Length, decompressedSize);
         Assert.Equal(source, decompressed);
-        Assert.Equal(CompressionCodecFlags.None, codec.Flags);
+        Assert.Equal(CompressionCodecFlags.Compression | CompressionCodecFlags.Decompression, codec.Flags);
     }
 
     [Fact]
@@ -123,15 +123,11 @@ public sealed class LzoCodecTests
     }
 
     [Fact]
-    public void LzoCodec_UnsupportedMembersThrow()
+    public void LzoCodec_SizeInspectionIsUnavailable()
     {
         LzoCodec codec = new();
         byte[] source = [1, 2, 3];
-        byte[] destination = new byte[codec.GetMaxCompressedSize(source.Length)];
-
-        Assert.Throws<NotSupportedException>(() => codec.Compress(source, destination, ReadOnlySpan<byte>.Empty));
-        Assert.Throws<NotSupportedException>(() => codec.Decompress(source, destination, ReadOnlySpan<byte>.Empty));
-        Assert.Throws<NotSupportedException>(() => codec.GetDecompressedSize(source));
+        Assert.False(codec.TryGetDecompressedSize(source, out _));
     }
 
     public static TheoryData<byte[]> RoundTripPayloads => new()

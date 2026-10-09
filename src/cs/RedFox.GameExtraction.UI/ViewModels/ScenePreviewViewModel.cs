@@ -132,6 +132,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         Settings.PropertyChanged -= OnSettingsChanged;
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>

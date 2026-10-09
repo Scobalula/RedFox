@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library - MIT License
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -10,123 +10,162 @@
 namespace RedFox.Compression;
 
 /// <summary>
-/// Abstract base class for compression and decompression codecs.
-/// Provides methods for compressing and decompressing data, with optional support for dictionaries and streaming.
+/// Provides buffer, allocation, and stream operations for a compression format.
 /// </summary>
-public abstract class CompressionCodec
+public abstract class CompressionCodec : IDisposable
 {
     /// <summary>
-    /// Indicates the capabilities supported by this codec.
+    /// Gets the operations and features supported by this codec.
     /// </summary>
     public abstract CompressionCodecFlags Flags { get; }
 
     /// <summary>
-    /// Compresses data from the specified source buffer into the destination buffer.
+    /// Compresses data into a caller-provided buffer.
     /// </summary>
-    /// <param name="source">The input data to be compressed.</param>
-    /// <param name="destination">The buffer to store the compressed data.</param>
-    /// <returns>The size of the compressed data written to the destination buffer.</returns>
-    public abstract int Compress(ReadOnlySpan<byte> source, Span<byte> destination);
+    /// <param name="source">The data to compress.</param>
+    /// <param name="destination">The buffer that receives compressed data.</param>
+    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
+    public virtual int Compress(ReadOnlySpan<byte> source, Span<byte> destination) => throw new NotSupportedException("This codec does not support compression.");
 
     /// <summary>
-    /// Compresses data from the specified source buffer into the destination buffer using a provided dictionary.
+    /// Decompresses data into a caller-provided buffer.
     /// </summary>
-    /// <param name="source">The input data to be compressed.</param>
-    /// <param name="destination">The buffer to store the compressed data.</param>
-    /// <param name="dictionary">The dictionary to use for compression, if supported.</param>
-    /// <returns>The size of the compressed data written to the destination buffer.</returns>
-    /// <exception cref="NotSupportedException">Thrown if dictionary-based compression is not supported by this codec.</exception>
-    public abstract int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary);
-
-    /// <summary>
-    /// Decompresses data from the specified source buffer into the destination buffer.
-    /// </summary>
-    /// <param name="source">The compressed data to be decompressed.</param>
-    /// <param name="destination">The buffer to store the decompressed data.</param>
-    /// <returns>The size of the decompressed data written to the destination buffer.</returns>
+    /// <param name="source">The compressed data.</param>
+    /// <param name="destination">The buffer that receives decompressed data.</param>
+    /// <returns>The number of bytes written to <paramref name="destination"/>.</returns>
     public abstract int Decompress(ReadOnlySpan<byte> source, Span<byte> destination);
 
     /// <summary>
-    /// Decompresses data from the specified source buffer into the destination buffer using a provided dictionary.
+    /// Gets an upper bound for the compressed size of the specified input.
     /// </summary>
-    /// <param name="source">The compressed data to be decompressed.</param>
-    /// <param name="destination">The buffer to store the decompressed data.</param>
-    /// <param name="dictionary">The dictionary to use for decompression, if supported.</param>
-    /// <returns>The size of the decompressed data written to the destination buffer.</returns>
-    /// <exception cref="NotSupportedException">Thrown if dictionary-based decompression is not supported by this codec.</exception>
-    public abstract int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary);
+    /// <param name="inputSize">The number of input bytes.</param>
+    /// <returns>The required destination buffer size.</returns>
+    public virtual int GetMaxCompressedSize(int inputSize) => throw new NotSupportedException("This codec does not support compression bounds.");
 
     /// <summary>
-    /// Compresses data from the specified source byte array into the destination byte array, with specified offsets and lengths.
+    /// Compresses data and allocates a buffer for the result.
     /// </summary>
-    /// <param name="source">The input data to be compressed.</param>
-    /// <param name="sourceOffset">The starting offset in the source array.</param>
-    /// <param name="sourceSize">The number of bytes to compress from the source array.</param>
-    /// <param name="destination">The buffer to store the compressed data.</param>
-    /// <param name="destinationOffset">The starting offset in the destination array.</param>
-    /// <returns>The size of the compressed data written to the destination array.</returns>
-    public virtual int Compress(byte[] source, int sourceOffset, int sourceSize, byte[] destination, int destinationOffset)
+    /// <param name="source">The data to compress.</param>
+    /// <returns>The compressed data.</returns>
+    public byte[] Compress(ReadOnlySpan<byte> source)
     {
-        return Compress(source.AsSpan(sourceOffset, sourceSize), destination.AsSpan(destinationOffset));
+        int capacity = GetMaxCompressedSize(source.Length);
+        if (capacity < 0 || capacity > Array.MaxLength)
+            throw new ArgumentOutOfRangeException(nameof(source), "The compressed size bound exceeds the .NET array limit.");
+
+        byte[] destination = new byte[capacity];
+        int written = Compress(source, destination);
+        Array.Resize(ref destination, written);
+        return destination;
     }
 
     /// <summary>
-    /// Compresses data from the specified source byte array into the destination byte array using a provided dictionary.
+    /// Decompresses data, obtaining its size from the format metadata.
     /// </summary>
-    /// <param name="source">The input data to be compressed.</param>
-    /// <param name="sourceOffset">The starting offset in the source array.</param>
-    /// <param name="sourceSize">The number of bytes to compress from the source array.</param>
-    /// <param name="destination">The buffer to store the compressed data.</param>
-    /// <param name="destinationOffset">The starting offset in the destination array.</param>
-    /// <param name="dictionary">The dictionary to use for compression, if supported.</param>
-    /// <returns>The size of the compressed data written to the destination array.</returns>
-    public virtual int Compress(byte[] source, int sourceOffset, int sourceSize, byte[] destination, int destinationOffset, byte[] dictionary)
+    /// <param name="source">The compressed data.</param>
+    /// <returns>The decompressed data.</returns>
+    public byte[] Decompress(ReadOnlySpan<byte> source) => Decompress(source, null, int.MaxValue);
+
+    /// <summary>
+    /// Decompresses data using an optional exact output size.
+    /// </summary>
+    /// <param name="source">The compressed data.</param>
+    /// <param name="decompressedSize">The exact output size, or <see langword="null"/> to inspect format metadata.</param>
+    /// <returns>The decompressed data.</returns>
+    public byte[] Decompress(ReadOnlySpan<byte> source, int? decompressedSize) => Decompress(source, decompressedSize, int.MaxValue);
+
+    /// <summary>
+    /// Decompresses data while enforcing an allocation limit.
+    /// </summary>
+    /// <param name="source">The compressed data.</param>
+    /// <param name="decompressedSize">The exact output size, or <see langword="null"/> to inspect format metadata.</param>
+    /// <param name="maxDecompressedSize">The maximum number of bytes to allocate.</param>
+    /// <returns>The decompressed data.</returns>
+    public byte[] Decompress(ReadOnlySpan<byte> source, int? decompressedSize, int maxDecompressedSize)
     {
-        return Compress(source.AsSpan(sourceOffset, sourceSize), destination.AsSpan(destinationOffset), dictionary.AsSpan());
+        ArgumentOutOfRangeException.ThrowIfNegative(maxDecompressedSize);
+        if (decompressedSize < 0)
+            throw new ArgumentOutOfRangeException(nameof(decompressedSize));
+
+        long size;
+        if (decompressedSize.HasValue)
+            size = decompressedSize.Value;
+        else if (!TryGetDecompressedSize(source, out size))
+            throw new NotSupportedException("Supply the exact decompressed size or use a decompression stream.");
+
+        if (size < 0 || size > maxDecompressedSize || size > Array.MaxLength)
+            throw new ArgumentOutOfRangeException(nameof(maxDecompressedSize), "The decompressed size exceeds the allocation limit.");
+
+        byte[] destination = new byte[(int)size];
+        int written = Decompress(source, destination);
+        if (written != size)
+            throw new CompressionException($"Expected {size} decompressed bytes, received {written}.");
+
+        return destination;
     }
 
     /// <summary>
-    /// Decompresses data from the specified source byte array into the destination byte array, with specified offsets and lengths.
+    /// Attempts to read the decompressed size from format metadata.
     /// </summary>
-    /// <param name="source">The compressed data to be decompressed.</param>
-    /// <param name="sourceOffset">The starting offset in the source array.</param>
-    /// <param name="sourceSize">The number of bytes to decompress from the source array.</param>
-    /// <param name="destination">The buffer to store the decompressed data.</param>
-    /// <param name="destinationOffset">The starting offset in the destination array.</param>
-    /// <returns>The size of the decompressed data written to the destination array.</returns>
-    public virtual int Decompress(byte[] source, int sourceOffset, int sourceSize, byte[] destination, int destinationOffset)
+    /// <param name="source">The compressed data.</param>
+    /// <param name="size">Receives the decompressed size when available.</param>
+    /// <returns><see langword="true"/> when the size is available.</returns>
+    public virtual bool TryGetDecompressedSize(ReadOnlySpan<byte> source, out long size)
     {
-        return Decompress(source.AsSpan(sourceOffset, sourceSize), destination.AsSpan(destinationOffset));
+        size = 0;
+        return false;
     }
 
     /// <summary>
-    /// Decompresses data from the specified source byte array into the destination byte array using a provided dictionary.
+    /// Creates a stream that writes compressed data to <paramref name="destination"/>.
     /// </summary>
-    /// <param name="source">The compressed data to be decompressed.</param>
-    /// <param name="sourceOffset">The starting offset in the source array.</param>
-    /// <param name="sourceSize">The number of bytes to decompress from the source array.</param>
-    /// <param name="destination">The buffer to store the decompressed data.</param>
-    /// <param name="destinationOffset">The starting offset in the destination array.</param>
-    /// <param name="dictionary">The dictionary to use for decompression, if supported.</param>
-    /// <returns>The size of the decompressed data written to the destination array.</returns>
-    public virtual int Decompress(byte[] source, int sourceOffset, int sourceSize, byte[] destination, int destinationOffset, byte[] dictionary)
-    {
-        return Decompress(source.AsSpan(sourceOffset, sourceSize), destination.AsSpan(destinationOffset), dictionary.AsSpan());
-    }
+    /// <param name="destination">The destination stream.</param>
+    /// <returns>A compression stream that owns <paramref name="destination"/>.</returns>
+    public Stream CreateCompressionStream(Stream destination) => CreateCompressionStream(destination, false, null);
 
     /// <summary>
-    /// Gets the maximum size that a compressed buffer might be, given the size of the input data.
-    /// This can be used to allocate a destination buffer for compression.
+    /// Creates a stream that writes compressed data to <paramref name="destination"/>.
     /// </summary>
-    /// <param name="inputSize">The size of the input data.</param>
-    /// <returns>The maximum possible size of the compressed data.</returns>
-    public abstract int GetMaxCompressedSize(int inputSize);
+    /// <param name="destination">The destination stream.</param>
+    /// <param name="leaveOpen">Whether to leave the destination open when the returned stream is disposed.</param>
+    /// <returns>A compression stream.</returns>
+    public Stream CreateCompressionStream(Stream destination, bool leaveOpen) => CreateCompressionStream(destination, leaveOpen, null);
 
     /// <summary>
-    /// Gets the decompressed size of the compressed data buffer, if known.
-    /// This may be needed if the decompressed size is not stored in the compressed format.
+    /// Creates a stream that writes compressed data to <paramref name="destination"/>.
     /// </summary>
-    /// <param name="compressedBuffer">The buffer containing the compressed data.</param>
-    /// <returns>The size of the decompressed data.</returns>
-    public abstract int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer);
+    /// <param name="destination">The destination stream.</param>
+    /// <param name="leaveOpen">Whether to leave the destination open when the returned stream is disposed.</param>
+    /// <param name="uncompressedSize">The expected input size, when known.</param>
+    /// <returns>A compression stream.</returns>
+    public virtual Stream CreateCompressionStream(Stream destination, bool leaveOpen, long? uncompressedSize) => throw new NotSupportedException("This codec does not support compression streams.");
+
+    /// <summary>
+    /// Creates a stream that reads decompressed data from <paramref name="source"/>.
+    /// </summary>
+    /// <param name="source">The source stream.</param>
+    /// <returns>A decompression stream that owns <paramref name="source"/>.</returns>
+    public Stream CreateDecompressionStream(Stream source) => CreateDecompressionStream(source, false, null);
+
+    /// <summary>
+    /// Creates a stream that reads decompressed data from <paramref name="source"/>.
+    /// </summary>
+    /// <param name="source">The source stream.</param>
+    /// <param name="leaveOpen">Whether to leave the source open when the returned stream is disposed.</param>
+    /// <returns>A decompression stream.</returns>
+    public Stream CreateDecompressionStream(Stream source, bool leaveOpen) => CreateDecompressionStream(source, leaveOpen, null);
+
+    /// <summary>
+    /// Creates a stream that reads decompressed data from <paramref name="source"/>.
+    /// </summary>
+    /// <param name="source">The source stream.</param>
+    /// <param name="leaveOpen">Whether to leave the source open when the returned stream is disposed.</param>
+    /// <param name="compressedSize">The maximum compressed input length, when known.</param>
+    /// <returns>A decompression stream.</returns>
+    public virtual Stream CreateDecompressionStream(Stream source, bool leaveOpen, long? compressedSize) => throw new NotSupportedException("This codec does not support decompression streams.");
+
+    /// <summary>
+    /// Releases resources held by the codec.
+    /// </summary>
+    public virtual void Dispose() => GC.SuppressFinalize(this);
 }

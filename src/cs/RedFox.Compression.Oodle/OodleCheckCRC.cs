@@ -1,12 +1,14 @@
-﻿
+
 
 namespace RedFox.Compression.Oodle
 {
+
     /// <summary>
     /// Oodle checksum setting.
     /// </summary>
     public enum OodleCheckCRC
     {
+
         /// <summary>
         /// Disables checksum verification.
         /// </summary>

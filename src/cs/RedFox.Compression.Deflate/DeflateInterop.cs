@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -12,54 +12,39 @@ namespace RedFox.Compression.Deflate;
 
 internal unsafe partial class DeflateInterop
 {
-    internal ref struct MZStream
-    {
-        public byte* NextIn; /* pointer to next byte to read */
-        public uint AvailIn;        /* number of bytes available at next_in */
-        public uint TotalIn;            /* total number of bytes consumed so far */
+    [LibraryImport("zlib1", EntryPoint = "zlibVersion")]
+    internal static partial nint Version();
 
-        public byte* NextOut; /* pointer to next byte to write */
-        public uint AvailOut;  /* number of bytes that can be written to next_out */
-        public uint TotalOut;      /* total number of bytes produced so far */
+    [LibraryImport("zlib1", EntryPoint = "deflateInit2_")]
+    internal static partial int DeflateInit(ZLibState* state, int level, int method, int windowBits, int memoryLevel, int strategy, nint version, int streamSize);
 
-        public IntPtr Msg;                       /* error msg (unused) */
-        public IntPtr State; /* internal state, allocated by zalloc/zfree */
+    [LibraryImport("zlib1", EntryPoint = "inflateInit2_")]
+    internal static partial int InflateInit(ZLibState* state, int windowBits, nint version, int streamSize);
 
-        public IntPtr ZAlloc; /* optional heap allocation function (defaults to malloc) */
-        public IntPtr ZFree;   /* optional heap free function (defaults to free) */
-        public IntPtr Opaque;         /* heap alloc function user pointer */
+    [LibraryImport("zlib1", EntryPoint = "deflate")]
+    internal static partial int Deflate(ZLibState* state, int flush);
 
-        public int DataType;     /* data_type (unused) */
-        public uint Adler;    /* adler32 of the source or uncompressed data */
-        public uint Reserved; /* not used */
-    }
+    [LibraryImport("zlib1", EntryPoint = "deflateEnd")]
+    internal static partial int DeflateEnd(ZLibState* state);
 
-    public const int MZDeflated = 8;
+    [LibraryImport("zlib1", EntryPoint = "deflateReset")]
+    internal static partial int DeflateReset(ZLibState* state);
 
-    public const int MZDefaultWindowBits = 15;
+    [LibraryImport("zlib1", EntryPoint = "deflateSetDictionary")]
+    internal static partial int DeflateSetDictionary(ZLibState* state, byte* dictionary, uint dictionaryLength);
 
-    public const int MZDefaultStrategy = 0;
+    [LibraryImport("zlib1", EntryPoint = "inflate")]
+    internal static partial int Inflate(ZLibState* state, int flush);
 
-    private const string Library = "miniz";
+    [LibraryImport("zlib1", EntryPoint = "inflateEnd")]
+    internal static partial int InflateEnd(ZLibState* state);
 
-    [LibraryImport(Library, EntryPoint = "mz_deflateInit2", SetLastError = true)]
-    public static partial int DeflateInit(ref MZStream pStream, DeflateLevel level, int method, int window_bits, int mem_level, int strategy);
+    [LibraryImport("zlib1", EntryPoint = "inflateReset")]
+    internal static partial int InflateReset(ZLibState* state);
 
-    [LibraryImport(Library, EntryPoint = "mz_deflate", SetLastError = true)]
-    public static partial int Deflate(ref MZStream pStream, int flush);
+    [LibraryImport("zlib1", EntryPoint = "inflateSetDictionary")]
+    internal static partial int InflateSetDictionary(ZLibState* state, byte* dictionary, uint dictionaryLength);
 
-    [LibraryImport(Library, EntryPoint = "mz_deflateEnd", SetLastError = true)]
-    public static partial int DeflateEnd(ref MZStream pStream);
-
-    [LibraryImport(Library, EntryPoint = "mz_inflateInit2", SetLastError = true)]
-    public static partial int InflateInit(ref MZStream pStream, int windowBits);
-
-    [LibraryImport(Library, EntryPoint = "mz_inflate", SetLastError = true)]
-    public static partial int Inflate(ref MZStream pStream, int flush);
-
-    [LibraryImport(Library, EntryPoint = "mz_inflateEnd", SetLastError = true)]
-    public static partial int InflateEnd(ref MZStream pStream);
-
-    [LibraryImport(Library, EntryPoint = "mz_compressBound", SetLastError = true)]
-    public static partial int CompressBound(int sourceLen);
+    [LibraryImport("zlib1", EntryPoint = "compressBound")]
+    internal static partial uint CompressBound(uint sourceSize);
 }

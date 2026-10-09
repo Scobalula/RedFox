@@ -1,4 +1,4 @@
-﻿// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // RedFox Utility Library
 // --------------------------------------------------------------------------------------
 // Copyright (c) 2025 Philip/Scobalula
@@ -10,90 +10,103 @@
 namespace RedFox.Compression.Deflate;
 
 /// <summary>
-/// A <see cref="CompressionCodec"/> that provides a wrapper around ZLIB (MiniZ).
+/// Compresses and decompresses raw Deflate data, optionally using a preset dictionary.
 /// </summary>
-public unsafe class DeflateCodec : CompressionCodec
+public class DeflateCodec : CompressionCodec
 {
-    /// <inheritdoc/>
-    public override CompressionCodecFlags Flags => CompressionCodecFlags.None;
+    private readonly int _windowBits;
+    private readonly byte[] _dictionary;
+    private ZLibContext? _compressor;
+    private ZLibContext? _decompressor;
+    private bool _disposed;
 
     /// <summary>
-    /// Gets or Sets the compression level indicating to MiniZ the level of compression to use.
+    /// Gets the compression level selected when this codec was created.
     /// </summary>
-    public DeflateLevel CompressionLevel { get; set; } = DeflateLevel.DefaultCompression;
+    public DeflateLevel CompressionLevel { get; }
+
+    /// <inheritdoc/>
+    public override CompressionCodecFlags Flags => CompressionCodecFlags.Compression | CompressionCodecFlags.Decompression | CompressionCodecFlags.CompressionStreams | CompressionCodecFlags.DecompressionStreams | (_windowBits == 31 ? CompressionCodecFlags.None : CompressionCodecFlags.Dictionaries);
+
+    /// <summary>
+    /// Initializes a codec using the default compression level.
+    /// </summary>
+    public DeflateCodec() : this(DeflateLevel.DefaultCompression, ReadOnlySpan<byte>.Empty) { }
+
+    /// <summary>
+    /// Initializes a codec using the specified compression level.
+    /// </summary>
+    /// <param name="level">The compression level.</param>
+    public DeflateCodec(DeflateLevel level) : this(level, ReadOnlySpan<byte>.Empty) { }
+
+    /// <summary>
+    /// Initializes a codec using the specified compression level and preset dictionary.
+    /// </summary>
+    /// <param name="level">The compression level.</param>
+    /// <param name="dictionary">The preset history dictionary.</param>
+    public DeflateCodec(DeflateLevel level, ReadOnlySpan<byte> dictionary) : this(-15, level, dictionary) { }
+
+    /// <summary>
+    /// Initializes a Deflate codec with a format window, level, and optional dictionary.
+    /// </summary>
+    /// <param name="windowBits">The zlib window setting for the selected wrapper format.</param>
+    /// <param name="level">The compression level.</param>
+    /// <param name="dictionary">The preset history dictionary.</param>
+    protected DeflateCodec(int windowBits, DeflateLevel level, ReadOnlySpan<byte> dictionary)
+    {
+        if ((int)level < -1 || (int)level > 9)
+            throw new ArgumentOutOfRangeException(nameof(level));
+        if (windowBits == 31 && !dictionary.IsEmpty)
+            throw new NotSupportedException("Gzip does not support preset dictionaries.");
+
+        _windowBits = windowBits;
+        _dictionary = dictionary.ToArray();
+        CompressionLevel = level;
+    }
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        DeflateInterop.MZStream stream = new();
-
-        fixed (byte* pSource = source)
-        fixed (byte* pDest = destination)
-        {
-            int status = 0;
-
-            stream.NextIn = pSource;
-            stream.AvailIn = (uint)source.Length;
-            stream.NextOut = pDest;
-            stream.AvailOut = (uint)destination.Length;
-
-            status = DeflateInterop.DeflateInit(ref stream, CompressionLevel, DeflateInterop.MZDeflated, -DeflateInterop.MZDefaultWindowBits, 9, DeflateInterop.MZDefaultStrategy);
-
-            if (status != 0)
-                throw new CompressionException($"DeflateInit failed: {status}");
-
-            status = DeflateInterop.Deflate(ref stream, 4);
-            DeflateInterop.DeflateEnd(ref stream);
-
-            if (status != 1)
-                throw new CompressionException($"Deflate failed: {status}");
-
-            return (int)stream.TotalOut;
-        }
-    }
-
-    /// <inheritdoc/>
-    public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary)
-    {
-        return Compress(source, destination);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _compressor ??= new ZLibContext(true, _windowBits, CompressionLevel, _dictionary);
+        return _compressor.Transform(source, destination);
     }
 
     /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        DeflateInterop.MZStream stream = new();
-
-        fixed (byte* pSource = source)
-        fixed (byte* pDest = destination)
-        {
-            int status = 0;
-
-            stream.NextIn = pSource;
-            stream.AvailIn = (uint)source.Length;
-            stream.NextOut = pDest;
-            stream.AvailOut = (uint)destination.Length;
-
-            status = DeflateInterop.InflateInit(ref stream, -15);
-
-            if (status != 0)
-                throw new CompressionException($"InflateInit failed: {status}");
-
-            status = DeflateInterop.Inflate(ref stream, 4);
-            DeflateInterop.InflateEnd(ref stream);
-
-            if (status != 1)
-                throw new CompressionException($"Inflate failed: {status}");
-
-            return (int)stream.TotalOut;
-        }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _decompressor ??= new ZLibContext(false, _windowBits, CompressionLevel, _dictionary);
+        return _decompressor.Transform(source, destination);
     }
 
     /// <inheritdoc/>
-    public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination, ReadOnlySpan<byte> dictionary) => throw new NotSupportedException("");
+    public override int GetMaxCompressedSize(int inputSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(inputSize);
+        return checked((int)DeflateInterop.CompressBound((uint)inputSize) + 32);
+    }
 
     /// <inheritdoc/>
-    public override int GetMaxCompressedSize(int inputSize) => DeflateInterop.CompressBound(inputSize);
+    public override Stream CreateCompressionStream(Stream destination, bool leaveOpen, long? uncompressedSize)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return new ZLibCompressionStream(destination, leaveOpen, uncompressedSize, true, _windowBits, CompressionLevel, _dictionary);
+    }
 
     /// <inheritdoc/>
-    public override int GetDecompressedSize(ReadOnlySpan<byte> compressedBuffer) => throw new NotSupportedException("Deflate does not store the decompressed size");
+    public override Stream CreateDecompressionStream(Stream source, bool leaveOpen, long? compressedSize)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return new ZLibCompressionStream(source, leaveOpen, compressedSize, false, _windowBits, CompressionLevel, _dictionary);
+    }
+
+    /// <inheritdoc/>
+    public override void Dispose()
+    {
+        _compressor?.Dispose();
+        _decompressor?.Dispose();
+        _disposed = true;
+        GC.SuppressFinalize(this);
+    }
 }

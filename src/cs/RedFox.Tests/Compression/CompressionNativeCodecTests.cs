@@ -16,91 +16,150 @@ namespace RedFox.Tests.Compression;
 
 public sealed class CompressionNativeCodecTests
 {
-    [Fact]
-    public void DeflateCodec_RoundTrip_WhenNativeAvailable()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void BufferRoundTripsReuseContextsAndRejectSmallDestinations(int format)
     {
-        if (!HasNativeLibrary("miniz.dll"))
+        using CompressionCodec codec = CreateCodec(format, []);
+        byte[] source = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("RedFox reusable compression context. ", 2000)));
+        for (int i = 0; i < 3; i++)
         {
-            return;
+            byte[] compressed = codec.Compress(source);
+            Assert.Equal(source, codec.Decompress(compressed, source.Length));
+            Assert.Throws<CompressionException>(() => codec.Decompress(compressed, new byte[source.Length - 1]));
         }
 
-        DeflateCodec codec = new();
-        byte[] source = Encoding.UTF8.GetBytes("RedFox-Deflate-Codec-Data");
-        byte[] compressed = new byte[codec.GetMaxCompressedSize(source.Length)];
-
-        int compressedSize = codec.Compress(source, compressed);
-        byte[] decompressed = new byte[source.Length];
-        int decompressedSize = codec.Decompress(compressed.AsSpan(0, compressedSize), decompressed);
-
-        Assert.Equal(source.Length, decompressedSize);
-        Assert.Equal(source, decompressed);
-        Assert.Equal(CompressionCodecFlags.None, codec.Flags);
-        Assert.True(codec.GetMaxCompressedSize(source.Length) >= source.Length);
-        Assert.Throws<NotSupportedException>(() => codec.GetDecompressedSize(compressed.AsSpan(0, compressedSize)));
-        Assert.Throws<NotSupportedException>(() => codec.Decompress(compressed, decompressed, ReadOnlySpan<byte>.Empty));
+        Assert.Empty(codec.Decompress(codec.Compress([]), 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => codec.GetMaxCompressedSize(-1));
+        Assert.True(codec.Flags.HasFlag(CompressionCodecFlags.Compression));
     }
 
-    [Fact]
-    public void Lz4Codec_RoundTrip_WhenNativeAvailable()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void DictionaryIsCopiedAndReused(int format)
     {
-        if (!HasNativeLibrary("liblz4.dll"))
+        byte[] dictionary = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Dictionary history used for RedFox archive blocks. ", 300)));
+        byte[] original = dictionary.ToArray();
+        byte[] source = dictionary.AsSpan(200, 3000).ToArray();
+        using CompressionCodec encoder = CreateCodec(format, dictionary);
+        Array.Fill(dictionary, (byte)0);
+        using CompressionCodec decoder = CreateCodec(format, original);
+        for (int i = 0; i < 3; i++)
+            Assert.Equal(source, decoder.Decompress(encoder.Compress(source), source.Length));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public async Task StreamsHandleTinyIoFlushOwnershipLimitsAndCancellation(int format)
+    {
+        CompressionCodec codec = CreateCodec(format, []);
+        byte[] data = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Small stream writes and reads. ", 3000)));
+        using MemoryStream output = new();
+        await using (Stream writer = codec.CreateCompressionStream(output, true, data.Length))
         {
-            return;
+            for (int i = 0; i < data.Length; i += 17)
+            {
+                await writer.WriteAsync(data.AsMemory(i, Math.Min(17, data.Length - i)));
+                if (i == 170)
+                    await writer.FlushAsync();
+            }
         }
 
-        LZ4Codec codec = new();
-        byte[] source = Encoding.UTF8.GetBytes("RedFox-LZ4-Codec-Data");
-        byte[] compressed = new byte[codec.GetMaxCompressedSize(source.Length)];
+        byte[] compressed = output.ToArray();
+        byte[] embedded = [.. compressed, 0xCA, 0xFE];
+        using ShortReadStream input = new(embedded);
+        await using Stream reader = codec.CreateDecompressionStream(input, true, compressed.Length);
+        codec.Dispose();
+        byte[] restored = new byte[data.Length];
+        for (int i = 0; i < restored.Length;)
+            i += await reader.ReadAsync(restored.AsMemory(i, Math.Min(7, restored.Length - i)));
 
-        int compressedSize = codec.Compress(source, compressed);
-        byte[] decompressed = new byte[source.Length];
-        int decompressedSize = codec.Decompress(compressed.AsSpan(0, compressedSize), decompressed);
-
-        Assert.Equal(source.Length, decompressedSize);
-        Assert.Equal(source, decompressed);
-        Assert.Equal(CompressionCodecFlags.None, codec.Flags);
-        Assert.Throws<NotSupportedException>(() => codec.GetDecompressedSize(compressed.AsSpan(0, compressedSize)));
-        Assert.Throws<NotSupportedException>(() => codec.Compress(source, compressed, ReadOnlySpan<byte>.Empty));
-        Assert.Throws<NotSupportedException>(() => codec.Decompress(compressed, decompressed, ReadOnlySpan<byte>.Empty));
+        Assert.Equal(-1, reader.ReadByte());
+        Assert.Equal(data, restored);
+        Assert.Equal(compressed.Length, input.BytesRead);
+        Assert.True(input.AsyncRead);
+        Assert.False(reader.CanSeek);
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await reader.ReadExactlyAsync(new byte[1], cancellation.Token));
     }
 
-    [Fact]
-    public void ZStandardCodec_RoundTrip_WhenNativeAvailable()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(4)]
+    [InlineData(5)]
+    public void ConcatenatedFramesAndTruncation(int format)
     {
-        if (!HasNativeLibrary("libzstd.dll"))
+        using CompressionCodec codec = CreateCodec(format, []);
+        byte[] first = codec.Compress("first"u8);
+        byte[] second = codec.Compress("second"u8);
+        byte[] combined = [.. first, .. second];
+        Assert.Equal("firstsecond"u8.ToArray(), codec.Decompress(combined, 11));
+        using Stream reader = codec.CreateDecompressionStream(new ShortReadStream(combined));
+        using MemoryStream output = new();
+        reader.CopyTo(output);
+        Assert.Equal("firstsecond"u8.ToArray(), output.ToArray());
+        using Stream truncated = codec.CreateDecompressionStream(new ShortReadStream(combined[..^1]));
+        Assert.Throws<CompressionException>(() => truncated.CopyTo(Stream.Null));
+        if (format != 2)
         {
-            return;
+            Assert.True(codec.TryGetDecompressedSize(combined, out long size));
+            Assert.Equal(11, size);
         }
-
-        ZStandardCodec codec = new() { CompressionLevel = 3 };
-        byte[] source = Encoding.UTF8.GetBytes("RedFox-Zstd-Codec-Data");
-        byte[] compressed = new byte[codec.GetMaxCompressedSize(source.Length)];
-
-        int compressedSize = codec.Compress(source, compressed);
-        byte[] decompressed = new byte[source.Length];
-        int decompressedSize = codec.Decompress(compressed.AsSpan(0, compressedSize), decompressed);
-
-        Assert.Equal(source.Length, decompressedSize);
-        Assert.Equal(source, decompressed);
-        Assert.Equal(source.Length, codec.GetDecompressedSize(compressed.AsSpan(0, compressedSize)));
-        Assert.Equal(CompressionCodecFlags.SupportsKnownSize, codec.Flags);
-        Assert.Throws<NotSupportedException>(() => codec.Decompress(compressed, decompressed, ReadOnlySpan<byte>.Empty));
     }
 
     [Fact]
-    public void DeflateLevel_EnumValues_AreStable()
+    public void NativeLibrariesArePackaged()
     {
-        Assert.Equal(0, (int)DeflateLevel.NoCompression);
-        Assert.Equal(1, (int)DeflateLevel.BestSpeed);
-        Assert.Equal(9, (int)DeflateLevel.BestCompression);
-        Assert.Equal(10, (int)DeflateLevel.UberCompression);
-        Assert.Equal(6, (int)DeflateLevel.DefaultLevel);
-        Assert.Equal(-1, (int)DeflateLevel.DefaultCompression);
+        foreach (string library in new[] { "zlib1.dll", "liblz4.dll", "libzstd.dll", "libgdeflate.dll" })
+            Assert.True(File.Exists(Path.Combine(AppContext.BaseDirectory, library)), $"Missing bundled DLL: {library}");
     }
 
-    private static bool HasNativeLibrary(string fileName)
+    [Fact]
+    public void ZlibDecodesIndependentPythonFixtures()
     {
-        string libraryPath = Path.Combine(AppContext.BaseDirectory, fileName);
-        return File.Exists(libraryPath);
+        byte[] source = "hello world"u8.ToArray();
+        using DeflateCodec raw = new();
+        using ZLibCodec zlib = new();
+        using GZipCodec gzip = new();
+        Assert.Equal(source, raw.Decompress(Convert.FromHexString("cb48cdc9c95728cf2fca490100"), 11));
+        Assert.Equal(source, zlib.Decompress(Convert.FromHexString("789ccb48cdc9c95728cf2fca4901001a0b045d"), 11));
+        Assert.Equal(source, gzip.Decompress(Convert.FromHexString("1f8b0800000000000203cb48cdc9c95728cf2fca49010085114a0d0b000000"), 11));
     }
+
+    [Fact]
+    public void ZstandardTrainingPreservesSampleBoundaries()
+    {
+        byte[][] samples = Enumerable.Range(0, 500).Select(i => Encoding.UTF8.GetBytes($"Asset {i}: textures/models/materials/archive data repeated {i % 12}. " + new string((char)('a' + i % 20), 100))).ToArray();
+        byte[] dictionary = ZStandardCodec.TrainDictionary(samples, 4096);
+        Assert.InRange(ZStandardCodec.TrainDictionary(samples).Length, 1, 65536);
+        using ZStandardCodec codec = new(3, dictionary);
+        Assert.Equal(samples[20], codec.Decompress(codec.Compress(samples[20])));
+        Assert.Throws<ArgumentException>(() => ZStandardCodec.TrainDictionary(new byte[10], new[] { 9 }, new byte[100]));
+        Assert.Throws<CompressionException>(() => ZStandardCodec.TrainDictionary(new byte[10], new[] { 10 }, new byte[100]));
+    }
+
+    private static CompressionCodec CreateCodec(int format, byte[] dictionary) => format switch
+    {
+        0 => new DeflateCodec(DeflateLevel.DefaultCompression, dictionary),
+        1 => new ZLibCodec(DeflateLevel.DefaultCompression, dictionary),
+        2 => new GZipCodec(),
+        3 => new LZ4Codec(dictionary),
+        4 => new LZ4FrameCodec(dictionary),
+        5 => new ZStandardCodec(3, dictionary),
+        _ => throw new ArgumentOutOfRangeException(nameof(format))
+    };
 }
