@@ -18,8 +18,8 @@ public sealed class LZ4FrameCodec : CompressionCodec
 {
     private readonly LZ4FramePreferences _preferences;
     private readonly byte[] _dictionary;
-    private LZ4FrameContext? _compressor;
-    private LZ4FrameContext? _decompressor;
+    private readonly ThreadLocal<LZ4FrameContext> _compressors;
+    private readonly ThreadLocal<LZ4FrameContext> _decompressors;
     private bool _disposed;
 
     /// <inheritdoc/>
@@ -28,7 +28,7 @@ public sealed class LZ4FrameCodec : CompressionCodec
     /// <summary>
     /// Initializes a frame codec with the default settings.
     /// </summary>
-    public LZ4FrameCodec() : this(0, LZ4FrameBlockSize.KB64, true, false, false, ReadOnlySpan<byte>.Empty) { }
+    public LZ4FrameCodec() : this(0, LZ4FrameBlockSize.KB64, true, false, false, []) { }
 
     /// <summary>
     /// Initializes a frame codec with a preset dictionary and default settings.
@@ -62,22 +62,22 @@ public sealed class LZ4FrameCodec : CompressionCodec
                 BlockChecksum		= blockChecksum ? 1 : 0
             }
         };
+        _compressors = new(() => new LZ4FrameContext(true, _preferences, _dictionary), true);
+        _decompressors = new(() => new LZ4FrameContext(false, _preferences, _dictionary), true);
     }
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _compressor ??= new LZ4FrameContext(true, _preferences, _dictionary);
-        return _compressor.Transform(source, destination);
+        return _compressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _decompressor ??= new LZ4FrameContext(false, _preferences, _dictionary);
-        return _decompressor.Transform(source, destination);
+        return _decompressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
@@ -181,9 +181,17 @@ public sealed class LZ4FrameCodec : CompressionCodec
     /// <inheritdoc/>
     public override void Dispose()
     {
-        _compressor?.Dispose();
-        _decompressor?.Dispose();
+        if (_disposed)
+            return;
+
         _disposed = true;
+        foreach (LZ4FrameContext context in _compressors.Values)
+            context.Dispose();
+        foreach (LZ4FrameContext context in _decompressors.Values)
+            context.Dispose();
+        _compressors.Dispose();
+        _decompressors.Dispose();
+
         GC.SuppressFinalize(this);
     }
 }

@@ -16,8 +16,8 @@ public class DeflateCodec : CompressionCodec
 {
     private readonly int _windowBits;
     private readonly byte[] _dictionary;
-    private ZLibContext? _compressor;
-    private ZLibContext? _decompressor;
+    private readonly ThreadLocal<ZLibContext> _compressors;
+    private readonly ThreadLocal<ZLibContext> _decompressors;
     private bool _disposed;
 
     /// <summary>
@@ -31,13 +31,13 @@ public class DeflateCodec : CompressionCodec
     /// <summary>
     /// Initializes a codec using the default compression level.
     /// </summary>
-    public DeflateCodec() : this(DeflateLevel.DefaultCompression, ReadOnlySpan<byte>.Empty) { }
+    public DeflateCodec() : this(DeflateLevel.DefaultCompression, []) { }
 
     /// <summary>
     /// Initializes a codec using the specified compression level.
     /// </summary>
     /// <param name="level">The compression level.</param>
-    public DeflateCodec(DeflateLevel level) : this(level, ReadOnlySpan<byte>.Empty) { }
+    public DeflateCodec(DeflateLevel level) : this(level, []) { }
 
     /// <summary>
     /// Initializes a codec using the specified compression level and preset dictionary.
@@ -62,22 +62,22 @@ public class DeflateCodec : CompressionCodec
         _windowBits = windowBits;
         _dictionary = dictionary.ToArray();
         CompressionLevel = level;
+        _compressors = new(() => new ZLibContext(true, _windowBits, CompressionLevel, _dictionary), true);
+        _decompressors = new(() => new ZLibContext(false, _windowBits, CompressionLevel, _dictionary), true);
     }
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _compressor ??= new ZLibContext(true, _windowBits, CompressionLevel, _dictionary);
-        return _compressor.Transform(source, destination);
+        return _compressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _decompressor ??= new ZLibContext(false, _windowBits, CompressionLevel, _dictionary);
-        return _decompressor.Transform(source, destination);
+        return _decompressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
@@ -104,9 +104,17 @@ public class DeflateCodec : CompressionCodec
     /// <inheritdoc/>
     public override void Dispose()
     {
-        _compressor?.Dispose();
-        _decompressor?.Dispose();
+        if (_disposed)
+            return;
+
         _disposed = true;
+        foreach (ZLibContext context in _compressors.Values)
+            context.Dispose();
+        foreach (ZLibContext context in _decompressors.Values)
+            context.Dispose();
+        _compressors.Dispose();
+        _decompressors.Dispose();
+
         GC.SuppressFinalize(this);
     }
 }

@@ -14,5 +14,5 @@ public sealed class GZipCodec : DeflateCodec
     /// Initializes a gzip codec using the specified compression level.
     /// </summary>
     /// <param name="level">The compression level.</param>
-    public GZipCodec(DeflateLevel level) : base(31, level, ReadOnlySpan<byte>.Empty) { }
+    public GZipCodec(DeflateLevel level) : base(31, level, []) { }
 }

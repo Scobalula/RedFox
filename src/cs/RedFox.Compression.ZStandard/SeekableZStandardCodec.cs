@@ -33,7 +33,7 @@ public sealed class SeekableZStandardCodec : CompressionCodec
     /// <summary>
     /// Initializes a codec with 1 MiB frames and checksums enabled.
     /// </summary>
-    public SeekableZStandardCodec() : this(3, 1048576, true, ReadOnlySpan<byte>.Empty) { }
+    public SeekableZStandardCodec() : this(3, 1048576, true, []) { }
 
     /// <summary>
     /// Initializes a codec using the specified frame settings and optional dictionary.

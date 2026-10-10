@@ -17,8 +17,8 @@ namespace RedFox.Compression.ZStandard;
 public sealed class ZStandardCodec : CompressionCodec
 {
     private readonly byte[] _dictionary;
-    private ZStandardContext? _compressor;
-    private ZStandardContext? _decompressor;
+    private readonly ThreadLocal<ZStandardContext> _compressors;
+    private readonly ThreadLocal<ZStandardContext> _decompressors;
     private bool _disposed;
 
     /// <summary>
@@ -32,13 +32,13 @@ public sealed class ZStandardCodec : CompressionCodec
     /// <summary>
     /// Initializes a codec using the default compression level.
     /// </summary>
-    public ZStandardCodec() : this(3, ReadOnlySpan<byte>.Empty) { }
+    public ZStandardCodec() : this(3, []) { }
 
     /// <summary>
     /// Initializes a codec using the specified compression level.
     /// </summary>
     /// <param name="level">The compression level supported by the native library.</param>
-    public ZStandardCodec(int level) : this(level, ReadOnlySpan<byte>.Empty) { }
+    public ZStandardCodec(int level) : this(level, []) { }
 
     /// <summary>
     /// Initializes a codec using the specified compression level and dictionary.
@@ -52,22 +52,28 @@ public sealed class ZStandardCodec : CompressionCodec
 
         CompressionLevel = level;
         _dictionary = dictionary.ToArray();
+        _compressors = new(() => new ZStandardContext(true, CompressionLevel, _dictionary, null), true);
+        _decompressors = new(() => new ZStandardContext(false, CompressionLevel, _dictionary, null), true);
     }
 
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _compressor ??= new ZStandardContext(true, CompressionLevel, _dictionary, null);
-        return _compressor.Transform(source, destination);
+        if (_dictionary.Length == 0)
+            return checked((int)ZStandardInterop.Check(ZStandardInterop.Compress(destination, (nuint)destination.Length, source, (nuint)source.Length, CompressionLevel)));
+
+        return _compressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _decompressor ??= new ZStandardContext(false, CompressionLevel, _dictionary, null);
-        return _decompressor.Transform(source, destination);
+        if (_dictionary.Length == 0)
+            return checked((int)ZStandardInterop.Check(ZStandardInterop.Decompress(destination, (nuint)destination.Length, source, (nuint)source.Length)));
+
+        return _decompressors.Value!.Transform(source, destination);
     }
 
     /// <inheritdoc/>
@@ -195,9 +201,17 @@ public sealed class ZStandardCodec : CompressionCodec
     /// <inheritdoc/>
     public override void Dispose()
     {
-        _compressor?.Dispose();
-        _decompressor?.Dispose();
+        if (_disposed)
+            return;
+
         _disposed = true;
+        foreach (ZStandardContext context in _compressors.Values)
+            context.Dispose();
+        foreach (ZStandardContext context in _decompressors.Values)
+            context.Dispose();
+        _compressors.Dispose();
+        _decompressors.Dispose();
+
         GC.SuppressFinalize(this);
     }
 }

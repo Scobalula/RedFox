@@ -130,16 +130,16 @@ public sealed class LzoCodecTests
         Assert.False(codec.TryGetDecompressedSize(source, out _));
     }
 
-    public static TheoryData<byte[]> RoundTripPayloads => new()
-    {
-        Array.Empty<byte>(),
+    public static TheoryData<byte[]> RoundTripPayloads =>
+    [
+        [],
         Encoding.UTF8.GetBytes("R"),
         Encoding.UTF8.GetBytes("RedFox-LZO-Codec-Data"),
         BuildRepeatedPayload(1024, 0),
         BuildRepeatedPayload(4096, 0xA5),
         BuildPatternedPayload(12 * 1024),
         BuildPatternedPayload(64 * 1024),
-    };
+    ];
 
     private static byte[] BuildPatternedPayload(int length)
     {

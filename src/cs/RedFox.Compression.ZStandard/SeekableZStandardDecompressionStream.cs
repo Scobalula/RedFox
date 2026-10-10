@@ -21,7 +21,7 @@ internal sealed class SeekableZStandardDecompressionStream : BlockDecompressionS
                 byte[] input = new byte[block.CompressedLength];
                 source.Position = start + block.CompressedOffset;
                 source.ReadExactly(input);
-                SeekableZStandardCodec.DecodeFrame(codec, index.Checksums, i, input, Span<byte>.Empty);
+                    SeekableZStandardCodec.DecodeFrame(codec, index.Checksums, i, input, []);
             }
         }
         finally

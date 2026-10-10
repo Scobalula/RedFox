@@ -9,6 +9,7 @@
 using System.Text;
 using RedFox.Compression;
 using RedFox.Compression.Deflate;
+using RedFox.Compression.GDeflate;
 using RedFox.Compression.LZ4;
 using RedFox.Compression.ZStandard;
 
@@ -37,6 +38,22 @@ public sealed class CompressionNativeCodecTests
         Assert.Empty(codec.Decompress(codec.Compress([]), 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => codec.GetMaxCompressedSize(-1));
         Assert.True(codec.Flags.HasFlag(CompressionCodecFlags.Compression));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void StatefulNativeBufferOperationsAreSafeWhenSharedAcrossThreads(int format)
+    {
+        using CompressionCodec codec = CreateCodec(format, []);
+        byte[] source = Encoding.UTF8.GetBytes(string.Concat(Enumerable.Repeat("Mesh preview decompression uses a shared codec. ", 200)));
+        byte[] compressed = codec.Compress(source);
+
+        Parallel.For(0, 64, _ => Assert.Equal(source, codec.Decompress(compressed, source.Length)));
+        Parallel.For(0, 64, _ => Assert.Equal(source, codec.Decompress(codec.Compress(source), source.Length)));
     }
 
     [Theory]
@@ -160,6 +177,7 @@ public sealed class CompressionNativeCodecTests
         3 => new LZ4Codec(dictionary),
         4 => new LZ4FrameCodec(dictionary),
         5 => new ZStandardCodec(3, dictionary),
+        6 => new GDeflateCodec(),
         _ => throw new ArgumentOutOfRangeException(nameof(format))
     };
 }

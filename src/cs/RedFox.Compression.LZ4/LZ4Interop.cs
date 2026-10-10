@@ -27,6 +27,9 @@ internal partial class LZ4Interop
     [LibraryImport("liblz4", EntryPoint = "LZ4_attach_dictionary")]
     internal static partial void AttachDictionary(nint stream, nint dictionaryStream);
 
+    [LibraryImport("liblz4", EntryPoint = "LZ4_compress_default")]
+    internal static partial int Compress(ReadOnlySpan<byte> source, Span<byte> destination, int sourceSize, int capacity);
+
     [LibraryImport("liblz4", EntryPoint = "LZ4_compress_fast_continue")]
     internal static partial int Compress(nint stream, ReadOnlySpan<byte> source, Span<byte> destination, int sourceSize, int capacity, int acceleration);
 

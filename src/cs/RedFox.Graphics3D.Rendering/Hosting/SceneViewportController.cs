@@ -52,6 +52,8 @@ public sealed class SceneViewportController
     /// </summary>
     public bool RefreshAnimatedSceneBounds { get; set; }
 
+    public bool FitCameraAfterNextUpdate { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether clip planes should be updated from the current bounds before rendering.
     /// </summary>
@@ -328,5 +330,11 @@ public sealed class SceneViewportController
         }
 
         _scene.Update(deltaTime);
+
+        if (FitCameraAfterNextUpdate && RecomputeBounds())
+        {
+            FitCameraAfterNextUpdate = false;
+            FitCameraToScene();
+        }
     }
 }

@@ -57,8 +57,14 @@ internal partial class ZStandardInterop
     [LibraryImport("libzstd", EntryPoint = "ZSTD_compress2")]
     internal static partial nuint Compress(nint context, Span<byte> destination, nuint capacity, ReadOnlySpan<byte> source, nuint sourceSize);
 
+    [LibraryImport("libzstd", EntryPoint = "ZSTD_compress")]
+    internal static partial nuint Compress(Span<byte> destination, nuint capacity, ReadOnlySpan<byte> source, nuint sourceSize, int level);
+
     [LibraryImport("libzstd", EntryPoint = "ZSTD_decompress_usingDDict")]
     internal static partial nuint Decompress(nint context, Span<byte> destination, nuint capacity, ReadOnlySpan<byte> source, nuint sourceSize, nint dictionary);
+
+    [LibraryImport("libzstd", EntryPoint = "ZSTD_decompress")]
+    internal static partial nuint Decompress(Span<byte> destination, nuint capacity, ReadOnlySpan<byte> source, nuint sourceSize);
 
     [LibraryImport("libzstd", EntryPoint = "ZSTD_compressStream2")]
     internal static partial nuint CompressStream(nint context, ref ZStandardBuffer output, ref ZStandardBuffer input, int operation);

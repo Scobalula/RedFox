@@ -179,6 +179,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         RefreshAnimations(scene);
         ConfigureAnimationPlayers(scene, rebuildPlayers: true, resetPose: true);
         UpdateStats(scene);
+
+        if (Settings.AutoFitScene && ViewportController is { } viewportController)
+        {
+            viewportController.FitCameraAfterNextUpdate = true;
+        }
+
         SceneInvalidated?.Invoke();
         return true;
     }
@@ -202,9 +208,9 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             SceneTraversal.RefreshPreparedPostOrderVersion(scene);
         }
 
-        if (Settings.AutoFitScene)
+        if (Settings.AutoFitScene && ViewportController is { } viewportController)
         {
-            FitScene(scene, true);
+            viewportController.FitCameraAfterNextUpdate = true;
         }
         SceneInvalidated?.Invoke();
     }
@@ -602,6 +608,9 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         _updatingSelection = true;
         AnimationNames = [AllAnimationsLabel, .. _animations.Select(animation => animation.Name)];
+
+        // A new item source can keep or drop the combobox selection, so the index must change for the binding to refresh.
+        SelectedAnimationIndex = -1;
         SelectedAnimationIndex = _selectedAnimation is null ? 0 : _animations.IndexOf(_selectedAnimation) + 1;
         _updatingSelection = false;
     }

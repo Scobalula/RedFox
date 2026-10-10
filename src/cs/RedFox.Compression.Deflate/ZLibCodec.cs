@@ -14,7 +14,7 @@ public sealed class ZLibCodec : DeflateCodec
     /// Initializes a zlib codec using the specified compression level.
     /// </summary>
     /// <param name="level">The compression level.</param>
-    public ZLibCodec(DeflateLevel level) : base(15, level, ReadOnlySpan<byte>.Empty) { }
+    public ZLibCodec(DeflateLevel level) : base(15, level, []) { }
 
     /// <summary>
     /// Initializes a zlib codec using the specified compression level and preset dictionary.

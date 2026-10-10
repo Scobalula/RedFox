@@ -18,6 +18,7 @@ public sealed class GDeflateCodec : CompressionCodec
 {
     internal const int TileSize = 65536;
     internal const long MaxInputSize = 65535L * TileSize;
+    private readonly object _sync = new();
     private nint _compressor;
     private nint _decompressor;
     private bool _disposed;
@@ -50,42 +51,48 @@ public sealed class GDeflateCodec : CompressionCodec
     /// <inheritdoc/>
     public override int Compress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        int count = WriteHeader(destination, source.Length);
-        int headerSize = 8 + count * 4;
-        if (destination.Length < headerSize)
-            throw new CompressionException("The GDeflate destination is too small.");
-
-        int offset = headerSize;
-        for (int i = 0; i < count; i++)
+        lock (_sync)
         {
-            int sourceOffset = i * TileSize;
-            int written = CompressTile(source.Slice(sourceOffset, Math.Min(TileSize, source.Length - sourceOffset)), destination[offset..]);
-            BinaryPrimitives.WriteUInt32LittleEndian(destination[(8 + i * 4)..], (uint)(i == 0 ? 0 : offset - headerSize));
-            if (i == count - 1)
-                BinaryPrimitives.WriteUInt32LittleEndian(destination[8..], (uint)written);
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            int count = WriteHeader(destination, source.Length);
+            int headerSize = 8 + count * 4;
+            if (destination.Length < headerSize)
+                throw new CompressionException("The GDeflate destination is too small.");
 
-            offset += written;
+            int offset = headerSize;
+            for (int i = 0; i < count; i++)
+            {
+                int sourceOffset = i * TileSize;
+                int written = CompressTile(source.Slice(sourceOffset, Math.Min(TileSize, source.Length - sourceOffset)), destination[offset..]);
+                BinaryPrimitives.WriteUInt32LittleEndian(destination[(8 + i * 4)..], (uint)(i == 0 ? 0 : offset - headerSize));
+                if (i == count - 1)
+                    BinaryPrimitives.WriteUInt32LittleEndian(destination[8..], (uint)written);
+
+                offset += written;
+            }
+
+            return offset;
         }
-
-        return offset;
     }
 
     /// <inheritdoc/>
     public override int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        long size = ReadHeader(source, out int count);
-        int headerSize = 8 + count * 4;
-        if (source.Length < headerSize || size > destination.Length)
-            throw new CompressionException("The GDeflate input is truncated or the destination is too small.");
-
-        CompressedBlock[] tiles = ReadTiles(source.Slice(8, count * 4), size, source.Length - headerSize);
-        int written = 0;
-        foreach (CompressedBlock tile in tiles)
+        lock (_sync)
         {
-            written += DecompressTile(source.Slice(headerSize + (int)tile.CompressedOffset, tile.CompressedLength), destination.Slice(written, tile.DecompressedLength));
-        }
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            long size = ReadHeader(source, out int count);
+            int headerSize = 8 + count * 4;
+            if (source.Length < headerSize || size > destination.Length)
+                throw new CompressionException("The GDeflate input is truncated or the destination is too small.");
 
-        return written;
+            CompressedBlock[] tiles = ReadTiles(source.Slice(8, count * 4), size, source.Length - headerSize);
+            int written = 0;
+            foreach (CompressedBlock tile in tiles)
+                written += DecompressTile(source.Slice(headerSize + (int)tile.CompressedOffset, tile.CompressedLength), destination.Slice(written, tile.DecompressedLength));
+
+            return written;
+        }
     }
 
     /// <inheritdoc/>
@@ -129,14 +136,18 @@ public sealed class GDeflateCodec : CompressionCodec
     /// <inheritdoc/>
     public override void Dispose()
     {
-        if (_compressor != 0)
-            GDeflateInterop.FreeCompressor(_compressor);
-        if (_decompressor != 0)
-            GDeflateInterop.FreeDecompressor(_decompressor);
+        lock (_sync)
+        {
+            if (_compressor != 0)
+                GDeflateInterop.FreeCompressor(_compressor);
+            if (_decompressor != 0)
+                GDeflateInterop.FreeDecompressor(_decompressor);
 
-        _compressor = 0;
-        _decompressor = 0;
-        _disposed = true;
+            _compressor = 0;
+            _decompressor = 0;
+            _disposed = true;
+        }
+
         GC.SuppressFinalize(this);
     }
 
