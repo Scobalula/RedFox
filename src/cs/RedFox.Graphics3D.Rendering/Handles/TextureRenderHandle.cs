@@ -37,6 +37,9 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     private int _uploadSlicePosition;
     private int _availableBaseMip = -1;
 
+    /// <inheritdoc/>
+    public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
+
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
     /// </summary>
@@ -67,9 +70,6 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     }
 
     /// <inheritdoc/>
-    public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
-
-    /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {
         ThrowIfDisposed();
@@ -87,11 +87,7 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         }
 
         Image? image = _texture.Data;
-        if (image is null
-            || image.Width <= 0
-            || image.Height <= 0
-            || image.Format == ImageFormat.Unknown
-            || image.PixelMemory.IsEmpty)
+        if (image is null || image.Width <= 0 || image.Height <= 0 || image.Depth != 1 || image.IsCubemap || image.ArraySize != 1 || image.Format == ImageFormat.Unknown || image.PixelMemory.IsEmpty)
         {
             ReleaseTexture();
             _failedImage = image;
