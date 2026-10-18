@@ -172,8 +172,8 @@
 //        animation.Tracks.Add(spineTrack);
 
 //        AnimationAction action = animation.CreateAction("footstep");
-//        action.KeyFrames.Add(new AnimationKeyFrame<float, Action<Scene>?>(3f, null));
-//        action.KeyFrames.Add(new AnimationKeyFrame<float, Action<Scene>?>(9f, null));
+//        action.KeyFrames.Add(new AnimationKeyFrame<float, object?>(3f, null));
+//        action.KeyFrames.Add(new AnimationKeyFrame<float, object?>(9f, null));
 
 //        return scene;
 //    }
@@ -219,8 +219,8 @@
 
 //            for (int keyFrameIndex = 0; keyFrameIndex < expectedAction.KeyFrames.Count; keyFrameIndex++)
 //            {
-//                AnimationKeyFrame<float, Action<Scene>?> expectedFrame = expectedAction.KeyFrames[keyFrameIndex];
-//                AnimationKeyFrame<float, Action<Scene>?> actualFrame = actualAction.KeyFrames[keyFrameIndex];
+//                AnimationKeyFrame<float, object?> expectedFrame = expectedAction.KeyFrames[keyFrameIndex];
+//                AnimationKeyFrame<float, object?> actualFrame = actualAction.KeyFrames[keyFrameIndex];
 //                AssertFloatNear(expectedFrame.Frame, actualFrame.Frame, tolerance);
 //            }
 //        }

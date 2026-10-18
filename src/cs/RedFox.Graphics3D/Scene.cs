@@ -108,6 +108,20 @@ namespace RedFox.Graphics3D
             }
         }
 
+        /// <inheritdoc/>
+        public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+        {
+            base.Write(writer, nodeIndices);
+            writer.Write((int)UpAxis);
+        }
+
+        /// <inheritdoc/>
+        public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+        {
+            base.Read(reader, nodes);
+            UpAxis = (SceneUpAxis)reader.ReadInt32();
+        }
+
         /// <summary>
         /// Scenes own renderer settings, animation players, and change events that cannot be shared, so they cannot be cloned.
         /// </summary>

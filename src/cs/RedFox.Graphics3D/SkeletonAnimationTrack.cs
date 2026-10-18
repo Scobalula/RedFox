@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
 // SkeletonAnimationTrack.cs — Bone-targeted animation track
 // ------------------------------------------------------------------------
 // Extends AnimationTrack with bone-specific semantics. Each track targets
@@ -42,6 +42,22 @@ namespace RedFox.Graphics3D.Skeletal
         /// <see cref="AnimationCurve.TransformType"/> property.
         /// </summary>
         public TransformType TransformType { get; set; }
+
+        /// <inheritdoc/>
+        public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+        {
+            base.Write(writer, nodeIndices);
+            writer.Write((int)TransformSpace);
+            writer.Write((int)TransformType);
+        }
+
+        /// <inheritdoc/>
+        public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+        {
+            base.Read(reader, nodes);
+            TransformSpace	= (TransformSpace)reader.ReadInt32();
+            TransformType	= (TransformType)reader.ReadInt32();
+        }
 
         /// <summary>
         /// Appends a translation keyframe at the specified time. Lazily creates the

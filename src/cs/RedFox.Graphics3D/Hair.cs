@@ -1,4 +1,5 @@
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -29,6 +30,24 @@ public class Hair : SceneNode
 
         if (ReferenceEquals(Material, oldNode))
             Material = newNode as Material;
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteArray<int>(StrandSegments);
+        writer.WriteBuffer(Particles);
+        writer.WriteNode(Material, nodeIndices);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        StrandSegments	= reader.ReadArray<int>();
+        Particles		= reader.ReadBuffer();
+        Material		= reader.ReadNode<Material>(nodes);
     }
 
     /// <inheritdoc/>

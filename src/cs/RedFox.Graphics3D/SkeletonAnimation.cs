@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Text;
 
 namespace RedFox.Graphics3D.Skeletal;
@@ -90,6 +90,37 @@ public class SkeletonAnimation : Animation
         }
 
         return (minFrame, maxFrame);
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write((int)TransformType);
+        writer.Write((int)TransformSpace);
+        writer.Write(Tracks.Count);
+
+        foreach (SkeletonAnimationTrack track in Tracks)
+            track.Write(writer, nodeIndices);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+
+        TransformType	= (TransformType)reader.ReadInt32();
+        TransformSpace	= (TransformSpace)reader.ReadInt32();
+
+        int trackCount = reader.ReadInt32();
+        Tracks = new(trackCount);
+
+        for (int i = 0; i < trackCount; i++)
+        {
+            SkeletonAnimationTrack track = new(string.Empty);
+            track.Read(reader, nodes);
+            Tracks.Add(track);
+        }
     }
 
     /// <summary>

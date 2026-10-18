@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 using System.Runtime.CompilerServices;
 using RedFox.Graphics3D.Buffers;
 
@@ -205,6 +206,51 @@ public class AnimationCurve
         curve.TransformSpace = space;
         curve.TransformType = type;
         return curve;
+    }
+
+    /// <summary>
+    /// Reads an animation curve from a binary stream.
+    /// </summary>
+    /// <param name="reader">The binary reader.</param>
+    /// <returns>The curve read.</returns>
+    public static AnimationCurve Read(BinaryReader reader) => new()
+    {
+        Keys			= reader.ReadBuffer(),
+        Values			= reader.ReadBuffer(),
+        TransformSpace	= (TransformSpace)reader.ReadInt32(),
+        TransformType	= (TransformType)reader.ReadInt32(),
+        BlendWeight		= reader.ReadSingle(),
+    };
+
+    /// <summary>
+    /// Reads an optional animation curve from a binary stream.
+    /// </summary>
+    /// <param name="reader">The binary reader.</param>
+    /// <returns>The curve read, or <see langword="null"/> when no curve is present.</returns>
+    public static AnimationCurve? ReadOptional(BinaryReader reader) => reader.ReadBoolean() ? Read(reader) : null;
+
+    /// <summary>
+    /// Writes an optional animation curve to a binary stream.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="curve">The curve to write, or <see langword="null"/>.</param>
+    public static void WriteOptional(BinaryWriter writer, AnimationCurve? curve)
+    {
+        writer.Write(curve is not null);
+        curve?.Write(writer);
+    }
+
+    /// <summary>
+    /// Writes this animation curve to a binary stream.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    public void Write(BinaryWriter writer)
+    {
+        writer.WriteBuffer(Keys);
+        writer.WriteBuffer(Values);
+        writer.Write((int)TransformSpace);
+        writer.Write((int)TransformType);
+        writer.Write(BlendWeight);
     }
 
     // ------------------------------------------------------------------

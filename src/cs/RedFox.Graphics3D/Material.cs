@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -371,6 +372,101 @@ public class Material(string name) : SceneNode(name)
                 _version++;
                 return;
             }
+        }
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+
+        writer.WriteOptional(DiffuseMapName);
+        writer.WriteOptional(SpecularMapName);
+        writer.WriteOptional(MetallicMapName);
+        writer.WriteOptional(GlossMapName);
+        writer.WriteOptional(RoughnessMapName);
+        writer.WriteOptional(NormalMapName);
+        writer.WriteOptional(EmissiveMapName);
+        writer.WriteOptional(EmissiveMaskMapName);
+        writer.WriteOptional(AmbientOcclusionMapName);
+        writer.WriteOptional(CavityMapName);
+        writer.WriteOptional(AnisotropyMapName);
+
+        writer.WriteOptional(DiffuseColor);
+        writer.WriteOptional(SpecularColor);
+        writer.WriteOptional(MetallicColor);
+        writer.WriteOptional(GlossColor);
+        writer.WriteOptional(RoughnessColor);
+        writer.WriteOptional(EmissiveColor);
+        writer.WriteOptional(AmbientOcclusionColor);
+        writer.WriteOptional(CavityColor);
+        writer.WriteOptional(AnisotropyColor);
+
+        writer.WriteOptional(Shininess);
+        writer.WriteOptional(SpecularStrength);
+        writer.WriteOptional(Metallic);
+        writer.WriteOptional(Roughness);
+        writer.Write(DoubleSided);
+        writer.Write(SpecularMaskInDiffuseAlpha);
+        writer.Write(UseSpecularColorMap);
+        writer.WriteOptional(Type);
+
+        writer.Write(_connections.Count);
+
+        foreach (MaterialTextureBinding binding in _connections)
+        {
+            writer.WriteNode(binding.Texture, nodeIndices);
+            writer.Write(binding.Slot);
+            writer.Write(binding.SamplerUniform);
+        }
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+
+        DiffuseMapName			= reader.ReadOptionalString();
+        SpecularMapName			= reader.ReadOptionalString();
+        MetallicMapName			= reader.ReadOptionalString();
+        GlossMapName			= reader.ReadOptionalString();
+        RoughnessMapName		= reader.ReadOptionalString();
+        NormalMapName			= reader.ReadOptionalString();
+        EmissiveMapName			= reader.ReadOptionalString();
+        EmissiveMaskMapName		= reader.ReadOptionalString();
+        AmbientOcclusionMapName	= reader.ReadOptionalString();
+        CavityMapName			= reader.ReadOptionalString();
+        AnisotropyMapName		= reader.ReadOptionalString();
+
+        DiffuseColor			= reader.ReadOptional<Vector4>();
+        SpecularColor			= reader.ReadOptional<Vector4>();
+        MetallicColor			= reader.ReadOptional<Vector4>();
+        GlossColor				= reader.ReadOptional<Vector4>();
+        RoughnessColor			= reader.ReadOptional<Vector4>();
+        EmissiveColor			= reader.ReadOptional<Vector4>();
+        AmbientOcclusionColor	= reader.ReadOptional<Vector4>();
+        CavityColor				= reader.ReadOptional<Vector4>();
+        AnisotropyColor			= reader.ReadOptional<Vector4>();
+
+        Shininess					= reader.ReadOptional<float>();
+        SpecularStrength			= reader.ReadOptional<float>();
+        Metallic					= reader.ReadOptional<float>();
+        Roughness					= reader.ReadOptional<float>();
+        DoubleSided					= reader.ReadBoolean();
+        SpecularMaskInDiffuseAlpha	= reader.ReadBoolean();
+        UseSpecularColorMap			= reader.ReadBoolean();
+        Type						= reader.ReadOptionalString();
+
+        int bindingCount = reader.ReadInt32();
+
+        for (int i = 0; i < bindingCount; i++)
+        {
+            Texture?	texture			= reader.ReadNode<Texture>(nodes);
+            int			slot			= reader.ReadInt32();
+            string		samplerUniform	= reader.ReadString();
+
+            if (texture is not null)
+                _connections.Add(new MaterialTextureBinding(texture, slot, samplerUniform));
         }
     }
 

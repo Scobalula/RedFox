@@ -2,6 +2,7 @@ using RedFox.Graphics3D.Buffers;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -281,6 +282,46 @@ public class Skin(IReadOnlyList<SkeletonBone> bones, DataBuffer boneIndices, Dat
     /// </summary>
     /// <returns>The copied skin.</returns>
     public Skin Clone() => new(_bones, BoneIndices, BoneWeights) { Name = Name, SkinningMode = SkinningMode, InverseBindMatrices = _inverseBindMatrices };
+
+    /// <summary>
+    /// Writes this skin and its bone references to a binary stream.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="nodeIndices">The indices assigned to scene nodes.</param>
+    public void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        writer.WriteOptional(Name);
+        writer.Write((int)SkinningMode);
+        writer.WriteNodes(_bones, nodeIndices);
+        writer.WriteBuffer(BoneIndices);
+        writer.WriteBuffer(BoneWeights);
+        writer.Write(_inverseBindMatrices is not null);
+
+        if (_inverseBindMatrices is not null)
+            writer.WriteArray<Matrix4x4>(_inverseBindMatrices);
+    }
+
+    /// <summary>
+    /// Reads a skin and resolves its bone references from the supplied nodes.
+    /// </summary>
+    /// <param name="reader">The binary reader.</param>
+    /// <param name="nodes">The scene nodes available for reference.</param>
+    /// <returns>The skin read.</returns>
+    public static Skin Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        string?				name			= reader.ReadOptionalString();
+        SkinningMode		skinningMode	= (SkinningMode)reader.ReadInt32();
+        List<SkeletonBone>	bones			= reader.ReadNodes<SkeletonBone>(nodes);
+        DataBuffer			boneIndices		= reader.ReadBuffer()!;
+        DataBuffer			boneWeights		= reader.ReadBuffer()!;
+
+        return new Skin(bones, boneIndices, boneWeights)
+        {
+            Name				= name,
+            SkinningMode		= skinningMode,
+            InverseBindMatrices	= reader.ReadBoolean() ? reader.ReadArray<Matrix4x4>() : null,
+        };
+    }
 
     internal SceneBounds[] GetBindSpaceBounds(DataBuffer positions, Matrix4x4 meshBindWorld)
     {

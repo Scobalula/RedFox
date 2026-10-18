@@ -292,6 +292,9 @@ public sealed class AssetManager
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(configuration);
 
+        if (asset.Handler is not null)
+            return asset.Handler;
+
         IAssetHandler[] handlers;
         lock (_sourceLock)
             handlers = _handlers.ToArray();

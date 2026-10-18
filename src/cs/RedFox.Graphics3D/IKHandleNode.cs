@@ -1,5 +1,6 @@
 using System.Numerics;
 using RedFox.Graphics3D.Solvers;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -80,6 +81,34 @@ public sealed class IKHandleNode(string name, SceneNode startNode, SceneNode end
         var solver = new CCDIKSolver(Name) { CurrentWeight = Weight, TargetNode = TargetNode, TargetOffset = TargetOffset, UseTargetRotation = UseTargetRotation };
         solver.Chain.AddRange(chain);
         return solver;
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteNode(StartNode, nodeIndices);
+        writer.WriteNode(EndNode, nodeIndices);
+        writer.WriteNode(TargetNode, nodeIndices);
+        writer.WriteValue(TargetOffset);
+        writer.WriteNode(PoleVectorNode, nodeIndices);
+        writer.WriteNode(PoleNode, nodeIndices);
+        writer.Write(UseTargetRotation);
+        writer.Write(Weight);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        StartNode			= reader.ReadNode<SceneNode>(nodes)!;
+        EndNode				= reader.ReadNode<SceneNode>(nodes)!;
+        TargetNode			= reader.ReadNode<SceneNode>(nodes);
+        TargetOffset		= reader.ReadValue<Vector3>();
+        PoleVectorNode		= reader.ReadNode<SceneNode>(nodes);
+        PoleNode			= reader.ReadNode<SceneNode>(nodes);
+        UseTargetRotation	= reader.ReadBoolean();
+        Weight				= reader.ReadSingle();
     }
 
     /// <inheritdoc/>

@@ -113,7 +113,7 @@ internal static class XAnimWriter
                 continue;
             foreach (AnimationAction action in animation.Actions)
             {
-                foreach (AnimationKeyFrame<float, Action<Scene>?> keyFrame in action.KeyFrames)
+                foreach (AnimationKeyFrame<float, object?> keyFrame in action.KeyFrames)
                     writer.WriteIntString("FRAME", checked((uint)MathF.Round(keyFrame.Frame)), action.Name);
             }
         }

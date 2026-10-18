@@ -1,3 +1,5 @@
+using RedFox.Graphics3D.IO.SceneFile;
+
 namespace RedFox.Graphics3D;
 
 /// <summary>
@@ -29,6 +31,24 @@ public abstract class ConstraintNode(string name, SceneNode constrainedNode, Sce
             ConstrainedNode = newNode;
         if (ReferenceEquals(SourceNode, oldNode))
             SourceNode = newNode;
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteNode(ConstrainedNode, nodeIndices);
+        writer.WriteNode(SourceNode, nodeIndices);
+        writer.Write(Weight);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        ConstrainedNode	= reader.ReadNode<SceneNode>(nodes)!;
+        SourceNode		= reader.ReadNode<SceneNode>(nodes)!;
+        Weight			= reader.ReadSingle();
     }
 
     /// <inheritdoc/>

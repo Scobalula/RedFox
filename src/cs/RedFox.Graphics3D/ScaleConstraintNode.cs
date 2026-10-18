@@ -1,5 +1,6 @@
 using System.Numerics;
 using RedFox.Graphics3D.Solvers;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -27,6 +28,26 @@ public sealed class ScaleConstraintNode(string name, SceneNode constrainedNode, 
     /// Gets or sets whether the Z axis is left unconstrained.
     /// </summary>
     public bool SkipZ { get; set; }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteValue(ScaleOffset);
+        writer.Write(SkipX);
+        writer.Write(SkipY);
+        writer.Write(SkipZ);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        ScaleOffset	= reader.ReadValue<Vector3>();
+        SkipX		= reader.ReadBoolean();
+        SkipY		= reader.ReadBoolean();
+        SkipZ		= reader.ReadBoolean();
+    }
 
     /// <summary>
     /// Creates the runtime solver equivalent for this scale constraint node.

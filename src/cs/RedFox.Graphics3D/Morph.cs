@@ -2,6 +2,7 @@ using RedFox.Graphics3D.Buffers;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -142,6 +143,36 @@ public class Morph
         Morph clone = new(_targetNames, DeltaPositions, DeltaNormals, DeltaTangents) { Name = Name };
         Weights.CopyTo(clone.Weights);
         return clone;
+    }
+
+    /// <summary>
+    /// Writes this morph to a binary stream.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    public void Write(BinaryWriter writer)
+    {
+        writer.WriteOptional(Name);
+        writer.WriteStrings(_targetNames);
+        writer.WriteArray<float>(Weights);
+        writer.WriteBuffer(DeltaPositions);
+        writer.WriteBuffer(DeltaNormals);
+        writer.WriteBuffer(DeltaTangents);
+    }
+
+    /// <summary>
+    /// Reads a morph from a binary stream.
+    /// </summary>
+    /// <param name="reader">The binary reader.</param>
+    /// <returns>The morph read.</returns>
+    public static Morph Read(BinaryReader reader)
+    {
+        string?		name		= reader.ReadOptionalString();
+        string[]	targetNames	= reader.ReadStrings();
+        float[]		weights		= reader.ReadArray<float>();
+        Morph		morph		= new(targetNames, reader.ReadBuffer(), reader.ReadBuffer(), reader.ReadBuffer()) { Name = name };
+
+        weights.CopyTo(morph.Weights);
+        return morph;
     }
 
     private Vector3 GetWeightedDelta(DataBuffer? deltas, int vertexIndex)

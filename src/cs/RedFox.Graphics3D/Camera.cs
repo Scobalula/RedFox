@@ -1,4 +1,5 @@
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -103,6 +104,50 @@ public class Camera : SceneNode
     /// </summary>
     /// <param name="name">The camera name.</param>
     public Camera(string name) : base(name) { }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteValue(Position);
+        writer.WriteValue(Target);
+        writer.WriteValue(Up);
+        writer.Write((int)Projection);
+        writer.Write(FieldOfView);
+        writer.Write(OrthographicSize);
+        writer.Write(NearPlane);
+        writer.Write(FarPlane);
+        writer.Write(AspectRatio);
+        writer.Write(LookSensitivity);
+        writer.Write(ZoomSensitivity);
+        writer.Write(PanSensitivity);
+        writer.Write(MoveSpeed);
+        writer.Write(BoostMultiplier);
+        writer.Write(InvertX);
+        writer.Write(InvertY);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        Position			= reader.ReadValue<Vector3>();
+        Target				= reader.ReadValue<Vector3>();
+        Up					= reader.ReadValue<Vector3>();
+        Projection			= (CameraProjection)reader.ReadInt32();
+        FieldOfView			= reader.ReadSingle();
+        OrthographicSize	= reader.ReadSingle();
+        NearPlane			= reader.ReadSingle();
+        FarPlane			= reader.ReadSingle();
+        AspectRatio			= reader.ReadSingle();
+        LookSensitivity		= reader.ReadSingle();
+        ZoomSensitivity		= reader.ReadSingle();
+        PanSensitivity		= reader.ReadSingle();
+        MoveSpeed			= reader.ReadSingle();
+        BoostMultiplier		= reader.ReadSingle();
+        InvertX				= reader.ReadBoolean();
+        InvertY				= reader.ReadBoolean();
+    }
 
     /// <summary>
     /// Computes the world-to-view matrix for the current frame.

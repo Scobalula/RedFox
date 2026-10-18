@@ -1,3 +1,5 @@
+using RedFox.Graphics3D.IO.SceneFile;
+
 namespace RedFox.Graphics3D;
 
 /// <summary>
@@ -16,4 +18,20 @@ public class SceneReference(string name, string filePath) : SceneNode(name)
     /// Gets or sets the absolute path of the referenced file, or <see langword="null"/> if it could not be resolved.
     /// </summary>
     public string? ResolvedFilePath { get; set; }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write(FilePath);
+        writer.WriteOptional(ResolvedFilePath);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        FilePath			= reader.ReadString();
+        ResolvedFilePath	= reader.ReadOptionalString();
+    }
 }

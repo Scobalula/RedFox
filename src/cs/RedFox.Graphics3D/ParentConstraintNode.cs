@@ -1,5 +1,6 @@
 using System.Numerics;
 using RedFox.Graphics3D.Solvers;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -17,6 +18,22 @@ public sealed class ParentConstraintNode(string name, SceneNode constrainedNode,
     /// Gets or sets the local rotation offset preserved between the source and constrained nodes.
     /// </summary>
     public Quaternion RotationOffset { get; set; } = Quaternion.Identity;
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.WriteValue(TranslationOffset);
+        writer.WriteValue(RotationOffset);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        TranslationOffset	= reader.ReadValue<Vector3>();
+        RotationOffset		= reader.ReadValue<Quaternion>();
+    }
 
     /// <summary>
     /// Creates the runtime solver equivalent for this parent constraint node.

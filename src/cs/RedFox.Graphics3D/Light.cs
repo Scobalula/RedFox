@@ -1,4 +1,5 @@
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D
 {
@@ -38,6 +39,24 @@ namespace RedFox.Graphics3D
         /// </summary>
         public Light() : this("Light")
         {
+        }
+
+        /// <inheritdoc/>
+        public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+        {
+            base.Write(writer, nodeIndices);
+            writer.WriteValue(Color);
+            writer.Write(Intensity);
+            writer.Write(Enabled);
+        }
+
+        /// <inheritdoc/>
+        public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+        {
+            base.Read(reader, nodes);
+            Color		= reader.ReadValue<Vector3>();
+            Intensity	= reader.ReadSingle();
+            Enabled		= reader.ReadBoolean();
         }
 
     }

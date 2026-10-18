@@ -10,7 +10,9 @@ using RedFox.Graphics3D.Formats.SEAnim;
 using RedFox.Graphics3D.Formats.SEModel;
 using RedFox.Graphics3D.Formats.StudioMDL;
 using RedFox.Graphics3D.Formats.WavefrontObj;
+using RedFox.Graphics3D.Formats.Wilt;
 using RedFox.Graphics3D.IO;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D.Formats;
 
@@ -48,5 +50,8 @@ public static class BuiltInSceneFormats
         manager.Register(new ObjTranslator());
         manager.Register(new XAnimTranslator());
         manager.Register(new XModelTranslator());
+        manager.Register(new SceneFileTranslator());
+        manager.Register(new WiltModelTranslator());
+        manager.Register(new WiltAnimTranslator());
     }
 }

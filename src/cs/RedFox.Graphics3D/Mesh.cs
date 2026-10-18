@@ -1,4 +1,5 @@
 using RedFox.Graphics3D.Buffers;
+using RedFox.Graphics3D.IO.SceneFile;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -424,6 +425,76 @@ public class Mesh : SceneNode
                     Materials[i] = newMaterial;
             }
         }
+    }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+
+        writer.WriteBuffer(Positions);
+        writer.WriteBuffer(Normals);
+        writer.WriteBuffer(Tangents);
+        writer.WriteBuffer(BiTangents);
+        writer.WriteBuffer(ColorLayers);
+        writer.WriteBuffer(UVLayers);
+        writer.WriteBuffer(FaceIndices);
+
+        writer.Write(Materials is not null);
+
+        if (Materials is not null)
+            writer.WriteNodes(Materials, nodeIndices);
+
+        writer.Write(MaterialIndexRanges is not null);
+
+        if (MaterialIndexRanges is not null)
+        {
+            writer.Write(MaterialIndexRanges.Count);
+
+            foreach ((int startIndex, int indexCount) in MaterialIndexRanges)
+            {
+                writer.Write(startIndex);
+                writer.Write(indexCount);
+            }
+        }
+
+        writer.Write(Skin is not null);
+        Skin?.Write(writer, nodeIndices);
+
+        writer.Write(Morph is not null);
+        Morph?.Write(writer);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+
+        Positions	= reader.ReadBuffer();
+        Normals		= reader.ReadBuffer();
+        Tangents	= reader.ReadBuffer();
+        BiTangents	= reader.ReadBuffer();
+        ColorLayers	= reader.ReadBuffer();
+        UVLayers	= reader.ReadBuffer();
+        FaceIndices	= reader.ReadBuffer();
+
+        if (reader.ReadBoolean())
+            Materials = reader.ReadNodes<Material>(nodes);
+
+        if (reader.ReadBoolean())
+        {
+            int rangeCount = reader.ReadInt32();
+            MaterialIndexRanges = new(rangeCount);
+
+            for (int i = 0; i < rangeCount; i++)
+                MaterialIndexRanges.Add((reader.ReadInt32(), reader.ReadInt32()));
+        }
+
+        if (reader.ReadBoolean())
+            Skin = Skin.Read(reader, nodes);
+
+        if (reader.ReadBoolean())
+            Morph = Morph.Read(reader);
     }
 
     /// <inheritdoc/>

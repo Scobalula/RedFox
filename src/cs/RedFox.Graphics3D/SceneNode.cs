@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Enumeration;
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -1908,14 +1909,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (Parent is null)
             return worldPosition;
 
-        Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
-        if (Matrix4x4.Invert(parentWorldMatrix, out Matrix4x4 inverseParentWorldMatrix))
-        {
-            return Vector3.Transform(worldPosition, inverseParentWorldMatrix);
-        }
-
-        (Vector3 parentPosition, Quaternion parentRotation) = Parent.GetBindWorldPose();
-        return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
+        return GetBindLocalPosition(worldPosition, Parent.GetBindWorldMatrix());
     }
 
     /// <summary>
@@ -1969,7 +1963,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The bind world transform matrix.</returns>
     public Matrix4x4 GetBindWorldMatrix()
     {
-        return Parent is not null ? GetBindLocalMatrix() * Parent.GetBindWorldMatrix() : GetBindLocalMatrix();
+        if (Parent is null)
+            return GetBindLocalMatrix();
+
+        // The parent's world matrix is reused to derive a world-only local position. Deriving it separately walks the ancestors twice per level, which is exponential in hierarchy depth.
+        Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
+        Vector3 localPosition = BindTransform.LocalPosition ?? (BindTransform.WorldPosition is { } worldPosition ? GetBindLocalPosition(worldPosition, parentWorldMatrix) : Vector3.Zero);
+
+        return Matrix4x4.CreateScale(GetBindLocalScale())
+            * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetBindLocalRotation()))
+            * Matrix4x4.CreateTranslation(localPosition)
+            * parentWorldMatrix;
     }
 
     /// <summary>
@@ -3166,6 +3170,62 @@ public abstract class SceneNode : IUpdatable, IDisposable
             Swap(source, copy);
     }
 
+    /// <summary>
+    /// Writes this node's data to a binary scene record.
+    /// </summary>
+    /// <param name="writer">The binary writer.</param>
+    /// <param name="nodeIndices">The indices assigned to scene nodes.</param>
+    public virtual void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        writer.Write(Name);
+        writer.Write((int)Flags);
+        writer.WriteValue(UserId);
+        writer.WriteOptional(BindTransform.LocalPosition);
+        writer.WriteOptional(BindTransform.LocalRotation);
+        writer.WriteOptional(BindTransform.WorldPosition);
+        writer.WriteOptional(BindTransform.WorldRotation);
+        writer.WriteOptional(BindTransform.Scale);
+        writer.WriteOptional(UserData?.ToString());
+        writer.Write(Attributes?.Count ?? 0);
+
+        if (Attributes is not null)
+        {
+            foreach ((string key, object value) in Attributes)
+            {
+                writer.Write(key);
+                writer.WriteAttribute(value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads this node's data from a binary scene record.
+    /// </summary>
+    /// <param name="reader">The binary reader.</param>
+    /// <param name="nodes">The scene nodes available for reference.</param>
+    public virtual void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        Name						= reader.ReadString();
+        Flags						= (SceneNodeFlags)reader.ReadInt32();
+        UserId						= reader.ReadValue<UInt128>();
+        BindTransform.LocalPosition	= reader.ReadOptional<Vector3>();
+        BindTransform.LocalRotation	= reader.ReadOptional<Quaternion>();
+        BindTransform.WorldPosition	= reader.ReadOptional<Vector3>();
+        BindTransform.WorldRotation	= reader.ReadOptional<Quaternion>();
+        BindTransform.Scale			= reader.ReadOptional<Vector3>();
+        UserData					= reader.ReadOptionalString();
+
+        int attributeCount = reader.ReadInt32();
+
+        if (attributeCount > 0)
+        {
+            Attributes = new(attributeCount);
+
+            for (int i = 0; i < attributeCount; i++)
+                Attributes[reader.ReadString()] = reader.ReadAttribute();
+        }
+    }
+
     /// <inheritdoc/>
     public override string ToString() => $"{GetType()}({Name})";
 
@@ -3524,6 +3584,17 @@ public abstract class SceneNode : IUpdatable, IDisposable
         }
 
         return false;
+    }
+
+    private Vector3 GetBindLocalPosition(Vector3 worldPosition, Matrix4x4 parentWorldMatrix)
+    {
+        if (Matrix4x4.Invert(parentWorldMatrix, out Matrix4x4 inverseParentWorldMatrix))
+        {
+            return Vector3.Transform(worldPosition, inverseParentWorldMatrix);
+        }
+
+        (Vector3 parentPosition, Quaternion parentRotation) = Parent!.GetBindWorldPose();
+        return Vector3.Transform(worldPosition - parentPosition, Quaternion.Conjugate(parentRotation));
     }
 
     private (Vector3 Position, Quaternion Rotation) GetBindWorldPose()

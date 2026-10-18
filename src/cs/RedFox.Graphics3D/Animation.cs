@@ -1,4 +1,5 @@
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -49,10 +50,60 @@ public abstract class Animation : SceneNode
     {
     }
 
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write(Framerate);
+        writer.Write(Actions is not null);
+
+        if (Actions is not null)
+        {
+            writer.Write(Actions.Count);
+
+            foreach (AnimationAction action in Actions)
+            {
+                writer.Write(action.Name);
+                writer.Write(action.Type);
+                writer.Write(action.KeyFrames.Count);
+
+                foreach ((float frame, object? value) in action.KeyFrames)
+                {
+                    writer.Write(frame);
+                    writer.WriteOptional(value?.ToString());
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        Framerate = reader.ReadSingle();
+
+        if (reader.ReadBoolean())
+        {
+            int actionCount = reader.ReadInt32();
+            Actions = new(actionCount);
+
+            for (int i = 0; i < actionCount; i++)
+            {
+                AnimationAction	action			= new(reader.ReadString(), reader.ReadString());
+                int				keyFrameCount	= reader.ReadInt32();
+
+                for (int j = 0; j < keyFrameCount; j++)
+                    action.KeyFrames.Add(new(reader.ReadSingle(), reader.ReadOptionalString()));
+
+                Actions.Add(action);
+            }
+        }
+    }
+
     /// <summary>
-    /// Calculates the total number of action keyframes across all actions.
+    /// Gets the total number of keyframes across all animation actions.
     /// </summary>
-    /// <returns>The cumulative keyframe count for all actions.</returns>
+    /// <returns>The cumulative keyframe count.</returns>
     public int GetAnimationActionCount() =>
         Actions?.Sum(x => x.KeyFrames.Count) ?? 0;
 
@@ -80,7 +131,7 @@ public abstract class Animation : SceneNode
     /// <param name="actionName">Name of the action.</param>
     /// <param name="keyFrames">Keyframes to add if the action is new.</param>
     /// <returns>The new or existing action.</returns>
-    public AnimationAction CreateAction(string actionName, IEnumerable<AnimationKeyFrame<float, Action<Scene>?>> keyFrames)
+    public AnimationAction CreateAction(string actionName, IEnumerable<AnimationKeyFrame<float, object?>> keyFrames)
     {
         Actions ??= [];
         var actionIndex = Actions.FindIndex(x => x.Name == actionName);

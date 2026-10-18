@@ -26,5 +26,5 @@ public class AnimationAction(string name, string type)
     /// <summary>
     /// Gets or Sets the key frames this action is triggered at.
     /// </summary>
-    public List<AnimationKeyFrame<float, Action<Scene>?>> KeyFrames { get; set; } = [];
+    public List<AnimationKeyFrame<float, object?>> KeyFrames { get; set; } = [];
 }

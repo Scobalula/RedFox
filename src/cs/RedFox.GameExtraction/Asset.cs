@@ -12,6 +12,8 @@ public sealed class Asset
     /// </summary>
     public IAssetSource? Owner { get; private set; }
 
+    public IAssetHandler? Handler { get; init; }
+
     /// <summary>
     /// Gets the name of the asset.
     /// </summary>

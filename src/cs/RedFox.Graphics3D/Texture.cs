@@ -1,6 +1,7 @@
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
 using RedFox.Imaging.IO;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -36,6 +37,22 @@ public class Texture(string filePath) : SceneNode(filePath)
     /// Gets the best path to use when loading the texture from disk.
     /// </summary>
     public string EffectiveFilePath => string.IsNullOrWhiteSpace(ResolvedFilePath) ? FilePath : ResolvedFilePath;
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write(FilePath);
+        writer.WriteOptional(ResolvedFilePath);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        FilePath			= reader.ReadString();
+        ResolvedFilePath	= reader.ReadOptionalString();
+    }
 
     /// <summary>
     /// Resolves <see cref="ResolvedFilePath"/> to an absolute on-disk path derived from

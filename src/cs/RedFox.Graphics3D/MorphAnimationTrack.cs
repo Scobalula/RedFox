@@ -37,4 +37,18 @@ public class MorphAnimationTrack(string name) : SceneNode(name)
     /// <param name="time">The time to sample at.</param>
     /// <returns>The interpolated weight, or 0 when no keyframes exist.</returns>
     public float SampleWeight(float time) => WeightCurve?.SampleScalar(time) ?? 0f;
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        AnimationCurve.WriteOptional(writer, WeightCurve);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        WeightCurve = AnimationCurve.ReadOptional(reader);
+    }
 }

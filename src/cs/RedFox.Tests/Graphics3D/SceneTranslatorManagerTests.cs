@@ -16,7 +16,7 @@ public sealed class SceneTranslatorManagerTests
 
         BuiltInSceneFormats.RegisterAll(manager);
 
-        Assert.Equal(["ActorX PSA", "ActorX PSK", "BiovisionHierarchy", "Cast", "IdTech4MD5Anim", "IdTech4MD5Mesh", "KaydaraFBX", "MayaASCII", "SEAnim", "SEModel", "ValveSMD", "WavefrontOBJ", "XAsset XAnim", "XAsset XModel", "glTF"], manager.Translators.Select(translator => translator.Name).Order(StringComparer.Ordinal));
+        Assert.Equal(["ActorX PSA", "ActorX PSK", "BiovisionHierarchy", "Cast", "IdTech4MD5Anim", "IdTech4MD5Mesh", "KaydaraFBX", "MayaASCII", "RedFoxScene", "SEAnim", "SEModel", "ValveSMD", "WavefrontOBJ", "WiltAnim", "WiltModel", "XAsset XAnim", "XAsset XModel", "glTF"], manager.Translators.Select(translator => translator.Name).Order(StringComparer.Ordinal));
     }
 
     [Fact]

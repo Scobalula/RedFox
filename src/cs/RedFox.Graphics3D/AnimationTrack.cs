@@ -66,6 +66,46 @@ namespace RedFox.Graphics3D
         /// </summary>
         public AnimationTrack() : base() { }
 
+        /// <inheritdoc/>
+        public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+        {
+            base.Write(writer, nodeIndices);
+
+            AnimationCurve.WriteOptional(writer, TranslationCurve);
+            AnimationCurve.WriteOptional(writer, RotationCurve);
+            AnimationCurve.WriteOptional(writer, ScaleCurve);
+            writer.Write(CustomCurves?.Count ?? 0);
+
+            if (CustomCurves is not null)
+            {
+                foreach ((string name, AnimationCurve curve) in CustomCurves)
+                {
+                    writer.Write(name);
+                    curve.Write(writer);
+                }
+            }
+        }
+
+        /// <inheritdoc/>
+        public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+        {
+            base.Read(reader, nodes);
+
+            TranslationCurve	= AnimationCurve.ReadOptional(reader);
+            RotationCurve		= AnimationCurve.ReadOptional(reader);
+            ScaleCurve			= AnimationCurve.ReadOptional(reader);
+
+            int customCurveCount = reader.ReadInt32();
+
+            if (customCurveCount > 0)
+            {
+                CustomCurves = new(customCurveCount);
+
+                for (int i = 0; i < customCurveCount; i++)
+                    CustomCurves[reader.ReadString()] = AnimationCurve.Read(reader);
+            }
+        }
+
         // ------------------------------------------------------------------
         // Convenience methods for adding keyframes
         // ------------------------------------------------------------------

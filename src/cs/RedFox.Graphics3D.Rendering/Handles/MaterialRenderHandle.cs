@@ -240,6 +240,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         return image is not null
             && image.Width > 0
             && image.Height > 0
+            && image.Depth == 1
             && image.Format != ImageFormat.Unknown
             && !image.PixelMemory.IsEmpty;
     }

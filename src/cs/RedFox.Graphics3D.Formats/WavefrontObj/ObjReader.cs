@@ -145,9 +145,11 @@ public sealed class ObjReader
         }
 
         // Load and attach referenced material libraries
+        var materialGroup = model.AddNode<Group>();
+
         foreach (Material mat in materialsByName.Values)
         {
-            model.AddNode(mat);
+            materialGroup.AddNode(mat);
         }
 
         return mtllibPaths;

@@ -60,4 +60,30 @@ public class MorphAnimation : Animation
 
         return (min, max);
     }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write(Tracks.Count);
+
+        foreach (MorphAnimationTrack track in Tracks)
+            track.Write(writer, nodeIndices);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+
+        int trackCount = reader.ReadInt32();
+        Tracks = new(trackCount);
+
+        for (int i = 0; i < trackCount; i++)
+        {
+            MorphAnimationTrack track = new(string.Empty);
+            track.Read(reader, nodes);
+            Tracks.Add(track);
+        }
+    }
 }

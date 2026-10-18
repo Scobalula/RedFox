@@ -1,4 +1,5 @@
 using System.Numerics;
+using RedFox.Graphics3D.IO.SceneFile;
 
 namespace RedFox.Graphics3D;
 
@@ -99,6 +100,44 @@ public class SkeletonBone : SceneNode
     /// <param name="name">The name assigned to the bone node.</param>
     /// <param name="flags">The flags assigned to the bone node.</param>
     public SkeletonBone(string name, SceneNodeFlags flags) : base(name, flags) { }
+
+    /// <inheritdoc/>
+    public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
+    {
+        base.Write(writer, nodeIndices);
+        writer.Write(ShowSkeletonBone);
+        writer.Write(RenderBoneOnTop);
+        writer.Write(BoneAxisSize);
+        writer.Write(BoneAxisScaleFromParent);
+        writer.Write(BoneAxisMaxSize);
+        writer.Write(BoneLineWidth);
+        writer.WriteValue(BoneAxisXColor);
+        writer.WriteValue(BoneAxisYColor);
+        writer.WriteValue(BoneAxisZColor);
+        writer.WriteValue(BoneConnectionColor);
+        writer.Write(UseBoneNameHashColor);
+        writer.Write(BoneNameColorSaturation);
+        writer.Write(BoneNameColorValue);
+    }
+
+    /// <inheritdoc/>
+    public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
+    {
+        base.Read(reader, nodes);
+        ShowSkeletonBone		= reader.ReadBoolean();
+        RenderBoneOnTop			= reader.ReadBoolean();
+        BoneAxisSize			= reader.ReadSingle();
+        BoneAxisScaleFromParent	= reader.ReadSingle();
+        BoneAxisMaxSize			= reader.ReadSingle();
+        BoneLineWidth			= reader.ReadSingle();
+        BoneAxisXColor			= reader.ReadValue<Vector4>();
+        BoneAxisYColor			= reader.ReadValue<Vector4>();
+        BoneAxisZColor			= reader.ReadValue<Vector4>();
+        BoneConnectionColor		= reader.ReadValue<Vector4>();
+        UseBoneNameHashColor	= reader.ReadBoolean();
+        BoneNameColorSaturation	= reader.ReadSingle();
+        BoneNameColorValue		= reader.ReadSingle();
+    }
 
     /// <inheritdoc/>
     public override bool TryGetSceneBounds(out SceneBounds bounds)
