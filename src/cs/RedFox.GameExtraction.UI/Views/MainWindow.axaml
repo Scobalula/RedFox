@@ -283,6 +283,10 @@
                                             </DataTemplate>
                                         </Setter>
                                     </Style>
+                                    <!-- Recycling temporarily clears Content; keep the tile template and its visual tree through that transition. -->
+                                    <Style Selector="ListBox.asset-list.grid ListBoxItem">
+                                        <Setter Property="ContentTemplate" Value="{Binding $parent[ListBox].ItemTemplate}"/>
+                                    </Style>
                                     <Style Selector="ListBox.asset-list.grid">
                                         <Setter Property="ItemsPanel">
                                             <ItemsPanelTemplate>
@@ -290,7 +294,7 @@
                                             </ItemsPanelTemplate>
                                         </Setter>
                                         <Setter Property="ItemTemplate">
-                                            <DataTemplate x:DataType="model:AssetRowViewModel">
+                                            <DataTemplate DataType="{x:Null}" x:DataType="model:AssetRowViewModel">
                                                 <StackPanel Margin="8" Spacing="6" ToolTip.Tip="{Binding Name}">
                                                     <Border Classes="asset-thumbnail">
                                                         <Panel>

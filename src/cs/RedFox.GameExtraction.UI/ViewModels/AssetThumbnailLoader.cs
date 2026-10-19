@@ -69,7 +69,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
 
         StopOrbit();
 
-        if (row is not null && Renderer is not null && row.Category == AssetCategory.Model)
+        if (row is not null && Renderer is not null && row.Category == AssetCategory.Model && !_failed.Contains(row))
         {
             _orbiting = row;
             _ = StartOrbitAsync(row, _orbitCancellation.Token);
@@ -172,10 +172,9 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
     }
 
     // The orbit is rendered and cached with the still, so selecting a model never waits on the renderer.
-    private async Task<Bitmap?> RenderModelThumbnailAsync(AvaloniaOpenGlThumbnailRenderer renderer, AssetRowViewModel row, SceneViewportController viewport, SceneUpAxis upAxis, UInt128? cacheKey)
+    private async Task<Bitmap?> RenderModelThumbnailAsync(AvaloniaOpenGlThumbnailRenderer renderer, SceneViewportController viewport, UInt128? cacheKey, UInt128? orbitKey)
     {
-        UInt128? orbitKey	= CreateCacheKey(row, upAxis, OrbitViewCount);
-        Bitmap[]? views		= await renderer.RenderSceneAsync(viewport, orbitKey is null ? 1 : OrbitViewCount).ConfigureAwait(true);
+        Bitmap[]? views = await renderer.RenderSceneAsync(viewport, orbitKey is null ? 1 : OrbitViewCount).ConfigureAwait(true);
 
         if (views is null)
         {
@@ -242,14 +241,21 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             CancellationToken cancellationToken			= _cancellation.Token;
             GameExtractionConfiguration configuration	= configurationFactory();
             SceneUpAxis upAxis							= previewSettings.UpAxis;
-            UInt128? cacheKey							= CreateCacheKey(row, upAxis, 1);
+            UInt128? cacheKey							= null;
+            UInt128? orbitKey							= null;
             Bitmap? thumbnail							= null;
             _loading									= row;
 
+            // Keys stat the source file, so they are created with the read rather than on the UI thread.
+            object? source = await Task.Run(() =>
+            {
+                cacheKey = CreateCacheKey(row, upAxis, 1);
+                orbitKey = row.Category == AssetCategory.Model ? CreateCacheKey(row, upAxis, OrbitViewCount) : null;
+                return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken);
+            }).ConfigureAwait(true);
+
             try
             {
-                object? source = await Task.Run(() => ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken), cancellationToken).ConfigureAwait(true);
-
                 if (source is Bitmap[] cached)
                 {
                     thumbnail = cached[0];
@@ -261,12 +267,12 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
                 }
                 else if (source is SceneViewportController viewport && Renderer is not null)
                 {
-                    thumbnail = await RenderModelThumbnailAsync(Renderer, row, viewport, upAxis, cacheKey).ConfigureAwait(true);
+                    thumbnail = await RenderModelThumbnailAsync(Renderer, viewport, cacheKey, orbitKey).ConfigureAwait(true);
                 }
             }
             catch (Exception)
             {
-                // Assets that cannot be read or rendered keep their category icon.
+                // Assets that cannot be rendered keep their category icon.
             }
 
             _loading = null;
@@ -292,13 +298,17 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
     {
         GameExtractionConfiguration configuration	= configurationFactory();
         SceneUpAxis upAxis							= previewSettings.UpAxis;
-        UInt128? cacheKey							= CreateCacheKey(row, upAxis, OrbitViewCount);
+        UInt128? cacheKey							= null;
         Bitmap[]? frames							= null;
+
+        object? source = await Task.Run(() =>
+        {
+            cacheKey = CreateCacheKey(row, upAxis, OrbitViewCount);
+            return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken);
+        }).ConfigureAwait(true);
 
         try
         {
-            object? source = await Task.Run(() => ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken), cancellationToken).ConfigureAwait(true);
-
             if (source is Bitmap[] cached)
             {
                 frames = cached;
@@ -311,7 +321,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         }
         catch (Exception)
         {
-            // A model that cannot be read keeps its still thumbnail.
+            // A model that cannot be rendered keeps its still thumbnail.
         }
 
         if (frames is null)
@@ -350,22 +360,30 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
 
     private async Task<object?> ReadThumbnailSourceAsync(Asset asset, UInt128? cacheKey, GameExtractionConfiguration configuration, SceneUpAxis upAxis, CancellationToken cancellationToken)
     {
-        if (cacheKey is { } key && cache.TryGet(key, out ThumbnailCacheImage image))
+        try
         {
-            return CreateBitmaps(image);
+            if (cacheKey is { } key && cache.TryGet(key, out ThumbnailCacheImage image))
+            {
+                return CreateBitmaps(image);
+            }
+
+            AssetReadResult result = await assetManager.ReadAsync(asset, configuration, AssetReadPurpose.Thumbnail, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return result.Data switch
+            {
+                Image data					=> data,
+                Texture texture				=> texture.Data ?? texture.ImageLoader?.Load(texture, assetManager.GetRequiredService<ImageTranslatorService>().Manager),
+                Scene scene					=> CreateViewport(scene, upAxis, cancellationToken),
+                IEnumerable<Scene> scenes	=> scenes.FirstOrDefault() is { } scene ? CreateViewport(scene, upAxis, cancellationToken) : null,
+                _							=> null,
+            };
         }
-
-        AssetReadResult result = await assetManager.ReadAsync(asset, configuration, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        return result.Data switch
+        catch (Exception)
         {
-            Image data					=> data,
-            Texture texture				=> texture.Data ?? texture.ImageLoader?.Load(texture, assetManager.GetRequiredService<ImageTranslatorService>().Manager),
-            Scene scene					=> CreateViewport(scene, upAxis, cancellationToken),
-            IEnumerable<Scene> scenes	=> scenes.FirstOrDefault() is { } scene ? CreateViewport(scene, upAxis, cancellationToken) : null,
-            _							=> null,
-        };
+            // Caught here so an asset that cannot be read never rethrows on the UI thread, where it would stall scrolling.
+            return null;
+        }
     }
 
     private void AddToCache(AssetRowViewModel row, Bitmap thumbnail)

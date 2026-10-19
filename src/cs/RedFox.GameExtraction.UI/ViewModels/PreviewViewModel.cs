@@ -184,7 +184,7 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
             // Asset handlers can do substantial synchronous parsing before their first await. Start the
             // read on a worker so that its synchronous work and continuations stay off the UI thread.
             AssetReadResult result = await Task.Run(
-                () => assetManager.ReadAsync(selectedAsset.Asset, configuration, cancellationToken),
+                () => assetManager.ReadAsync(selectedAsset.Asset, configuration, AssetReadPurpose.Preview, cancellationToken),
                 cancellationToken).ConfigureAwait(true);
             if (loadVersion != _loadVersion)
             {

@@ -7,6 +7,7 @@ using RedFox.Avalonia.Themes;
 using RedFox.Graphics3D.OpenGL;
 using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Hosting;
+using RedFox.Graphics3D.Rendering.Materials;
 using Silk.NET.OpenGL;
 using System.Diagnostics;
 using System.Numerics;
@@ -199,6 +200,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         base.OnOpenGlInit(gl);
         GL silkGl = GL.GetApi(gl.GetProcAddress);
         _graphicsDevice = new OpenGlGraphicsDevice(silkGl);
+        ((MaterialTypeRegistry)_graphicsDevice.MaterialTypes).KeepUnusedPipelines = true;
         _renderer = RendererFactory?.Invoke(_graphicsDevice) ?? CreateDefaultRenderer(_graphicsDevice);
         _renderer.Initialize();
         _inputAdapter = new AvaloniaCameraInputAdapter(this);
@@ -300,6 +302,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _inputAdapter = null;
         _renderer?.Dispose();
         _renderer = null;
+        (_graphicsDevice?.MaterialTypes as MaterialTypeRegistry)?.ReleaseUnusedPipelines();
         _graphicsDevice?.Dispose();
         _graphicsDevice = null;
         base.OnOpenGlDeinit(gl);
@@ -313,6 +316,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _inputAdapter = null;
         _renderer?.Dispose();
         _renderer = null;
+        (_graphicsDevice?.MaterialTypes as MaterialTypeRegistry)?.ReleaseUnusedPipelines();
         _graphicsDevice?.Dispose();
         _graphicsDevice = null;
         base.OnOpenGlLost();

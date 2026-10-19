@@ -53,13 +53,16 @@ public sealed class AssetReadContext
     /// </remarks>
     public IReadOnlyList<AssetReadResult> References => _references;
 
-    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, GameExtractionConfiguration configuration, object? userData, CancellationToken cancellationToken)
+    public AssetReadPurpose Purpose { get; }
+
+    internal AssetReadContext(AssetManager assetManager, IAssetSource source, AssetSourceRequest request, GameExtractionConfiguration configuration, object? userData, AssetReadPurpose purpose, CancellationToken cancellationToken)
     {
         AssetManager = assetManager;
         Source = source;
         Request = request;
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         UserData = userData;
+        Purpose = purpose;
         CancellationToken = cancellationToken;
     }
 

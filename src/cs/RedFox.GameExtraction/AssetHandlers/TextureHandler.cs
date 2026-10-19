@@ -38,7 +38,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
             Data = new Texture(asset.Name)
             {
                 UserData = asset,
-                ImageLoader = this
+                ImageLoader = new AssetTextureLoader(this, context.Purpose)
             },
             Handler = this,
         };
@@ -70,6 +70,8 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     /// <inheritdoc/>
     public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);
 
+    public virtual Image Load(Texture texture, ImageTranslatorManager translatorManager, AssetReadPurpose purpose) => Load(texture, translatorManager);
+
     /// <summary>
     /// Exports the given texture to each of the specified formats. The image is only decoded when at least one
     /// format has to be written, so exporting textures that already exist on disk is cheap.
@@ -97,7 +99,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
 
             var loader = texture.ImageLoader ?? throw new InvalidOperationException($"Texture '{texture.Name}' does not have an image loader.");
 
-            image ??= loader.Load(texture, manager) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
+            image ??= (loader is AssetTextureLoader assetLoader ? assetLoader.Load(texture, manager, AssetReadPurpose.Export) : loader.Load(texture, manager)) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             manager.Write(filePath, image);

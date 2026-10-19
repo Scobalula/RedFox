@@ -616,7 +616,15 @@ public sealed class AssetManager
     /// <param name="userData">Optional user-defined data attached to the operation.</param>
     /// <param name="cancellationToken">The cancellation token for the operation.</param>
     /// <returns>The handler-produced read result.</returns>
-    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, GameExtractionConfiguration configuration, object? userData, CancellationToken cancellationToken)
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, GameExtractionConfiguration configuration, object? userData, CancellationToken cancellationToken) => ReadAsync(asset, parentContext, configuration, userData, AssetReadPurpose.General, cancellationToken);
+
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadPurpose purpose) => ReadAsync(asset, purpose, CancellationToken.None);
+
+    public Task<AssetReadResult> ReadAsync(Asset asset, AssetReadPurpose purpose, CancellationToken cancellationToken) => ReadAsync(asset, null, new GameExtractionConfiguration(), null, purpose, cancellationToken);
+
+    public Task<AssetReadResult> ReadAsync(Asset asset, GameExtractionConfiguration configuration, AssetReadPurpose purpose, CancellationToken cancellationToken) => ReadAsync(asset, null, configuration, null, purpose, cancellationToken);
+
+    public async Task<AssetReadResult> ReadAsync(Asset asset, AssetReadContext? parentContext, GameExtractionConfiguration configuration, object? userData, AssetReadPurpose purpose, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(asset);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -632,7 +640,7 @@ public sealed class AssetManager
 
         try
         {
-            AssetReadContext context = new(this, source, sourceRequest, parentContext?.Configuration ?? configuration, userData, cancellationToken);
+            AssetReadContext context = new(this, source, sourceRequest, parentContext?.Configuration ?? configuration, userData, parentContext?.Purpose ?? purpose, cancellationToken);
             AssetReadResult result = await handler.ReadAsync(asset, context, cancellationToken).ConfigureAwait(false);
 
             foreach (AssetReadResult reference in context.References)
@@ -913,7 +921,7 @@ public sealed class AssetManager
             return;
         }
 
-        AssetReadResult exportResult = result ?? await ReadAsync(asset, parentContext: null, configuration, userData, cancellationToken).ConfigureAwait(false);
+        AssetReadResult exportResult = result ?? await ReadAsync(asset, parentContext: null, configuration, userData, AssetReadPurpose.Export, cancellationToken).ConfigureAwait(false);
 
         Logger.LogDebug("Exporting asset {Asset} to {OutputDirectory}", asset.Name, normalizedDir);
         Stopwatch stopwatch = Stopwatch.StartNew();

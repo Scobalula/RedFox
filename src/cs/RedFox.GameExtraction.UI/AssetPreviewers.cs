@@ -69,7 +69,19 @@ public static class AssetPreviewers
                 current.CaptureCameraState();
             }
 
-            return new ScenePreviewView { DataContext = new ScenePreviewViewModel(scenes, context.PreviewSettings, context.PreparedSceneBounds, context.PreparedSceneData) };
+            ScenePreviewViewModel viewModel = new(scenes, context.PreviewSettings, context.PreparedSceneBounds, context.PreparedSceneData);
+
+            if (context.CurrentPreview is ScenePreviewView currentView)
+            {
+                (currentView.DataContext as ScenePreviewViewModel)?.Dispose();
+                currentView.DataContext = viewModel;
+
+                // Rebinding the scene selector can clear its selection while its items change.
+                viewModel.SelectedSceneIndex = 0;
+                return currentView;
+            }
+
+            return new ScenePreviewView { DataContext = viewModel };
         });
     }
 

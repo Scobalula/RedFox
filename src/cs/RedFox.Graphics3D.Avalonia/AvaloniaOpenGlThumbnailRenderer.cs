@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Media.Imaging;
@@ -20,10 +21,14 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
     // Alpha is hidden because game textures often pack other data into it, which would leave the thumbnail looking empty.
     private static readonly ImageViewOptions ImageOptions = new(new System.Numerics.Vector4(1.0f, 1.0f, 1.0f, 0.0f), 0.0f, true, false, false);
 
+    // Avalonia renders this control on the UI thread, so orbit captures stop for the frame once this much time is spent.
+    private static readonly TimeSpan CaptureBudget = TimeSpan.FromMilliseconds(4);
+
     private const int MaxLoadingFrames = 600;
 
     private readonly Queue<(Image Image, TaskCompletionSource<Bitmap?> Completion)>											_imageRequests	= [];
     private readonly Queue<(SceneViewportController Viewport, int ViewCount, TaskCompletionSource<Bitmap[]?> Completion)>	_sceneRequests	= [];
+    private readonly List<Bitmap>																							_sceneViews		= [];
     private (SceneViewportController Viewport, int ViewCount, TaskCompletionSource<Bitmap[]?> Completion)?					_sceneRequest;
 
     private int						_loadingFrames;
@@ -86,14 +91,23 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
             return;
         }
 
-        while (_imageRequests.TryDequeue(out (Image Image, TaskCompletionSource<Bitmap?> Completion) request))
+        long probeStart = Stopwatch.GetTimestamp(); string probeKind = $"img={_imageRequests.Count} {(_imageRequests.Count > 0 ? _imageRequests.Peek().Image.Width + "x" + _imageRequests.Peek().Image.MipLevels : "")} scene={(_sceneRequest is null ? _sceneRequests.Count : -1)} views={_sceneViews.Count} loading={_loadingFrames}"; // PROBE
+        // One image advances per frame, as a large one can take several frames to upload.
+        if (_imageRequests.TryPeek(out (Image Image, TaskCompletionSource<Bitmap?> Completion) request))
         {
             try
             {
-                request.Completion.TrySetResult(RenderImage(_gl, _imageRenderer, request.Image));
+                Bitmap? bitmap = RenderImage(_gl, _imageRenderer, request.Image);
+
+                if (!_imageRenderer.IsTextureUploadPending)
+                {
+                    _imageRequests.Dequeue();
+                    request.Completion.TrySetResult(bitmap);
+                }
             }
             catch (Exception exception)
             {
+                _imageRequests.Dequeue();
                 request.Completion.TrySetException(exception);
             }
         }
@@ -114,7 +128,11 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
                 sceneRequest.Completion.TrySetException(exception);
                 FinishSceneRequest(_sceneRenderer, sceneRequest.Viewport);
             }
+        }
 
+        double probeMs = Stopwatch.GetElapsedTime(probeStart).TotalMilliseconds; if (probeMs > 20) System.Console.WriteLine($"PROBE {System.DateTime.Now:HH:mm:ss.fff} {probeMs:F2}ms {probeKind} -> views={_sceneViews.Count}"); // PROBE
+        if (_imageRequests.Count > 0 || _sceneRequest is not null || _sceneRequests.Count > 0)
+        {
             RequestNextFrameRendering();
         }
 
@@ -153,13 +171,17 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
         int height			= Math.Max(1, (int)(slice.Height * zoom));
 
         imageRenderer.Resize(width, height);
-        imageRenderer.Render(slice, System.Numerics.Vector2.Zero, zoom, ImageOptions);
 
-        return imageRenderer.IsSliceSupported ? ReadBitmap(gl, width, height) : null;
+        // Without a fallback slice the upload is held to the device's per-frame budget, so a large image without mips uploads over several frames.
+        imageRenderer.Render(slice, null, System.Numerics.Vector2.Zero, zoom, ImageOptions);
+
+        return imageRenderer.IsSliceSupported && !imageRenderer.IsTextureUploadPending ? ReadBitmap(gl, width, height) : null;
     }
 
     private void RenderSceneView(GL gl, SceneRenderer sceneRenderer, SceneViewportController viewport, int viewCount, TaskCompletionSource<Bitmap[]?> completion)
     {
+        long frameStart = Stopwatch.GetTimestamp();
+
         sceneRenderer.Resize(ThumbnailSize, ThumbnailSize);
         viewport.UpdateAndRender(sceneRenderer, 0.0f);
 
@@ -168,29 +190,48 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
             return;
         }
 
-        Bitmap[] views = new Bitmap[viewCount];
-
-        for (int i = 0; i < viewCount; i++)
+        while (true)
         {
-            if (i > 0)
+            _sceneViews.Add(ReadBitmap(gl, ThumbnailSize, ThumbnailSize));
+
+            if (_sceneViews.Count == viewCount)
             {
-                viewport.Camera.YawRadians += MathF.Tau / viewCount;
-                viewport.Camera.ApplyOrbit();
-                viewport.UpdateAndRender(sceneRenderer, 0.0f);
+                completion.TrySetResult([.. _sceneViews]);
+                _sceneViews.Clear();
+                FinishSceneRequest(sceneRenderer, viewport);
+                return;
             }
 
-            views[i] = ReadBitmap(gl, ThumbnailSize, ThumbnailSize);
-        }
+            viewport.Camera.YawRadians += MathF.Tau / viewCount;
+            viewport.Camera.ApplyOrbit();
 
-        completion.TrySetResult(views);
-        FinishSceneRequest(sceneRenderer, viewport);
+            // The next frame renders the rotated view before carrying on.
+            if (Stopwatch.GetElapsedTime(frameStart) >= CaptureBudget)
+            {
+                return;
+            }
+
+            viewport.UpdateAndRender(sceneRenderer, 0.0f);
+        }
     }
 
     private void FinishSceneRequest(SceneRenderer sceneRenderer, SceneViewportController viewport)
     {
+        DisposeSceneViews();
         _sceneRequest	= null;
         _loadingFrames	= 0;
         sceneRenderer.ReleaseResources(viewport.Scene);
+    }
+
+    // Views left here belong to a capture that failed or was abandoned part way through.
+    private void DisposeSceneViews()
+    {
+        foreach (Bitmap view in _sceneViews)
+        {
+            view.Dispose();
+        }
+
+        _sceneViews.Clear();
     }
 
     private Bitmap ReadBitmap(GL gl, int width, int height)
@@ -225,6 +266,7 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
         }
 
         _sceneRequest?.Completion.TrySetResult(null);
+        DisposeSceneViews();
         _sceneRequest	= null;
         _loadingFrames	= 0;
         _imageRenderer?.Dispose();
