@@ -26,6 +26,8 @@ public partial class MainWindow : Window
         Closed += OnWindowClosed;
         Opened += OnWindowOpened;
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        AssetListBox.ContainerPrepared += OnAssetContainerPrepared;
+        AssetListBox.ContainerClearing += OnAssetContainerClearing;
     }
 
     /// <summary>
@@ -42,6 +44,7 @@ public partial class MainWindow : Window
         MainWindowViewModel viewModel = new(config);
         DataContext = viewModel;
         SidebarIconImage.Source = LoadIcon(viewModel.SidebarIconPath);
+        viewModel.Thumbnails.Renderer = ThumbnailRenderer;
 
         SubscribeToViewModel(viewModel);
     }
@@ -94,6 +97,22 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel && sender is ListBox listBox)
         {
             viewModel.SetSelectedAssets(listBox.SelectedItems?.OfType<AssetRowViewModel>() ?? Enumerable.Empty<AssetRowViewModel>());
+        }
+    }
+
+    private void OnAssetContainerPrepared(object? sender, ContainerPreparedEventArgs args)
+    {
+        if (DataContext is MainWindowViewModel { PreviewSettings.ShowAssetGrid: true } viewModel && args.Container.DataContext is AssetRowViewModel row)
+        {
+            viewModel.Thumbnails.Request(row);
+        }
+    }
+
+    private void OnAssetContainerClearing(object? sender, ContainerClearingEventArgs args)
+    {
+        if (DataContext is MainWindowViewModel viewModel && args.Container.DataContext is AssetRowViewModel row)
+        {
+            viewModel.Thumbnails.Cancel(row);
         }
     }
 

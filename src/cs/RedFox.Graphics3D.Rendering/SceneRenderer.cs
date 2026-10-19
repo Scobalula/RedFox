@@ -47,6 +47,7 @@ public sealed class SceneRenderer : IDisposable
     private int _externalAntiAliasingSamples = MinimumAntiAliasingSamples;
     private (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager)? _pendingBackgroundImageLoad;
     private volatile bool _backgroundImageLoadThreadStopping;
+    private bool _backgroundImageLoading;
     private bool _disposed;
     private bool _initialized;
     private Scene? _sceneTraversalScene;
@@ -126,6 +127,8 @@ public sealed class SceneRenderer : IDisposable
     /// Gets the multisample anti-aliasing sample count used by the current render target.
     /// </summary>
     public int ActualAntiAliasingSamples => _actualAntiAliasingSamples;
+
+    public bool HasPendingWork { get; private set; }
 
     /// <summary>
     /// Gets or sets the sample count already provided by the bound default framebuffer.
@@ -290,6 +293,7 @@ public sealed class SceneRenderer : IDisposable
         }
 
         _graphicsDevice.Submit(_commandList);
+        HasPendingWork = HasPendingSceneWork(sceneTraversalNodes);
     }
 
     /// <summary>
@@ -377,6 +381,28 @@ public sealed class SceneRenderer : IDisposable
         _sceneTraversalScene = scene;
         _sceneTraversalVersion = scene.Version;
         return _sceneTraversalNodes;
+    }
+
+    private bool HasPendingSceneWork(IReadOnlyList<SceneNode> nodes)
+    {
+        lock (_backgroundImageLoadSync)
+        {
+            if (_backgroundImageLoading || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            SceneNode node = nodes[i];
+            if (node is Texture { Data: null, LoadAttempted: false, ImageLoader: not null } || SceneRenderResources.Get(_graphicsDevice, node)?.HasPendingUploads == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void UpdateSceneRenderHandles(IReadOnlyList<SceneNode> nodes)
@@ -540,12 +566,18 @@ public sealed class SceneRenderer : IDisposable
                 Image? image = TryLoadImage(pendingBackgroundImageLoad.ImageLoader, pendingBackgroundImageLoad.Texture, pendingBackgroundImageLoad.TranslatorManager);
                 if (image is null)
                 {
+                    lock (_backgroundImageLoadSync)
+                    {
+                        _backgroundImageLoading = false;
+                    }
+
                     continue;
                 }
 
                 lock (_backgroundImageLoadSync)
                 {
                     _completedBackgroundImageLoads.Enqueue((pendingBackgroundImageLoad.Texture, image));
+                    _backgroundImageLoading = false;
                 }
 
                 break;
@@ -645,6 +677,7 @@ public sealed class SceneRenderer : IDisposable
 
             pendingBackgroundImageLoad = pendingLoad;
             _pendingBackgroundImageLoad = null;
+            _backgroundImageLoading = true;
             return true;
         }
     }

@@ -13,6 +13,8 @@ public interface IRenderHandle : IDisposable
     /// </summary>
     bool RequiresPerFrameUpdate { get; }
 
+    bool HasPendingUploads { get; }
+
     /// <summary>
     /// Gets the set of flags that describe the characteristics or behavior of the render handle.
     /// </summary>

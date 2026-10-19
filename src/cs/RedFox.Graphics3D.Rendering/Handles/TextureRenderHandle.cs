@@ -40,6 +40,8 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     /// <inheritdoc/>
     public override bool RequiresPerFrameUpdate => NeedsPerFrameUpdate();
 
+    public override bool HasPendingUploads => _textureUploadPending;
+
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
     /// </summary>

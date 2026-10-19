@@ -14,6 +14,8 @@ public sealed class Asset
 
     public IAssetHandler? Handler { get; init; }
 
+    public string? ThumbnailKey { get; init; }
+
     /// <summary>
     /// Gets the name of the asset.
     /// </summary>

@@ -58,6 +58,15 @@ public sealed partial class PreviewSettings : ObservableObject
         DefaultValue = false,
     };
 
+    private static readonly GameExtractionSetting AssetGridSetting = new()
+    {
+        Name = "PreviewAssetGrid",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Asset grid view",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = false,
+    };
+
     /// <summary>
     /// Gets the optional setting definitions for the built-in preview preferences.
     /// Add these to an application's setting definitions to expose them in its settings UI.
@@ -69,6 +78,7 @@ public sealed partial class PreviewSettings : ObservableObject
         LightingModeSetting,
         AutoFitSetting,
         AutoPlayAudioSetting,
+        AssetGridSetting,
     ];
 
     internal ScenePreviewCameraState? CameraState { get; set; }
@@ -124,6 +134,9 @@ public sealed partial class PreviewSettings : ObservableObject
     [ObservableProperty]
     public partial bool AutoPlayAudio { get; set; }
 
+    [ObservableProperty]
+    public partial bool ShowAssetGrid { get; set; }
+
     internal void LoadFrom(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -132,6 +145,7 @@ public sealed partial class PreviewSettings : ObservableObject
         LightingMode = GetEnumValue(settings, LightingModeSetting, ScenePreviewLightingMode.Scene);
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
+        ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;
     }
 
     private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback)

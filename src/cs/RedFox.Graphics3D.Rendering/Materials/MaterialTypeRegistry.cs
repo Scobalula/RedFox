@@ -13,6 +13,8 @@ public class MaterialTypeRegistry : IMaterialTypeRegistry, IMaterialPipelineProv
     private readonly Dictionary<string, MaterialTypePipelineCacheEntry> _pipelineCache = new(StringComparer.Ordinal);
     private readonly IMaterialShaderFactory? _shaderFactory;
 
+    public bool KeepUnusedPipelines { get; set; }
+
     /// <summary>
     /// Initializes a new instance of the <see cref="MaterialTypeRegistry"/> class.
     /// </summary>
@@ -83,6 +85,18 @@ public class MaterialTypeRegistry : IMaterialTypeRegistry, IMaterialPipelineProv
         return _definitions.ContainsKey(name);
     }
 
+    public void ReleaseUnusedPipelines()
+    {
+        foreach ((string typeName, MaterialTypePipelineCacheEntry cacheEntry) in _pipelineCache.ToArray())
+        {
+            if (cacheEntry.ReferenceCount <= 0)
+            {
+                _pipelineCache.Remove(typeName);
+                cacheEntry.Pipeline.Dispose();
+            }
+        }
+    }
+
     IGpuPipelineState IMaterialPipelineProvider.CreatePipeline(IGraphicsDevice graphicsDevice, string typeName)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
@@ -123,7 +137,7 @@ public class MaterialTypeRegistry : IMaterialTypeRegistry, IMaterialPipelineProv
         }
 
         cacheEntry.ReferenceCount--;
-        if (cacheEntry.ReferenceCount > 0)
+        if (cacheEntry.ReferenceCount > 0 || KeepUnusedPipelines)
         {
             return;
         }

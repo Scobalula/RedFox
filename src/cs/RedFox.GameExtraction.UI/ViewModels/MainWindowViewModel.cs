@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Enumeration;
 using Avalonia.Threading;
@@ -19,6 +20,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
+    private readonly ThumbnailCache _thumbnailCache;
     private readonly List<AssetRowViewModel> _allAssets = [];
     private readonly RangeObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly SynchronizationContext? _uiSynchronizationContext;
@@ -60,6 +62,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the preview state bound to the preview window.
     /// </summary>
     public PreviewViewModel Preview { get; }
+
+    internal AssetThumbnailLoader Thumbnails { get; }
+
+    internal PreviewSettings PreviewSettings => _config.PreviewSettings;
 
     /// <summary>
     /// Gets the filtered asset view bound to the asset grid.
@@ -325,6 +331,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _config = config;
         _assetManager = config.AssetManagerFactory();
         Preview = new PreviewViewModel(_assetManager, CreateConfiguration, config.Previewers, config.PreviewSettings);
+        _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
+        Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
+        config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
         _assetManager.AssetExportFailed += OnAssetExportFailed;
@@ -528,6 +537,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _allAssets.Clear();
         SelectedAssets.Clear();
         SelectedAsset = null;
+        Thumbnails.Clear();
         NotifySelectionChanged();
         TotalCount = 0;
         RefreshAssetFilterOptions();
@@ -590,10 +600,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _assetManager.OperationFailed -= OnOperationFailed;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         _assetManager.AssetExportFailed -= OnAssetExportFailed;
+        _config.PreviewSettings.PropertyChanged -= OnPreviewSettingsChanged;
         Plugins.Dispose();
         _currentCts?.Cancel();
         _currentCts = null;
         Preview.Clear();
+        Thumbnails.Clear();
+        _thumbnailCache.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -612,6 +625,21 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     partial void OnFilteredCountChanged(int value) => OnPropertyChanged(nameof(NoMatchingAssets));
 
     partial void OnSortByChanged(string value) => ApplyFilter();
+
+    partial void OnSelectedAssetChanged(AssetRowViewModel? value) => UpdateThumbnailOrbit();
+
+    private void OnPreviewSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PreviewSettings.ShowAssetGrid))
+        {
+            UpdateThumbnailOrbit();
+        }
+    }
+
+    private void UpdateThumbnailOrbit()
+    {
+        Thumbnails.Orbit(PreviewSettings.ShowAssetGrid ? SelectedAsset : null);
+    }
 
     [RelayCommand]
     private Task LoadSource()

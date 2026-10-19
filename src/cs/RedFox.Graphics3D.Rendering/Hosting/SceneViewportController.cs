@@ -64,6 +64,8 @@ public sealed class SceneViewportController
     /// </summary>
     public Func<SceneNode, bool>? IncludeNodeInBounds { get; set; }
 
+    public Vector3 FitViewDirection { get; set; } = Vector3.Normalize(new Vector3(1.0f, -0.28f, -0.2f));
+
     /// <summary>
     /// Initializes a new instance of the <see cref="SceneViewportController"/> class.
     /// </summary>
@@ -122,7 +124,7 @@ public sealed class SceneViewportController
             return false;
         }
 
-        ApplyBoundsToCamera(Bounds, _camera, _scene.UpAxis);
+        ApplyBoundsToCamera(Bounds, _camera, _scene.UpAxis, FitViewDirection);
         return true;
     }
 
@@ -156,12 +158,11 @@ public sealed class SceneViewportController
         Render(renderer, deltaTime);
     }
 
-    private static void ApplyBoundsToCamera(SceneBounds bounds, OrbitCamera camera, SceneUpAxis upAxis)
+    private static void ApplyBoundsToCamera(SceneBounds bounds, OrbitCamera camera, SceneUpAxis upAxis, Vector3 preferredForward)
     {
         SceneBounds adjustedBounds = GetAxisAdjustedBounds(bounds, upAxis);
         float radius = MathF.Max(adjustedBounds.Radius, 0.5f);
         float diagonal = MathF.Max(adjustedBounds.DiagonalLength, 1.0f);
-        Vector3 preferredForward = Vector3.Normalize(new Vector3(1.0f, -0.28f, -0.2f));
         (float yaw, float pitch) = GetYawPitchFromForward(preferredForward);
 
         camera.OrbitTarget = adjustedBounds.Center;

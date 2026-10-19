@@ -1,5 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
+        xmlns:g3d="using:RedFox.Graphics3D.Avalonia"
         xmlns:model="using:RedFox.GameExtraction.UI.Models"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.MainWindow"
@@ -10,6 +12,13 @@
         WindowStartupLocation="CenterScreen">
 
     <Panel>
+        <g3d:AvaloniaOpenGlThumbnailRenderer x:Name="ThumbnailRenderer"
+                                             Width="1" Height="1"
+                                             HorizontalAlignment="Left"
+                                             VerticalAlignment="Top"
+                                             Opacity="0"
+                                             IsHitTestVisible="False"/>
+
         <DockPanel Margin="8">
             <Border DockPanel.Dock="Bottom"
                     Classes="panel status-bar"
@@ -238,6 +247,7 @@
                         <Panel>
                             <ListBox x:Name="AssetListBox"
                                      Classes="asset-list"
+                                     Classes.grid="{Binding PreviewSettings.ShowAssetGrid}"
                                      ClipToBounds="True"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -246,30 +256,65 @@
                                      SelectionMode="Multiple"
                                      SelectionChanged="OnAssetSelectionChanged"
                                      DoubleTapped="OnAssetDoubleTapped">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:DataType="model:AssetRowViewModel">
-                                        <Grid ColumnDefinitions="Auto,*,Auto"
-                                              ColumnSpacing="12"
-                                              Margin="10,5,14,5">
-                                            <Border Classes="asset-icon">
-                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
-                                            </Border>
-                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                                                <TextBlock Classes="asset-name"
-                                                           Text="{Binding Name}"
-                                                           ToolTip.Tip="{Binding Name}"
-                                                           TextTrimming="LeadingCharacterEllipsis"/>
-                                                <TextBlock Classes="asset-info"
-                                                           Text="{Binding Information}"
-                                                           IsVisible="{Binding HasInformation}"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                            </StackPanel>
-                                            <Border Grid.Column="2" Classes="pill">
-                                                <TextBlock Text="{Binding Type}"/>
-                                            </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
+                                <ListBox.Styles>
+                                    <Style Selector="ListBox.asset-list">
+                                        <Setter Property="ItemTemplate">
+                                            <DataTemplate x:DataType="model:AssetRowViewModel">
+                                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                                      ColumnSpacing="12"
+                                                      Margin="10,5,14,5">
+                                                    <Border Classes="asset-icon">
+                                                        <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                                        <TextBlock Classes="asset-name"
+                                                                   Text="{Binding Name}"
+                                                                   ToolTip.Tip="{Binding Name}"
+                                                                   TextTrimming="LeadingCharacterEllipsis"/>
+                                                        <TextBlock Classes="asset-info"
+                                                                   Text="{Binding Information}"
+                                                                   IsVisible="{Binding HasInformation}"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                    <Border Grid.Column="2" Classes="pill">
+                                                        <TextBlock Text="{Binding Type}"/>
+                                                    </Border>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </Setter>
+                                    </Style>
+                                    <Style Selector="ListBox.asset-list.grid">
+                                        <Setter Property="ItemsPanel">
+                                            <ItemsPanelTemplate>
+                                                <controls:VirtualizingTilePanel ItemWidth="152" ItemHeight="196" Margin="6"/>
+                                            </ItemsPanelTemplate>
+                                        </Setter>
+                                        <Setter Property="ItemTemplate">
+                                            <DataTemplate x:DataType="model:AssetRowViewModel">
+                                                <StackPanel Margin="8" Spacing="6" ToolTip.Tip="{Binding Name}">
+                                                    <Border Classes="asset-thumbnail">
+                                                        <Panel>
+                                                            <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
+                                                                      Width="40" Height="40"
+                                                                      IsVisible="{Binding !HasThumbnail}"/>
+                                                            <Image Source="{Binding DisplayedThumbnail}"
+                                                                   Stretch="Uniform"
+                                                                   RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                                        </Panel>
+                                                    </Border>
+                                                    <TextBlock Classes="asset-name"
+                                                               Text="{Binding Name}"
+                                                               TextAlignment="Center"
+                                                               TextTrimming="LeadingCharacterEllipsis"/>
+                                                    <TextBlock Classes="asset-info"
+                                                               Text="{Binding Type}"
+                                                               TextAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </Setter>
+                                    </Style>
+                                </ListBox.Styles>
                             </ListBox>
 
                             <StackPanel Spacing="6"

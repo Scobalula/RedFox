@@ -98,6 +98,16 @@
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
+    <Style Selector="Border.asset-thumbnail">
+        <Setter Property="Width" Value="136"/>
+        <Setter Property="Height" Value="136"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+    </Style>
+
     <Style Selector="TextBlock.preview-stats.error">
         <Setter Property="Foreground" Value="{DynamicResource ThemeDestructiveBrush}"/>
     </Style>
@@ -154,7 +164,7 @@
         <Setter Property="Height" Value="15"/>
     </Style>
 
-    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon, Border.asset-icon PathIcon">
+    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon, Border.asset-icon PathIcon, Border.asset-thumbnail PathIcon">
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
     </Style>
 

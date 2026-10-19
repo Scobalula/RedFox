@@ -1,3 +1,5 @@
+using Avalonia.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.GameExtraction;
 
 namespace RedFox.GameExtraction.UI.Models;
@@ -5,7 +7,7 @@ namespace RedFox.GameExtraction.UI.Models;
 /// <summary>
 /// Presents a core <see cref="Asset"/> as a row in the asset list.
 /// </summary>
-public sealed class AssetRowViewModel
+public sealed partial class AssetRowViewModel : ObservableObject
 {
     private readonly string _information;
 
@@ -61,6 +63,18 @@ public sealed class AssetRowViewModel
     /// Gets secondary information for the asset.
     /// </summary>
     public string Information => _information;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayedThumbnail), nameof(HasThumbnail))]
+    public partial Bitmap? Thumbnail { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayedThumbnail), nameof(HasThumbnail))]
+    public partial Bitmap? OrbitFrame { get; set; }
+
+    public Bitmap? DisplayedThumbnail => OrbitFrame ?? Thumbnail;
+
+    public bool HasThumbnail => DisplayedThumbnail is not null;
 
     /// <summary>
     /// Gets display-friendly metadata values.

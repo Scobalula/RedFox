@@ -43,6 +43,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     /// <inheritdoc/>
     public override bool RequiresPerFrameUpdate => true;
 
+    public override bool HasPendingUploads => !_isReadyToRender;
+
     /// <inheritdoc/>
     public override void Update(ICommandList commandList)
     {

@@ -13,6 +13,8 @@ internal abstract class RenderHandle : IRenderHandle
     /// <inheritdoc/>
     public virtual bool RequiresPerFrameUpdate => true;
 
+    public virtual bool HasPendingUploads => false;
+
     /// <inheritdoc/>
     public virtual RenderHandleFlags Flags => RenderHandleFlags.None;
 
