@@ -11,7 +11,7 @@ public sealed class AssetReadPurposeTests
     [DataRow(AssetReadPurpose.Thumbnail)]
     [DataRow(AssetReadPurpose.Preview)]
     [DataRow(AssetReadPurpose.Export)]
-    public async Task ReferencedReadsAndLazyTextureLoadsInheritPurpose(AssetReadPurpose purpose)
+    public async Task ReferencedReadsInheritPurposeAndTextureLoadsUseRequestedMip(AssetReadPurpose purpose)
     {
         ReadPurposeTestTextureHandler handler = new();
         AssetManager manager = await CreateManagerAsync(handler);
@@ -22,9 +22,16 @@ public sealed class AssetReadPurposeTests
         Assert.HasCount(1, result.References[0].References);
 
         Texture texture = result.GetData<Texture>();
-        Assert.IsEmpty(handler.LoadPurposes);
-        texture.ImageLoader!.Load(texture, manager.GetRequiredService<ImageTranslatorService>().Manager);
-        CollectionAssert.AreEqual(new[] { purpose }, handler.LoadPurposes);
+        Assert.AreSame(handler, texture.ImageLoader);
+        Assert.IsEmpty(handler.LoadMips);
+
+        foreach (MipType mipType in Enum.GetValues<MipType>())
+        {
+            var image = texture.ImageLoader!.Load(texture, manager.GetRequiredService<ImageTranslatorService>().Manager, mipType);
+            Assert.AreEqual((byte)mipType, image!.PixelData[0]);
+        }
+
+        CollectionAssert.AreEqual(Enum.GetValues<MipType>(), handler.LoadMips);
     }
 
     [TestMethod]
@@ -62,7 +69,7 @@ public sealed class AssetReadPurposeTests
             await manager.ExportAsync(manager.Assets[0], configuration, CancellationToken.None);
 
             CollectionAssert.AreEqual(new[] { AssetReadPurpose.Export, AssetReadPurpose.Export, AssetReadPurpose.Export }, handler.ReadPurposes);
-            CollectionAssert.AreEqual(new[] { AssetReadPurpose.Export }, handler.LoadPurposes);
+            CollectionAssert.AreEqual(new[] { MipType.High }, handler.LoadMips);
             Assert.IsTrue(File.Exists(Path.Combine(directory, "root.dds")));
         }
         finally
@@ -73,13 +80,13 @@ public sealed class AssetReadPurposeTests
     }
 
     [TestMethod]
-    public async Task ExportingThumbnailReadLoadsTextureForExport()
+    public async Task ExportingThumbnailReadRequestsHighMip()
     {
         ReadPurposeTestTextureHandler handler = new();
         AssetManager manager = await CreateManagerAsync(handler);
         AssetReadResult result = await manager.ReadAsync(manager.Assets[0], AssetReadPurpose.Thumbnail, CancellationToken.None);
         Texture texture = result.GetData<Texture>();
-        texture.ImageLoader!.Load(texture, manager.GetRequiredService<ImageTranslatorService>().Manager);
+        texture.ImageLoader!.Load(texture, manager.GetRequiredService<ImageTranslatorService>().Manager, MipType.Low);
         string directory = Path.Combine(Path.GetTempPath(), "RedFoxReadPurpose", Guid.NewGuid().ToString("N"));
         GameExtractionConfiguration configuration = new();
         configuration.SetOption("OutputDirectory", directory);
@@ -89,7 +96,7 @@ public sealed class AssetReadPurposeTests
         {
             await manager.ExportAsync(result, configuration, CancellationToken.None);
 
-            CollectionAssert.AreEqual(new[] { AssetReadPurpose.Thumbnail, AssetReadPurpose.Export }, handler.LoadPurposes);
+            CollectionAssert.AreEqual(new[] { MipType.Low, MipType.High }, handler.LoadMips);
             Assert.IsTrue(File.Exists(Path.Combine(directory, "root.dds")));
         }
         finally
@@ -97,19 +104,6 @@ public sealed class AssetReadPurposeTests
             if (Directory.Exists(directory))
                 Directory.Delete(directory, true);
         }
-    }
-
-    [TestMethod]
-    public async Task ExistingTextureLoadersRemainCompatible()
-    {
-        LegacyReadPurposeTestTextureHandler handler = new();
-        AssetManager manager = await CreateManagerAsync(handler);
-        AssetReadResult result = await manager.ReadAsync(manager.Assets[0], AssetReadPurpose.Preview, CancellationToken.None);
-        Texture texture = result.GetData<Texture>();
-        var image = texture.ImageLoader!.Load(texture, manager.GetRequiredService<ImageTranslatorService>().Manager);
-
-        Assert.AreEqual(1, handler.LoadCount);
-        Assert.AreEqual((byte)42, image!.PixelData[0]);
     }
 
     private static async Task<AssetManager> CreateManagerAsync(TextureHandler handler)

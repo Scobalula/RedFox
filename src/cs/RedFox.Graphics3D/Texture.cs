@@ -144,7 +144,7 @@ public class Texture(string filePath) : SceneNode(filePath)
 
         try
         {
-            Data = ImageLoader.Load(this, translatorManager);
+            Data = ImageLoader.Load(this, translatorManager, MipType.High);
         }
         catch (DirectoryNotFoundException)
         {

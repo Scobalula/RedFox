@@ -9,7 +9,7 @@ namespace RedFox.GameExtraction.Tests;
 internal sealed class ReadPurposeTestTextureHandler : TextureHandler
 {
     public List<AssetReadPurpose> ReadPurposes { get; } = [];
-    public List<AssetReadPurpose> LoadPurposes { get; } = [];
+    public List<MipType> LoadMips { get; } = [];
 
     public override bool CanHandle(Asset asset, GameExtractionConfiguration configuration) => true;
 
@@ -28,11 +28,9 @@ internal sealed class ReadPurposeTestTextureHandler : TextureHandler
         return await base.ReadAsync(asset, context, cancellationToken);
     }
 
-    public override Image Load(Texture texture, ImageTranslatorManager translatorManager) => throw new InvalidOperationException("Expected a read purpose.");
-
-    public override Image Load(Texture texture, ImageTranslatorManager translatorManager, AssetReadPurpose purpose)
+    public override Image Load(Texture texture, ImageTranslatorManager translatorManager, MipType mipType)
     {
-        LoadPurposes.Add(purpose);
-        return new Image(1, 1, 1, 1, 1, ImageFormat.R8Unorm, false, [(byte)purpose]);
+        LoadMips.Add(mipType);
+        return new Image(1, 1, 1, 1, 1, ImageFormat.R8Unorm, false, [(byte)mipType]);
     }
 }

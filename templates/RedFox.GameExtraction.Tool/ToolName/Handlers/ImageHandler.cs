@@ -31,8 +31,9 @@ public sealed class ImageHandler : BaseTextureHandler
     /// </summary>
     /// <param name="texture">The texture created by the base handler.</param>
     /// <param name="translatorManager">The translators used to decode the asset.</param>
+    /// <param name="mipType">The preferred resolution of the loaded image.</param>
     /// <returns>The image stored in the asset.</returns>
-    public override Image Load(Texture texture, ImageTranslatorManager translatorManager)
+    public override Image Load(Texture texture, ImageTranslatorManager translatorManager, MipType mipType)
     {
         ArgumentNullException.ThrowIfNull(texture);
         ArgumentNullException.ThrowIfNull(translatorManager);

@@ -220,7 +220,7 @@ public sealed partial class ImagePreviewViewModel : ObservableObject
 
         try
         {
-            Image? image = texture.Data ?? await Task.Run(() => texture.ImageLoader?.Load(texture, translatorManager)).ConfigureAwait(true);
+            Image? image = texture.Data ?? await Task.Run(() => texture.ImageLoader?.Load(texture, translatorManager, MipType.Medium)).ConfigureAwait(true);
             if (image is null)
             {
                 ErrorMessage = $"{texture.Name} has no image data.";

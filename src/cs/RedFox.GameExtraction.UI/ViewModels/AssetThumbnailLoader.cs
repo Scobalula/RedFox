@@ -373,7 +373,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             return result.Data switch
             {
                 Image data					=> data,
-                Texture texture				=> texture.Data ?? texture.ImageLoader?.Load(texture, assetManager.GetRequiredService<ImageTranslatorService>().Manager),
+                Texture texture				=> texture.Data ?? texture.ImageLoader?.Load(texture, assetManager.GetRequiredService<ImageTranslatorService>().Manager, MipType.Low),
                 Scene scene					=> CreateViewport(scene, upAxis, cancellationToken),
                 IEnumerable<Scene> scenes	=> scenes.FirstOrDefault() is { } scene ? CreateViewport(scene, upAxis, cancellationToken) : null,
                 _							=> null,

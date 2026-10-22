@@ -38,7 +38,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
             Data = new Texture(asset.Name)
             {
                 UserData = asset,
-                ImageLoader = new AssetTextureLoader(this, context.Purpose)
+                ImageLoader = this
             },
             Handler = this,
         };
@@ -68,9 +68,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     public abstract bool CanHandle(Asset asset, GameExtractionConfiguration configuration);
 
     /// <inheritdoc/>
-    public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager);
-
-    public virtual Image Load(Texture texture, ImageTranslatorManager translatorManager, AssetReadPurpose purpose) => Load(texture, translatorManager);
+    public abstract Image Load(Texture texture, ImageTranslatorManager translatorManager, MipType mipType);
 
     /// <summary>
     /// Exports the given texture to each of the specified formats. The image is only decoded when at least one
@@ -99,7 +97,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
 
             var loader = texture.ImageLoader ?? throw new InvalidOperationException($"Texture '{texture.Name}' does not have an image loader.");
 
-            image ??= (loader is AssetTextureLoader assetLoader ? assetLoader.Load(texture, manager, AssetReadPurpose.Export) : loader.Load(texture, manager)) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
+            image ??= loader.Load(texture, manager, MipType.High) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
             manager.Write(filePath, image);

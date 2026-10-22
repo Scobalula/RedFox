@@ -690,7 +690,7 @@ public sealed class SceneRenderer : IDisposable
 
         try
         {
-            return imageLoader.Load(texture, translatorManager);
+            return imageLoader.Load(texture, translatorManager, MipType.Medium);
         }
         catch (DirectoryNotFoundException)
         {
