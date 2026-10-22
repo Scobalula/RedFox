@@ -12,7 +12,7 @@ if (args.Length < 1)
     errorConsole.WriteLine();
     errorConsole.WriteLine("  Formats: .namefile, .csv, .txt (auto-detected by extension)");
     errorConsole.WriteLine("  --algorithm   Required for .txt input files");
-    errorConsole.WriteLine("  --compress    Compress .namefile output (FastLZ)");
+    errorConsole.WriteLine("  --compress    Compress .namefile output (Brotli)");
     errorConsole.WriteLine("  --metadata    Add arbitrary metadata (repeatable, key=value format)");
     errorConsole.WriteLine();
     errorConsole.WriteLine("  Metadata auto-tagged on save: Timestamp, SourceFile");

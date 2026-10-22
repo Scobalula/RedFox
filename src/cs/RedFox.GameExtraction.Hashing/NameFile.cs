@@ -2,8 +2,7 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using System.Reflection.PortableExecutable;
-using System.Runtime.Intrinsics.Arm;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -14,8 +13,9 @@ namespace RedFox.GameExtraction.Hashing;
 /// </summary>
 public static class NameFile
 {
-    private const ulong MagicNumber = 0x454C494648534148;
-    private const int ChecksumSize = 32;
+    private const ulong	MagicNumber		= 0x454C494648534148;
+    private const int	ChecksumSize	= 32;
+    private const int	BlockSize		= 1024 * 1024;
 
     /// <summary>
     /// Loads a name table from a file, automatically detecting the format from the file extension.
@@ -117,83 +117,51 @@ public static class NameFile
             throw new NotSupportedException($"Invalid magic number: {magic}");
 
         var flags = (NameFileFlags)reader.ReadUInt64();
-        var entryCount = reader.Read7BitEncodedInt();
-        if (entryCount < 0)
-            throw new InvalidDataException("The name file entry count is invalid.");
 
-        var hashAlgorithm = reader.ReadString();
+        if ((flags & ~(NameFileFlags.Compressed | NameFileFlags.Metadata | NameFileFlags.Checksum)) != 0)
+            throw new InvalidDataException("The name file flags are invalid.");
 
-        var table = new NameTable(hashAlgorithm);
+        var entryCount		= reader.Read7BitEncodedInt();
+        var hashAlgorithm	= reader.ReadString();
+        var metadata		= new Dictionary<string, string>();
 
         if (flags.HasFlag(NameFileFlags.Metadata))
         {
             var metadataCount = reader.Read7BitEncodedInt();
+
             if (metadataCount < 0)
                 throw new InvalidDataException("The name file metadata count is invalid.");
 
             for (var i = 0; i < metadataCount; i++)
-            {
-                table.Metadata[reader.ReadString()] = reader.ReadString();
-            }
+                metadata[reader.ReadString()] = reader.ReadString();
         }
 
-        var uncompressedSize = reader.Read7BitEncodedInt();
-        if (uncompressedSize < 0 || uncompressedSize > Array.MaxLength)
+        var keySize		= reader.Read7BitEncodedInt();
+        var nameSize	= reader.Read7BitEncodedInt();
+
+        if (keySize < 0 || keySize > Array.MaxLength || nameSize < 0 || nameSize > Array.MaxLength || entryCount < 0 || entryCount > keySize / 5)
             throw new InvalidDataException("The name file entry data size is invalid.");
 
-        var entryData = new byte[uncompressedSize];
+        var table = new NameTable(hashAlgorithm, entryCount, keySize, nameSize) { Metadata = metadata };
+        var compressed = flags.HasFlag(NameFileFlags.Compressed) ? new byte[NameFileCompressor.GetMaxCompressedSize(BlockSize)] : [];
+        using var checksum = flags.HasFlag(NameFileFlags.Checksum) ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
 
-        if (flags.HasFlag(NameFileFlags.Compressed))
+        ReadSection(reader, table.KeyData, compressed, checksum);
+        ReadSection(reader, table.NameData, compressed, checksum);
+
+        if (checksum is not null)
         {
-            var compressedSize = reader.Read7BitEncodedInt();
-            if (compressedSize < 0 || compressedSize > Array.MaxLength)
-                throw new InvalidDataException("The name file compressed data size is invalid.");
-
-            var compressed = reader.ReadBytes(compressedSize);
-            if (compressed.Length != compressedSize)
-                throw new EndOfStreamException("The name file compressed data is truncated.");
-
-            entryData = new byte[uncompressedSize];
-
-            if (NameFileCompressor.Decompress(compressed, entryData) != uncompressedSize)
-                throw new InvalidOperationException("Failed to decompress name file data.");
-        }
-        else
-        {
-            reader.ReadExactly(entryData);
-        }
-
-        if (flags.HasFlag(NameFileFlags.Checksum))
-        {
-            Span<byte> expected = stackalloc byte[ChecksumSize];
-            Span<byte> checksum = stackalloc byte[ChecksumSize];
+            Span<byte> expected	= stackalloc byte[ChecksumSize];
+            Span<byte> actual	= stackalloc byte[ChecksumSize];
 
             reader.ReadExactly(expected);
+            checksum.GetHashAndReset(actual);
 
-            if (SHA256.HashData(entryData, checksum) != ChecksumSize)
-                throw new InvalidOperationException("Failed to compute name file checksum.");
-            if (!expected.SequenceEqual(checksum))
+            if (!expected.SequenceEqual(actual))
                 throw new InvalidDataException("Name file checksum mismatch.");
         }
 
-        using var dataStream = new MemoryStream(entryData);
-        using var dataReader = new BinaryReader(dataStream, Encoding.UTF8);
-
-        Span<byte> keyBuf = stackalloc byte[256];
-
-        for (var i = 0; i < entryCount; i++)
-        {
-            var keySize = dataReader.Read7BitEncodedInt();
-            if (keySize is < 1 or > 256)
-                throw new InvalidDataException("The name file key size is invalid.");
-
-            var span = keyBuf[..keySize];
-            dataReader.BaseStream.ReadExactly(span);
-            var key = new NameKey(span);
-            var value = dataReader.ReadString();
-            table.Add(key, value);
-        }
-
+        table.BuildIndex();
         return table;
     }
 
@@ -298,6 +266,7 @@ public static class NameFile
     public static void SaveBinary(BinaryWriter writer, NameTable nameTable, NameFileFlags flags)
     {
         var effectiveFlags = nameTable.Metadata.Count > 0 ? flags | NameFileFlags.Metadata : flags;
+        var entries = nameTable.GetSortedEntries();
 
         writer.Write(MagicNumber);
         writer.Write((ulong)effectiveFlags);
@@ -315,42 +284,58 @@ public static class NameFile
             }
         }
 
-        using var packedStream = new MemoryStream(nameTable.Count * 16);
-        using var packedWriter = new BinaryWriter(packedStream, Encoding.UTF8, true);
+        writer.Write7BitEncodedInt(nameTable.KeyData.Length);
+        writer.Write7BitEncodedInt(nameTable.GetPackedNameSize(entries));
 
-        foreach (var (key, value) in nameTable)
+        var block = new byte[BlockSize];
+        var compressed = effectiveFlags.HasFlag(NameFileFlags.Compressed) ? new byte[NameFileCompressor.GetMaxCompressedSize(BlockSize)] : [];
+        using var checksum = effectiveFlags.HasFlag(NameFileFlags.Checksum) ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
+        ReadOnlySpan<byte> previous = [];
+        Span<byte> offsetBytes = stackalloc byte[sizeof(int)];
+        int blockLength = 0, nameOffset = 0, nextNameOffset = 0;
+
+        foreach (var entry in entries)
         {
-            packedWriter.Write7BitEncodedInt((byte)key.Length);
-            packedWriter.Write(key.Span);
-            packedWriter.Write(value);
+            var record = nameTable.GetNameRecord(entry);
+
+            if (!record.SequenceEqual(previous))
+            {
+                nameOffset = nextNameOffset;
+                nextNameOffset += record.Length;
+                previous = record;
+            }
+
+            nameTable.GetKey(entry, out var valuePosition);
+            WriteData(writer, nameTable.KeyData[entry..valuePosition], block, ref blockLength, compressed, checksum);
+            BinaryPrimitives.WriteInt32LittleEndian(offsetBytes, nameOffset);
+            WriteData(writer, offsetBytes, block, ref blockLength, compressed, checksum);
         }
 
-        packedWriter.Flush();
-        var buffer = packedStream.ToArray();
+        if (blockLength > 0)
+            WriteBlock(writer, block.AsSpan(0, blockLength), compressed, checksum);
 
-        if (effectiveFlags.HasFlag(NameFileFlags.Compressed))
+        blockLength = 0;
+        previous = [];
+
+        foreach (var entry in entries)
         {
-            var compressed = new byte[NameFileCompressor.GetMaxCompressedSize(buffer.Length)];
-            var compressedSize = NameFileCompressor.Compress(buffer, compressed);
+            var record = nameTable.GetNameRecord(entry);
 
-            writer.Write7BitEncodedInt(buffer.Length);
-            writer.Write7BitEncodedInt(compressedSize);
-            writer.Write(compressed, 0, compressedSize);
+            if (record.SequenceEqual(previous))
+                continue;
+
+            WriteData(writer, record, block, ref blockLength, compressed, checksum);
+            previous = record;
         }
-        else
+
+        if (blockLength > 0)
+            WriteBlock(writer, block.AsSpan(0, blockLength), compressed, checksum);
+
+        if (checksum is not null)
         {
-            writer.Write7BitEncodedInt(buffer.Length);
-            writer.Write(buffer);
-        }
-
-        if (flags.HasFlag(NameFileFlags.Checksum))
-        {
-            Span<byte> checksum = stackalloc byte[ChecksumSize];
-
-            if (SHA256.HashData(buffer, checksum) != ChecksumSize)
-                throw new InvalidOperationException("Failed to compute name file checksum.");
-
-            writer.Write(checksum);
+            Span<byte> hash = stackalloc byte[ChecksumSize];
+            checksum.GetHashAndReset(hash);
+            writer.Write(hash);
         }
     }
 
@@ -420,4 +405,73 @@ public static class NameFile
         return "Unknown";
     }
 
+    private static void ReadSection(BinaryReader reader, Span<byte> destination, byte[] compressed, IncrementalHash? checksum)
+    {
+        while (!destination.IsEmpty)
+        {
+            var decodedSize	= reader.Read7BitEncodedInt();
+            var storedSize	= reader.Read7BitEncodedInt();
+
+            if (decodedSize <= 0 || decodedSize > BlockSize || decodedSize > destination.Length || storedSize <= 0)
+                throw new InvalidDataException("The name file block size is invalid.");
+
+            var block = destination[..decodedSize];
+
+            if (compressed.Length != 0)
+            {
+                if (storedSize > NameFileCompressor.GetMaxCompressedSize(decodedSize))
+                    throw new InvalidDataException("The name file compressed block size is invalid.");
+
+                reader.ReadExactly(compressed.AsSpan(0, storedSize));
+
+                if (NameFileCompressor.Decompress(compressed.AsSpan(0, storedSize), block) != decodedSize)
+                    throw new InvalidDataException("The name file decoded block size is invalid.");
+            }
+            else
+            {
+                if (storedSize != decodedSize)
+                    throw new InvalidDataException("The name file block size is invalid.");
+
+                reader.ReadExactly(block);
+            }
+
+            checksum?.AppendData(block);
+            destination = destination[decodedSize..];
+        }
+    }
+
+    private static void WriteData(BinaryWriter writer, ReadOnlySpan<byte> data, byte[] block, ref int blockLength, byte[] compressed, IncrementalHash? checksum)
+    {
+        while (!data.IsEmpty)
+        {
+            var length = Math.Min(data.Length, block.Length - blockLength);
+            data[..length].CopyTo(block.AsSpan(blockLength));
+            blockLength += length;
+            data = data[length..];
+
+            if (blockLength == block.Length)
+            {
+                WriteBlock(writer, block, compressed, checksum);
+                blockLength = 0;
+            }
+        }
+    }
+
+    private static void WriteBlock(BinaryWriter writer, ReadOnlySpan<byte> block, byte[] compressed, IncrementalHash? checksum)
+    {
+        checksum?.AppendData(block);
+        writer.Write7BitEncodedInt(block.Length);
+
+        if (compressed.Length != 0)
+        {
+            var length = NameFileCompressor.Compress(block, compressed);
+            writer.Write7BitEncodedInt(length);
+            writer.Write(compressed.AsSpan(0, length));
+        }
+        else
+        {
+            writer.Write7BitEncodedInt(block.Length);
+            writer.Write(block);
+        }
+    }
 }
