@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -43,10 +44,11 @@ public partial class MainWindow : Window
 
         MainWindowViewModel viewModel = new(config);
         DataContext = viewModel;
-        SidebarIconImage.Source = LoadIcon(viewModel.SidebarIconPath);
+        AppIconImage.Source = LoadIcon(viewModel.SidebarIconPath);
         viewModel.Thumbnails.Renderer = ThumbnailRenderer;
 
         SubscribeToViewModel(viewModel);
+        ApplyContentLayout(viewModel);
     }
 
     private static Bitmap? LoadIcon(string? path)
@@ -76,7 +78,9 @@ public partial class MainWindow : Window
         viewModel.FolderDialogRequested += OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested += OnProcessSelectionRequested;
         viewModel.PreviewRequested += OnPreviewRequested;
+        viewModel.PreviewWindowCloseRequested += OnPreviewWindowCloseRequested;
         viewModel.AssetSelectionRestoreRequested += OnAssetSelectionRestoreRequested;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
     private void UnsubscribeFromViewModel(MainWindowViewModel viewModel)
@@ -89,7 +93,44 @@ public partial class MainWindow : Window
         viewModel.FolderDialogRequested -= OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested -= OnProcessSelectionRequested;
         viewModel.PreviewRequested -= OnPreviewRequested;
+        viewModel.PreviewWindowCloseRequested -= OnPreviewWindowCloseRequested;
         viewModel.AssetSelectionRestoreRequested -= OnAssetSelectionRestoreRequested;
+        viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (sender is MainWindowViewModel viewModel && args.PropertyName is nameof(MainWindowViewModel.IsPreviewPanelVisible) or nameof(MainWindowViewModel.IsBrowserVisible))
+        {
+            CapturePreviewPanelRatio(viewModel);
+            ApplyContentLayout(viewModel);
+        }
+    }
+
+    private void CapturePreviewPanelRatio(MainWindowViewModel viewModel)
+    {
+        double browserWidth = ContentGrid.ColumnDefinitions[0].ActualWidth;
+        double previewWidth = ContentGrid.ColumnDefinitions[2].ActualWidth;
+
+        // Column widths lag a layout pass behind visibility changes, so only a visible splitter with both panels laid out reflects the user's split.
+        if (PreviewSplitter.IsVisible && browserWidth > 0 && previewWidth > 0)
+        {
+            viewModel.PreviewSettings.PreviewPanelRatio = Math.Clamp(previewWidth / (browserWidth + previewWidth), 0.1, 0.9);
+        }
+    }
+
+    private void ApplyContentLayout(MainWindowViewModel viewModel)
+    {
+        ColumnDefinition browserColumn = ContentGrid.ColumnDefinitions[0];
+        ColumnDefinition previewColumn = ContentGrid.ColumnDefinitions[2];
+        bool isSplit = viewModel.IsBrowserVisible && viewModel.IsPreviewPanelVisible;
+        double ratio = viewModel.PreviewSettings.PreviewPanelRatio;
+
+        browserColumn.Width = viewModel.IsBrowserVisible ? new GridLength(isSplit ? 1 - ratio : 1, GridUnitType.Star) : new GridLength(0);
+        previewColumn.Width = viewModel.IsPreviewPanelVisible ? new GridLength(isSplit ? ratio : 1, GridUnitType.Star) : new GridLength(0);
+        browserColumn.MinWidth = isSplit ? 280 : 0;
+        previewColumn.MinWidth = isSplit ? 320 : 0;
+        PreviewSplitter.IsVisible = isSplit;
     }
 
     private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
@@ -265,10 +306,11 @@ public partial class MainWindow : Window
 
         if (_previewWindow is null)
         {
+            // Release the docked preview before the window binds to it; a view can only have one host.
+            viewModel.SetPreviewWindowOpen(true);
             _previewWindow = new PreviewWindow { DataContext = viewModel.Preview };
             _previewWindow.Closed += OnPreviewWindowClosed;
             _previewWindow.Show(this);
-            viewModel.SetPreviewWindowOpen(true);
         }
 
         _previewWindow.Activate();
@@ -276,7 +318,7 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_previewWindow is null || e.Source is TextBox || DataContext is not MainWindowViewModel { Preview.Content: IPreviewKeyHandler handler })
+        if (e.Source is TextBox || DataContext is not MainWindowViewModel { IsPreviewActive: true, Preview.Content: IPreviewKeyHandler handler })
         {
             return;
         }
@@ -287,8 +329,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPreviewWindowCloseRequested()
+    {
+        _previewWindow?.Close();
+    }
+
     private void OnPreviewWindowClosed(object? sender, EventArgs e)
     {
+        if (sender is PreviewWindow window)
+        {
+            window.DataContext = null;
+        }
+
         _previewWindow = null;
         if (DataContext is MainWindowViewModel viewModel)
         {
@@ -298,10 +350,19 @@ public partial class MainWindow : Window
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {
-        _previewWindow?.Close();
+        if (_previewWindow is not null)
+        {
+            // Closing during shutdown must not hand the preview back to the main window.
+            _previewWindow.Closed -= OnPreviewWindowClosed;
+            _previewWindow.Close();
+            _previewWindow = null;
+        }
+
         if (DataContext is MainWindowViewModel viewModel)
         {
             UnsubscribeFromViewModel(viewModel);
+            CapturePreviewPanelRatio(viewModel);
+            viewModel.SaveLayout();
             viewModel.Dispose();
         }
     }

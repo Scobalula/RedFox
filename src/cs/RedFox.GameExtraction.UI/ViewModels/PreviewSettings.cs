@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.GameExtraction;
 using RedFox.Graphics3D;
@@ -65,6 +66,24 @@ public sealed partial class PreviewSettings : ObservableObject
         Label = "Asset grid view",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = false,
+    };
+
+    private static readonly GameExtractionSetting PreviewPanelSetting = new()
+    {
+        Name = "PreviewPanelVisible",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Show preview panel",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = true,
+    };
+
+    private static readonly GameExtractionSetting PreviewPanelRatioSetting = new()
+    {
+        Name = "PreviewPanelRatio",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Preview panel width",
+        Type = GameExtractionSettingType.Text,
+        DefaultValue = 0.4,
     };
 
     /// <summary>
@@ -137,6 +156,11 @@ public sealed partial class PreviewSettings : ObservableObject
     [ObservableProperty]
     public partial bool ShowAssetGrid { get; set; }
 
+    [ObservableProperty]
+    public partial bool ShowPreviewPanel { get; set; } = true;
+
+    internal double PreviewPanelRatio { get; set; } = 0.4;
+
     internal void LoadFrom(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -146,6 +170,15 @@ public sealed partial class PreviewSettings : ObservableObject
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;
+        ShowPreviewPanel = bool.TryParse(settings.GetSettingValue(PreviewPanelSetting), out bool showPreviewPanel) ? showPreviewPanel : true;
+        PreviewPanelRatio = double.TryParse(settings.GetSettingValue(PreviewPanelRatioSetting), CultureInfo.InvariantCulture, out double ratio) ? Math.Clamp(ratio, 0.1, 0.9) : 0.4;
+    }
+
+    internal void SaveLayoutTo(GameExtractionSettings settings)
+    {
+        settings.SetSettingValue(AssetGridSetting, ShowAssetGrid.ToString());
+        settings.SetSettingValue(PreviewPanelSetting, ShowPreviewPanel.ToString());
+        settings.SetSettingValue(PreviewPanelRatioSetting, PreviewPanelRatio.ToString(CultureInfo.InvariantCulture));
     }
 
     private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback)

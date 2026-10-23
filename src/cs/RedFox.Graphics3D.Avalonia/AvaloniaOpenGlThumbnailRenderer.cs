@@ -91,7 +91,6 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
             return;
         }
 
-        long probeStart = Stopwatch.GetTimestamp(); string probeKind = $"img={_imageRequests.Count} {(_imageRequests.Count > 0 ? _imageRequests.Peek().Image.Width + "x" + _imageRequests.Peek().Image.MipLevels : "")} scene={(_sceneRequest is null ? _sceneRequests.Count : -1)} views={_sceneViews.Count} loading={_loadingFrames}"; // PROBE
         // One image advances per frame, as a large one can take several frames to upload.
         if (_imageRequests.TryPeek(out (Image Image, TaskCompletionSource<Bitmap?> Completion) request))
         {
@@ -130,7 +129,6 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
             }
         }
 
-        double probeMs = Stopwatch.GetElapsedTime(probeStart).TotalMilliseconds; if (probeMs > 20) System.Console.WriteLine($"PROBE {System.DateTime.Now:HH:mm:ss.fff} {probeMs:F2}ms {probeKind} -> views={_sceneViews.Count}"); // PROBE
         if (_imageRequests.Count > 0 || _sceneRequest is not null || _sceneRequests.Count > 0)
         {
             RequestNextFrameRendering();

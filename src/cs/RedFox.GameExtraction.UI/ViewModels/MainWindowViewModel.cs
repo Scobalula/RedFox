@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Enumeration;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -66,6 +67,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     internal AssetThumbnailLoader Thumbnails { get; }
 
     internal PreviewSettings PreviewSettings => _config.PreviewSettings;
+
+    internal Control? DockedPreviewContent => _isPreviewWindowOpen ? null : Preview.Content;
+
+    internal bool IsPreviewPanelVisible => PreviewSettings.ShowPreviewPanel && !_isPreviewWindowOpen;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsBrowserVisible))]
+    internal partial bool IsPreviewExpanded { get; set; }
+
+    internal bool IsBrowserVisible => !IsPreviewPanelVisible || !IsPreviewExpanded;
+
+    internal bool IsPreviewActive => _isPreviewWindowOpen || IsPreviewPanelVisible;
 
     /// <summary>
     /// Gets the filtered asset view bound to the asset grid.
@@ -204,11 +217,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public string SidebarTitle { get; private set; } = string.Empty;
 
     /// <summary>
-    /// Gets the sidebar description.
-    /// </summary>
-    public string SidebarDescription { get; private set; } = string.Empty;
-
-    /// <summary>
     /// Gets the loaded sidebar icon.
     /// </summary>
     public string? SidebarIconPath { get; private set; }
@@ -252,7 +260,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <summary>
     /// Gets the manage sources button text.
     /// </summary>
-    public string SourceCountDisplay => SourceCount > 0 ? $"Manage Sources ({SourceCount})" : "Manage Sources";
+    public string SourceCountDisplay => SourceCount > 0 ? $"Sources ({SourceCount})" : "Sources";
 
     /// <summary>
     /// Gets or sets the current status text.
@@ -294,6 +302,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// </summary>
     public event Action? PreviewRequested;
 
+    internal event Action? PreviewWindowCloseRequested;
+
     /// <summary>
     /// Raised when the source manager window should be opened.
     /// </summary>
@@ -334,6 +344,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
         config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
+        Preview.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PreviewViewModel.Content))
+            {
+                OnPropertyChanged(nameof(DockedPreviewContent));
+            }
+        };
         _assetManager.OperationFailed += OnOperationFailed;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
         _assetManager.AssetExportFailed += OnAssetExportFailed;
@@ -566,20 +583,25 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        _isPreviewWindowOpen = value;
         AssetRowViewModel[] selection = _pendingPreviewSelection ?? [.. SelectedAssets];
         _pendingPreviewSelection = null;
 
-        if (value)
+        // Preview views cannot move between hosts, so release the current one and build a fresh view for the new host.
+        CancelScheduledPreviewRefresh();
+        Preview.Clear();
+        _isPreviewWindowOpen = value;
+        NotifyPreviewLayoutChanged();
+
+        if (IsPreviewActive)
         {
-            CancelScheduledPreviewRefresh();
             _ = Preview.UpdateSelectionAsync(selection);
         }
-        else
-        {
-            CancelScheduledPreviewRefresh();
-            Preview.Clear();
-        }
+    }
+
+    internal void SaveLayout()
+    {
+        PreviewSettings.SaveLayoutTo(_config.Settings);
+        _config.Settings.Save(GameExtractionSettings.GetDefaultSettingsPath(_config.AppName));
     }
 
     /// <inheritdoc/>
@@ -632,8 +654,38 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (e.PropertyName == nameof(PreviewSettings.ShowAssetGrid))
         {
+            PreviewSettings.SaveLayoutTo(_config.Settings);
             UpdateThumbnailOrbit();
+
+            // List rows never show thumbnails, so stop any in-flight work and release the cached bitmaps.
+            if (!PreviewSettings.ShowAssetGrid)
+            {
+                Thumbnails.Clear();
+            }
         }
+        else if (e.PropertyName == nameof(PreviewSettings.ShowPreviewPanel))
+        {
+            NotifyPreviewLayoutChanged();
+            PreviewSettings.SaveLayoutTo(_config.Settings);
+            CancelScheduledPreviewRefresh();
+
+            if (IsPreviewActive)
+            {
+                _ = Preview.UpdateSelectionAsync([.. SelectedAssets]);
+            }
+            else
+            {
+                Preview.Clear();
+            }
+        }
+    }
+
+    private void NotifyPreviewLayoutChanged()
+    {
+        OnPropertyChanged(nameof(IsPreviewPanelVisible));
+        OnPropertyChanged(nameof(IsBrowserVisible));
+        OnPropertyChanged(nameof(IsPreviewActive));
+        OnPropertyChanged(nameof(DockedPreviewContent));
     }
 
     private void UpdateThumbnailOrbit()
@@ -695,6 +747,59 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         RequestPreview([.. SelectedAssets]);
     }
 
+    [RelayCommand]
+    private void ShowAssetGrid()
+    {
+        PreviewSettings.ShowAssetGrid = true;
+    }
+
+    [RelayCommand]
+    private void ShowAssetList()
+    {
+        PreviewSettings.ShowAssetGrid = false;
+    }
+
+    [RelayCommand]
+    private void TogglePreviewPanel()
+    {
+        ApplyLayout(!IsPreviewPanelVisible, false);
+    }
+
+    [RelayCommand]
+    private void ToggleExpandPreview()
+    {
+        IsPreviewExpanded = !IsPreviewExpanded;
+    }
+
+    [RelayCommand]
+    private void ShowBrowserLayout()
+    {
+        ApplyLayout(false, false);
+    }
+
+    [RelayCommand]
+    private void ShowSplitLayout()
+    {
+        ApplyLayout(true, false);
+    }
+
+    [RelayCommand]
+    private void ShowPreviewLayout()
+    {
+        ApplyLayout(true, true);
+    }
+
+    private void ApplyLayout(bool showPreviewPanel, bool expandPreview)
+    {
+        if (showPreviewPanel && _isPreviewWindowOpen)
+        {
+            PreviewWindowCloseRequested?.Invoke();
+        }
+
+        IsPreviewExpanded = expandPreview;
+        PreviewSettings.ShowPreviewPanel = showPreviewPanel;
+    }
+
     private void RequestPreview(AssetRowViewModel[] selection)
     {
         if (_isPreviewWindowOpen)
@@ -712,7 +817,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void RefreshPreview(AssetRowViewModel[] selection)
     {
-        if (_isPreviewWindowOpen)
+        if (IsPreviewActive)
         {
             _debouncedPreviewSelection = selection;
             Interlocked.Increment(ref _previewDebounceGeneration);
@@ -731,7 +836,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         int generation = Volatile.Read(ref _previewDebounceGeneration);
         Dispatcher.UIThread.Post(() =>
         {
-            if (_isDisposed || generation != Volatile.Read(ref _previewDebounceGeneration) || !_isPreviewWindowOpen)
+            if (_isDisposed || generation != Volatile.Read(ref _previewDebounceGeneration) || !IsPreviewActive)
             {
                 return;
             }
@@ -1087,7 +1192,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void InitializeShellState(GameExtractionConfig config)
     {
         SidebarTitle = config.SidebarTitle;
-        SidebarDescription = config.Description;
         CanLoadFiles = config.SupportsFileSources;
         CanLoadDirectories = config.SupportsDirectorySources;
         CanLoadProcess = config.SupportsProcessSources;

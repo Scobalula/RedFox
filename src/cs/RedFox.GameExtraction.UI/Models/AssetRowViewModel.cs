@@ -9,6 +9,8 @@ namespace RedFox.GameExtraction.UI.Models;
 /// </summary>
 public sealed partial class AssetRowViewModel : ObservableObject
 {
+    private static readonly char[] PathSeparators = ['/', '\\'];
+
     private readonly string _information;
 
     /// <summary>
@@ -43,6 +45,12 @@ public sealed partial class AssetRowViewModel : ObservableObject
     /// Gets the asset file or display name.
     /// </summary>
     public string Name { get; }
+
+    internal string FileName => Name[(Name.LastIndexOfAny(PathSeparators) + 1)..];
+
+    internal string DirectoryName => Name[..Math.Max(Name.LastIndexOfAny(PathSeparators), 0)];
+
+    internal bool HasDirectoryName => Name.LastIndexOfAny(PathSeparators) > 0;
 
     /// <summary>
     /// Gets the logical asset type.

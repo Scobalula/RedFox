@@ -20,228 +20,288 @@
                                              IsHitTestVisible="False"/>
 
         <DockPanel Margin="8">
+            <Grid DockPanel.Dock="Top"
+                  ColumnSpacing="8"
+                  Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" MinWidth="100"/>
+                    <ColumnDefinition Width="*" MinWidth="90" MaxWidth="130"/>
+                    <ColumnDefinition Width="*" MinWidth="100" MaxWidth="150"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            Margin="4,0,8,0"
+                            VerticalAlignment="Center">
+                    <Image x:Name="AppIconImage"
+                           Width="24" Height="24"
+                           Stretch="Uniform"
+                           VerticalAlignment="Center"
+                           IsVisible="{Binding HasSidebarIcon}"
+                           RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                    <TextBlock Classes="sidebar-title" Text="{Binding SidebarTitle}"/>
+                </StackPanel>
+                <Button Grid.Column="1" Classes="accent-btn" Command="{Binding BrowseProcessCommand}" IsVisible="{Binding CanLoadProcess}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource IconGamepad}"/>
+                        <TextBlock Text="Load Process"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="2" Classes="accent-btn" Command="{Binding LoadSourceCommand}" IsVisible="{Binding CanLoadFiles}">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <PathIcon Data="{StaticResource IconFile}"/>
+                        <TextBlock Text="Load Files"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="3" Classes="filter-select-btn" ToolTip.Tip="Sources">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                            <MenuItem Header="Load Folder" Command="{Binding LoadDirectoryCommand}" IsVisible="{Binding CanLoadDirectories}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconFolder}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Manage Sources" Command="{Binding ManageSourcesCommand}" IsVisible="{Binding CanLoadAnySource}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconList}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator IsVisible="{Binding CanLoadAnySource}"/>
+                            <MenuItem Header="Clear All" Command="{Binding ClearAllCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Classes="destructive-icon" Data="{StaticResource IconTrash}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding SourceCountDisplay}" VerticalAlignment="Center"/>
+                        <PathIcon Data="{StaticResource IconChevronDown}" Width="10" Height="10" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <Button Grid.Column="4" Classes="filter-select-btn" ToolTip.Tip="Export">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                            <MenuItem Header="Export All" Command="{Binding ExportAllCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconExport}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="Export Selected" Command="{Binding ExportSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconExport}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Export" VerticalAlignment="Center"/>
+                        <PathIcon Data="{StaticResource IconChevronDown}" Width="10" Height="10" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                <TextBox Grid.Column="5"
+                         Classes="search-box"
+                         PlaceholderText="Search assets"
+                         Text="{Binding SearchText}">
+                    <TextBox.InnerLeftContent>
+                        <PathIcon Data="{StaticResource IconSearch}"
+                                  Width="14"
+                                  Height="14"
+                                  Margin="10,0,0,0"
+                                  Foreground="{DynamicResource ThemeMutedForegroundBrush}"/>
+                    </TextBox.InnerLeftContent>
+                </TextBox>
+                <Button Grid.Column="6"
+                        Classes="filter-select-btn"
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="{Binding AssetTypeFilterSummary}">
+                    <Button.Flyout>
+                        <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
+                            <Border Classes="asset-filter-flyout" Width="200" MaxHeight="360">
+                                <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Spacing="6">
+                                        <CheckBox Content="All types" IsChecked="{Binding IsAllAssetTypesSelected, Mode=TwoWay}"/>
+                                        <Separator/>
+                                        <ItemsControl ItemsSource="{Binding AssetTypeFilterOptions}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
+                                                    <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding Name}"/>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding AssetTypeFilterSummary}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <PathIcon Grid.Column="1"
+                                  Data="{StaticResource IconChevronDown}"
+                                  Width="10"
+                                  Height="10"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Button>
+                <Button Grid.Column="7"
+                        Classes="filter-select-btn"
+                        HorizontalAlignment="Stretch"
+                        ToolTip.Tip="{Binding AssetSourceFilterSummary}">
+                    <Button.Flyout>
+                        <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
+                            <Border Classes="asset-filter-flyout" Width="300" MaxHeight="360">
+                                <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Spacing="6">
+                                        <CheckBox Content="All sources" IsChecked="{Binding IsAllAssetSourcesSelected, Mode=TwoWay}"/>
+                                        <Separator/>
+                                        <ItemsControl ItemsSource="{Binding AssetSourceFilterOptions}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
+                                                    <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding Name}"/>
+                                                    </CheckBox>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+                        </Flyout>
+                    </Button.Flyout>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding AssetSourceFilterSummary}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <PathIcon Grid.Column="1"
+                                  Data="{StaticResource IconChevronDown}"
+                                  Width="10"
+                                  Height="10"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </Button>
+                <Button Grid.Column="8"
+                        Classes="icon-btn toolbar-icon-btn"
+                        Classes.active="{Binding IsPreviewPanelVisible}"
+                        ToolTip.Tip="Toggle preview panel"
+                        Command="{Binding TogglePreviewPanelCommand}">
+                    <PathIcon Data="{StaticResource IconPanelRight}"/>
+                </Button>
+                <Button Grid.Column="9"
+                        Classes="icon-btn toolbar-icon-btn"
+                        ToolTip.Tip="Settings"
+                        Command="{Binding OpenSettingsCommand}">
+                    <PathIcon Data="{StaticResource IconSettings}"/>
+                </Button>
+                <Button Grid.Column="10"
+                        Classes="icon-btn toolbar-icon-btn"
+                        ToolTip.Tip="More">
+                    <Button.Flyout>
+                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="Browser Only" Command="{Binding ShowBrowserLayoutCommand}"/>
+                            <MenuItem Header="Split View" Command="{Binding ShowSplitLayoutCommand}"/>
+                            <MenuItem Header="Preview Focused" Command="{Binding ShowPreviewLayoutCommand}"/>
+                            <MenuItem Header="Open Preview Window" Command="{Binding PreviewSelectedCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconExternalLink}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <Separator/>
+                            <MenuItem Header="Donate" Command="{Binding OpenDonateCommand}" IsVisible="{Binding CanDonate}">
+                                <MenuItem.Icon>
+                                    <PathIcon Classes="heart-icon" Data="{StaticResource IconHeart}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem Header="About" Command="{Binding OpenAboutCommand}">
+                                <MenuItem.Icon>
+                                    <PathIcon Data="{StaticResource IconInfo}"/>
+                                </MenuItem.Icon>
+                            </MenuItem>
+                        </MenuFlyout>
+                    </Button.Flyout>
+                    <PathIcon Data="{StaticResource IconMore}"/>
+                </Button>
+            </Grid>
+
             <Border DockPanel.Dock="Bottom"
                     Classes="panel status-bar"
                     Margin="0,8,0,0">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Right"
-                               Classes="status-text"
-                               Margin="16,0,0,0">
-                        <TextBlock.Text>
-                            <MultiBinding StringFormat="{}{0:N0} of {1:N0} assets">
-                                <Binding Path="FilteredCount"/>
-                                <Binding Path="TotalCount"/>
-                            </MultiBinding>
-                        </TextBlock.Text>
-                    </TextBlock>
+                    <StackPanel DockPanel.Dock="Right"
+                                Orientation="Horizontal"
+                                Spacing="16"
+                                Margin="16,0,0,0">
+                        <TextBlock Classes="status-text"
+                                   Text="{Binding SelectedAssetsSummary}"
+                                   IsVisible="{Binding HasSelectedAssets}"/>
+                        <TextBlock Classes="status-text">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0:N0} of {1:N0} assets">
+                                    <Binding Path="FilteredCount"/>
+                                    <Binding Path="TotalCount"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </StackPanel>
                     <TextBlock Classes="status-text"
                                Text="{Binding StatusText}"
                                TextTrimming="CharacterEllipsis"/>
                 </DockPanel>
             </Border>
 
-            <Border DockPanel.Dock="Left"
-                    Classes="panel"
-                    Width="248"
-                    Margin="0,0,8,0">
-                <DockPanel>
-                    <StackPanel DockPanel.Dock="Bottom" Spacing="2">
-                        <Separator Classes="sidebar-sep"/>
-                        <Button Classes="sidebar-btn" Command="{Binding OpenDonateCommand}" IsVisible="{Binding CanDonate}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <PathIcon Classes="heart-icon" Data="{StaticResource IconHeart}"/>
-                                <TextBlock Text="Donate"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Classes="sidebar-btn" Command="{Binding OpenSettingsCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <PathIcon Data="{StaticResource IconSettings}"/>
-                                <TextBlock Text="Settings"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Classes="sidebar-btn" Command="{Binding OpenAboutCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="10">
-                                <PathIcon Data="{StaticResource IconInfo}"/>
-                                <TextBlock Text="About"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Spacing="2">
-                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" Margin="6,4,6,14">
-                                <Image x:Name="SidebarIconImage"
-                                       Width="32" Height="32"
-                                       Stretch="Uniform"
-                                       VerticalAlignment="Center"
-                                       IsVisible="{Binding HasSidebarIcon}"
-                                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock Classes="sidebar-title" Text="{Binding SidebarTitle}"/>
-                                    <TextBlock Classes="sidebar-desc" Text="{Binding SidebarDescription}"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <TextBlock Classes="sidebar-section" Text="Sources"/>
-                            <Button Classes="accent-btn" Command="{Binding BrowseProcessCommand}" IsVisible="{Binding CanLoadProcess}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconGamepad}"/>
-                                    <TextBlock Text="Load Process"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="accent-btn" Command="{Binding LoadSourceCommand}" IsVisible="{Binding CanLoadFiles}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconFile}"/>
-                                    <TextBlock Text="Load Files"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding LoadDirectoryCommand}" IsVisible="{Binding CanLoadDirectories}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconFolder}"/>
-                                    <TextBlock Text="Load Folder"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ManageSourcesCommand}" IsVisible="{Binding CanLoadAnySource}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconList}"/>
-                                    <TextBlock Text="{Binding SourceCountDisplay}"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ClearAllCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Classes="destructive-icon" Data="{StaticResource IconTrash}"/>
-                                    <TextBlock Text="Clear All"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Separator Classes="sidebar-sep"/>
-
-                            <TextBlock Classes="sidebar-section" Text="Assets"/>
-                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding PreviewSelectedCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconEye}"/>
-                                    <TextBlock Text="Preview Selected"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="accent-btn" Command="{Binding ExportAllCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconExport}"/>
-                                    <TextBlock Text="Export All"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Classes="sidebar-btn secondary-action-btn" Command="{Binding ExportSelectedCommand}">
-                                <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <PathIcon Data="{StaticResource IconExport}"/>
-                                    <TextBlock Text="Export Selected"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                    </ScrollViewer>
-                </DockPanel>
-            </Border>
-
-            <DockPanel>
-                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
-                    <TextBox Classes="search-box"
-                             PlaceholderText="Search assets"
-                             Text="{Binding SearchText}"/>
-                </DockPanel>
-
-                <Border Classes="panel asset-list-panel" Padding="0" ClipToBounds="True">
+            <Grid x:Name="ContentGrid" ColumnDefinitions="3*,Auto,2*">
+                <Border Classes="panel asset-list-panel"
+                        Padding="0"
+                        ClipToBounds="True"
+                        IsVisible="{Binding IsBrowserVisible}">
                     <DockPanel>
                         <Border DockPanel.Dock="Top"
                                 Classes="preview-toolbar">
                             <DockPanel>
-                                <TextBlock DockPanel.Dock="Right"
-                                           Classes="status-text"
-                                           Text="{Binding SelectedAssetsSummary}"
-                                           IsVisible="{Binding HasSelectedAssets}"
-                                           VerticalAlignment="Center"/>
-                                <StackPanel DockPanel.Dock="Left"
+                                <StackPanel DockPanel.Dock="Right"
                                             Orientation="Horizontal"
                                             Spacing="8"
                                             VerticalAlignment="Center">
-                                    <TextBlock Classes="status-text" Text="Type" VerticalAlignment="Center"/>
-                                    <Button Classes="filter-select-btn"
-                                            Width="200"
-                                            ToolTip.Tip="{Binding AssetTypeFilterSummary}">
-                                        <Button.Flyout>
-                                            <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
-                                                <Border Classes="asset-filter-flyout" Width="200" MaxHeight="360">
-                                                    <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
-                                                        <StackPanel Spacing="6">
-                                                            <CheckBox Content="All types" IsChecked="{Binding IsAllAssetTypesSelected, Mode=TwoWay}"/>
-                                                            <Separator/>
-                                                            <ItemsControl ItemsSource="{Binding AssetTypeFilterOptions}">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
-                                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
-                                                                            <TextBlock Text="{Binding Name}"
-                                                                                       TextTrimming="CharacterEllipsis"
-                                                                                       ToolTip.Tip="{Binding Name}"/>
-                                                                        </CheckBox>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </StackPanel>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Flyout>
-                                        </Button.Flyout>
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBlock Text="{Binding AssetTypeFilterSummary}"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <PathIcon Grid.Column="1"
-                                                      Data="{StaticResource IconChevronDown}"
-                                                      Width="10"
-                                                      Height="10"
-                                                      VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Button>
-                                    <TextBlock Classes="status-text" Text="Source" VerticalAlignment="Center"/>
-                                    <Button Classes="filter-select-btn"
-                                            Width="300"
-                                            ToolTip.Tip="{Binding AssetSourceFilterSummary}">
-                                        <Button.Flyout>
-                                            <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
-                                                <Border Classes="asset-filter-flyout" Width="300" MaxHeight="360">
-                                                    <ScrollViewer MaxHeight="340" VerticalScrollBarVisibility="Auto">
-                                                        <StackPanel Spacing="6">
-                                                            <CheckBox Content="All sources" IsChecked="{Binding IsAllAssetSourcesSelected, Mode=TwoWay}"/>
-                                                            <Separator/>
-                                                            <ItemsControl ItemsSource="{Binding AssetSourceFilterOptions}">
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
-                                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
-                                                                            <TextBlock Text="{Binding Name}"
-                                                                                       TextTrimming="CharacterEllipsis"
-                                                                                       ToolTip.Tip="{Binding Name}"/>
-                                                                        </CheckBox>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
-                                                        </StackPanel>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Flyout>
-                                        </Button.Flyout>
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                            <TextBlock Text="{Binding AssetSourceFilterSummary}"
-                                                       VerticalAlignment="Center"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <PathIcon Grid.Column="1"
-                                                      Data="{StaticResource IconChevronDown}"
-                                                      Width="10"
-                                                      Height="10"
-                                                      VerticalAlignment="Center"/>
-                                        </Grid>
-                                    </Button>
-                                    <TextBlock Classes="status-text" Text="Sort" VerticalAlignment="Center"/>
+                                    <TextBlock Classes="status-text" Text="Sort"/>
                                     <ComboBox Width="112"
                                               ItemsSource="{Binding SortOptions}"
                                               SelectedItem="{Binding SortBy, Mode=TwoWay}"/>
+                                    <Button Classes="icon-btn"
+                                            Classes.active="{Binding PreviewSettings.ShowAssetGrid}"
+                                            ToolTip.Tip="Grid view"
+                                            Command="{Binding ShowAssetGridCommand}">
+                                        <PathIcon Data="{StaticResource IconOther}" Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Classes="icon-btn"
+                                            Classes.active="{Binding !PreviewSettings.ShowAssetGrid}"
+                                            ToolTip.Tip="List view"
+                                            Command="{Binding ShowAssetListCommand}">
+                                        <PathIcon Data="{StaticResource IconList}" Width="14" Height="14"/>
+                                    </Button>
                                 </StackPanel>
+                                <!-- One text block keeps the title and count on a shared baseline despite their different font sizes. -->
+                                <TextBlock Classes="asset-name">
+                                    <Run Text="Assets"/>
+                                    <Run Text="{Binding FilteredCount, StringFormat='{}{0:N0}'}"
+                                         FontSize="12"
+                                         FontWeight="Normal"
+                                         Foreground="{DynamicResource ThemeMutedForegroundBrush}"/>
+                                </TextBlock>
                             </DockPanel>
                         </Border>
                         <Panel>
@@ -260,23 +320,29 @@
                                     <Style Selector="ListBox.asset-list">
                                         <Setter Property="ItemTemplate">
                                             <DataTemplate x:DataType="model:AssetRowViewModel">
-                                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                                <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                                                       ColumnSpacing="12"
-                                                      Margin="10,5,14,5">
+                                                      Margin="10,5,14,5"
+                                                      ToolTip.Tip="{Binding Name}">
                                                     <Border Classes="asset-icon">
                                                         <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
                                                     </Border>
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                                         <TextBlock Classes="asset-name"
-                                                                   Text="{Binding Name}"
-                                                                   ToolTip.Tip="{Binding Name}"
-                                                                   TextTrimming="LeadingCharacterEllipsis"/>
-                                                        <TextBlock Classes="asset-info"
-                                                                   Text="{Binding Information}"
-                                                                   IsVisible="{Binding HasInformation}"
+                                                                   Text="{Binding FileName}"
                                                                    TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Classes="asset-info"
+                                                                   Text="{Binding DirectoryName}"
+                                                                   IsVisible="{Binding HasDirectoryName}"
+                                                                   TextTrimming="LeadingCharacterEllipsis"/>
                                                     </StackPanel>
-                                                    <Border Grid.Column="2" Classes="pill">
+                                                    <TextBlock Grid.Column="2"
+                                                               Classes="asset-info"
+                                                               MaxWidth="240"
+                                                               Text="{Binding Information}"
+                                                               IsVisible="{Binding HasInformation}"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <Border Grid.Column="3" Classes="pill">
                                                         <TextBlock Text="{Binding Type}"/>
                                                     </Border>
                                                 </Grid>
@@ -307,7 +373,7 @@
                                                         </Panel>
                                                     </Border>
                                                     <TextBlock Classes="asset-name"
-                                                               Text="{Binding Name}"
+                                                               Text="{Binding FileName}"
                                                                TextAlignment="Center"
                                                                TextTrimming="LeadingCharacterEllipsis"/>
                                                     <TextBlock Classes="asset-info"
@@ -348,11 +414,131 @@
                                            TextAlignment="Center"
                                            Text="Try a different search term."/>
                             </StackPanel>
-
                         </Panel>
                     </DockPanel>
                 </Border>
-            </DockPanel>
+
+                <GridSplitter x:Name="PreviewSplitter"
+                              Grid.Column="1"
+                              Width="8"
+                              Background="Transparent"
+                              ResizeDirection="Columns"/>
+
+                <Border Grid.Column="2"
+                        Classes="panel"
+                        Padding="0"
+                        ClipToBounds="True"
+                        IsVisible="{Binding IsPreviewPanelVisible}">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top"
+                                Classes="preview-toolbar">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" MinHeight="34">
+                                <Border Classes="asset-icon" IsVisible="{Binding Preview.HasAsset}">
+                                    <PathIcon Data="{Binding Preview.Asset.Category, Converter={StaticResource IconResourceConverter}, FallbackValue={x:Null}}" Width="16" Height="16"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                    <TextBlock Classes="asset-name"
+                                               Text="{Binding Preview.Asset.FileName, FallbackValue='Preview'}"
+                                               ToolTip.Tip="{Binding Preview.Asset.Name, FallbackValue={x:Null}}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Classes="asset-info"
+                                               Text="{Binding Preview.AssetTypeDisplay}"
+                                               IsVisible="{Binding Preview.HasAsset}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                    <Button Classes="icon-btn"
+                                            ToolTip.Tip="Open in preview window"
+                                            Command="{Binding PreviewSelectedCommand}">
+                                        <PathIcon Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Classes="icon-btn"
+                                            Classes.active="{Binding IsPreviewExpanded}"
+                                            ToolTip.Tip="Expand preview"
+                                            Command="{Binding ToggleExpandPreviewCommand}">
+                                        <PathIcon Data="{StaticResource IconExpand}" Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Classes="icon-btn"
+                                            ToolTip.Tip="Hide preview panel"
+                                            Command="{Binding TogglePreviewPanelCommand}">
+                                        <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Expander DockPanel.Dock="Bottom"
+                                  Classes="preview-details"
+                                  Header="Details"
+                                  IsExpanded="True"
+                                  IsVisible="{Binding Preview.HasAsset}">
+                            <Expander.Resources>
+                                <StaticResource x:Key="ExpanderHeaderBackground" ResourceKey="ThemeMutedBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBackgroundPointerOver" ResourceKey="ThemeSecondaryBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBackgroundPressed" ResourceKey="ThemeMutedBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderForegroundPointerOver" ResourceKey="ThemeForegroundBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderForegroundPressed" ResourceKey="ThemeForegroundBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBorderBrushPointerOver" ResourceKey="ThemeBorderBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBorderBrushPressed" ResourceKey="ThemeBorderBrush"/>
+                                <SolidColorBrush x:Key="ExpanderChevronBackgroundPointerOver" Color="Transparent"/>
+                                <SolidColorBrush x:Key="ExpanderChevronBackgroundPressed" Color="Transparent"/>
+                                <SolidColorBrush x:Key="ExpanderChevronBorderBrushPointerOver" Color="Transparent"/>
+                                <SolidColorBrush x:Key="ExpanderChevronBorderBrushPressed" Color="Transparent"/>
+                            </Expander.Resources>
+                            <Grid ColumnDefinitions="Auto,*"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                  ColumnSpacing="16"
+                                  RowSpacing="4">
+                                <TextBlock Grid.Row="0" Classes="status-text" Text="Path"/>
+                                <SelectableTextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Preview.Asset.Name, FallbackValue={x:Null}}" TextWrapping="Wrap"/>
+                                <TextBlock Grid.Row="1" Classes="status-text" Text="Source"/>
+                                <SelectableTextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Preview.SourceNameDisplay}" TextWrapping="Wrap"/>
+                                <TextBlock Grid.Row="2" Classes="status-text" Text="Information" IsVisible="{Binding Preview.HasInformation}"/>
+                                <SelectableTextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Preview.InformationDisplay}" TextWrapping="Wrap" IsVisible="{Binding Preview.HasInformation}"/>
+                                <TextBlock Grid.Row="3" Classes="status-text" Text="Handler"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Preview.HandlerDisplay}"/>
+                                <TextBlock Grid.Row="4" Classes="status-text" Text="Payload"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Preview.PayloadTypeDisplay}"/>
+                                <TextBlock Grid.Row="5" Classes="status-text" Text="References"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Preview.ReferenceCount}"/>
+                                <TextBlock Grid.Row="6" Classes="status-text" Text="Selection" IsVisible="{Binding Preview.SelectionDisplay, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding Preview.SelectionDisplay}"/>
+                            </Grid>
+                        </Expander>
+
+                        <Panel>
+                            <!-- Previewers inherit the preview view model, as they do in the standalone preview window. -->
+                            <ContentControl DataContext="{Binding Preview}"
+                                            Content="{Binding #ContentGrid.((vm:MainWindowViewModel)DataContext).DockedPreviewContent}"/>
+
+                            <StackPanel Spacing="6"
+                                        Margin="24"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding Preview.ShowPlaceholder}">
+                                <TextBlock Classes="title"
+                                           HorizontalAlignment="Center"
+                                           Text="{Binding Preview.PlaceholderTitle}"/>
+                                <TextBlock Classes="status-text"
+                                           TextAlignment="Center"
+                                           IsVisible="{Binding !Preview.HasAsset}"
+                                           Text="Select an asset to preview it here."/>
+                                <TextBlock Classes="status-text"
+                                           MaxWidth="480"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Center"
+                                           IsVisible="{Binding Preview.HasError}"
+                                           Text="{Binding Preview.ErrorMessage}"/>
+                            </StackPanel>
+
+                            <ProgressBar Classes="thin"
+                                         VerticalAlignment="Top"
+                                         IsIndeterminate="True"
+                                         IsHitTestVisible="False"
+                                         IsVisible="{Binding Preview.IsLoading}"/>
+                        </Panel>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </DockPanel>
 
         <Border Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">

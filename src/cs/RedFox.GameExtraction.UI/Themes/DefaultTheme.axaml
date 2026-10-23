@@ -257,8 +257,58 @@
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
+    <Style Selector="Button.toolbar-icon-btn">
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+    </Style>
+
+    <Style Selector="Button.toolbar-icon-btn PathIcon">
+        <Setter Property="Width" Value="15"/>
+        <Setter Property="Height" Value="15"/>
+    </Style>
+
+    <Style Selector="Button.icon-btn.active">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="Button.icon-btn.active PathIcon">
+        <Setter Property="Foreground" Value="#FFFBEB"/>
+    </Style>
+
+    <Style Selector="Button.icon-btn.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
+    </Style>
+
     <Style Selector="Button:disabled">
         <Setter Property="Opacity" Value="0.4"/>
+    </Style>
+
+    <Style Selector="MenuFlyoutPresenter">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+    </Style>
+
+    <Style Selector="MenuFlyoutPresenter MenuItem PathIcon">
+        <Setter Property="Width" Value="14"/>
+        <Setter Property="Height" Value="14"/>
+    </Style>
+
+    <Style Selector="Expander.preview-details">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="BorderThickness" Value="0,1,0,0"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="MinHeight" Value="0"/>
+    </Style>
+
+    <Style Selector="Expander.preview-details /template/ ToggleButton#ExpanderHeader">
+        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="CornerRadius" Value="0"/>
     </Style>
 
     <Style Selector="TextBox.search-box">
