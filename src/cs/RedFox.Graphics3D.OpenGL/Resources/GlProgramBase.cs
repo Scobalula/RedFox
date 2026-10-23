@@ -1,8 +1,10 @@
 using Silk.NET.OpenGL;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace RedFox.Graphics3D.OpenGL.Resources;
 
@@ -12,6 +14,8 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 /// </summary>
 internal abstract class GlProgramBase : IDisposable
 {
+    private static readonly ConcurrentDictionary<string, GlProgramBinary> ProgramBinaries = new(StringComparer.Ordinal);
+
     private readonly Dictionary<string, int> _uniformLocations;
     private readonly Dictionary<string, int> _samplerSlots;
     private bool _disposed;
@@ -35,6 +39,12 @@ internal abstract class GlProgramBase : IDisposable
         _uniformLocations = new Dictionary<string, int>(StringComparer.Ordinal);
         _samplerSlots = new Dictionary<string, int>(StringComparer.Ordinal);
 
+        string? binaryKey = CreateBinaryKey(shaders);
+        if (binaryKey is not null && TryLoadBinary(binaryKey))
+        {
+            return;
+        }
+
         uint[] shaderHandles = new uint[shaders.Length];
         int shaderCount = 0;
 
@@ -50,6 +60,11 @@ internal abstract class GlProgramBase : IDisposable
 
             Handle = Gl.CreateProgram();
 
+            if (binaryKey is not null)
+            {
+                Gl.ProgramParameter(Handle, GLEnum.ProgramBinaryRetrievableHint, 1);
+            }
+
             for (int i = 0; i < shaderCount; i++)
             {
                 Gl.AttachShader(Handle, shaderHandles[i]);
@@ -61,6 +76,11 @@ internal abstract class GlProgramBase : IDisposable
             {
                 string infoLog = Gl.GetProgramInfoLog(Handle);
                 throw new InvalidOperationException($"OpenGL program link failed: {infoLog}");
+            }
+
+            if (binaryKey is not null)
+            {
+                StoreBinary(binaryKey);
             }
         }
         catch
@@ -314,5 +334,73 @@ internal abstract class GlProgramBase : IDisposable
         }
 
         return shader;
+    }
+
+    private string? CreateBinaryKey((ShaderType ShaderType, string Source)[] shaders)
+    {
+        Gl.GetInteger(GLEnum.NumProgramBinaryFormats, out int formatCount);
+        if (formatCount <= 0)
+        {
+            return null;
+        }
+
+        StringBuilder key = new();
+        key.Append(Gl.GetStringS(StringName.Renderer)).Append('|').Append(Gl.GetStringS(StringName.Version));
+
+        foreach ((ShaderType shaderType, string source) in shaders)
+        {
+            key.Append('|').Append(shaderType).Append(':').Append(source);
+        }
+
+        return key.ToString();
+    }
+
+    private unsafe bool TryLoadBinary(string binaryKey)
+    {
+        if (!ProgramBinaries.TryGetValue(binaryKey, out GlProgramBinary binary))
+        {
+            return false;
+        }
+
+        uint handle = Gl.CreateProgram();
+
+        fixed (byte* data = binary.Data)
+        {
+            Gl.ProgramBinary(handle, binary.Format, data, (uint)binary.Data.Length);
+        }
+
+        Gl.GetProgram(handle, GLEnum.LinkStatus, out int linkStatus);
+        if (linkStatus != 0)
+        {
+            Handle = handle;
+            return true;
+        }
+
+        Gl.DeleteProgram(handle);
+        ProgramBinaries.TryRemove(binaryKey, out _);
+        return false;
+    }
+
+    private unsafe void StoreBinary(string binaryKey)
+    {
+        Gl.GetProgram(Handle, GLEnum.ProgramBinaryLength, out int length);
+        if (length <= 0)
+        {
+            return;
+        }
+
+        byte[] data = new byte[length];
+        uint written;
+        GLEnum format;
+
+        fixed (byte* destination = data)
+        {
+            Gl.GetProgramBinary(Handle, (uint)length, &written, &format, destination);
+        }
+
+        if (written > 0)
+        {
+            ProgramBinaries[binaryKey] = new GlProgramBinary(format, written == length ? data : data[..(int)written]);
+        }
     }
 }

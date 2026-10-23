@@ -6,6 +6,7 @@ using RedFox.Imaging.Primitives;
 using RedFox.Imaging.IO;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering.Handles;
+using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering;
 
@@ -26,6 +27,14 @@ public sealed class SceneRenderer : IDisposable
         RenderFlags.Overlay,
     ];
 
+    private static readonly string[] PreparedMaterialTypeNames =
+    [
+        MaterialRenderHandle.DefaultMaterialTypeName,
+        SkeletonBoneRenderHandle.SkeletonMaterialTypeName,
+        GridRenderHandle.GridMaterialTypeName,
+        SkyboxRenderHandle.SkyboxMaterialTypeName,
+    ];
+
     private readonly ClearAndStateResetPass _clearAndStateResetPass;
     private readonly ICommandList _commandList;
     private readonly AutoResetEvent _backgroundImageLoadSignal = new(false);
@@ -34,6 +43,7 @@ public sealed class SceneRenderer : IDisposable
     private readonly IGraphicsDevice _graphicsDevice;
     private IReadOnlyList<SceneNode> _sceneTraversalNodes = [];
     private readonly List<(SceneNode Node, IRenderHandle Handle)> _sceneTraversalHandles = [];
+    private readonly Dictionary<string, IGpuPipelineState> _preparedPipelines = [];
     private RenderFrameContext? _frameContext;
 
     private IGpuTexture? _antiAliasingColorTexture;
@@ -204,6 +214,25 @@ public sealed class SceneRenderer : IDisposable
         _initialized = true;
     }
 
+    // Builds the built-in material pipelines ahead of the first scene, so their shader compiles happen when the caller chooses.
+    // The renderer holds a reference to each until it is disposed, keeping them in the registry's cache for later handles.
+    public void PreparePipelines()
+    {
+        ThrowIfDisposed();
+        if (_preparedPipelines.Count > 0 || _graphicsDevice.MaterialTypes is not IMaterialPipelineProvider pipelineProvider)
+        {
+            return;
+        }
+
+        foreach (string typeName in PreparedMaterialTypeNames)
+        {
+            if (_graphicsDevice.MaterialTypes.Contains(typeName))
+            {
+                _preparedPipelines[typeName] = pipelineProvider.AcquirePipeline(_graphicsDevice, typeName);
+            }
+        }
+    }
+
     /// <summary>
     /// Resizes the active viewport.
     /// </summary>
@@ -350,6 +379,7 @@ public sealed class SceneRenderer : IDisposable
         ReleaseAntiAliasingResources();
         _clearAndStateResetPass.Dispose();
         SceneRenderResources.ReleaseAll(_graphicsDevice);
+        ReleasePreparedPipelines();
         _initialized = false;
         _disposed = true;
         GC.SuppressFinalize(this);
@@ -716,6 +746,19 @@ public sealed class SceneRenderer : IDisposable
         {
             return null;
         }
+    }
+
+    private void ReleasePreparedPipelines()
+    {
+        if (_graphicsDevice.MaterialTypes is IMaterialPipelineProvider pipelineProvider)
+        {
+            foreach (KeyValuePair<string, IGpuPipelineState> prepared in _preparedPipelines)
+            {
+                pipelineProvider.ReleasePipeline(prepared.Key, prepared.Value);
+            }
+        }
+
+        _preparedPipelines.Clear();
     }
 
     private void ReleaseAntiAliasingResources()

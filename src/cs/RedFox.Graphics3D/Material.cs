@@ -150,6 +150,8 @@ public class Material(string name) : SceneNode(name)
     /// </summary>
     public float? Roughness { get; set; } = 0;
 
+    public float? AlphaCutoff { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether the material should render both front and back faces.
     /// </summary>
@@ -406,6 +408,7 @@ public class Material(string name) : SceneNode(name)
         writer.WriteOptional(SpecularStrength);
         writer.WriteOptional(Metallic);
         writer.WriteOptional(Roughness);
+        writer.WriteOptional(AlphaCutoff);
         writer.Write(DoubleSided);
         writer.Write(SpecularMaskInDiffuseAlpha);
         writer.Write(UseSpecularColorMap);
@@ -452,6 +455,7 @@ public class Material(string name) : SceneNode(name)
         SpecularStrength			= reader.ReadOptional<float>();
         Metallic					= reader.ReadOptional<float>();
         Roughness					= reader.ReadOptional<float>();
+        AlphaCutoff					= reader.ReadOptional<float>();
         DoubleSided					= reader.ReadBoolean();
         SpecularMaskInDiffuseAlpha	= reader.ReadBoolean();
         UseSpecularColorMap			= reader.ReadBoolean();

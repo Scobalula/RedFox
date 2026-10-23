@@ -14,7 +14,7 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
     private const int FloatCountPerVertex = 13;
     private const int VertexStrideBytes = FloatCountPerVertex * sizeof(float);
     private const float MinimumLineWidth = 0.75f;
-    private const string SkeletonMaterialTypeName = "Skeleton";
+    internal const string SkeletonMaterialTypeName = "Skeleton";
 
     private readonly SkeletonBone _bone;
     private readonly IGraphicsDevice _graphicsDevice;

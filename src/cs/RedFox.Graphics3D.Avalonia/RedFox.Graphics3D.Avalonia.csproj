@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>RedFox.Graphics3D.Avalonia</PackageId>
     <PackageDescription>Avalonia control integration for RedFox Graphics3D renderers.</PackageDescription>
   </PropertyGroup>

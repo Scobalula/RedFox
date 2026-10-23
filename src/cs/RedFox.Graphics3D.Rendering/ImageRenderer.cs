@@ -146,6 +146,12 @@ public sealed class ImageRenderer : IDisposable
         return format is ImageFormat.BC5Typeless or ImageFormat.BC5Unorm or ImageFormat.BC5Snorm or ImageFormat.R8G8Unorm or ImageFormat.R8G8Snorm or ImageFormat.R16G16Unorm or ImageFormat.R16G16Snorm or ImageFormat.R16G16Float;
     }
 
+    public void PreparePipeline()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsurePipeline();
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

@@ -16,7 +16,7 @@ namespace RedFox.Graphics3D.Rendering.Handles;
 /// <param name="material">The material node represented by this handle.</param>
 internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Material material) : RenderHandle
 {
-    private const string DefaultMaterialTypeName = "Default";
+    internal const string DefaultMaterialTypeName = "Default";
     private const string DiffuseTextureUniformName = "DiffuseMap";
     private const string HasDiffuseMapUniformName = "HasDiffuseMap";
     private const int DiffuseTextureSlot = 15;
@@ -26,6 +26,8 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
 
     private IGpuPipelineState? _pipeline;
     private string? _resolvedTypeName;
+    private IReadOnlyList<MaterialTextureRequirement> _textureRequirements = [];
+    private string[] _textureFlagUniformNames = [];
     private Texture? _diffuseTextureSnapshot;
     private MaterialTextureBinding[]? _textureBindingSnapshot;
     private uint _bindingVersion = uint.MaxValue;
@@ -140,6 +142,8 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         IMaterialPipelineProvider pipelineProvider = GetPipelineProvider();
         _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, requestedTypeName);
         _resolvedTypeName = requestedTypeName;
+        _textureRequirements = _graphicsDevice.MaterialTypes.Get(requestedTypeName).Descriptor.Requirements.Textures;
+        _textureFlagUniformNames = [.. _textureRequirements.Select(requirement => $"Has{requirement.Name}")];
     }
 
     private void ReleasePipelineReference()
@@ -186,6 +190,9 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         commandList.SetUniformVector4("BaseColor", _material.DiffuseColor ?? Vector4.One);
         commandList.SetUniformFloat("MaterialSpecularStrength", _material.SpecularStrength ?? 0.28f);
         commandList.SetUniformFloat("MaterialSpecularPower", _material.SpecularPower ?? 32.0f);
+        commandList.SetUniformFloat("MaterialMetallic", _material.Metallic ?? 0.0f);
+        commandList.SetUniformFloat("MaterialRoughness", _material.Roughness ?? 1.0f);
+        commandList.SetUniformFloat("MaterialAlphaCutoff", _material.AlphaCutoff ?? 0.0f);
     }
 
     private void BindTextureResources(ICommandList commandList)
@@ -206,6 +213,13 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
             textureHandle.Update(commandList);
             textureHandle.Bind(commandList, binding.Slot);
+        }
+
+        for (int i = 0; i < _textureRequirements.Count; i++)
+        {
+            MaterialTextureRequirement requirement = _textureRequirements[i];
+            bool bound = _material.TryGetTexture(requirement.Name, out Texture? texture) && TryBindTexture(commandList, texture, requirement.Slot, requirement.Name);
+            commandList.SetUniformInt(_textureFlagUniformNames[i], bound ? 1 : 0);
         }
 
         Texture? diffuseTexture = GetDiffuseTextureSnapshot();

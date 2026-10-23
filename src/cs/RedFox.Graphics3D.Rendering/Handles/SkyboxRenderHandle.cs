@@ -14,6 +14,8 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     private const int SkyboxTextureSlot = 0;
     private const int SkyboxVertexCount = 3;
 
+    internal const string SkyboxMaterialTypeName = "Skybox";
+
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly IMaterialTypeRegistry _materialTypes;
     private readonly Scene _scene;
@@ -127,13 +129,12 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     protected override void ReleaseResources()
     {
         ReleaseTexture();
-        _pipeline?.Dispose();
-        _pipeline = null;
+        ReleasePipeline();
     }
 
     private void EnsurePipeline()
     {
-        if (_pipeline is not null)
+        if (_pipeline is not null && !_pipeline.IsDisposed)
         {
             return;
         }
@@ -143,7 +144,26 @@ internal sealed class SkyboxRenderHandle : RenderHandle
             throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
         }
 
-        _pipeline = pipelineProvider.CreatePipeline(_graphicsDevice, "Skybox");
+        _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, SkyboxMaterialTypeName);
+    }
+
+    private void ReleasePipeline()
+    {
+        IGpuPipelineState? pipeline = _pipeline;
+        _pipeline = null;
+
+        if (pipeline is null)
+        {
+            return;
+        }
+
+        if (_materialTypes is IMaterialPipelineProvider pipelineProvider)
+        {
+            pipelineProvider.ReleasePipeline(SkyboxMaterialTypeName, pipeline);
+            return;
+        }
+
+        pipeline.Dispose();
     }
 
     private void ReleaseTexture()

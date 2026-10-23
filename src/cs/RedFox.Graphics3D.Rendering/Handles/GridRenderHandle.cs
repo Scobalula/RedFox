@@ -15,6 +15,8 @@ internal sealed class GridRenderHandle : RenderHandle
     private const float MinimumLineWidth = 0.25f;
     private const float MinimumPixelsBetweenCells = 1.0f;
 
+    internal const string GridMaterialTypeName = "Grid";
+
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly Grid _grid;
     private readonly IMaterialTypeRegistry _materialTypes;
@@ -80,13 +82,12 @@ internal sealed class GridRenderHandle : RenderHandle
     /// <inheritdoc/>
     protected override void ReleaseResources()
     {
-        _pipeline?.Dispose();
-        _pipeline = null;
+        ReleasePipeline();
     }
 
     private void EnsurePipeline()
     {
-        if (_pipeline is not null)
+        if (_pipeline is not null && !_pipeline.IsDisposed)
         {
             return;
         }
@@ -96,7 +97,26 @@ internal sealed class GridRenderHandle : RenderHandle
             throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
         }
 
-        _pipeline = pipelineProvider.CreatePipeline(_graphicsDevice, "Grid");
+        _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, GridMaterialTypeName);
+    }
+
+    private void ReleasePipeline()
+    {
+        IGpuPipelineState? pipeline = _pipeline;
+        _pipeline = null;
+
+        if (pipeline is null)
+        {
+            return;
+        }
+
+        if (_materialTypes is IMaterialPipelineProvider pipelineProvider)
+        {
+            pipelineProvider.ReleasePipeline(GridMaterialTypeName, pipeline);
+            return;
+        }
+
+        pipeline.Dispose();
     }
 
     private static float ResolveCellSize(Grid grid)
