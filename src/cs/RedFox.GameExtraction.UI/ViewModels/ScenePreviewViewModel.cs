@@ -450,6 +450,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         }
 
         scene.UpAxis = Settings.UpAxis;
+        scene.TextureMipType = MipType.High;
         scene.IsAnimationPaused = Settings.IsAnimationPaused;
         scene.Grid.Enabled = Settings.ShowGrid;
         SetBoneVisibility(scene, Settings.ShowBones);

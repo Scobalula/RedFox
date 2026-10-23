@@ -199,6 +199,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
     private SceneViewportController? CreateViewport(Scene scene, SceneUpAxis upAxis, CancellationToken cancellationToken)
     {
         scene.UpAxis = upAxis;
+        scene.TextureMipType = MipType.UltraLow;
         scene.ImageTranslators.RegisterRange(assetManager.GetRequiredService<ImageTranslatorService>().Manager.Translators);
 
         foreach (SceneNode node in scene.EnumerateDescendants())

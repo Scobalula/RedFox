@@ -63,6 +63,11 @@ namespace RedFox.Graphics3D
         public SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
 
         /// <summary>
+        /// Gets or sets the preferred mip level for textures loaded by a renderer.
+        /// </summary>
+        public MipType TextureMipType { get; set; } = MipType.High;
+
+        /// <summary>
         /// Gets or sets a value indicating whether animation playback is paused.
         /// When <see langword="true"/>, animation players are not updated but the scene graph still updates.
         /// </summary>

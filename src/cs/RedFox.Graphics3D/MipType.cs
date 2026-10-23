@@ -6,6 +6,11 @@ namespace RedFox.Graphics3D;
 public enum MipType
 {
     /// <summary>
+    /// Requests a lower resolution mip suitable for thumbnails of models.
+    /// </summary>
+    UltraLow,
+
+    /// <summary>
     /// Requests a lower resolution mip suitable for thumbnails.
     /// </summary>
     Low,
