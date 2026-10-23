@@ -34,6 +34,46 @@ public sealed class DdsImageTranslatorTests
     }
 
     [Fact]
+    public void DdsLoader_LoadWithMaximumDimension_ReadsOnlyFittingMipsOfEveryElement()
+    {
+        Image source = new(64, 32, depth: 1, arraySize: 3, mipLevels: 7, ImageFormat.R8G8B8A8Unorm, isCubemap: false);
+
+        for (int i = 0; i < source.PixelData.Length; i++)
+            source.PixelData[i] = (byte)(i * 7);
+
+        using MemoryStream stream = new();
+        DdsWriter.Save(stream, source);
+        stream.Position = 0;
+
+        Image loaded = DdsLoader.Load(stream, 16);
+
+        Assert.Equal(16, loaded.Width);
+        Assert.Equal(8, loaded.Height);
+        Assert.Equal(3, loaded.ArraySize);
+        Assert.Equal(5, loaded.MipLevels);
+
+        for (int arrayIndex = 0; arrayIndex < source.ArraySize; arrayIndex++)
+        {
+            for (int mipLevel = 0; mipLevel < loaded.MipLevels; mipLevel++)
+                Assert.Equal(source.GetSlice(mipLevel + 2, arrayIndex).PixelSpan.ToArray(), loaded.GetSlice(mipLevel, arrayIndex).PixelSpan.ToArray());
+        }
+    }
+
+    [Fact]
+    public void DdsLoader_LoadWithMaximumDimensionBelowSmallestMip_ReadsSmallestMip()
+    {
+        Image source = new(8, 8, depth: 1, arraySize: 1, mipLevels: 2, ImageFormat.R8G8B8A8Unorm, isCubemap: false);
+        using MemoryStream stream = new();
+        DdsWriter.Save(stream, source);
+        stream.Position = 0;
+
+        Image loaded = DdsLoader.Load(stream, 1);
+
+        Assert.Equal(4, loaded.Width);
+        Assert.Equal(1, loaded.MipLevels);
+    }
+
+    [Fact]
     public void DdsImageTranslator_IsValidRecognizesDdsMagic()
     {
         DdsImageTranslator translator = new();

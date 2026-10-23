@@ -2,13 +2,12 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
-using System.Buffers;
 using System.IO.Compression;
 
 namespace RedFox.GameExtraction.Hashing;
 
 /// <summary>
-/// Provides methods for compressing and decompressing name files using a simple LZ-based algorithm.
+/// Provides methods for compressing and decompressing name files using a Brotli.
 /// </summary>
 public static class NameFileCompressor
 {
@@ -41,11 +40,8 @@ public static class NameFileCompressor
     /// <returns>The number of bytes written to the destination span.</returns>
     public static int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        using var decoder = new BrotliDecoder();
-        var status = decoder.Decompress(source, destination, out var consumed, out var written);
-
-        if (status != OperationStatus.Done || consumed != source.Length)
-            throw new InvalidDataException("The name file compressed data is invalid.");
+        if (!BrotliDecoder.TryDecompress(source, destination, out var written))
+            throw new InvalidOperationException("Failed to decompress name file data.");
 
         return written;
     }

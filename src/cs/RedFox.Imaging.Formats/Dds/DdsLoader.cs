@@ -37,6 +37,51 @@ public static class DdsLoader
     }
 
     /// <summary>
+    /// Loads a DDS file from a seekable stream, reading only the mips whose width and height fit within the given dimension.
+    /// When no mip fits, only the smallest mip is loaded. Legacy 24-bit RGB files are always loaded in full.
+    /// </summary>
+    /// <param name="stream">The seekable stream positioned at the start of the DDS data.</param>
+    /// <param name="maximumDimension">The largest width or height the first loaded mip may have.</param>
+    /// <returns>An <see cref="Image"/> containing the mips that fit within <paramref name="maximumDimension"/>.</returns>
+    public static Image Load(Stream stream, int maximumDimension)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanSeek) { throw new IOException("The supplied stream is not seekable."); }
+
+        long start = stream.Position;
+        Span<byte> header = stackalloc byte[DdsMetadataReader.MaxHeaderSize];
+        int headerSize = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+        DdsMetadata metadata = DdsMetadataReader.Read(header[..headerSize]);
+        ImageInfo info = metadata.Info;
+        info.Validate();
+
+        if (metadata.IsLegacyRgb24)
+        {
+            stream.Position = start;
+            return Load(stream);
+        }
+
+        int firstMip = 0;
+        while (firstMip < info.MipLevels - 1 && Math.Max(info.Width >> firstMip, info.Height >> firstMip) > maximumDimension)
+            firstMip++;
+
+        ImageInfo element = info with { ArraySize = 1 };
+        ImageInfo loadedElement = element with { Width = Math.Max(1, info.Width >> firstMip), Height = Math.Max(1, info.Height >> firstMip), Depth = Math.Max(1, info.Depth >> firstMip), MipLevels = info.MipLevels - firstMip };
+        long elementBytes = element.CalculateTotalByteCount();
+        long loadedElementBytes = loadedElement.CalculateTotalByteCount();
+        long skippedBytes = elementBytes - loadedElementBytes;
+        byte[] pixels = new byte[checked((int)(loadedElementBytes * info.ArraySize))];
+
+        for (int arrayIndex = 0; arrayIndex < info.ArraySize; arrayIndex++)
+        {
+            stream.Position = start + metadata.DataOffset + arrayIndex * elementBytes + skippedBytes;
+            stream.ReadExactly(pixels.AsSpan(checked((int)(arrayIndex * loadedElementBytes)), (int)loadedElementBytes));
+        }
+
+        return new Image(loadedElement with { ArraySize = info.ArraySize }, pixels);
+    }
+
+    /// <summary>
     /// Loads a DDS file from a byte array.
     /// </summary>
     /// <param name="data">The raw DDS bytes.</param>
