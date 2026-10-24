@@ -52,6 +52,10 @@
                                                 </DockPanel>
                                                 <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" Width="200"/>
                                                 <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
+                                                <DockPanel IsVisible="{Binding IsSlider}" HorizontalAlignment="Left" Width="300">
+                                                    <TextBlock DockPanel.Dock="Right" Width="40" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
+                                                    <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding SliderValue}"/>
+                                                </DockPanel>
                                                 <TextBlock Classes="setting-desc" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
                                             </StackPanel>
                                         </DataTemplate>

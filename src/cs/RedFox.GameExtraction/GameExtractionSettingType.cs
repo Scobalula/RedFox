@@ -34,4 +34,6 @@ public enum GameExtractionSettingType
     /// A true or false value.
     /// </summary>
     Boolean,
+
+    Slider,
 }

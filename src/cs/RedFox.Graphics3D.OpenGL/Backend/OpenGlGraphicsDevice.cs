@@ -1125,6 +1125,13 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
                 isCompressed = false;
                 return true;
 
+            case ImageFormat.R16G16B16A16Float:
+                internalFormat = SizedInternalFormat.Rgba16f;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Rgba;
+                pixelType = PixelType.HalfFloat;
+                isCompressed = false;
+                return true;
+
             case ImageFormat.BC1Typeless or ImageFormat.BC1Unorm when SupportsCompressedSampling(usage) && _supportsS3tcTextureCompression:
                 internalFormat = SizedInternalFormat.CompressedRgbaS3TCDxt1Ext;
                 pixelFormat = 0;

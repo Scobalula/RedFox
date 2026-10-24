@@ -49,4 +49,8 @@ public sealed class GameExtractionSetting
     /// Gets the picker dialog title for file or directory path settings.
     /// </summary>
     public string? PickerTitle { get; init; }
+
+    public double Minimum { get; init; }
+
+    public double Maximum { get; init; } = 1.0;
 }

@@ -322,7 +322,7 @@ public sealed class SceneRenderer : IDisposable
         }
 
         _graphicsDevice.Submit(_commandList);
-        HasPendingWork = HasPendingSceneWork(sceneTraversalNodes);
+        HasPendingWork = HasPendingSceneWork(sceneTraversalNodes, scene.Skybox);
     }
 
     /// <summary>
@@ -413,7 +413,7 @@ public sealed class SceneRenderer : IDisposable
         return _sceneTraversalNodes;
     }
 
-    private bool HasPendingSceneWork(IReadOnlyList<SceneNode> nodes)
+    private bool HasPendingSceneWork(IReadOnlyList<SceneNode> nodes, Skybox skybox)
     {
         lock (_backgroundImageLoadSync)
         {
@@ -432,7 +432,7 @@ public sealed class SceneRenderer : IDisposable
             }
         }
 
-        return false;
+        return skybox is { Enabled: true, Texture: { } skyboxTexture } && SceneRenderResources.Get(_graphicsDevice, skyboxTexture)?.HasPendingUploads == true;
     }
 
     private void UpdateSceneRenderHandles(IReadOnlyList<SceneNode> nodes)
@@ -540,7 +540,9 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        SceneRenderResources.GetOrCreate(_graphicsDevice, skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene)).Update(_commandList);
+        SkyboxRenderHandle skyboxHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene));
+        skyboxHandle.Update(_commandList);
+        _commandList.SetEnvironmentMap(skyboxHandle.Texture, skyboxHandle.MipLevels, skybox.Intensity);
     }
 
     private void RenderSkybox(Skybox skybox, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)

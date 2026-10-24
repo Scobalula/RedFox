@@ -2,6 +2,7 @@ using System;
 using RedFox.Imaging.Formats.Bmp;
 using RedFox.Imaging.Formats.Dds;
 using RedFox.Imaging.Formats.Exr;
+using RedFox.Imaging.Formats.Hdr;
 using RedFox.Imaging.Formats.Jpeg;
 using RedFox.Imaging.Formats.Ktx;
 using RedFox.Imaging.Formats.Png;
@@ -28,6 +29,7 @@ public static class BuiltInImageFormats
         manager.Register(new BmpImageTranslator());
         manager.Register(new DdsImageTranslator());
         manager.Register(new ExrImageTranslator());
+        manager.Register(new RadianceHdrImageTranslator());
         manager.Register(new JpegImageTranslator());
         manager.Register(new KtxImageTranslator());
         manager.Register(new PngImageTranslator());

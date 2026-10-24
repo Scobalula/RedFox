@@ -78,6 +78,8 @@ public interface ICommandList
     /// <param name="enabled">Whether view-based lighting is enabled.</param>
     void SetUseViewBasedLighting(bool enabled);
 
+    void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity);
+
     /// <summary>
     /// Sets the active skinning mode used by compute skinning for the current frame.
     /// </summary>

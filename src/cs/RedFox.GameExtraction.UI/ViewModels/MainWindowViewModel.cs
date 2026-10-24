@@ -8,7 +8,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RedFox.GameExtraction;
 using RedFox.GameExtraction.UI.Models;
+using RedFox.Graphics3D;
 using RedFox.Graphics3D.IO;
+using RedFox.Imaging.Formats;
+using RedFox.Imaging.IO;
 using RedFox.Plugins;
 using RedFox.Plugins.Python;
 
@@ -344,6 +347,19 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
         config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
+
+        if (config.SkyboxPath is not null)
+        {
+            string cacheDirectory = Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(config.AppName))!, "skybox");
+            ImageTranslatorManager translators = new();
+            BuiltInImageFormats.RegisterAll(translators);
+
+            Texture skyboxTexture = new(config.SkyboxPath) { ImageLoader = new SkyboxImageLoader(translators, cacheDirectory) };
+
+            // Warm the loader at startup so the first preview finds the panorama ready instead of decoding it then.
+            config.PreviewSettings.SkyboxTexture = skyboxTexture;
+            _ = Task.Run(() => skyboxTexture.ImageLoader.Load(skyboxTexture, new ImageTranslatorManager(), MipType.High));
+        }
         Preview.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PreviewViewModel.Content))

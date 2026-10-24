@@ -7,7 +7,7 @@ using RedFox.Graphics3D.Rendering.Materials;
 namespace RedFox.Graphics3D.Rendering.Handles;
 
 /// <summary>
-/// Owns skybox pipeline and cube-map texture state for scene rendering.
+/// Owns skybox pipeline state and resolves the panorama texture used for the background and environment lighting.
 /// </summary>
 internal sealed class SkyboxRenderHandle : RenderHandle
 {
@@ -21,16 +21,13 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     private readonly Scene _scene;
     private readonly Skybox _skybox;
 
-    private int _arraySize;
-    private ImageFormat _format;
-    private IGpuTexture? _gpuTexture;
-    private int _height;
-    private Image? _image;
-    private int _mipLevels;
-    private int _payloadLength;
     private IGpuPipelineState? _pipeline;
-    private Texture? _texture;
-    private int _width;
+    private TextureRenderHandle? _textureHandle;
+    private int _mipLevels;
+
+    internal IGpuTexture? Texture => _textureHandle?.BindableTexture;
+
+    internal int MipLevels => _mipLevels;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SkyboxRenderHandle"/> class.
@@ -53,50 +50,20 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (!_skybox.Enabled || _skybox.Texture is null)
-        {
-            ReleaseTexture();
-            return;
-        }
+        _textureHandle = null;
+        _mipLevels = 0;
 
-        Texture texture = _skybox.Texture;
-        if (texture.Data is not { } image || !IsUsableCubemap(image))
+        if (!_skybox.Enabled || _skybox.Texture is not { Data: { } image } texture || !IsUsablePanorama(image) || !_graphicsDevice.SupportsFormat(image.Format, TextureUsage.Sampled))
         {
-            ReleaseTexture();
-            return;
-        }
-
-        TextureUsage usage = TextureUsage.Sampled;
-        if (!_graphicsDevice.SupportsFormat(image.Format, usage))
-        {
-            ReleaseTexture();
             return;
         }
 
         EnsurePipeline();
-        if (_gpuTexture is not null
-            && ReferenceEquals(_texture, texture)
-            && ReferenceEquals(_image, image)
-            && _width == image.Width
-            && _height == image.Height
-            && _arraySize == image.ArraySize
-            && _mipLevels == image.MipLevels
-            && _format == image.Format
-            && _payloadLength == image.PixelMemory.Length)
-        {
-            return;
-        }
 
-        ReleaseTexture();
-        _gpuTexture = _graphicsDevice.CreateTexture(image, usage);
-        _texture = texture;
-        _image = image;
-        _width = image.Width;
-        _height = image.Height;
-        _arraySize = image.ArraySize;
+        // The GPU copy is keyed by the texture rather than the scene, so switching previewed assets reuses the uploaded panorama.
+        _textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
+        _textureHandle.Update(commandList);
         _mipLevels = image.MipLevels;
-        _format = image.Format;
-        _payloadLength = image.PixelMemory.Length;
     }
 
     /// <inheritdoc/>
@@ -105,7 +72,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != Rendering.RenderFlags.Opaque || !_skybox.Enabled || _pipeline is null || _gpuTexture is null)
+        if (phase != Rendering.RenderFlags.Opaque || !_skybox.Enabled || !_skybox.ShowBackground || _pipeline is null || Texture is not { } gpuTexture)
         {
             return;
         }
@@ -116,11 +83,12 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         }
 
         commandList.SetPipelineState(_pipeline);
-        commandList.BindTexture(SkyboxTextureSlot, _gpuTexture);
+        commandList.BindTexture(SkyboxTextureSlot, gpuTexture);
         commandList.SetUniformMatrix4x4("InverseView", inverseView);
         commandList.SetUniformMatrix4x4("InverseProjection", inverseProjection);
         commandList.SetUniformVector4("SkyboxTint", _skybox.Tint);
         commandList.SetUniformFloat("SkyboxIntensity", MathF.Max(0.0f, _skybox.Intensity));
+        commandList.SetUniformFloat("SkyboxLod", Math.Clamp(_skybox.BackgroundBlur, 0.0f, 1.0f) * Math.Max(_mipLevels - 1, 0));
         commandList.SetUniformInt("SkyboxTexture", SkyboxTextureSlot);
         commandList.Draw(SkyboxVertexCount, 0);
     }
@@ -128,7 +96,8 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     /// <inheritdoc/>
     protected override void ReleaseResources()
     {
-        ReleaseTexture();
+        _textureHandle = null;
+        _mipLevels = 0;
         ReleasePipeline();
     }
 
@@ -166,29 +135,14 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         pipeline.Dispose();
     }
 
-    private void ReleaseTexture()
+    // Skyboxes are equirectangular panoramas, which are also sampled directly for environment lighting.
+    private static bool IsUsablePanorama(Image image)
     {
-        _gpuTexture?.Dispose();
-        _gpuTexture = null;
-        _texture = null;
-        _image = null;
-        _width = 0;
-        _height = 0;
-        _arraySize = 0;
-        _mipLevels = 0;
-        _format = ImageFormat.Unknown;
-        _payloadLength = 0;
-    }
-
-    private static bool IsUsableCubemap(Image image)
-    {
-        return image.IsCubemap
-            && image.Width > 0
+        return !image.IsCubemap
             && image.Height > 0
-            && image.Width == image.Height
+            && image.Width == image.Height * 2
             && image.Depth == 1
-            && image.ArraySize >= 6
-            && image.ArraySize % 6 == 0
+            && image.ArraySize == 1
             && image.Format != ImageFormat.Unknown
             && !image.PixelMemory.IsEmpty;
     }

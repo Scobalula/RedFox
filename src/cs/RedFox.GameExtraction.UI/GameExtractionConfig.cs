@@ -75,6 +75,8 @@ public sealed class GameExtractionConfig
 
     internal PreviewSettings PreviewSettings { get; init; } = new();
 
+    public string? SkyboxPath { get; init; }
+
     /// <summary>
     /// Gets the file picker filter string, using the WinForms-style format "Label|*.ext|All Files|*.*".
     /// </summary>

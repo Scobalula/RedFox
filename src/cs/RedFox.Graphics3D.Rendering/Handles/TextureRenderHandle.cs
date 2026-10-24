@@ -42,6 +42,8 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
     public override bool HasPendingUploads => _textureUploadPending;
 
+    internal IGpuTexture? BindableTexture => _gpuTexture is null || (_textureUploadPending && _availableBaseMip < 0) ? null : _gpuTexture;
+
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
     /// </summary>
@@ -62,12 +64,12 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     {
         ThrowIfDisposed();
 
-        if (_gpuTexture is null || (_textureUploadPending && _availableBaseMip < 0))
+        if (BindableTexture is not { } gpuTexture)
         {
             return false;
         }
 
-        commandList.BindTexture(slot, _gpuTexture);
+        commandList.BindTexture(slot, gpuTexture);
         return true;
     }
 

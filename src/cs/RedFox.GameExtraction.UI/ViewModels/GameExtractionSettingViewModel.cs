@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -26,6 +27,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         Options = setting.Options;
         TextValue = settings.GetSettingValue(setting) ?? string.Empty;
         BooleanValue = bool.TryParse(TextValue, out bool booleanValue) ? booleanValue : setting.DefaultValue is true;
+        SliderValue = double.TryParse(TextValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) ? Math.Clamp(sliderValue, setting.Minimum, setting.Maximum) : setting.Minimum;
         SelectedOption = ResolveSelectedOption(TextValue);
     }
 
@@ -99,6 +101,12 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// </summary>
     public bool IsBoolean => Type == GameExtractionSettingType.Boolean;
 
+    public bool IsSlider => Type == GameExtractionSettingType.Slider;
+
+    public double Minimum => _setting.Minimum;
+
+    public double Maximum => _setting.Maximum;
+
     /// <summary>
     /// Gets or sets the text value.
     /// </summary>
@@ -116,6 +124,9 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial string? SelectedOption { get; set; }
+
+    [ObservableProperty]
+    public partial double SliderValue { get; set; }
 
     /// <summary>
     /// Saves this value into the settings object.
@@ -158,6 +169,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         {
             GameExtractionSettingType.Boolean => BooleanValue.ToString(),
             GameExtractionSettingType.Choice => SelectedOption,
+            GameExtractionSettingType.Slider => SliderValue.ToString(CultureInfo.InvariantCulture),
             _ => TextValue,
         };
     }

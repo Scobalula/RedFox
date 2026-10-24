@@ -28,4 +28,8 @@ public sealed class Skybox
     /// </summary>
     public Vector4 Tint { get; set; } = Vector4.One;
 
+    public bool ShowBackground { get; set; } = true;
+
+    public float BackgroundBlur { get; set; }
+
 }

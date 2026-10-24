@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace RedFox.GameExtraction;
 
@@ -49,6 +50,7 @@ public sealed class GameExtractionConfiguration
             object typedValue = setting.Type switch
             {
                 GameExtractionSettingType.Boolean when bool.TryParse(value, out bool booleanValue) => booleanValue,
+                GameExtractionSettingType.Slider when double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) => sliderValue,
                 GameExtractionSettingType.TextArray => value.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
                 _ => value,
             };

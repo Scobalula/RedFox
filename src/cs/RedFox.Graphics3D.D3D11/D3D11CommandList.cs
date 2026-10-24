@@ -18,6 +18,7 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     private const int ComputeShaderResourceCount = 5;
     private const int MaxConstantBufferSlots = 14;
     private const int MaxLights = 4;
+    private const int EnvironmentMapSlot = 31;
 
     private readonly D3D11ConstantBufferSlot[] _constantBufferSlots = new D3D11ConstantBufferSlot[MaxConstantBufferSlots * ConstantBufferStageCount];
     private readonly D3D11Context _context;
@@ -248,6 +249,21 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         SetUniformInt("UseViewBasedLighting", enabled ? 1 : 0);
+    }
+
+    /// <inheritdoc/>
+    public void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity)
+    {
+        ThrowIfDisposed();
+
+        if (texture is not null)
+        {
+            BindTexture(EnvironmentMapSlot, texture);
+        }
+
+        SetUniformInt("HasEnvironmentMap", texture is null ? 0 : 1);
+        SetUniformFloat("EnvironmentMipLevels", mipLevels);
+        SetUniformFloat("EnvironmentIntensity", intensity);
     }
 
     /// <inheritdoc/>

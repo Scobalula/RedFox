@@ -68,6 +68,26 @@ public sealed partial class PreviewSettings : ObservableObject
         DefaultValue = false,
     };
 
+    private static readonly GameExtractionSetting SkyboxSetting = new()
+    {
+        Name = "PreviewSkybox",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Show skybox background",
+        Type = GameExtractionSettingType.Boolean,
+        DefaultValue = true,
+    };
+
+    private static readonly GameExtractionSetting SkyboxBlurSetting = new()
+    {
+        Name = "PreviewSkyboxBlur",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Skybox background blur",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 0.0,
+        Minimum = 0.0,
+        Maximum = 1.0,
+    };
+
     private static readonly GameExtractionSetting PreviewPanelSetting = new()
     {
         Name = "PreviewPanelVisible",
@@ -98,6 +118,8 @@ public sealed partial class PreviewSettings : ObservableObject
         AutoFitSetting,
         AutoPlayAudioSetting,
         AssetGridSetting,
+        SkyboxSetting,
+        SkyboxBlurSetting,
     ];
 
     internal ScenePreviewCameraState? CameraState { get; set; }
@@ -141,6 +163,17 @@ public sealed partial class PreviewSettings : ObservableObject
     [ObservableProperty]
     public partial bool ShowBones { get; set; } = true;
 
+    // The skybox always lights and reflects on the model; these only control the visible background.
+    [ObservableProperty]
+    public partial bool ShowSkybox { get; set; } = true;
+
+    [ObservableProperty]
+    public partial float SkyboxBlur { get; set; }
+
+    internal bool HasSkybox => SkyboxTexture is not null;
+
+    internal Texture? SkyboxTexture { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether scene changes automatically refit the preview camera.
     /// </summary>
@@ -170,6 +203,8 @@ public sealed partial class PreviewSettings : ObservableObject
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;
+        ShowSkybox = bool.TryParse(settings.GetSettingValue(SkyboxSetting), out bool showSkybox) ? showSkybox : true;
+        SkyboxBlur = float.TryParse(settings.GetSettingValue(SkyboxBlurSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float skyboxBlur) ? Math.Clamp(skyboxBlur, 0.0f, 1.0f) : 0.0f;
         ShowPreviewPanel = bool.TryParse(settings.GetSettingValue(PreviewPanelSetting), out bool showPreviewPanel) ? showPreviewPanel : true;
         PreviewPanelRatio = double.TryParse(settings.GetSettingValue(PreviewPanelRatioSetting), CultureInfo.InvariantCulture, out double ratio) ? Math.Clamp(ratio, 0.1, 0.9) : 0.4;
     }

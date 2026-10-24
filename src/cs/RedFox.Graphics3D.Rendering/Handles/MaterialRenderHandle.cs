@@ -199,20 +199,25 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     {
         commandList.SetUniformInt(HasDiffuseMapUniformName, 0);
 
-        MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
-        for (int i = 0; i < snapshot.Length; i++)
+        // Types that declare their textures bind only those, at their declared slots below. Binding every connection
+        // would spill materials with dozens of textures onto units the renderer reserves, such as the environment map.
+        if (_textureRequirements.Count == 0)
         {
-            MaterialTextureBinding binding = snapshot[i];
-            if (!HasTextureData(binding.Texture))
+            MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
+            for (int i = 0; i < snapshot.Length; i++)
             {
-                continue;
+                MaterialTextureBinding binding = snapshot[i];
+                if (!HasTextureData(binding.Texture))
+                {
+                    continue;
+                }
+
+                TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, binding.Texture, () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
+
+                commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
+                textureHandle.Update(commandList);
+                textureHandle.Bind(commandList, binding.Slot);
             }
-
-            TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, binding.Texture, () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
-
-            commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
-            textureHandle.Update(commandList);
-            textureHandle.Bind(commandList, binding.Slot);
         }
 
         for (int i = 0; i < _textureRequirements.Count; i++)

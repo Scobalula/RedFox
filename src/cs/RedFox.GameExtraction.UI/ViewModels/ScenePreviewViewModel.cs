@@ -239,6 +239,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 SceneInvalidated?.Invoke();
                 break;
 
+            case nameof(PreviewSettings.ShowSkybox):
+            case nameof(PreviewSettings.SkyboxBlur):
+                ConfigureSkybox(scene.Skybox);
+                SceneInvalidated?.Invoke();
+                break;
+
             case nameof(PreviewSettings.ShowBones):
                 SetBoneVisibility(scene, Settings.ShowBones);
                 if (_appendedAnimations.Count == 0)
@@ -375,6 +381,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         return new SceneBounds(transformedMin, transformedMax);
     }
 
+    private void ConfigureSkybox(Skybox skybox)
+    {
+        skybox.Texture			= Settings.SkyboxTexture;
+        skybox.Enabled			= Settings.HasSkybox;
+        skybox.ShowBackground	= Settings.ShowSkybox;
+        skybox.BackgroundBlur	= Settings.SkyboxBlur;
+    }
+
     private static void ConfigureGrid(Grid grid, SceneBounds bounds)
     {
         if (bounds.IsValid)
@@ -453,6 +467,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         scene.TextureMipType = MipType.High;
         scene.IsAnimationPaused = Settings.IsAnimationPaused;
         scene.Grid.Enabled = Settings.ShowGrid;
+        ConfigureSkybox(scene.Skybox);
         SetBoneVisibility(scene, Settings.ShowBones);
         bool fitCamera = Settings.AutoFitScene || Settings.CameraState is null;
         SceneViewportController viewportController = CreateViewportController(scene, Settings.CameraState);

@@ -25,7 +25,8 @@
       { "name": "InverseView", "valueType": "matrix4x4", "required": true },
       { "name": "InverseProjection", "valueType": "matrix4x4", "required": true },
       { "name": "SkyboxTint", "valueType": "float4", "required": false },
-      { "name": "SkyboxIntensity", "valueType": "float", "required": false }
+      { "name": "SkyboxIntensity", "valueType": "float", "required": false },
+      { "name": "SkyboxLod", "valueType": "float", "required": false }
     ]
   }
 }

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace RedFox.GameExtraction.CommandLine;
 
 internal static class SettingValueParser
@@ -9,6 +11,7 @@ internal static class SettingValueParser
     {
         GameExtractionSettingType.Boolean => ParseBoolean(setting, input),
         GameExtractionSettingType.Choice => ParseChoice(setting, input),
+        GameExtractionSettingType.Slider => ParseSlider(setting, input),
         GameExtractionSettingType.FilePath or GameExtractionSettingType.DirectoryPath => Path.GetFullPath(input),
         _ => input,
     };
@@ -41,5 +44,15 @@ internal static class SettingValueParser
         string? option = setting.Options.FirstOrDefault(option => option.Equals(input, StringComparison.OrdinalIgnoreCase));
 
         return option ?? throw new ArgumentException($"{setting.Name} expects one of: {string.Join(", ", setting.Options)}");
+    }
+
+    private static string ParseSlider(GameExtractionSetting setting, string input)
+    {
+        if (!double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) || value < setting.Minimum || value > setting.Maximum)
+        {
+            throw new ArgumentException($"{setting.Name} expects a number from {setting.Minimum.ToString(CultureInfo.InvariantCulture)} to {setting.Maximum.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture);
     }
 }

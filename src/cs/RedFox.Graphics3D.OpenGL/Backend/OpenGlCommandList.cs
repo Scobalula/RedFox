@@ -13,6 +13,7 @@ namespace RedFox.Graphics3D.OpenGL;
 internal sealed class OpenGlCommandList : ICommandList, IDisposable
 {
     private const int MaxLights = 4;
+    private const int EnvironmentMapSlot = 31;
     private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
     private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
 
@@ -23,6 +24,9 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private OpenGlPipelineState? _currentPipelineState;
     private Vector3 _ambientColor;
     private bool _disposed;
+    private float _environmentIntensity;
+    private IGpuTexture? _environmentMap;
+    private int _environmentMipLevels;
     private int _enabledVertexAttributeCount;
     private Vector3 _fallbackLightColor = Vector3.One;
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
@@ -65,6 +69,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _sceneAxis = Matrix4x4.Identity;
         _skinningMode = SkinningMode.Linear;
         _useViewBasedLighting = false;
+        _environmentMap = null;
         _context.Gl.DepthMask(true);
     }
 
@@ -175,6 +180,16 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         _useViewBasedLighting = enabled;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity)
+    {
+        ThrowIfDisposed();
+        _environmentMap = texture;
+        _environmentMipLevels = mipLevels;
+        _environmentIntensity = intensity;
         ApplySceneStateToCurrentProgram();
     }
 
@@ -554,6 +569,15 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         graphicsProgram.SetVector3("AmbientColor", _ambientColor);
         graphicsProgram.SetInt("SkinningMode", (int)_skinningMode);
         graphicsProgram.SetInt("UseViewBasedLighting", _useViewBasedLighting ? 1 : 0);
+        graphicsProgram.SetInt("HasEnvironmentMap", _environmentMap is null ? 0 : 1);
+
+        if (_environmentMap is not null)
+        {
+            BindTexture(EnvironmentMapSlot, _environmentMap);
+            graphicsProgram.SetInt("EnvironmentMap", EnvironmentMapSlot);
+            graphicsProgram.SetFloat("EnvironmentMipLevels", _environmentMipLevels);
+            graphicsProgram.SetFloat("EnvironmentIntensity", _environmentIntensity);
+        }
 
         int appliedLightCount = _lightCount;
         if (appliedLightCount == 0)
