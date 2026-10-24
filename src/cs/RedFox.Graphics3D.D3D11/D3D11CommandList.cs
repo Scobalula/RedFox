@@ -305,6 +305,23 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         ApplyLightUniforms();
     }
 
+    // The D3D11 shaders do not shade with environment lights or shadows yet.
+    public void AppendEnvironmentLight(Vector3 direction, Vector3 power, Vector2 halfAngles)
+    {
+        ThrowIfDisposed();
+    }
+
+    public bool BeginShadowMap(int lightIndex, int mapSize, Matrix4x4 shadowMatrix, Vector2 filterRadius)
+    {
+        ThrowIfDisposed();
+        return false;
+    }
+
+    public void EndShadowMaps(int shadowCount, int filterTaps, float strength)
+    {
+        ThrowIfDisposed();
+    }
+
     /// <inheritdoc/>
     public void BindBuffer(int slot, IGpuBuffer buffer)
     {

@@ -27,8 +27,10 @@ public enum RenderFlags
     /// </summary>
     Overlay = 3,
 
+    Shadow = 4,
+
     /// <summary>
     /// Sentinel value equal to the number of defined render phases.
     /// </summary>
-    NUMNUMS = 4,
+    NUMNUMS = 5,
 }

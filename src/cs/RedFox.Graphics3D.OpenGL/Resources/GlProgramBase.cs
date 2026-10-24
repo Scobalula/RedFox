@@ -275,6 +275,11 @@ internal abstract class GlProgramBase : IDisposable
         Gl.UniformMatrix4(location, 1, false, pointer);
     }
 
+    public bool HasUniform(string uniformName)
+    {
+        return GetUniformLocation(uniformName) >= 0;
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {

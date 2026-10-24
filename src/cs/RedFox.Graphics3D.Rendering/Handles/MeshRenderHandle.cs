@@ -24,6 +24,10 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     private float[] _uploadedMorphWeights = [];
     private Morph? _morphSource;
     private bool _isReadyToRender = true;
+    private DataBuffer? _boundsSource;
+    private SceneBounds _localBounds;
+
+    internal int GeometryVersion { get; private set; }
 
     /// <summary>
     /// Gets the mesh that owns this handle.
@@ -44,6 +48,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     public override bool RequiresPerFrameUpdate => true;
 
     public override bool HasPendingUploads => !_isReadyToRender;
+
+    private DataBuffer? SampledTangents => Owner.Tangents is DataBuffer<float> { ValueCount: 1, ComponentCount: 4 } ? Owner.Tangents : null;
 
     /// <inheritdoc/>
     public override void Update(ICommandList commandList)
@@ -113,6 +119,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 bool updated = binding.UpdateGenerated(graphicsDevice, transformData);
                 if (updated)
                 {
+                    GeometryVersion++;
                     if (_uploadedSkinMatrices.Length != matrixBuffer.Length)
                         Array.Resize(ref _uploadedSkinMatrices, matrixBuffer.Length);
 
@@ -140,6 +147,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 bool updated = binding.UpdateGenerated(graphicsDevice, weightData);
                 if (updated)
                 {
+                    GeometryVersion++;
                     if (_uploadedMorphWeights.Length != morph.TargetCount)
                         Array.Resize(ref _uploadedMorphWeights, morph.TargetCount);
 
@@ -148,6 +156,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
                 return updated;
             }));
+            _buffers.Add(MeshGpuBufferBinding.CreateShaderResource(SampledTangents, "TangentBuffer", BufferUsage.Sampled, normalizeIndexElementType: false));
         }
 
         if (VertexCount <= 0)
@@ -165,6 +174,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         _buffers[6].Update(_graphicsDevice);
         if (!ReferenceEquals(_morphSource, Owner.Morph))
         {
+            GeometryVersion++;
             _morphSource = Owner.Morph;
             _buffers[7].Update(_graphicsDevice, CreateMorphDeltaBuffer(_morphSource));
         }
@@ -173,6 +183,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers[7].Update(_graphicsDevice);
         }
         _buffers[8].Update(_graphicsDevice);
+        _buffers[9].Update(_graphicsDevice, SampledTangents);
         _isReadyToRender = true;
         foreach (MeshGpuBufferBinding buffer in _buffers)
         {
@@ -190,7 +201,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if (phase != Rendering.RenderFlags.Opaque || VertexCount <= 0 || !_isReadyToRender)
+        if ((phase != Rendering.RenderFlags.Opaque && phase != Rendering.RenderFlags.Shadow) || VertexCount <= 0 || !_isReadyToRender)
         {
             return;
         }
@@ -233,6 +244,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin is { Bones.Count: > 0 } skin ? skin.InfluenceCount : 0);
             commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
             commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
+            commandList.SetUniformInt("HasTangents", _buffers[9].HasGpuBuffer ? 1 : 0);
 
             foreach (MeshGpuBufferBinding buffer in _buffers)
             {
@@ -258,6 +270,27 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         }
     }
 
+    internal SceneBounds GetWorldBounds(in Matrix4x4 sceneAxis)
+    {
+        if (Owner.Skin is not null && Owner.TryGetSceneBounds(out SceneBounds skinnedBounds))
+        {
+            return skinnedBounds.Transform(sceneAxis);
+        }
+
+        if (!ReferenceEquals(_boundsSource, Owner.Positions))
+        {
+            _localBounds = SceneBounds.Invalid;
+            for (int i = 0; i < VertexCount; i++)
+            {
+                _localBounds = _localBounds.Include(Owner.Positions!.GetVector3(i, 0));
+            }
+
+            _boundsSource = Owner.Positions;
+        }
+
+        return _localBounds.Expand(Owner.Morph?.GetMaxPositionOffset() ?? 0.0f).Transform(Owner.GetBindWorldMatrix() * sceneAxis);
+    }
+
     /// <inheritdoc/>
     protected override void ReleaseResources()
     {
@@ -281,6 +314,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         _uploadedMorphWeights = [];
         _morphSource = null;
         _isReadyToRender = true;
+        _boundsSource = null;
         VertexCount = 0;
         IndexCount = 0;
     }

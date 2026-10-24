@@ -199,7 +199,7 @@ public sealed record class MaterialTypeDescriptor
         IGpuShader fragmentShader = shaderFactory.CreateShader(graphicsDevice, fragmentShaderName, ShaderStage.Fragment);
         try
         {
-            return graphicsDevice.CreatePipelineState(vertexShader, fragmentShader, _vertexAttributes, pipelineState.CullMode, pipelineState.FaceWinding, pipelineState.Wireframe, pipelineState.Blend, pipelineState.SourceBlendFactor, pipelineState.DestinationBlendFactor, pipelineState.BlendOperation, pipelineState.DepthTest, pipelineState.DepthWrite, pipelineState.DepthCompareFunc, pipelineState.PrimitiveTopology);
+            return graphicsDevice.CreatePipelineState(vertexShader, fragmentShader, _vertexAttributes, pipelineState.CullMode, pipelineState.FaceWinding, pipelineState.Wireframe, pipelineState.Blend, pipelineState.SourceBlendFactor, pipelineState.DestinationBlendFactor, pipelineState.BlendOperation, pipelineState.DepthTest, pipelineState.DepthWrite, pipelineState.DepthCompareFunc, pipelineState.PrimitiveTopology, pipelineState.AlphaToCoverage);
         }
         finally
         {

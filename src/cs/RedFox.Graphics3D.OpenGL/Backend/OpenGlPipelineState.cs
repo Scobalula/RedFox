@@ -82,6 +82,8 @@ internal sealed class OpenGlPipelineState : IGpuPipelineState
     /// </summary>
     internal PrimitiveTopology PrimitiveTopology { get; }
 
+    internal bool AlphaToCoverage { get; }
+
     /// <summary>
     /// Gets a value indicating whether this is a compute pipeline.
     /// </summary>
@@ -140,7 +142,8 @@ internal sealed class OpenGlPipelineState : IGpuPipelineState
     /// <param name="depthWrite">Whether depth writes are enabled.</param>
     /// <param name="depthCompareFunc">The depth comparison function.</param>
     /// <param name="primitiveTopology">The primitive topology.</param>
-    public OpenGlPipelineState(GlShaderProgram graphicsProgram, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blendEnabled, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
+    /// <param name="alphaToCoverage">Whether the shader covers MSAA samples by its alpha.</param>
+    public OpenGlPipelineState(GlShaderProgram graphicsProgram, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blendEnabled, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology, bool alphaToCoverage)
     {
         GraphicsProgram = graphicsProgram ?? throw new ArgumentNullException(nameof(graphicsProgram));
         _vertexAttributes = vertexAttributes.ToArray();
@@ -155,6 +158,7 @@ internal sealed class OpenGlPipelineState : IGpuPipelineState
         DepthWrite = depthWrite;
         DepthCompareFunc = depthCompareFunc;
         PrimitiveTopology = primitiveTopology;
+        AlphaToCoverage = alphaToCoverage;
     }
 
     /// <summary>

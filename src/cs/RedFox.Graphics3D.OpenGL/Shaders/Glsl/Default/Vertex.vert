@@ -16,15 +16,18 @@ uniform int UVLayerIndex;
 uniform int SkinInfluenceCount;
 uniform int SkinningMode;
 uniform int MorphTargetCount;
+uniform int HasTangents;
 uniform sampler2D UVLayerBuffer;
 uniform usampler2D BoneIndexBuffer;
 uniform sampler2D BoneWeightBuffer;
 uniform sampler2D SkinTransformBuffer;
 uniform sampler2D MorphDeltaBuffer;
 uniform sampler2D MorphWeightBuffer;
+uniform sampler2D TangentBuffer;
 
 out vec3 WorldPosition;
 out vec3 WorldNormal;
+out vec4 WorldTangent;
 out vec2 TextureCoordinate;
 
 const int SkinningModeLinear = 0;
@@ -167,10 +170,11 @@ void ResolveMorphedVertex(uint vertexIndex, inout vec3 position, inout vec3 norm
     }
 }
 
-void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNormal, out vec3 outputPosition, out vec3 outputNormal)
+void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNormal, vec3 sourceTangent, out vec3 outputPosition, out vec3 outputNormal, out vec3 outputTangent)
 {
     outputPosition = sourcePosition;
     outputNormal = sourceNormal;
+    outputTangent = sourceTangent;
 
     if (SkinInfluenceCount <= 0)
     {
@@ -179,6 +183,7 @@ void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNorm
 
     outputPosition = vec3(0.0);
     outputNormal = vec3(0.0);
+    outputTangent = vec3(0.0);
     float totalWeight = 0.0;
 
     vec4 blendedRotationQuaternion = vec4(0.0);
@@ -222,6 +227,7 @@ void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNorm
         {
             outputPosition += (transform * vec4(sourcePosition, 1.0)).xyz * weight;
             outputNormal += (mat3(transform) * sourceNormal) * weight;
+            outputTangent += (mat3(transform) * sourceTangent) * weight;
         }
 
         totalWeight += weight;
@@ -231,6 +237,7 @@ void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNorm
     {
         outputPosition = sourcePosition;
         outputNormal = sourceNormal;
+        outputTangent = sourceTangent;
         return;
     }
 
@@ -243,16 +250,19 @@ void ResolveSkinnedVertex(uint vertexIndex, vec3 sourcePosition, vec3 sourceNorm
             vec4 normalizedDualQuaternion = blendedDualQuaternion / quaternionLength;
             outputPosition = TransformPositionByDualQuaternion(sourcePosition, normalizedRotationQuaternion, normalizedDualQuaternion);
             outputNormal = RotateVectorByQuaternion(sourceNormal, normalizedRotationQuaternion);
+            outputTangent = RotateVectorByQuaternion(sourceTangent, normalizedRotationQuaternion);
             return;
         }
 
         outputPosition = sourcePosition;
         outputNormal = sourceNormal;
+        outputTangent = sourceTangent;
         return;
     }
 
     outputPosition /= totalWeight;
     outputNormal /= totalWeight;
+    outputTangent /= totalWeight;
 }
 
 void main()
@@ -261,15 +271,21 @@ void main()
     vec3 morphedNormal = Normals;
     ResolveMorphedVertex(uint(gl_VertexID), morphedPosition, morphedNormal);
 
+    vec4 tangent = HasTangents != 0 ? FetchFloatBufferTexel(TangentBuffer, gl_VertexID) : vec4(0.0);
+
     vec3 resolvedPosition;
     vec3 resolvedNormal;
-    ResolveSkinnedVertex(uint(gl_VertexID), morphedPosition, morphedNormal, resolvedPosition, resolvedNormal);
+    vec3 resolvedTangent;
+    ResolveSkinnedVertex(uint(gl_VertexID), morphedPosition, morphedNormal, tangent.xyz, resolvedPosition, resolvedNormal, resolvedTangent);
 
     mat4 worldMatrix = SceneAxis * Model;
     vec4 worldPosition = worldMatrix * vec4(resolvedPosition, 1.0);
     WorldPosition = worldPosition.xyz;
     mat3 normalMatrix = mat3(transpose(inverse(worldMatrix)));
     WorldNormal = normalize(normalMatrix * resolvedNormal);
+
+    float handedness = tangent.w < 0.0 ? -1.0 : 1.0;
+    WorldTangent = HasTangents != 0 ? vec4(mat3(worldMatrix) * resolvedTangent, determinant(mat3(worldMatrix)) < 0.0 ? -handedness : handedness) : vec4(0.0);
     TextureCoordinate = ResolveTextureCoordinate(uint(gl_VertexID));
     gl_Position = Projection * View * worldPosition;
 }

@@ -107,6 +107,12 @@ public interface ICommandList
     /// <param name="intensity">The light intensity.</param>
     void AppendLight(Vector3 direction, Vector3 color, float intensity);
 
+    void AppendEnvironmentLight(Vector3 direction, Vector3 power, Vector2 halfAngles);
+
+    bool BeginShadowMap(int lightIndex, int mapSize, Matrix4x4 shadowMatrix, Vector2 filterRadius);
+
+    void EndShadowMaps(int shadowCount, int filterTaps, float strength);
+
     /// <summary>
     /// Binds a GPU buffer to the supplied slot.
     /// </summary>

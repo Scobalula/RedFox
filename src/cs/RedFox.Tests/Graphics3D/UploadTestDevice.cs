@@ -61,7 +61,7 @@ internal sealed class UploadTestDevice : IGraphicsDevice, IFrameTextureUploadBud
 
     public IGpuShader CreateShader(ReadOnlySpan<byte> utf8Source, ShaderStage stage) => throw new NotSupportedException();
 
-    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology) => throw new NotSupportedException();
+    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology, bool alphaToCoverage) => throw new NotSupportedException();
 
     public IGpuPipelineState CreatePipelineState(IGpuShader computeShader) => throw new NotSupportedException();
 

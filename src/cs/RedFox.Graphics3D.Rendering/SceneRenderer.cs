@@ -19,6 +19,7 @@ public sealed class SceneRenderer : IDisposable
     private const ImageFormat AntiAliasingDepthFormat = ImageFormat.D32Float;
     private const int DefaultAntiAliasingSamples = 4;
     private const int MinimumAntiAliasingSamples = 1;
+    private const float ShadowBlurRadius = 0.005f;
 
     private static readonly RenderFlags[] RenderPhases =
     [
@@ -64,6 +65,16 @@ public sealed class SceneRenderer : IDisposable
     private long _sceneTraversalVersion = -1;
     private int _viewportHeight = 1;
     private int _viewportWidth = 1;
+    private int _shadowCount;
+    private int _shadowKey;
+    private int _shadowMeshesKey;
+    private SceneBounds _shadowBounds;
+    private EnvironmentLight[]? _shadowLights;
+    private Matrix4x4 _shadowSceneAxis;
+    private int _staleShadowCount;
+    private int _nextShadowIndex;
+    private int _shadowMapSize;
+    private float _shadowSoftness;
 
     /// <summary>
     /// Gets the graphics device used by the renderer.
@@ -103,6 +114,12 @@ public sealed class SceneRenderer : IDisposable
     /// Gets or sets a value indicating whether view-based lighting is enabled.
     /// </summary>
     public bool UseViewBasedLighting { get; set; }
+
+    public ShadowQuality ShadowQuality { get; set; } = ShadowQuality.High;
+
+    public float ShadowSoftness { get; set; } = 1.0f;
+
+    public float ShadowStrength { get; set; } = 1.0f;
 
     /// <summary>
     /// Gets or sets the skinning mode used during rendering. Meshes whose <see cref="Skin.SkinningMode"/> is
@@ -291,10 +308,9 @@ public sealed class SceneRenderer : IDisposable
 
 
         IReadOnlyList<SceneNode> sceneTraversalNodes = GetSceneTraversalNodes(scene);
-    ApplyCompletedBackgroundImageLoad();
-    TryQueueBackgroundImageLoad(sceneTraversalNodes, scene);
+        ApplyCompletedBackgroundImageLoad();
+        TryQueueBackgroundImageLoad(sceneTraversalNodes, scene);
 
-        _clearAndStateResetPass.Execute(context);
         if (_graphicsDevice is IFrameBufferUploadBudget uploadBudget)
         {
             uploadBudget.BeginFrameBufferUploads();
@@ -304,9 +320,9 @@ public sealed class SceneRenderer : IDisposable
         UpdateSceneRenderHandles(sceneTraversalNodes);
         UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
+        RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
 
-
-
+        _clearAndStateResetPass.Execute(context);
 
         for (int i = 0; i < RenderPhases.Length; i++)
         {
@@ -543,6 +559,136 @@ public sealed class SceneRenderer : IDisposable
         SkyboxRenderHandle skyboxHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene));
         skyboxHandle.Update(_commandList);
         _commandList.SetEnvironmentMap(skyboxHandle.Texture, skyboxHandle.MipLevels, skybox.Intensity);
+
+        foreach (EnvironmentLight light in skyboxHandle.Lights)
+        {
+            _commandList.AppendEnvironmentLight(light.Direction, light.Power * skybox.Intensity, light.HalfAngles);
+        }
+    }
+
+    private void RenderShadowMaps(Skybox skybox, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
+    {
+        if (!skybox.Enabled || SceneRenderResources.Get(_graphicsDevice, skybox) is not SkyboxRenderHandle { Lights.Length: > 0 } skyboxHandle)
+        {
+            return;
+        }
+
+        int mapSize = ShadowQuality switch
+        {
+            ShadowQuality.UltraLow	=> 256,
+            ShadowQuality.Low		=> 512,
+            ShadowQuality.Medium	=> 1024,
+            ShadowQuality.High		=> 2048,
+            ShadowQuality.UltraHigh	=> 4096,
+            _						=> 0,
+        };
+
+        int filterTaps = ShadowQuality switch
+        {
+            ShadowQuality.UltraLow	=> 2,
+            ShadowQuality.Low		=> 3,
+            ShadowQuality.Medium	=> 4,
+            ShadowQuality.High		=> 6,
+            ShadowQuality.UltraHigh	=> 8,
+            _						=> 0,
+        };
+
+        if (mapSize == 0)
+        {
+            _shadowCount = 0;
+            _commandList.EndShadowMaps(0, 0, 0.0f);
+            return;
+        }
+
+        HashCode meshesKeyBuilder = new();
+        HashCode keyBuilder = new();
+        foreach ((SceneNode _, IRenderHandle handle) in _sceneTraversalHandles)
+        {
+            if (handle is MeshRenderHandle meshHandle)
+            {
+                meshesKeyBuilder.Add(meshHandle);
+                meshesKeyBuilder.Add(meshHandle.VertexCount);
+                meshesKeyBuilder.Add(meshHandle.HasPendingUploads);
+                meshesKeyBuilder.Add(meshHandle.Owner.Positions);
+                keyBuilder.Add(meshHandle.GeometryVersion);
+                keyBuilder.Add(meshHandle.Owner.GetBindWorldMatrix());
+            }
+        }
+
+        EnvironmentLight[] lights = skyboxHandle.Lights;
+        int meshesKey = meshesKeyBuilder.ToHashCode();
+        int key = keyBuilder.ToHashCode();
+
+        bool redrawAll = !ReferenceEquals(lights, _shadowLights) || sceneAxis != _shadowSceneAxis || _shadowCount == 0 || mapSize != _shadowMapSize || ShadowSoftness != _shadowSoftness;
+        if (!redrawAll && (key != _shadowKey || meshesKey != _shadowMeshesKey))
+        {
+            _staleShadowCount = _shadowCount;
+        }
+
+        if (redrawAll || meshesKey != _shadowMeshesKey)
+        {
+            _shadowBounds = SceneBounds.Invalid;
+            foreach ((SceneNode _, IRenderHandle handle) in _sceneTraversalHandles)
+            {
+                if (handle is MeshRenderHandle { VertexCount: > 0 } meshHandle)
+                {
+                    _shadowBounds = _shadowBounds.Include(meshHandle.GetWorldBounds(sceneAxis));
+                }
+            }
+
+            _shadowBounds = _shadowBounds.Expand(_shadowBounds.Radius * 0.1f);
+        }
+
+        _shadowKey = key;
+        _shadowMeshesKey = meshesKey;
+
+        SceneBounds bounds = _shadowBounds;
+        if (!bounds.IsValid || bounds.Radius <= 0.0f || (!redrawAll && _staleShadowCount == 0))
+        {
+            _commandList.EndShadowMaps(_shadowCount, filterTaps, ShadowStrength);
+            return;
+        }
+
+        if (redrawAll)
+        {
+            _shadowLights = lights;
+            _shadowSceneAxis = sceneAxis;
+            _shadowMapSize = mapSize;
+            _shadowSoftness = ShadowSoftness;
+            _shadowCount = 0;
+            _staleShadowCount = 0;
+
+            while (_shadowCount < lights.Length && RenderShadowMap(lights[_shadowCount], _shadowCount, mapSize, bounds, sceneAxis, cameraPosition, viewportSize))
+            {
+                _shadowCount++;
+            }
+        }
+        else
+        {
+            _nextShadowIndex = (_nextShadowIndex + 1) % _shadowCount;
+            RenderShadowMap(lights[_nextShadowIndex], _nextShadowIndex, mapSize, bounds, sceneAxis, cameraPosition, viewportSize);
+            _staleShadowCount--;
+        }
+
+        _commandList.EndShadowMaps(_shadowCount, filterTaps, ShadowStrength);
+    }
+
+    private bool RenderShadowMap(EnvironmentLight light, int index, int mapSize, SceneBounds bounds, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
+    {
+        Matrix4x4	view			= Matrix4x4.CreateLookAt(bounds.Center, bounds.Center - light.Direction, Vector3.Cross(light.Direction, light.MajorAxis));
+        SceneBounds	lightBounds		= bounds.Transform(view).Expand(bounds.Radius * 0.02f);
+        Vector3		size			= lightBounds.Size;
+        Matrix4x4	projection		= Matrix4x4.CreateOrthographicOffCenter(lightBounds.Min.X, lightBounds.Max.X, lightBounds.Min.Y, lightBounds.Max.Y, -lightBounds.Max.Z, -lightBounds.Min.Z);
+        Matrix4x4	shadowMatrix	= view * projection * Matrix4x4.CreateScale(0.5f, 0.5f, 0.5f) * Matrix4x4.CreateTranslation(0.5f, 0.5f, 0.5f);
+        Vector2		filterRadius	= new Vector2(1.0f / size.X, 1.0f / size.Y) * (bounds.Radius * ShadowBlurRadius * ShadowSoftness);
+
+        if (!_commandList.BeginShadowMap(index, mapSize, shadowMatrix, filterRadius))
+        {
+            return false;
+        }
+
+        SceneTraversal.Render(_sceneTraversalHandles, _commandList, RenderFlags.Shadow, view, projection, sceneAxis, cameraPosition, viewportSize);
+        return true;
     }
 
     private void RenderSkybox(Skybox skybox, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)

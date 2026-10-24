@@ -62,6 +62,8 @@ public sealed record class MaterialPipelineStateDefinition
     /// </summary>
     public PrimitiveTopology PrimitiveTopology { get; }
 
+    public bool AlphaToCoverage { get; }
+
     /// <summary>
     /// Initializes a new <see cref="MaterialPipelineStateDefinition"/> value.
     /// </summary>
@@ -76,7 +78,8 @@ public sealed record class MaterialPipelineStateDefinition
     /// <param name="depthWrite">Whether depth writes are enabled.</param>
     /// <param name="depthCompareFunc">The depth comparison function.</param>
     /// <param name="primitiveTopology">The primitive topology.</param>
-    public MaterialPipelineStateDefinition(CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
+    /// <param name="alphaToCoverage">Whether the shader covers MSAA samples by its alpha.</param>
+    public MaterialPipelineStateDefinition(CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology, bool alphaToCoverage)
     {
         CullMode = cullMode;
         FaceWinding = faceWinding;
@@ -89,5 +92,6 @@ public sealed record class MaterialPipelineStateDefinition
         DepthWrite = depthWrite;
         DepthCompareFunc = depthCompareFunc;
         PrimitiveTopology = primitiveTopology;
+        AlphaToCoverage = alphaToCoverage;
     }
 }

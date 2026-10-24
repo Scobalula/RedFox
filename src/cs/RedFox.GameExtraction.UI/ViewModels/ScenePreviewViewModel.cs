@@ -525,7 +525,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         ConfigureGrid(scene.Grid, bounds);
         long sceneVersionBeforeLights = scene.Version;
         bool? hasLights = _previewLightsAddedScenes.Contains(scene) ? true : preparedData?.HasLights;
-        SceneNode[] addedLights = EnsurePreviewLights(scene, bounds, hasLights);
+
+        SceneNode[] addedLights = Settings.HasSkybox ? [] : EnsurePreviewLights(scene, bounds, hasLights);
         if (addedLights.Length > 0)
         {
             _previewLightsAddedScenes.Add(scene);

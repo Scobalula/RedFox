@@ -14,13 +14,23 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 {
     private const int MaxLights = 4;
     private const int EnvironmentMapSlot = 31;
+    private const int ShadowMapSlot = 30;
     private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
     private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
+    private static readonly string[] EnvironmentLightDirectionUniformNames = CreateIndexedUniformNames("EnvironmentLightDirections", MaxLights);
+    private static readonly string[] EnvironmentLightPowerUniformNames = CreateIndexedUniformNames("EnvironmentLightPowers", MaxLights);
+    private static readonly string[] ShadowMatrixUniformNames = CreateIndexedUniformNames("ShadowMatrices", OpenGlShadowMapArray.MaxLayers);
+    private static readonly string[] ShadowFilterRadiusUniformNames = CreateIndexedUniformNames("ShadowFilterRadii", OpenGlShadowMapArray.MaxLayers);
 
     private readonly Dictionary<int, OpenGlBuffer> _boundBuffers = [];
     private readonly OpenGlContext _context;
     private readonly Vector3[] _lightColors = new Vector3[MaxLights];
     private readonly Vector4[] _lightDirectionsAndIntensity = new Vector4[MaxLights];
+    private readonly Vector4[] _environmentLightDirections = new Vector4[MaxLights];
+    private readonly Vector3[] _environmentLightPowers = new Vector3[MaxLights];
+    private readonly Matrix4x4[] _shadowMatrices = new Matrix4x4[OpenGlShadowMapArray.MaxLayers];
+    private readonly Vector2[] _shadowFilterRadii = new Vector2[OpenGlShadowMapArray.MaxLayers];
+    private readonly OpenGlShadowMapArray _shadowMaps;
     private OpenGlPipelineState? _currentPipelineState;
     private Vector3 _ambientColor;
     private bool _disposed;
@@ -28,6 +38,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private IGpuTexture? _environmentMap;
     private int _environmentMipLevels;
     private int _enabledVertexAttributeCount;
+    private int _environmentLightCount;
     private Vector3 _fallbackLightColor = Vector3.One;
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
     private float _fallbackLightIntensity = 1.0f;
@@ -35,6 +46,10 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private OpenGlBuffer? _indexBuffer;
     private int _lightCount;
     private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
+    private int _shadowCount;
+    private int _shadowFilterTaps;
+    private float _shadowStrength;
+    private int _shadowPassIndex = -1;
     private SkinningMode _skinningMode = SkinningMode.Linear;
     private bool _useViewBasedLighting;
     private uint _vertexArrayHandle;
@@ -50,6 +65,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _vertexArrayHandle = context.CreateVertexArray();
+        _shadowMaps = new OpenGlShadowMapArray(context);
     }
 
     /// <inheritdoc/>
@@ -66,6 +82,9 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _frontFaceWinding = FaceWinding.Clockwise;
         _indexBuffer = null;
         _lightCount = 0;
+        _environmentLightCount = 0;
+        _shadowCount = 0;
+        _shadowPassIndex = -1;
         _sceneAxis = Matrix4x4.Identity;
         _skinningMode = SkinningMode.Linear;
         _useViewBasedLighting = false;
@@ -218,8 +237,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _fallbackLightColor = fallbackColor;
         _fallbackLightIntensity = fallbackIntensity;
         _lightCount = 0;
+        _environmentLightCount = 0;
         Array.Clear(_lightDirectionsAndIntensity);
         Array.Clear(_lightColors);
+        Array.Clear(_environmentLightDirections);
+        Array.Clear(_environmentLightPowers);
         ApplySceneStateToCurrentProgram();
     }
 
@@ -237,6 +259,53 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _lightColors[_lightCount] = color;
         _lightCount++;
         ApplySceneStateToCurrentProgram();
+    }
+
+    public void AppendEnvironmentLight(Vector3 direction, Vector3 power, Vector2 halfAngles)
+    {
+        ThrowIfDisposed();
+
+        if (_environmentLightCount >= MaxLights)
+        {
+            return;
+        }
+
+        _environmentLightDirections[_environmentLightCount] = new Vector4(direction, MathF.Sqrt(halfAngles.X * halfAngles.Y));
+        _environmentLightPowers[_environmentLightCount] = power;
+        _environmentLightCount++;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    public bool BeginShadowMap(int lightIndex, int mapSize, Matrix4x4 shadowMatrix, Vector2 filterRadius)
+    {
+        ThrowIfDisposed();
+
+        if (lightIndex >= _environmentLightCount || !_shadowMaps.Begin(lightIndex, _environmentLightCount, mapSize, ShadowMapSlot))
+        {
+            return false;
+        }
+
+        _shadowMatrices[lightIndex] = shadowMatrix;
+        _shadowFilterRadii[lightIndex] = filterRadius;
+        _shadowPassIndex = lightIndex;
+        _currentPipelineState = null;
+        return true;
+    }
+
+    public void EndShadowMaps(int shadowCount, int filterTaps, float strength)
+    {
+        ThrowIfDisposed();
+
+        if (_shadowPassIndex >= 0)
+        {
+            _shadowMaps.End(ShadowMapSlot);
+        }
+
+        _shadowPassIndex = -1;
+        _shadowCount		= shadowCount;
+        _shadowFilterTaps	= filterTaps;
+        _shadowStrength		= strength;
+        _currentPipelineState = null;
     }
 
     /// <inheritdoc/>
@@ -378,6 +447,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     public void Draw(int vertexCount, int startVertex)
     {
         ThrowIfDisposed();
+        if (_shadowPassIndex >= 0 && !CanCastShadow())
+        {
+            return;
+        }
+
         PrimitiveType primitiveType = GetPrimitiveType();
         _context.Gl.BindVertexArray(_vertexArrayHandle);
         _context.Gl.DrawArrays((GLEnum)primitiveType, startVertex, (uint)vertexCount);
@@ -387,6 +461,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     public void DrawIndexed(int indexCount, int startIndex, int baseVertex)
     {
         ThrowIfDisposed();
+        if (_shadowPassIndex >= 0 && !CanCastShadow())
+        {
+            return;
+        }
+
         PrimitiveType primitiveType = GetPrimitiveType();
         _context.Gl.BindVertexArray(_vertexArrayHandle);
         GpuBufferElementType indexElementType = _indexBuffer?.ElementType ?? GpuBufferElementType.Unknown;
@@ -459,6 +538,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             _vertexArrayHandle = 0;
         }
 
+        _shadowMaps.Dispose();
         _boundBuffers.Clear();
         _currentPipelineState = null;
         _disposed = true;
@@ -517,6 +597,19 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         gl.DepthMask(pipelineState.DepthWrite);
+
+        if (_shadowPassIndex >= 0)
+        {
+            gl.Disable(EnableCap.Blend);
+            gl.Enable(EnableCap.DepthTest);
+            gl.DepthFunc(DepthFunction.Lequal);
+            gl.DepthMask(true);
+        }
+    }
+
+    private bool CanCastShadow()
+    {
+        return _currentPipelineState is { BlendEnabled: false, GraphicsProgram: { } program } && program.HasUniform("ShadowPass");
     }
 
     private unsafe void ConfigureVertexAttribute(int slot, OpenGlBuffer buffer, OpenGlPipelineState pipelineState)
@@ -580,7 +673,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         int appliedLightCount = _lightCount;
-        if (appliedLightCount == 0)
+        if (appliedLightCount == 0 && _environmentLightCount == 0)
         {
             _lightDirectionsAndIntensity[0] = new Vector4(TransformDirection(_fallbackLightDirection), _fallbackLightIntensity);
             _lightColors[0] = _fallbackLightColor;
@@ -592,6 +685,31 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         {
             graphicsProgram.SetVector4(LightDirectionUniformNames[i], _lightDirectionsAndIntensity[i]);
             graphicsProgram.SetVector3(LightColorUniformNames[i], _lightColors[i]);
+            graphicsProgram.SetVector4(EnvironmentLightDirectionUniformNames[i], _environmentLightDirections[i]);
+            graphicsProgram.SetVector3(EnvironmentLightPowerUniformNames[i], _environmentLightPowers[i]);
+        }
+
+        graphicsProgram.SetInt("EnvironmentLightCount", _environmentLightCount);
+
+        bool shadowPass = _shadowPassIndex >= 0;
+        graphicsProgram.SetInt("ShadowMap", ShadowMapSlot);
+        graphicsProgram.SetInt("ShadowPass", shadowPass ? 1 : 0);
+        graphicsProgram.SetInt("AlphaToCoverage", !shadowPass && _currentPipelineState.AlphaToCoverage ? 1 : 0);
+        graphicsProgram.SetInt("ShadowCount", shadowPass ? 0 : _shadowCount);
+
+        if (!shadowPass && _shadowCount > 0)
+        {
+            _context.Gl.ActiveTexture(TextureUnit.Texture0 + ShadowMapSlot);
+            _context.Gl.BindTexture(TextureTarget.Texture2DArray, _shadowMaps.Texture);
+            graphicsProgram.SetFloat("ShadowMapSize", _shadowMaps.Size);
+            graphicsProgram.SetInt("ShadowFilterTaps", _shadowFilterTaps);
+            graphicsProgram.SetFloat("ShadowStrength", _shadowStrength);
+
+            for (int i = 0; i < _shadowCount; i++)
+            {
+                graphicsProgram.SetMatrix4(ShadowMatrixUniformNames[i], _shadowMatrices[i]);
+                graphicsProgram.SetVector2(ShadowFilterRadiusUniformNames[i], _shadowFilterRadii[i]);
+            }
         }
     }
 

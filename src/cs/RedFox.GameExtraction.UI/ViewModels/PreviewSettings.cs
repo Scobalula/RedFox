@@ -41,6 +41,48 @@ public sealed partial class PreviewSettings : ObservableObject
         DefaultValue = ScenePreviewLightingMode.Scene,
     };
 
+    private static readonly GameExtractionSetting AntiAliasingSetting = new()
+    {
+        Name = "PreviewAntiAliasing",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Anti-aliasing",
+        Type = GameExtractionSettingType.Choice,
+        Options = ["Off", "2x", "4x", "8x"],
+        DefaultValue = "8x",
+    };
+
+    private static readonly GameExtractionSetting ShadowQualitySetting = new()
+    {
+        Name = "PreviewShadowQuality",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Shadow quality",
+        Type = GameExtractionSettingType.Choice,
+        Options = ["Off", "Ultra Low", "Low", "Medium", "High", "Ultra High"],
+        DefaultValue = ShadowQuality.High,
+    };
+
+    private static readonly GameExtractionSetting ShadowSoftnessSetting = new()
+    {
+        Name = "PreviewShadowSoftness",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Shadow softness",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 1.0,
+        Minimum = 0.0,
+        Maximum = 3.0,
+    };
+
+    private static readonly GameExtractionSetting ShadowStrengthSetting = new()
+    {
+        Name = "PreviewShadowStrength",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Shadow strength",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 1.0,
+        Minimum = 0.0,
+        Maximum = 1.0,
+    };
+
     private static readonly GameExtractionSetting AutoFitSetting = new()
     {
         Name = "PreviewAutoFitScene",
@@ -115,6 +157,10 @@ public sealed partial class PreviewSettings : ObservableObject
         UpAxisSetting,
         SkinningModeSetting,
         LightingModeSetting,
+        AntiAliasingSetting,
+        ShadowQualitySetting,
+        ShadowSoftnessSetting,
+        ShadowStrengthSetting,
         AutoFitSetting,
         AutoPlayAudioSetting,
         AssetGridSetting,
@@ -144,6 +190,18 @@ public sealed partial class PreviewSettings : ObservableObject
     /// Gets a value indicating whether view-based lighting is enabled.
     /// </summary>
     public bool UseViewBasedLighting => LightingMode == ScenePreviewLightingMode.ViewBased;
+
+    [ObservableProperty]
+    public partial int AntiAliasingSamples { get; set; } = 8;
+
+    [ObservableProperty]
+    public partial ShadowQuality ShadowQuality { get; set; } = ShadowQuality.High;
+
+    [ObservableProperty]
+    public partial float ShadowSoftness { get; set; } = 1.0f;
+
+    [ObservableProperty]
+    public partial float ShadowStrength { get; set; } = 1.0f;
 
     /// <summary>
     /// Gets or sets a value indicating whether animation playback is paused.
@@ -200,6 +258,16 @@ public sealed partial class PreviewSettings : ObservableObject
         UpAxis = GetEnumValue(settings, UpAxisSetting, SceneUpAxis.Y);
         SkinningMode = GetEnumValue(settings, SkinningModeSetting, SkinningMode.Linear);
         LightingMode = GetEnumValue(settings, LightingModeSetting, ScenePreviewLightingMode.Scene);
+        AntiAliasingSamples = settings.GetSettingValue(AntiAliasingSetting) switch
+        {
+            "Off"	=> 1,
+            "2x"	=> 2,
+            "4x"	=> 4,
+            _		=> 8,
+        };
+        ShadowQuality = GetEnumValue(settings, ShadowQualitySetting, ShadowQuality.High);
+        ShadowSoftness = float.TryParse(settings.GetSettingValue(ShadowSoftnessSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float shadowSoftness) ? Math.Clamp(shadowSoftness, 0.0f, 3.0f) : 1.0f;
+        ShadowStrength = float.TryParse(settings.GetSettingValue(ShadowStrengthSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float shadowStrength) ? Math.Clamp(shadowStrength, 0.0f, 1.0f) : 1.0f;
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;
@@ -216,10 +284,9 @@ public sealed partial class PreviewSettings : ObservableObject
         settings.SetSettingValue(PreviewPanelRatioSetting, PreviewPanelRatio.ToString(CultureInfo.InvariantCulture));
     }
 
-    private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback)
-        where TEnum : struct, Enum
+    private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback) where TEnum : struct, Enum
     {
-        string? value = settings.GetSettingValue(setting);
+        string? value = settings.GetSettingValue(setting)?.Replace(" ", string.Empty);
         return Enum.TryParse(value, ignoreCase: true, out TEnum parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
     }
 }

@@ -31,7 +31,11 @@
                                                ViewportController="{Binding ViewportController}"
                                                UseViewBasedLighting="{Binding Settings.UseViewBasedLighting}"
                                                IsAnimationPaused="{Binding Settings.IsAnimationPaused}"
-                                               SkinningMode="{Binding Settings.SkinningMode}"/>
+                                               SkinningMode="{Binding Settings.SkinningMode}"
+                                               AntiAliasingSamples="{Binding Settings.AntiAliasingSamples}"
+                                               ShadowQuality="{Binding Settings.ShadowQuality}"
+                                               ShadowSoftness="{Binding Settings.ShadowSoftness}"
+                                               ShadowStrength="{Binding Settings.ShadowStrength}"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top">

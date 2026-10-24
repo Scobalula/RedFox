@@ -13,7 +13,7 @@ public sealed class SkyboxImageLoader(ImageTranslatorManager translators, string
 {
     private const int MaxWidth = 4096;
     private const int RoughnessLevels = 7;
-    private const string CacheVersion = "ggx-1";
+    private const string CacheVersion = "ggx-2";
 
     private readonly Lock _sync = new();
     private Image? _image;

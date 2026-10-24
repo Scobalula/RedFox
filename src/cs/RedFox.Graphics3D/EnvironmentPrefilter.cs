@@ -12,6 +12,7 @@ internal static class EnvironmentPrefilter
 {
     private const int SourceWidth = 1024;
     private const int SampleCount = 64;
+    private const int IrradianceSourceWidth = 128;
 
     public static Image Prefilter(Image panorama, int levels)
     {
@@ -23,6 +24,7 @@ internal static class EnvironmentPrefilter
             source = Halve(source);
 
         List<(Vector4[] Pixels, int Width, int Height)> pyramid = BuildPyramid(source);
+        (Vector4[] Pixels, int Width, int Height) irradianceSource = pyramid.First(level => level.Width <= IrradianceSourceWidth);
 
         for (int level = 1; level < levels; level++)
         {
@@ -37,7 +39,8 @@ internal static class EnvironmentPrefilter
                 for (int x = 0; x < width; x++)
                 {
                     Vector3 direction = GetDirection((x + 0.5f) / width, (y + 0.5f) / height);
-                    pixels[y * width + x] = new Vector4(Convolve(pyramid, direction, alpha), 1.0f);
+                    Vector3 color = level == levels - 1 ? Irradiance(irradianceSource, direction) : Convolve(pyramid, direction, alpha);
+                    pixels[y * width + x] = new Vector4(color, 1.0f);
                 }
             });
 
@@ -137,6 +140,33 @@ internal static class EnvironmentPrefilter
         }
 
         return weight > 0.0f ? sum / weight : Sample(pyramid, normal, 0.0f);
+    }
+
+    private static Vector3 Irradiance((Vector4[] Pixels, int Width, int Height) source, Vector3 normal)
+    {
+        Vector3 sum = Vector3.Zero;
+        float weight = 0.0f;
+
+        for (int y = 0; y < source.Height; y++)
+        {
+            float v = (y + 0.5f) / source.Height;
+            float sinTheta = MathF.Sin(v * MathF.PI);
+
+            for (int x = 0; x < source.Width; x++)
+            {
+                Vector3 direction = GetDirection((x + 0.5f) / source.Width, v);
+                float cosine = Vector3.Dot(normal, direction);
+
+                if (cosine <= 0.0f)
+                    continue;
+
+                Vector4 pixel = source.Pixels[y * source.Width + x];
+                sum += new Vector3(pixel.X, pixel.Y, pixel.Z) * (cosine * sinTheta);
+                weight += cosine * sinTheta;
+            }
+        }
+
+        return sum / weight;
     }
 
     private static Vector3 Sample(List<(Vector4[] Pixels, int Width, int Height)> pyramid, Vector3 direction, float lod)

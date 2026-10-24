@@ -462,7 +462,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
     }
 
     /// <inheritdoc/>
-    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology)
+    public IGpuPipelineState CreatePipelineState(IGpuShader vertexShader, IGpuShader fragmentShader, ReadOnlySpan<VertexAttribute> vertexAttributes, CullMode cullMode, FaceWinding faceWinding, bool wireframe, bool blend, BlendFactor sourceBlendFactor, BlendFactor destinationBlendFactor, BlendOp blendOperation, bool depthTest, bool depthWrite, CompareFunc depthCompareFunc, PrimitiveTopology primitiveTopology, bool alphaToCoverage)
     {
         ThrowIfDisposed();
 
@@ -482,7 +482,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
         }
 
         GlShaderProgram graphicsProgram = _context.CreateShaderProgram(openGlVertexShader.Source, openGlFragmentShader.Source);
-        return new OpenGlPipelineState(graphicsProgram, vertexAttributes, cullMode, faceWinding, wireframe, blend, sourceBlendFactor, destinationBlendFactor, blendOperation, depthTest, depthWrite, depthCompareFunc, primitiveTopology);
+        return new OpenGlPipelineState(graphicsProgram, vertexAttributes, cullMode, faceWinding, wireframe, blend, sourceBlendFactor, destinationBlendFactor, blendOperation, depthTest, depthWrite, depthCompareFunc, primitiveTopology, alphaToCoverage);
     }
 
     /// <inheritdoc/>
@@ -750,13 +750,8 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
 
         for (int mipLevel = 0; mipLevel < image.MipLevels; mipLevel++)
         {
-            if (!uploadPixels)
-            {
-                continue;
-            }
-
             ref readonly ImageSlice slice = ref image.GetSlice(mipLevel);
-            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, slice.PixelSpan);
+            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, slice.Width, slice.Height, image.Format, internalFormat, pixelFormat, pixelType, isCompressed, uploadPixels ? slice.PixelSpan : ReadOnlySpan<byte>.Empty);
         }
 
         gl.BindTexture(TextureTarget.Texture2D, 0);

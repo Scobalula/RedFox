@@ -8,11 +8,15 @@ in vec3 WorldNormal;
 in vec2 TextureCoordinate;
 
 #define MAX_LIGHTS 4
+#define PI 3.14159265
 
 uniform vec3 AmbientColor;
 uniform int LightCount;
 uniform vec4 LightDirectionsAndIntensity[MAX_LIGHTS];
 uniform vec3 LightColors[MAX_LIGHTS];
+uniform int EnvironmentLightCount;
+uniform vec4 EnvironmentLightDirections[MAX_LIGHTS];
+uniform vec3 EnvironmentLightPowers[MAX_LIGHTS];
 uniform vec3 CameraPosition;
 uniform int UseViewBasedLighting;
 uniform int HasDiffuseMap;
@@ -24,8 +28,16 @@ uniform sampler2D DiffuseMap;
 
 out vec4 FragColor;
 
+#include "Shadows.glsl"
+
 void main()
 {
+    if (ShadowPass != 0)
+    {
+        FragColor = vec4(0.0);
+        return;
+    }
+
     vec3 normal = normalize(WorldNormal);
 
     if (!gl_FrontFacing)
@@ -67,6 +79,24 @@ void main()
             float spec = pow(max(dot(viewDirection, reflected), 0.0), MaterialSpecularPower);
             specular += LightColors[i] * (lightIntensity * spec * MaterialSpecularStrength);
         }
+    }
+
+    int environmentCount = clamp(EnvironmentLightCount, 0, MAX_LIGHTS);
+    for (int i = 0; i < environmentCount; i++)
+    {
+        vec3 lightDirection = EnvironmentLightDirections[i].xyz;
+        float nDotL = max(dot(normal, lightDirection), 0.0);
+        if (nDotL <= 0.0)
+        {
+            continue;
+        }
+
+        float visibility = i < ShadowCount ? ShadowVisibility(i, WorldPosition, normal) : 1.0;
+        vec3 lightColor = EnvironmentLightPowers[i] / PI * visibility;
+        vec3 reflected = reflect(-lightDirection, normal);
+        float spec = pow(max(dot(viewDirection, reflected), 0.0), MaterialSpecularPower);
+        diffuse += lightColor * nDotL;
+        specular += lightColor * (spec * MaterialSpecularStrength);
     }
 
     vec3 lit = ((ambient + diffuse) * surfaceColor.rgb) + specular;

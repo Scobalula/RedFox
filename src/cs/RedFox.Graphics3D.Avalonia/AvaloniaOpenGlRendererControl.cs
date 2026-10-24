@@ -61,6 +61,18 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     public static readonly StyledProperty<SkinningMode> SkinningModeProperty =
         AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, SkinningMode>(nameof(SkinningMode), SkinningMode.Linear);
 
+    public static readonly StyledProperty<int> AntiAliasingSamplesProperty =
+        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, int>(nameof(AntiAliasingSamples), 4);
+
+    public static readonly StyledProperty<ShadowQuality> ShadowQualityProperty =
+        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, ShadowQuality>(nameof(ShadowQuality), ShadowQuality.High);
+
+    public static readonly StyledProperty<float> ShadowSoftnessProperty =
+        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(ShadowSoftness), 1.0f);
+
+    public static readonly StyledProperty<float> ShadowStrengthProperty =
+        AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(ShadowStrength), 1.0f);
+
     /// <summary>
     /// Defines the <see cref="IsAnimationPaused"/> property.
     /// </summary>
@@ -89,6 +101,10 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         ClearColorProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         UseViewBasedLightingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         SkinningModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        AntiAliasingSamplesProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        ShadowQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        ShadowSoftnessProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        ShadowStrengthProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         IsAnimationPausedProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.RequestFrame());
     }
 
@@ -168,6 +184,30 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(SkinningModeProperty);
         set => SetValue(SkinningModeProperty, value);
+    }
+
+    public int AntiAliasingSamples
+    {
+        get => GetValue(AntiAliasingSamplesProperty);
+        set => SetValue(AntiAliasingSamplesProperty, value);
+    }
+
+    public ShadowQuality ShadowQuality
+    {
+        get => GetValue(ShadowQualityProperty);
+        set => SetValue(ShadowQualityProperty, value);
+    }
+
+    public float ShadowSoftness
+    {
+        get => GetValue(ShadowSoftnessProperty);
+        set => SetValue(ShadowSoftnessProperty, value);
+    }
+
+    public float ShadowStrength
+    {
+        get => GetValue(ShadowStrengthProperty);
+        set => SetValue(ShadowStrengthProperty, value);
     }
 
     /// <summary>
@@ -400,6 +440,10 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer.ClearColor = ClearColor;
         _renderer.UseViewBasedLighting = UseViewBasedLighting;
         _renderer.SkinningMode = SkinningMode;
+        _renderer.AntiAliasingSamples = Math.Max(AntiAliasingSamples, 1);
+        _renderer.ShadowQuality = ShadowQuality;
+        _renderer.ShadowSoftness = ShadowSoftness;
+        _renderer.ShadowStrength = ShadowStrength;
         RequestFrame();
     }
 

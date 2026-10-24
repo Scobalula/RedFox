@@ -80,6 +80,7 @@ public sealed class AvaloniaOpenGlThumbnailRenderer : OpenGlControlBase
         _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.ColorAttachment0, GLEnum.Renderbuffer, _colorBuffer);
         _gl.FramebufferRenderbuffer(GLEnum.Framebuffer, GLEnum.DepthStencilAttachment, GLEnum.Renderbuffer, _depthBuffer);
         _graphicsDevice.DefaultFramebufferHandle = _framebuffer;
+        _sceneRenderer.ShadowQuality = ShadowQuality.Off;
         _sceneRenderer.Initialize();
 
         // Each scene is released once drawn, which would otherwise recompile shaders for every model.

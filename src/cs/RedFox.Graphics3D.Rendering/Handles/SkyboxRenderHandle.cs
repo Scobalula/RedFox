@@ -24,10 +24,14 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     private IGpuPipelineState? _pipeline;
     private TextureRenderHandle? _textureHandle;
     private int _mipLevels;
+    private Image? _lightsSource;
+    private EnvironmentLight[] _lights = [];
 
     internal IGpuTexture? Texture => _textureHandle?.BindableTexture;
 
     internal int MipLevels => _mipLevels;
+
+    internal EnvironmentLight[] Lights => Texture is null ? [] : _lights;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SkyboxRenderHandle"/> class.
@@ -64,6 +68,12 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         _textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
         _textureHandle.Update(commandList);
         _mipLevels = image.MipLevels;
+
+        if (!ReferenceEquals(_lightsSource, image))
+        {
+            _lights = EnvironmentLightExtractor.Extract(image);
+            _lightsSource = image;
+        }
     }
 
     /// <inheritdoc/>
@@ -98,6 +108,8 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     {
         _textureHandle = null;
         _mipLevels = 0;
+        _lightsSource = null;
+        _lights = [];
         ReleasePipeline();
     }
 
