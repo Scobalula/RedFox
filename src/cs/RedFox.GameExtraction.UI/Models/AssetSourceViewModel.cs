@@ -48,4 +48,9 @@ public sealed class AssetSourceViewModel(IAssetSource source, AssetSourceRequest
     /// Gets the number of assets in the source.
     /// </summary>
     public int AssetCount => Source.Assets.Count;
+
+    /// <summary>
+    /// Gets a value indicating whether the source holds assets that can be mounted as sources of their own.
+    /// </summary>
+    public bool CanBrowse => Source is IAssetSourceContainer { MountableAssets.Count: > 0 };
 }

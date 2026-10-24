@@ -24,7 +24,7 @@
                              ScrollViewer.AllowAutoHide="False">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="model:AssetSourceViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="10,5,14,5" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="10,5,14,5" ColumnSpacing="12">
                                     <Border Classes="asset-icon">
                                         <PathIcon Data="{StaticResource IconFolder}" Width="16" Height="16"/>
                                     </Border>
@@ -39,6 +39,13 @@
                                         <TextBlock Text="{Binding Kind}"/>
                                     </Border>
                                     <Button Grid.Column="3"
+                                            Classes="secondary-btn"
+                                            Content="Browse"
+                                            VerticalAlignment="Center"
+                                            IsVisible="{Binding CanBrowse}"
+                                            Click="OnBrowseClick"
+                                            Tag="{Binding}"/>
+                                    <Button Grid.Column="4"
                                             Classes="secondary-btn"
                                             Content="Unload"
                                             VerticalAlignment="Center"

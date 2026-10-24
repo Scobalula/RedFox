@@ -330,6 +330,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public event Func<IReadOnlyList<ProcessCandidateViewModel>, Task<ProcessSelectionResult?>>? ProcessSelectionRequested;
 
     /// <summary>
+    /// Raised when the view should ask the user which assets of a source container to load, with the container's name and mountable assets.
+    /// </summary>
+    public event Func<string, IReadOnlyList<Asset>, Task<IReadOnlyList<Asset>?>>? SourceBrowserRequested;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="MainWindowViewModel"/> class.
     /// </summary>
     /// <param name="config">The application configuration.</param>
@@ -417,7 +422,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(false);
+        IAssetSource? source = await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(true);
+        await BrowseContainersAsync([source]).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -434,7 +440,19 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountDirectoryAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(false);
+        IAssetSource? source = await MountSourceAsync($"Loading {Path.GetFileName(fullPath)}...", (progress, cancellationToken) => _assetManager.MountDirectoryAsync(fullPath, _config.SourceOptions, progress, cancellationToken)).ConfigureAwait(true);
+        await BrowseContainersAsync([source]).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Loads assets of a source container as sources of their own.
+    /// </summary>
+    /// <param name="container">The container holding the assets.</param>
+    /// <param name="assets">The assets to mount, from <see cref="IAssetSourceContainer.MountableAssets"/>.</param>
+    /// <returns>A task that completes when loading finishes.</returns>
+    public Task LoadFromContainerAsync(IAssetSourceContainer container, IReadOnlyList<Asset> assets)
+    {
+        return MountRequestsAsync(assets, asset => asset.Name, (asset, cancellationToken) => container.GetSourceRequestAsync(asset, _config.SourceOptions, cancellationToken));
     }
 
     /// <summary>
@@ -894,16 +912,40 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        await MountFilesAsync(selectedPaths).ConfigureAwait(true);
+        await LoadFilesAsync(selectedPaths).ConfigureAwait(true);
     }
 
-    private async Task MountFilesAsync(IReadOnlyList<string> filePaths)
+    private async Task LoadFilesAsync(IReadOnlyList<string> filePaths)
     {
+        IReadOnlyList<IAssetSource> sources = await MountRequestsAsync(filePaths, Path.GetFileName, (filePath, _) => Task.FromResult(AssetSourceRequest.ForFile(filePath, _config.SourceOptions))).ConfigureAwait(true);
+        await BrowseContainersAsync(sources).ConfigureAwait(true);
+    }
+
+    // Offers the mountable assets of each container among newly mounted sources, so their sources load without being exported first.
+    private async Task BrowseContainersAsync(IEnumerable<IAssetSource?> sources)
+    {
+        foreach (IAssetSource? source in sources)
+        {
+            if (source is IAssetSourceContainer { MountableAssets.Count: > 0 } container && SourceBrowserRequested is not null)
+            {
+                IReadOnlyList<Asset>? selection = await SourceBrowserRequested.Invoke(source.Name, container.MountableAssets).ConfigureAwait(true);
+
+                if (selection is { Count: > 0 })
+                {
+                    await LoadFromContainerAsync(container, selection).ConfigureAwait(true);
+                }
+            }
+        }
+    }
+
+    private async Task<IReadOnlyList<IAssetSource>> MountRequestsAsync<T>(IReadOnlyList<T> items, Func<T, string> getName, Func<T, CancellationToken, Task<AssetSourceRequest>> getRequestAsync)
+    {
+        List<IAssetSource> mountedSources = [];
         IsLoading = true;
         CancellationTokenSource cancellationSource = new();
         _currentCts = cancellationSource;
-        ProgressDialogViewModel progressVm = CreateProgressDialog($"Loading {filePaths.Count:N0} sources...", cancellationSource);
-        progressVm.Total = filePaths.Count;
+        ProgressDialogViewModel progressVm = CreateProgressDialog($"Loading {items.Count:N0} sources...", cancellationSource);
+        progressVm.Total = items.Count;
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
         ShowProgressDialog = true;
@@ -913,31 +955,35 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
 
-            foreach (string filePath in filePaths)
+            foreach (T item in items)
             {
                 cancellationSource.Token.ThrowIfCancellationRequested();
-                string fullPath = Path.GetFullPath(filePath);
-                if (HasMountedLocation(AssetSourceKind.File, fullPath))
+                string name = getName(item);
+                progressVm.StatusText = $"Loading {name}...";
+
+                try
                 {
-                    StatusText = $"Already loaded: {Path.GetFileName(fullPath)}";
-                }
-                else
-                {
-                    progressVm.StatusText = $"Loading {Path.GetFileName(fullPath)}...";
-                    try
+                    AssetSourceRequest request = await Task.Run(() => getRequestAsync(item, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
+
+                    if (request.Location is not null && HasMountedLocation(request.Kind, request.Location))
                     {
-                        IAssetSource source = await Task.Run(() => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
+                        StatusText = $"Already loaded: {name}";
+                    }
+                    else
+                    {
+                        IAssetSource source = await Task.Run(() => _assetManager.MountAsync(request, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
                         await AddMountedSourceAsync(source).ConfigureAwait(true);
+                        mountedSources.Add(source);
                         StatusText = "Ready";
                     }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (Exception exception)
-                    {
-                        StatusText = $"Load error: {exception.Message}";
-                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    StatusText = $"Load error: {exception.Message}";
                 }
 
                 progressVm.Current++;
@@ -957,6 +1003,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 _currentCts = null;
             cancellationSource.Dispose();
         }
+
+        return mountedSources;
     }
 
     private async Task RequestLoadDirectoryAsync()
@@ -1134,8 +1182,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task MountSourceAsync(string title, Func<IProgress<string>, CancellationToken, Task<IAssetSource>> mountSourceAsync)
+    private async Task<IAssetSource?> MountSourceAsync(string title, Func<IProgress<string>, CancellationToken, Task<IAssetSource>> mountSourceAsync)
     {
+        IAssetSource? source = null;
         IsLoading = true;
         CancellationTokenSource cancellationSource = new();
         _currentCts = cancellationSource;
@@ -1148,7 +1197,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
 
-            IAssetSource source = await Task.Run(() => mountSourceAsync(progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
+            source = await Task.Run(() => mountSourceAsync(progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
             await AddMountedSourceAsync(source).ConfigureAwait(true);
             StatusText = "Ready";
@@ -1170,6 +1219,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 _currentCts = null;
             cancellationSource.Dispose();
         }
+
+        return source;
     }
 
     private async Task AddMountedSourceAsync(IAssetSource source)

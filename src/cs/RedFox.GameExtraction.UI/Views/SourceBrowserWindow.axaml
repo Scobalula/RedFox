@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
+        x:Class="RedFox.GameExtraction.UI.Views.SourceBrowserWindow"
+        x:DataType="vm:SourceBrowserViewModel"
+        Title="{Binding Title}"
+        Width="760" Height="560"
+        MinWidth="560" MinHeight="380"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="12">
+        <TextBox x:Name="FilterBox"
+                 DockPanel.Dock="Top"
+                 Classes="search-box"
+                 Margin="0,0,0,8"
+                 PlaceholderText="Filter, such as mp_* or common"
+                 Text="{Binding FilterText}"/>
+
+        <Border DockPanel.Dock="Bottom" Classes="panel" Padding="12,10" Margin="0,8,0,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="secondary-btn" Content="Cancel" Click="OnCancelClick"/>
+                    <Button Classes="accent-btn" Content="{Binding LoadText}" Click="OnLoadClick" IsEnabled="{Binding CanLoad}" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
+                </StackPanel>
+                <TextBlock Classes="status-text" Text="{Binding Summary}" VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <Border Classes="panel" Padding="0" ClipToBounds="True">
+            <DataGrid x:Name="AssetGrid"
+                      ItemsSource="{Binding Assets}"
+                      AutoGenerateColumns="False"
+                      CanUserResizeColumns="True"
+                      CanUserSortColumns="True"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      IsReadOnly="True"
+                      SelectionMode="Extended"
+                      RowHeight="30"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      SelectionChanged="OnSelectionChanged"
+                      DoubleTapped="OnAssetDoubleTapped">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                    <DataGridTextColumn Header="Information" Binding="{Binding Information}" Width="180"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </DockPanel>
+</Window>

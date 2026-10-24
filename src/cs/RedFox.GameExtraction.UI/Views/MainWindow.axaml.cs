@@ -77,6 +77,7 @@ public partial class MainWindow : Window
         viewModel.FileDialogRequested += OnFileDialogRequested;
         viewModel.FolderDialogRequested += OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested += OnProcessSelectionRequested;
+        viewModel.SourceBrowserRequested += OnSourceBrowserRequested;
         viewModel.PreviewRequested += OnPreviewRequested;
         viewModel.PreviewWindowCloseRequested += OnPreviewWindowCloseRequested;
         viewModel.AssetSelectionRestoreRequested += OnAssetSelectionRestoreRequested;
@@ -92,6 +93,7 @@ public partial class MainWindow : Window
         viewModel.FileDialogRequested -= OnFileDialogRequested;
         viewModel.FolderDialogRequested -= OnFolderDialogRequested;
         viewModel.ProcessSelectionRequested -= OnProcessSelectionRequested;
+        viewModel.SourceBrowserRequested -= OnSourceBrowserRequested;
         viewModel.PreviewRequested -= OnPreviewRequested;
         viewModel.PreviewWindowCloseRequested -= OnPreviewWindowCloseRequested;
         viewModel.AssetSelectionRestoreRequested -= OnAssetSelectionRestoreRequested;
@@ -295,6 +297,13 @@ public partial class MainWindow : Window
         ProcessSelectionWindow processWindow = new();
         processWindow.Initialize(processes);
         return await processWindow.ShowDialog<ProcessSelectionResult?>(this).ConfigureAwait(true);
+    }
+
+    private async Task<IReadOnlyList<Asset>?> OnSourceBrowserRequested(string sourceName, IReadOnlyList<Asset> assets)
+    {
+        SourceBrowserWindow browserWindow = new();
+        browserWindow.Initialize(sourceName, assets);
+        return await browserWindow.ShowDialog<IReadOnlyList<Asset>?>(this).ConfigureAwait(true);
     }
 
     private void OnPreviewRequested()
