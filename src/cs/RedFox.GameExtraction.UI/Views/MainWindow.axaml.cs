@@ -344,6 +344,13 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Key == Key.P && e.KeyModifiers == KeyModifiers.None && e.Source is not TextBox && DataContext is MainWindowViewModel mainViewModel)
+        {
+            mainViewModel.PreviewSelectedCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Source is TextBox || DataContext is not MainWindowViewModel { IsPreviewActive: true, Preview.Content: IPreviewKeyHandler handler })
         {
             return;
