@@ -322,6 +322,11 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
         ThrowIfDisposed();
     }
 
+    public void SetGlobalTexture(string name, IGpuTexture? texture)
+    {
+        ThrowIfDisposed();
+    }
+
     /// <inheritdoc/>
     public void BindBuffer(int slot, IGpuBuffer buffer)
     {

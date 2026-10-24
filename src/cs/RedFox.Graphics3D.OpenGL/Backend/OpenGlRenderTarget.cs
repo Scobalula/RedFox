@@ -19,7 +19,7 @@ internal sealed class OpenGlRenderTarget : IGpuRenderTarget
     /// <summary>
     /// Gets the color attachment texture.
     /// </summary>
-    internal OpenGlTexture ColorTexture { get; }
+    internal OpenGlTexture? ColorTexture { get; }
 
     /// <summary>
     /// Gets the optional depth attachment texture.
@@ -29,17 +29,17 @@ internal sealed class OpenGlRenderTarget : IGpuRenderTarget
     /// <summary>
     /// Gets the render target width in pixels.
     /// </summary>
-    internal int Width => ColorTexture.Width;
+    internal int Width => (ColorTexture ?? DepthTexture)!.Width;
 
     /// <summary>
     /// Gets the render target height in pixels.
     /// </summary>
-    internal int Height => ColorTexture.Height;
+    internal int Height => (ColorTexture ?? DepthTexture)!.Height;
 
     /// <summary>
     /// Gets the render target sample count.
     /// </summary>
-    internal int SampleCount => ColorTexture.SampleCount;
+    internal int SampleCount => (ColorTexture ?? DepthTexture)!.SampleCount;
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
@@ -51,13 +51,18 @@ internal sealed class OpenGlRenderTarget : IGpuRenderTarget
     /// <param name="handle">The GL framebuffer handle.</param>
     /// <param name="colorTexture">The color attachment.</param>
     /// <param name="depthTexture">The optional depth attachment.</param>
-    public OpenGlRenderTarget(GL gl, uint handle, OpenGlTexture colorTexture, OpenGlTexture? depthTexture)
+    public OpenGlRenderTarget(GL gl, uint handle, OpenGlTexture? colorTexture, OpenGlTexture? depthTexture)
     {
         _gl = gl ?? throw new ArgumentNullException(nameof(gl));
         Handle = handle;
-        ColorTexture = colorTexture ?? throw new ArgumentNullException(nameof(colorTexture));
+        ColorTexture = colorTexture;
         DepthTexture = depthTexture;
-        if (DepthTexture is not null && DepthTexture.SampleCount != ColorTexture.SampleCount)
+        if (ColorTexture is null && DepthTexture is null)
+        {
+            throw new ArgumentException("A render target needs a color or a depth attachment.", nameof(colorTexture));
+        }
+
+        if (ColorTexture is not null && DepthTexture is not null && DepthTexture.SampleCount != ColorTexture.SampleCount)
         {
             throw new ArgumentException("Depth attachment sample count must match color attachment sample count.", nameof(depthTexture));
         }

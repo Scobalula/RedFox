@@ -35,7 +35,10 @@
                                                AntiAliasingSamples="{Binding Settings.AntiAliasingSamples}"
                                                ShadowQuality="{Binding Settings.ShadowQuality}"
                                                ShadowSoftness="{Binding Settings.ShadowSoftness}"
-                                               ShadowStrength="{Binding Settings.ShadowStrength}"/>
+                                               ShadowStrength="{Binding Settings.ShadowStrength}"
+                                               AmbientOcclusionQuality="{Binding Settings.AmbientOcclusionQuality}"
+                                               AmbientOcclusionRadius="{Binding Settings.AmbientOcclusionRadius}"
+                                               AmbientOcclusionIntensity="{Binding Settings.AmbientOcclusionIntensity}"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Top">

@@ -25,14 +25,16 @@ uniform vec4 BaseColor;
 uniform float MaterialSpecularStrength;
 uniform float MaterialSpecularPower;
 uniform sampler2D DiffuseMap;
+uniform int DepthPrepass;
 
 out vec4 FragColor;
 
 #include "Shadows.glsl"
+#include "AmbientOcclusion.glsl"
 
 void main()
 {
-    if (ShadowPass != 0)
+    if (ShadowPass != 0 || DepthPrepass != 0)
     {
         FragColor = vec4(0.0);
         return;
@@ -46,7 +48,7 @@ void main()
     }
 
     vec3 viewDirection = normalize(CameraPosition - WorldPosition);
-    vec3 ambient = AmbientColor;
+    vec3 ambient = AmbientColor * ScreenSpaceOcclusion();
     vec4 surfaceColor = BaseColor;
 
     if (HasDiffuseMap != 0 && UVLayerCount > 0)

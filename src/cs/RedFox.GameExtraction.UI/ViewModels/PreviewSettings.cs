@@ -83,6 +83,38 @@ public sealed partial class PreviewSettings : ObservableObject
         Maximum = 1.0,
     };
 
+    private static readonly GameExtractionSetting AmbientOcclusionQualitySetting = new()
+    {
+        Name = "PreviewAmbientOcclusionQuality",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Ambient occlusion quality",
+        Type = GameExtractionSettingType.Choice,
+        Options = [.. Enum.GetNames<AmbientOcclusionQuality>()],
+        DefaultValue = AmbientOcclusionQuality.High,
+    };
+
+    private static readonly GameExtractionSetting AmbientOcclusionRadiusSetting = new()
+    {
+        Name = "PreviewAmbientOcclusionRadius",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Ambient occlusion radius",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 0.08,
+        Minimum = 0.01,
+        Maximum = 0.5,
+    };
+
+    private static readonly GameExtractionSetting AmbientOcclusionIntensitySetting = new()
+    {
+        Name = "PreviewAmbientOcclusionIntensity",
+        Group = GameExtractionSettingGroup.Preview,
+        Label = "Ambient occlusion intensity",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 1.5,
+        Minimum = 0.0,
+        Maximum = 4.0,
+    };
+
     private static readonly GameExtractionSetting AutoFitSetting = new()
     {
         Name = "PreviewAutoFitScene",
@@ -161,6 +193,9 @@ public sealed partial class PreviewSettings : ObservableObject
         ShadowQualitySetting,
         ShadowSoftnessSetting,
         ShadowStrengthSetting,
+        AmbientOcclusionQualitySetting,
+        AmbientOcclusionRadiusSetting,
+        AmbientOcclusionIntensitySetting,
         AutoFitSetting,
         AutoPlayAudioSetting,
         AssetGridSetting,
@@ -202,6 +237,15 @@ public sealed partial class PreviewSettings : ObservableObject
 
     [ObservableProperty]
     public partial float ShadowStrength { get; set; } = 1.0f;
+
+    [ObservableProperty]
+    public partial AmbientOcclusionQuality AmbientOcclusionQuality { get; set; } = AmbientOcclusionQuality.High;
+
+    [ObservableProperty]
+    public partial float AmbientOcclusionRadius { get; set; } = 0.08f;
+
+    [ObservableProperty]
+    public partial float AmbientOcclusionIntensity { get; set; } = 1.5f;
 
     /// <summary>
     /// Gets or sets a value indicating whether animation playback is paused.
@@ -268,6 +312,9 @@ public sealed partial class PreviewSettings : ObservableObject
         ShadowQuality = GetEnumValue(settings, ShadowQualitySetting, ShadowQuality.High);
         ShadowSoftness = float.TryParse(settings.GetSettingValue(ShadowSoftnessSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float shadowSoftness) ? Math.Clamp(shadowSoftness, 0.0f, 3.0f) : 1.0f;
         ShadowStrength = float.TryParse(settings.GetSettingValue(ShadowStrengthSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float shadowStrength) ? Math.Clamp(shadowStrength, 0.0f, 1.0f) : 1.0f;
+        AmbientOcclusionQuality = GetEnumValue(settings, AmbientOcclusionQualitySetting, AmbientOcclusionQuality.High);
+        AmbientOcclusionRadius = float.TryParse(settings.GetSettingValue(AmbientOcclusionRadiusSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float ambientOcclusionRadius) ? Math.Clamp(ambientOcclusionRadius, 0.01f, 0.5f) : 0.08f;
+        AmbientOcclusionIntensity = float.TryParse(settings.GetSettingValue(AmbientOcclusionIntensitySetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float ambientOcclusionIntensity) ? Math.Clamp(ambientOcclusionIntensity, 0.0f, 4.0f) : 1.5f;
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;

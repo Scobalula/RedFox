@@ -37,6 +37,8 @@ public sealed class SceneRenderer : IDisposable
     ];
 
     private readonly ClearAndStateResetPass _clearAndStateResetPass;
+    private readonly DepthPrepass _depthPrepass;
+    private readonly AmbientOcclusionPass _ambientOcclusionPass;
     private readonly ICommandList _commandList;
     private readonly AutoResetEvent _backgroundImageLoadSignal = new(false);
     private readonly object _backgroundImageLoadSync = new();
@@ -120,6 +122,24 @@ public sealed class SceneRenderer : IDisposable
     public float ShadowSoftness { get; set; } = 1.0f;
 
     public float ShadowStrength { get; set; } = 1.0f;
+
+    public AmbientOcclusionQuality AmbientOcclusionQuality
+    {
+        get => _ambientOcclusionPass.Quality;
+        set => _ambientOcclusionPass.Quality = value;
+    }
+
+    public float AmbientOcclusionRadius
+    {
+        get => _ambientOcclusionPass.Radius;
+        set => _ambientOcclusionPass.Radius = value;
+    }
+
+    public float AmbientOcclusionIntensity
+    {
+        get => _ambientOcclusionPass.Intensity;
+        set => _ambientOcclusionPass.Intensity = value;
+    }
 
     /// <summary>
     /// Gets or sets the skinning mode used during rendering. Meshes whose <see cref="Skin.SkinningMode"/> is
@@ -208,6 +228,8 @@ public sealed class SceneRenderer : IDisposable
 
         _backgroundImageLoadThread.Start();
         _clearAndStateResetPass = new ClearAndStateResetPass(clearColor);
+        _depthPrepass = new DepthPrepass(graphicsDevice, _sceneTraversalHandles);
+        _ambientOcclusionPass = new AmbientOcclusionPass(graphicsDevice);
         AmbientColor = ambientColor;
         FallbackLightDirection = fallbackLightDirection;
         FallbackLightColor = fallbackLightColor;
@@ -268,6 +290,8 @@ public sealed class SceneRenderer : IDisposable
         _viewportWidth = safeWidth;
         _viewportHeight = safeHeight;
         _clearAndStateResetPass.Resize(_viewportWidth, _viewportHeight);
+        _depthPrepass.Resize(_viewportWidth, _viewportHeight);
+        _ambientOcclusionPass.Resize(_viewportWidth, _viewportHeight);
     }
 
     /// <summary>
@@ -321,6 +345,12 @@ public sealed class SceneRenderer : IDisposable
         UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
         RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
+
+        if (AmbientOcclusionQuality != AmbientOcclusionQuality.Off && _graphicsDevice.SupportsFormat(ImageFormat.D32Float, TextureUsage.DepthStencil | TextureUsage.Sampled))
+        {
+            _depthPrepass.Execute(context);
+            _ambientOcclusionPass.Execute(context);
+        }
 
         _clearAndStateResetPass.Execute(context);
 
@@ -394,6 +424,8 @@ public sealed class SceneRenderer : IDisposable
         _backgroundImageLoadSignal.Dispose();
         ReleaseAntiAliasingResources();
         _clearAndStateResetPass.Dispose();
+        _depthPrepass.Dispose();
+        _ambientOcclusionPass.Dispose();
         SceneRenderResources.ReleaseAll(_graphicsDevice);
         ReleasePreparedPipelines();
         _initialized = false;
@@ -922,7 +954,7 @@ public sealed class SceneRenderer : IDisposable
         _actualAntiAliasingSamples = MinimumAntiAliasingSamples;
     }
 
-    private static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
+    internal static Matrix4x4 GetSceneAxisMatrix(SceneUpAxis upAxis)
     {
         return upAxis switch
         {

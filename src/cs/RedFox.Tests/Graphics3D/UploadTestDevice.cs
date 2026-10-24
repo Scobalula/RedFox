@@ -75,7 +75,7 @@ internal sealed class UploadTestDevice : IGraphicsDevice, IFrameTextureUploadBud
 
     public int GetSupportedTextureSampleCount(ImageFormat format, TextureUsage usage, int requestedSampleCount) => throw new NotSupportedException();
 
-    public IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, IGpuTexture? depthTexture) => throw new NotSupportedException();
+    public IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture) => throw new NotSupportedException();
 
     public ICommandList CreateCommandList() => throw new NotSupportedException();
 

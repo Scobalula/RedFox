@@ -166,7 +166,7 @@ public interface IGraphicsDevice : IDisposable
     /// <param name="colorTexture">The color texture attachment.</param>
     /// <param name="depthTexture">The optional depth texture attachment.</param>
     /// <returns>The created render target.</returns>
-    IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, IGpuTexture? depthTexture);
+    IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture);
 
     /// <summary>
     /// Creates a command list owned by this device.

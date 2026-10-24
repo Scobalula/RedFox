@@ -607,18 +607,21 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
     }
 
     /// <inheritdoc/>
-    public IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, IGpuTexture? depthTexture)
+    public IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture)
     {
         ThrowIfDisposed();
 
-        OpenGlTexture openGlColorTexture = colorTexture as OpenGlTexture
-            ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)} for color texture.");
+        OpenGlTexture? openGlColorTexture = colorTexture as OpenGlTexture;
         OpenGlTexture? openGlDepthTexture = depthTexture as OpenGlTexture;
 
         GL gl = _context.Gl;
         uint handle = gl.GenFramebuffer();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
-        AttachFramebufferResource(gl, FramebufferAttachment.ColorAttachment0, openGlColorTexture);
+        if (openGlColorTexture is not null)
+        {
+            AttachFramebufferResource(gl, FramebufferAttachment.ColorAttachment0, openGlColorTexture);
+        }
+
         if (openGlDepthTexture is not null)
         {
             AttachFramebufferResource(gl, GetDepthFramebufferAttachment(openGlDepthTexture.Format), openGlDepthTexture);
@@ -720,8 +723,9 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
         uint handle = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, handle);
 
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
-        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        int filter = usage.HasFlag(TextureUsage.DepthStencil) ? (int)GLEnum.Nearest : (int)GLEnum.Linear;
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, filter);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, filter);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
 
@@ -1116,6 +1120,13 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             case ImageFormat.B8G8R8A8UnormSrgb:
                 internalFormat = SizedInternalFormat.Srgb8Alpha8;
                 pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Bgra;
+                pixelType = PixelType.UnsignedByte;
+                isCompressed = false;
+                return true;
+
+            case ImageFormat.R8Unorm when usage.HasFlag(TextureUsage.RenderTarget):
+                internalFormat = SizedInternalFormat.R8;
+                pixelFormat = global::Silk.NET.OpenGL.PixelFormat.Red;
                 pixelType = PixelType.UnsignedByte;
                 isCompressed = false;
                 return true;
