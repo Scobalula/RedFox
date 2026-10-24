@@ -93,7 +93,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         _cacheNodes.Clear();
     }
 
-    private static bool SupportsThumbnail(AssetCategory category) => category is AssetCategory.Image or AssetCategory.Model;
+    private static bool SupportsThumbnail(AssetCategory category) => category is AssetCategory.Image or AssetCategory.Model or AssetCategory.Material;
 
     private static void ReleaseThumbnail(AssetRowViewModel row)
     {
