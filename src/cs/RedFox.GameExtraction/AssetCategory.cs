@@ -21,6 +21,11 @@ public enum AssetCategory
     Image,
 
     /// <summary>
+    /// The asset describes a surface material, previewed as a scene that shows it.
+    /// </summary>
+    Material,
+
+    /// <summary>
     /// The asset contains sound or music data.
     /// </summary>
     Sound,
