@@ -9,7 +9,8 @@
         Title="{Binding Config.WindowTitle}"
         Width="1280" Height="780"
         MinWidth="900" MinHeight="550"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
 
     <Panel>
         <g3d:AvaloniaOpenGlThumbnailRenderer x:Name="ThumbnailRenderer"

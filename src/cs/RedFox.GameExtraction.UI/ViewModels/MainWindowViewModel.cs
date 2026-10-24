@@ -438,6 +438,26 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Loads files and folders, such as ones dropped onto the window.
+    /// </summary>
+    /// <param name="paths">The file and folder paths to mount.</param>
+    /// <returns>A task that completes when loading finishes.</returns>
+    public async Task LoadPathsAsync(IReadOnlyList<string> paths)
+    {
+        string[] filePaths = [.. paths.Where(File.Exists)];
+
+        if (filePaths.Length > 0)
+        {
+            await MountFilesAsync(filePaths).ConfigureAwait(true);
+        }
+
+        foreach (string directoryPath in paths.Where(Directory.Exists))
+        {
+            await LoadSourceFromDirectoryAsync(directoryPath).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
     /// Unloads a mounted source.
     /// </summary>
     /// <param name="source">The source row to unload.</param>

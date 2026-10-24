@@ -27,6 +27,8 @@ public partial class MainWindow : Window
         Closed += OnWindowClosed;
         Opened += OnWindowOpened;
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
         AssetListBox.ContainerPrepared += OnAssetContainerPrepared;
         AssetListBox.ContainerClearing += OnAssetContainerClearing;
     }
@@ -295,6 +297,21 @@ public partial class MainWindow : Window
         ProcessSelectionWindow processWindow = new();
         processWindow.Initialize(processes);
         return await processWindow.ShowDialog<ProcessSelectionResult?>(this).ConfigureAwait(true);
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
+    }
+
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        string[] paths = [.. (e.DataTransfer.TryGetFiles() ?? []).Select(item => item.TryGetLocalPath()).OfType<string>()];
+
+        if (paths.Length > 0 && DataContext is MainWindowViewModel { IsLoading: false } viewModel)
+        {
+            await viewModel.LoadPathsAsync(paths);
+        }
     }
 
     private void OnPreviewRequested()
