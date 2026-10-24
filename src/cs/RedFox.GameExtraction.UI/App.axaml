@@ -30,6 +30,7 @@
         <StreamGeometry x:Key="IconFile">F1 M4,2 L9.5,2 L13,5.5 L13,14 C13,14.55 12.55,15 12,15 L4,15 C3.45,15 3,14.55 3,14 L3,3 C3,2.45 3.45,2 4,2 Z M9,3 L9,6 L12,6 Z</StreamGeometry>
         <StreamGeometry x:Key="IconModel">F1 M8,1 L14.5,4.5 L14.5,11.5 L8,15 L1.5,11.5 L1.5,4.5 Z M8,2.7 L3.2,5.3 L8,7.9 L12.8,5.3 Z M2.8,6.5 L2.8,10.7 L7.2,13.1 L7.2,8.9 Z M8.8,8.9 L8.8,13.1 L13.2,10.7 L13.2,6.5 Z</StreamGeometry>
         <StreamGeometry x:Key="IconImage">F1 M2,2 L14,2 L14,14 L2,14 Z M3.5,12.5 L12.5,12.5 L9.5,8.5 L7.5,10.8 L6,9.2 Z M10.5,6.5 A1,1 0 1 1 10.5,4.5 A1,1 0 1 1 10.5,6.5 Z</StreamGeometry>
+        <StreamGeometry x:Key="IconMaterial">M8,1.5 A6.5,6.5 0 1 1 8,14.5 A6.5,6.5 0 1 1 8,1.5 Z M5.5,4 A2,1.6 0 1 0 5.5,7.2 A2,1.6 0 1 0 5.5,4 Z</StreamGeometry>
         <StreamGeometry x:Key="IconSound">F1 M2,6 L5,6 L9,3 L9,13 L5,10 L2,10 Z M11,6 C12.3,7.2 12.3,8.8 11,10 M12.5,4.5 C15,6.5 15,9.5 12.5,11.5</StreamGeometry>
         <StreamGeometry x:Key="IconArchive">F1 M2,2 L14,2 L14,5 L2,5 Z M3,6 L13,6 L12,14 L4,14 Z M6,8 L10,8 L10,9.5 L6,9.5 Z</StreamGeometry>
         <StreamGeometry x:Key="IconOther">F1 M2,2 L6,2 L6,6 L2,6 Z M10,2 L14,2 L14,6 L10,6 Z M2,10 L6,10 L6,14 L2,14 Z M10,10 L14,10 L14,14 L10,14 Z</StreamGeometry>

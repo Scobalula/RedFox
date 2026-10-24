@@ -25,6 +25,7 @@ public sealed class IconResourceConverter : IValueConverter
             AssetCategory.Model => "IconModel",
             AssetCategory.Animation => "IconPlay",
             AssetCategory.Image => "IconImage",
+            AssetCategory.Material => "IconMaterial",
             AssetCategory.Sound => "IconSound",
             AssetCategory.Archive => "IconArchive",
             AssetCategory.Document => "IconFile",
