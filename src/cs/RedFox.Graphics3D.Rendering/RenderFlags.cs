@@ -29,8 +29,10 @@ public enum RenderFlags
 
     Shadow = 4,
 
+    DepthPrepass = 5,
+
     /// <summary>
     /// Sentinel value equal to the number of defined render phases.
     /// </summary>
-    NUMNUMS = 5,
+    NUMNUMS = 6,
 }

@@ -32,12 +32,26 @@ public partial class SettingsWindowViewModel : ObservableObject
             .Select(group => new SettingGroupViewModel(
                 group.Key,
                 [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, BrowseSettingAsync))]))];
+
+        Dictionary<string, GameExtractionSettingViewModel> settingsByName = Groups.SelectMany(group => group.Settings).ToDictionary(setting => setting.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (GameExtractionSettingViewModel setting in settingsByName.Values)
+        {
+            if (setting.DependsOn is not null && settingsByName.TryGetValue(setting.DependsOn, out GameExtractionSettingViewModel? parent))
+            {
+                setting.Parent = parent;
+            }
+        }
+
+        SelectedGroup = Groups.FirstOrDefault();
     }
 
     /// <summary>
     /// Gets the setting groups displayed in the window.
     /// </summary>
     public IReadOnlyList<SettingGroupViewModel> Groups { get; }
+
+    [ObservableProperty]
+    public partial SettingGroupViewModel? SelectedGroup { get; set; }
 
     /// <summary>
     /// Raised when the view model should be saved and closed.
@@ -133,15 +147,15 @@ public partial class SettingsWindowViewModel : ObservableObject
 
     private static int GetGroupOrder(GameExtractionSettingGroup group) => group switch
     {
-        GameExtractionSettingGroup.Export => 0,
-        GameExtractionSettingGroup.Model => 1,
-        GameExtractionSettingGroup.Animation => 2,
-        GameExtractionSettingGroup.Image => 3,
-        GameExtractionSettingGroup.Sound => 4,
-        GameExtractionSettingGroup.Archive => 5,
-        GameExtractionSettingGroup.Document => 6,
-        GameExtractionSettingGroup.Preview => 7,
-        GameExtractionSettingGroup.General => 8,
+        GameExtractionSettingGroup.General => 0,
+        GameExtractionSettingGroup.Export => 1,
+        GameExtractionSettingGroup.Model => 2,
+        GameExtractionSettingGroup.Animation => 3,
+        GameExtractionSettingGroup.Image => 4,
+        GameExtractionSettingGroup.Sound => 5,
+        GameExtractionSettingGroup.Archive => 6,
+        GameExtractionSettingGroup.Document => 7,
+        GameExtractionSettingGroup.Preview => 8,
         GameExtractionSettingGroup.Other => 9,
         _ => int.MaxValue,
     };

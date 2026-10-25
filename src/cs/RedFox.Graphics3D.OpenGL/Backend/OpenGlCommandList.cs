@@ -15,6 +15,8 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private const int MaxLights = 4;
     private const int EnvironmentMapSlot = 31;
     private const int ShadowMapSlot = 30;
+    private const int GlobalTextureSlot = 29;
+    private const int MaxGlobalTextures = 4;
     private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
     private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
     private static readonly string[] EnvironmentLightDirectionUniformNames = CreateIndexedUniformNames("EnvironmentLightDirections", MaxLights);
@@ -23,6 +25,9 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private static readonly string[] ShadowFilterRadiusUniformNames = CreateIndexedUniformNames("ShadowFilterRadii", OpenGlShadowMapArray.MaxLayers);
 
     private readonly Dictionary<int, OpenGlBuffer> _boundBuffers = [];
+    private readonly List<string> _globalTextureNames = [];
+    private readonly List<string> _globalTextureFlagNames = [];
+    private readonly List<IGpuTexture?> _globalTextures = [];
     private readonly OpenGlContext _context;
     private readonly Vector3[] _lightColors = new Vector3[MaxLights];
     private readonly Vector4[] _lightDirectionsAndIntensity = new Vector4[MaxLights];
@@ -90,6 +95,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _useViewBasedLighting = false;
         _environmentMap = null;
         _context.Gl.DepthMask(true);
+
+        for (int i = 0; i < _globalTextureNames.Count; i++)
+        {
+            SetGlobalTexture(_globalTextureNames[i], null);
+        }
     }
 
     /// <inheritdoc/>
@@ -209,6 +219,35 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _environmentMap = texture;
         _environmentMipLevels = mipLevels;
         _environmentIntensity = intensity;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    public void SetGlobalTexture(string name, IGpuTexture? texture)
+    {
+        ThrowIfDisposed();
+
+        int index = _globalTextureNames.IndexOf(name);
+        if (index < 0)
+        {
+            if (_globalTextureNames.Count == MaxGlobalTextures)
+            {
+                throw new InvalidOperationException($"No more than {MaxGlobalTextures} global textures can be set.");
+            }
+
+            index = _globalTextureNames.Count;
+            _globalTextureNames.Add(name);
+            _globalTextureFlagNames.Add($"Has{name}");
+            _globalTextures.Add(null);
+        }
+
+        _globalTextures[index] = texture;
+
+        if (texture is null)
+        {
+            _context.Gl.ActiveTexture(TextureUnit.Texture0 + GlobalTextureSlot - index);
+            _context.Gl.BindTexture(TextureTarget.Texture2D, 0);
+        }
+
         ApplySceneStateToCurrentProgram();
     }
 
@@ -670,6 +709,17 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             graphicsProgram.SetInt("EnvironmentMap", EnvironmentMapSlot);
             graphicsProgram.SetFloat("EnvironmentMipLevels", _environmentMipLevels);
             graphicsProgram.SetFloat("EnvironmentIntensity", _environmentIntensity);
+        }
+
+        for (int i = 0; i < _globalTextures.Count; i++)
+        {
+            if (_globalTextures[i] is { } globalTexture)
+            {
+                BindTexture(GlobalTextureSlot - i, globalTexture);
+            }
+
+            graphicsProgram.SetInt(_globalTextureNames[i], GlobalTextureSlot - i);
+            graphicsProgram.SetInt(_globalTextureFlagNames[i], _globalTextures[i] is null ? 0 : 1);
         }
 
         int appliedLightCount = _lightCount;

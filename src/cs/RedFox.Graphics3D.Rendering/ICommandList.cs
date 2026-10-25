@@ -80,6 +80,8 @@ public interface ICommandList
 
     void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity);
 
+    void SetGlobalTexture(string name, IGpuTexture? texture);
+
     /// <summary>
     /// Sets the active skinning mode used by compute skinning for the current frame.
     /// </summary>

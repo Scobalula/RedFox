@@ -14,6 +14,13 @@ public abstract class SceneNode : IUpdatable, IDisposable
     private List<SceneNode>? _children = null;
     private bool _disposed;
     private Scene? _scene = null;
+    private SceneNode?	_parent;
+    private Transform	_bindTransform = new();
+    private Transform	_liveTransform = new();
+    private Matrix4x4	_activeWorldMatrix;
+    private long		_activeWorldMatrixVersion = -1;
+    private Matrix4x4	_bindWorldMatrix;
+    private long		_bindWorldMatrixVersion = -1;
 
     /// <summary>
     /// Gets or sets the name associated with the node.
@@ -28,7 +35,15 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <summary>
     /// Gets or Sets the parent of this node.
     /// </summary>
-    public SceneNode? Parent { get; internal set; }
+    public SceneNode? Parent
+    {
+        get => _parent;
+        internal set
+        {
+            _parent = value;
+            Transform.MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets the slash-delimited path of this node within its hierarchy, built from the names
@@ -45,12 +60,28 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// Gets or sets the bind transformation applied to the node.
     /// For bones, this represents the skin binding pose and default fallback pose.
     /// </summary>
-    public Transform BindTransform { get; set; } = new();
+    public Transform BindTransform
+    {
+        get => _bindTransform;
+        set
+        {
+            _bindTransform = value;
+            Transform.MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the live transformation applied to the node.
     /// </summary>
-    public Transform LiveTransform { get; set; } = new();
+    public Transform LiveTransform
+    {
+        get => _liveTransform;
+        set
+        {
+            _liveTransform = value;
+            Transform.MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the flags that define the properties and behaviors of the scene node.
@@ -1963,17 +1994,28 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The bind world transform matrix.</returns>
     public Matrix4x4 GetBindWorldMatrix()
     {
+        long version = Transform.Version;
+        if (_bindWorldMatrixVersion == version)
+            return _bindWorldMatrix;
+
         if (Parent is null)
-            return GetBindLocalMatrix();
+        {
+            _bindWorldMatrix = GetBindLocalMatrix();
+        }
+        else
+        {
+            // The parent's world matrix is reused to derive a world-only local position. Deriving it separately walks the ancestors twice per level, which is exponential in hierarchy depth.
+            Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
+            Vector3 localPosition = BindTransform.LocalPosition ?? (BindTransform.WorldPosition is { } worldPosition ? GetBindLocalPosition(worldPosition, parentWorldMatrix) : Vector3.Zero);
 
-        // The parent's world matrix is reused to derive a world-only local position. Deriving it separately walks the ancestors twice per level, which is exponential in hierarchy depth.
-        Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
-        Vector3 localPosition = BindTransform.LocalPosition ?? (BindTransform.WorldPosition is { } worldPosition ? GetBindLocalPosition(worldPosition, parentWorldMatrix) : Vector3.Zero);
+            _bindWorldMatrix = Matrix4x4.CreateScale(GetBindLocalScale())
+                * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetBindLocalRotation()))
+                * Matrix4x4.CreateTranslation(localPosition)
+                * parentWorldMatrix;
+        }
 
-        return Matrix4x4.CreateScale(GetBindLocalScale())
-            * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetBindLocalRotation()))
-            * Matrix4x4.CreateTranslation(localPosition)
-            * parentWorldMatrix;
+        _bindWorldMatrixVersion = version;
+        return _bindWorldMatrix;
     }
 
     /// <summary>
@@ -2872,18 +2914,13 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The active world transform matrix.</returns>
     public Matrix4x4 GetActiveWorldMatrix()
     {
-        return Parent is not null ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix() : GetActiveLocalMatrix();
-    }
+        long version = Transform.Version;
+        if (_activeWorldMatrixVersion == version)
+            return _activeWorldMatrix;
 
-    internal Matrix4x4 GetActiveWorldMatrix(Dictionary<SceneNode, Matrix4x4> cache)
-    {
-        if (cache.TryGetValue(this, out Matrix4x4 worldMatrix))
-            return worldMatrix;
-
-        Matrix4x4 localMatrix = GetActiveLocalMatrix();
-        worldMatrix = Parent is not null ? localMatrix * Parent.GetActiveWorldMatrix(cache) : localMatrix;
-        cache[this] = worldMatrix;
-        return worldMatrix;
+        _activeWorldMatrix = Parent is not null ? GetActiveLocalMatrix() * Parent.GetActiveWorldMatrix() : GetActiveLocalMatrix();
+        _activeWorldMatrixVersion = version;
+        return _activeWorldMatrix;
     }
 
     /// <summary>

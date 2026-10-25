@@ -36,7 +36,7 @@ public sealed class GameExtractionSetting
     public object? DefaultValue { get; init; }
 
     /// <summary>
-    /// Gets the available values for choice settings.
+    /// Gets the available values for choice and text array settings.
     /// </summary>
     public IReadOnlyList<string> Options { get; init; } = [];
 
@@ -53,4 +53,8 @@ public sealed class GameExtractionSetting
     public double Minimum { get; init; }
 
     public double Maximum { get; init; } = 1.0;
+
+    public string? Section { get; init; }
+
+    public string? DependsOn { get; init; }
 }

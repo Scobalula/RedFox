@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Enumeration;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -189,6 +190,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets or sets the displayed asset count after filtering.
     /// </summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportAllCommand))]
     public partial int FilteredCount { get; set; }
 
     /// <summary>
@@ -258,12 +260,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets or sets the loaded source count.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLoadedSources))]
     public partial int SourceCount { get; set; }
 
-    /// <summary>
-    /// Gets the manage sources button text.
-    /// </summary>
-    public string SourceCountDisplay => SourceCount > 0 ? $"Sources ({SourceCount})" : "Sources";
+    public bool HasLoadedSources => SourceCount > 0;
 
     /// <summary>
     /// Gets or sets the current status text.
@@ -911,11 +911,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         DonateRequested?.Invoke(false);
     }
 
-    partial void OnSourceCountChanged(int value)
-    {
-        OnPropertyChanged(nameof(SourceCountDisplay));
-    }
-
     private async Task RequestLoadFilesAsync()
     {
         if (FileDialogRequested is null)
@@ -1234,16 +1229,31 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         SidebarIconPath = ResolveIconPath(config.SidebarIconPath ?? config.IconPath);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExportAll))]
     private async Task ExportAll()
     {
         await ExportAssetsAsync(AssetsView.ToArray()).ConfigureAwait(false);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(HasSelectedAssets))]
     private async Task ExportSelected()
     {
         await ExportAssetsAsync(SelectedAssets).ConfigureAwait(false);
+    }
+
+    [RelayCommand]
+    private void OpenExportFolder()
+    {
+        string outputDirectory = CreateConfiguration().GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory());
+        if (!TryOpenFolder(outputDirectory, out string? error))
+        {
+            StatusText = error;
+        }
+    }
+
+    private bool CanExportAll()
+    {
+        return FilteredCount > 0;
     }
 
     /// <summary>
@@ -1299,7 +1309,13 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             progressVm.ProgressValue = 100;
             progressVm.IsIndeterminate = false;
             progressVm.IsCompleted = true;
-            progressVm.OpenExportFolderCommand = new RelayCommand(() => OpenExportFolder(progressVm, configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory())));
+            progressVm.OpenExportFolderCommand = new RelayCommand(() =>
+            {
+                if (!TryOpenFolder(configuration.GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory()), out string? error))
+                {
+                    progressVm.StatusText = error;
+                }
+            });
             StatusText = summary;
             completed = true;
         }
@@ -1451,17 +1467,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return progressVm;
     }
 
-    private static void OpenExportFolder(ProgressDialogViewModel progressVm, string outputDirectory)
+    private static bool TryOpenFolder(string outputDirectory, [NotNullWhen(false)] out string? error)
     {
         try
         {
             string fullPath = Path.GetFullPath(outputDirectory);
             Directory.CreateDirectory(fullPath);
             Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
+            error = null;
+            return true;
         }
         catch (Exception exception)
         {
-            progressVm.StatusText = $"Unable to open export folder: {exception.Message}";
+            error = $"Unable to open export folder: {exception.Message}";
+            return false;
         }
     }
 
@@ -1781,6 +1800,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(HasSelectedAssets));
         OnPropertyChanged(nameof(SelectedAssetsSummary));
+        ExportSelectedCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshAssetFilterOptions()

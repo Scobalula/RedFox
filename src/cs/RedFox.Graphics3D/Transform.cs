@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Threading;
 
 namespace RedFox.Graphics3D;
 
@@ -22,35 +23,85 @@ namespace RedFox.Graphics3D;
 /// </remarks>
 public class Transform
 {
+    private static long _version;
+
+    private Vector3?		_localPosition;
+    private Quaternion?	_localRotation;
+    private Vector3?		_worldPosition;
+    private Quaternion?	_worldRotation;
+    private Vector3?		_scale;
+
     /// <summary>
     /// Gets or sets the local position of the object in three-dimensional space, usually relative to the parent.
     /// </summary>
     /// <remarks>If the value is null, it indicates that the value is not defined and must be computed.</remarks>
-    public Vector3? LocalPosition { get; set; }
+    public Vector3? LocalPosition
+    {
+        get => _localPosition;
+        set
+        {
+            _localPosition = value;
+            MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the local rotation of the object in three-dimensional space, usually relative to the parent.
     /// </summary>
     /// <remarks>If the value is null, it indicates that the value is not defined and must be computed.</remarks>
-    public Quaternion? LocalRotation { get; set; }
+    public Quaternion? LocalRotation
+    {
+        get => _localRotation;
+        set
+        {
+            _localRotation = value;
+            MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the world position of the object in three-dimensional space, usually relative to 0,0,0.
     /// </summary>
     /// <remarks>If the value is null, it indicates that the value is not defined and must be computed.</remarks>
-    public Vector3? WorldPosition { get; set; }
+    public Vector3? WorldPosition
+    {
+        get => _worldPosition;
+        set
+        {
+            _worldPosition = value;
+            MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the world rotation of the object in three-dimensional space, usually relative to 0,0,0.
     /// </summary>
     /// <remarks>If the value is null, it indicates that the value is not defined and must be computed.</remarks>
-    public Quaternion? WorldRotation { get; set; }
+    public Quaternion? WorldRotation
+    {
+        get => _worldRotation;
+        set
+        {
+            _worldRotation = value;
+            MarkChanged();
+        }
+    }
 
     /// <summary>
     /// Gets or sets the scale factor on all axis.
     /// </summary>
     /// <remarks>If the value is null, it indicates that the value is not defined.</remarks>
-    public Vector3? Scale { get; set; }
+    public Vector3? Scale
+    {
+        get => _scale;
+        set
+        {
+            _scale = value;
+            MarkChanged();
+        }
+    }
+
+    public static long Version => Interlocked.Read(ref _version);
 
     /// <summary>
     /// Creates a copy of this transform.
@@ -131,4 +182,6 @@ public class Transform
         WorldRotation = null;
         Scale = null;
     }
+
+    internal static void MarkChanged() => Interlocked.Increment(ref _version);
 }

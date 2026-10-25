@@ -73,6 +73,12 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     public static readonly StyledProperty<float> ShadowStrengthProperty =
         AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(ShadowStrength), 1.0f);
 
+    public static readonly StyledProperty<AmbientOcclusionQuality> AmbientOcclusionQualityProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, AmbientOcclusionQuality>(nameof(AmbientOcclusionQuality), AmbientOcclusionQuality.High);
+
+    public static readonly StyledProperty<float> AmbientOcclusionRadiusProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(AmbientOcclusionRadius), 0.08f);
+
+    public static readonly StyledProperty<float> AmbientOcclusionIntensityProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(AmbientOcclusionIntensity), 1.5f);
+
     /// <summary>
     /// Defines the <see cref="IsAnimationPaused"/> property.
     /// </summary>
@@ -105,6 +111,9 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         ShadowQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         ShadowSoftnessProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         ShadowStrengthProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        AmbientOcclusionQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        AmbientOcclusionRadiusProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        AmbientOcclusionIntensityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         IsAnimationPausedProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.RequestFrame());
     }
 
@@ -208,6 +217,24 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(ShadowStrengthProperty);
         set => SetValue(ShadowStrengthProperty, value);
+    }
+
+    public AmbientOcclusionQuality AmbientOcclusionQuality
+    {
+        get => GetValue(AmbientOcclusionQualityProperty);
+        set => SetValue(AmbientOcclusionQualityProperty, value);
+    }
+
+    public float AmbientOcclusionRadius
+    {
+        get => GetValue(AmbientOcclusionRadiusProperty);
+        set => SetValue(AmbientOcclusionRadiusProperty, value);
+    }
+
+    public float AmbientOcclusionIntensity
+    {
+        get => GetValue(AmbientOcclusionIntensityProperty);
+        set => SetValue(AmbientOcclusionIntensityProperty, value);
     }
 
     /// <summary>
@@ -444,6 +471,9 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer.ShadowQuality = ShadowQuality;
         _renderer.ShadowSoftness = ShadowSoftness;
         _renderer.ShadowStrength = ShadowStrength;
+        _renderer.AmbientOcclusionQuality = AmbientOcclusionQuality;
+        _renderer.AmbientOcclusionRadius = AmbientOcclusionRadius;
+        _renderer.AmbientOcclusionIntensity = AmbientOcclusionIntensity;
         RequestFrame();
     }
 

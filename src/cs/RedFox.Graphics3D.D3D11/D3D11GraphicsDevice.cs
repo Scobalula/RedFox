@@ -332,6 +332,11 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
     /// <inheritdoc/>
     public bool SupportsFormat(ImageFormat format, TextureUsage usage)
     {
+        if (usage.HasFlag(TextureUsage.DepthStencil) && usage.HasFlag(TextureUsage.Sampled))
+        {
+            return false;
+        }
+
         return D3D11Support.GetDxgiFormat(format) != Format.FormatUnknown;
     }
 
@@ -364,7 +369,7 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
     }
 
     /// <inheritdoc/>
-    public IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, IGpuTexture? depthTexture)
+    public IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(colorTexture);

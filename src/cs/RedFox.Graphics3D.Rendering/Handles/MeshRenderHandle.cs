@@ -201,7 +201,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if ((phase != Rendering.RenderFlags.Opaque && phase != Rendering.RenderFlags.Shadow) || VertexCount <= 0 || !_isReadyToRender)
+        if ((phase != Rendering.RenderFlags.Opaque && phase != Rendering.RenderFlags.Shadow && phase != Rendering.RenderFlags.DepthPrepass) || VertexCount <= 0 || !_isReadyToRender)
         {
             return;
         }
@@ -225,6 +225,11 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
             MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
 
+            if (phase == Rendering.RenderFlags.DepthPrepass && !materialHandle.IsOpaque)
+            {
+                continue;
+            }
+
             // A texture can take several frames to upload. Keep the mesh visible with its base
             // material color while those textures finish instead of hiding the whole mesh.
             materialHandle.BindResources(commandList);
@@ -245,6 +250,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
             commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
             commandList.SetUniformInt("HasTangents", _buffers[9].HasGpuBuffer ? 1 : 0);
+            commandList.SetUniformInt("DepthPrepass", phase == Rendering.RenderFlags.DepthPrepass ? 1 : 0);
 
             foreach (MeshGpuBufferBinding buffer in _buffers)
             {

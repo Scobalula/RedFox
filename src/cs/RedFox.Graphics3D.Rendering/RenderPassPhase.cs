@@ -26,6 +26,8 @@ public enum RenderPassPhase
     /// </summary>
     Shadow = 300,
 
+    Prepass = 350,
+
     /// <summary>
     /// Opaque geometry rendering.
     /// </summary>

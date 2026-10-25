@@ -12,8 +12,6 @@ namespace RedFox.Graphics3D;
 /// </summary>
 public class Mesh : SceneNode
 {
-    private Dictionary<SceneNode, Matrix4x4>? _skinWorldMatrices;
-
     /// <summary>
     /// Gets or sets the data buffer that contains vertex position information for the mesh.
     /// </summary>
@@ -125,13 +123,10 @@ public class Mesh : SceneNode
             throw new ArgumentException($"Destination span must be at least {Skin.Bones.Count} elements.", nameof(destination));
 
         Matrix4x4 meshBindWorld = GetBindWorldMatrix();
-        Dictionary<SceneNode, Matrix4x4> worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
-        worldMatrices.Clear();
 
         for (int i = 0; i < Skin.Bones.Count; i++)
-            destination[i] = Skin.GetSkinTransform(i, meshBindWorld, worldMatrices);
+            destination[i] = Skin.GetSkinTransform(i, meshBindWorld);
 
-        worldMatrices.Clear();
         return Skin.Bones.Count;
     }
 
@@ -380,13 +375,9 @@ public class Mesh : SceneNode
         if (Skin is not null)
         {
             SceneBounds[] bindSpaceBounds = Skin.GetBindSpaceBounds(Positions, GetBindWorldMatrix());
-            Dictionary<SceneNode, Matrix4x4> worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
-            worldMatrices.Clear();
 
             for (int i = 0; i < bindSpaceBounds.Length; i++)
-                bounds = bounds.Include(bindSpaceBounds[i].Expand(morphOffset).Transform(Skin.Bones[i].GetActiveWorldMatrix(worldMatrices)));
-
-            worldMatrices.Clear();
+                bounds = bounds.Include(bindSpaceBounds[i].Expand(morphOffset).Transform(Skin.Bones[i].GetActiveWorldMatrix()));
 
             if (bounds.IsValid)
                 return true;
@@ -524,7 +515,6 @@ public class Mesh : SceneNode
     /// <inheritdoc/>
     protected override void OnCloned()
     {
-        _skinWorldMatrices = null;
         Skin = Skin?.Clone();
         Morph = Morph?.Clone();
         Materials = Materials is null ? null : [.. Materials];
@@ -539,17 +529,7 @@ public class Mesh : SceneNode
         if (Skin is not { Bones.Count: > 0, InfluenceCount: > 0 })
             return null;
 
-        Dictionary<SceneNode, Matrix4x4>? worldMatrices = null;
-        Matrix4x4 meshBindWorld = Matrix4x4.Identity;
-        if (skinTransforms.IsEmpty)
-        {
-            meshBindWorld = GetBindWorldMatrix();
-            if (Skin.InfluenceCount > 1)
-            {
-                worldMatrices = _skinWorldMatrices ??= new(Skin.Bones.Count);
-                worldMatrices.Clear();
-            }
-        }
+        Matrix4x4 meshBindWorld = skinTransforms.IsEmpty ? GetBindWorldMatrix() : Matrix4x4.Identity;
 
         Vector3 result = Vector3.Zero;
         float totalWeight = 0f;
@@ -565,8 +545,6 @@ public class Mesh : SceneNode
             Matrix4x4 skinTransform;
             if (!skinTransforms.IsEmpty)
                 skinTransform = skinTransforms[boneIndex];
-            else if (worldMatrices is not null)
-                skinTransform = Skin.GetSkinTransform(boneIndex, meshBindWorld, worldMatrices);
             else
                 skinTransform = Skin.GetSkinTransform(boneIndex, meshBindWorld);
             if (!transformOverrides.IsEmpty)
@@ -576,7 +554,6 @@ public class Mesh : SceneNode
             totalWeight += weight;
         }
 
-        worldMatrices?.Clear();
         return totalWeight > 0f ? result : null;
     }
 

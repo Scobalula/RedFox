@@ -39,6 +39,8 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     /// </summary>
     internal IGpuPipelineState? Pipeline => _pipeline;
 
+    internal bool IsOpaque { get; private set; }
+
 
     /// <inheritdoc/>
     public override RenderHandleFlags Flags => RenderHandleFlags.SubHandle;
@@ -142,7 +144,9 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         IMaterialPipelineProvider pipelineProvider = GetPipelineProvider();
         _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, requestedTypeName);
         _resolvedTypeName = requestedTypeName;
-        _textureRequirements = _graphicsDevice.MaterialTypes.Get(requestedTypeName).Descriptor.Requirements.Textures;
+        MaterialTypeDescriptor descriptor = _graphicsDevice.MaterialTypes.Get(requestedTypeName).Descriptor;
+        IsOpaque = descriptor.PipelineState is { Blend: false, DepthWrite: true };
+        _textureRequirements = descriptor.Requirements.Textures;
         _textureFlagUniformNames = [.. _textureRequirements.Select(requirement => $"Has{requirement.Name}")];
     }
 
