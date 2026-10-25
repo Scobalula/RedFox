@@ -29,6 +29,8 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
         set => SetValue(ItemHeightProperty, value);
     }
 
+    public int Columns => _columns;
+
     static VirtualizingTilePanel()
     {
         AffectsMeasure<VirtualizingTilePanel>(ItemWidthProperty, ItemHeightProperty);
