@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageDescription>Wwise sound bank, package and media decoding for RedFox Audio.</PackageDescription>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.Audio\RedFox.Audio.csproj" />
+    <ProjectReference Include="..\RedFox.Audio.Opus\RedFox.Audio.Opus.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="packed_codebooks.bin" LogicalName="RedFox.Audio.Wwise.packed_codebooks.bin" />
+    <None Include="..\..\..\licenses\Vorbis-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+    <None Include="..\..\..\licenses\Ogg-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+    <None Update="runtimes\win-x64\native\vorbis.dll" Link="vorbis.dll" CopyToOutputDirectory="PreserveNewest" Pack="true" PackagePath="runtimes\win-x64\native\vorbis.dll" />
+  </ItemGroup>
+
+</Project>

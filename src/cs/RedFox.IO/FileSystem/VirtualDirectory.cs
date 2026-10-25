@@ -255,6 +255,15 @@ public sealed class VirtualDirectory
         {
             foreach (var name in path.Split(VirtualFileSystem.Separators, StringSplitOptions.RemoveEmptyEntries))
             {
+                if (name == ".")
+                    continue;
+
+                if (name == "..")
+                {
+                    directory = directory.Parent ?? directory;
+                    continue;
+                }
+
                 if (!directory._directories.TryGetValue(name, out directory))
                     return false;
             }

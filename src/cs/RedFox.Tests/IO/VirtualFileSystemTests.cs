@@ -77,6 +77,26 @@ public sealed class VirtualFileSystemTests
     }
 
     [Fact]
+    public void TryGetFile_ResolvesDotSegmentsLikeWindows()
+    {
+        VirtualFileSystem fileSystem = new();
+        MemoryVirtualFile file = new([4]);
+
+        fileSystem.AddFile("sounds/desktop/abilities.bnk", file);
+        fileSystem.CreateDirectory("sounds/banks");
+
+        VirtualDirectory banks = fileSystem.Root.GetDirectory("sounds/banks");
+
+        Assert.True(banks.TryGetFile("../desktop/abilities.bnk", out VirtualFile? found));
+        Assert.Same(file, found);
+        Assert.True(banks.TryGetFile("./../desktop/./abilities.bnk", out found));
+        Assert.Same(file, found);
+        Assert.True(fileSystem.TryGetFile("../../sounds/desktop/abilities.bnk", out found));
+        Assert.Same(file, found);
+        Assert.False(banks.TryGetFile("../banks/../missing.bnk", out _));
+    }
+
+    [Fact]
     public void TryFindFirstFile_ReturnsFirstWildcardMatchInDirectory()
     {
         VirtualFileSystem fileSystem = new();
