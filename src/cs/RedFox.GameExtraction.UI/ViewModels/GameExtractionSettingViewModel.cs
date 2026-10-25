@@ -95,8 +95,6 @@ public partial class GameExtractionSettingViewModel : ObservableObject
 
     public string? DependsOn => _setting.DependsOn;
 
-    public bool IsDependent => !string.IsNullOrWhiteSpace(DependsOn);
-
     public GameExtractionSettingViewModel? Parent { get; set; }
 
     /// <summary>

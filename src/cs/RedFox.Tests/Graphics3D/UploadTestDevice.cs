@@ -73,9 +73,13 @@ internal sealed class UploadTestDevice : IGraphicsDevice, IFrameTextureUploadBud
 
     public IGpuTexture CreateTexture(Image image, TextureUsage usage) => throw new NotSupportedException();
 
+    public IGpuTexture CreateTexture(int width, int height, int mipLevels, ImageFormat format, TextureUsage usage) => throw new NotSupportedException();
+
     public int GetSupportedTextureSampleCount(ImageFormat format, TextureUsage usage, int requestedSampleCount) => throw new NotSupportedException();
 
     public IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture) => throw new NotSupportedException();
+
+    public IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, int mipLevel) => throw new NotSupportedException();
 
     public ICommandList CreateCommandList() => throw new NotSupportedException();
 

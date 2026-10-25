@@ -143,6 +143,8 @@ public interface IGraphicsDevice : IDisposable
     /// <returns>The created GPU texture.</returns>
     IGpuTexture CreateTexture(Image image, TextureUsage usage);
 
+    IGpuTexture CreateTexture(int width, int height, int mipLevels, ImageFormat format, TextureUsage usage);
+
     /// <summary>
     /// Returns whether the backend supports a texture format for the supplied usage.
     /// </summary>
@@ -167,6 +169,8 @@ public interface IGraphicsDevice : IDisposable
     /// <param name="depthTexture">The optional depth texture attachment.</param>
     /// <returns>The created render target.</returns>
     IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture);
+
+    IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, int mipLevel);
 
     /// <summary>
     /// Creates a command list owned by this device.

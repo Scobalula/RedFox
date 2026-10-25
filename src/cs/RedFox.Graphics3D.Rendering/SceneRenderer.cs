@@ -590,7 +590,7 @@ public sealed class SceneRenderer : IDisposable
 
         SkyboxRenderHandle skyboxHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, skybox, () => new SkyboxRenderHandle(_graphicsDevice, _graphicsDevice.MaterialTypes, skybox, scene));
         skyboxHandle.Update(_commandList);
-        _commandList.SetEnvironmentMap(skyboxHandle.Texture, skyboxHandle.MipLevels, skybox.Intensity);
+        _commandList.SetEnvironmentMap(skyboxHandle.EnvironmentTexture, skyboxHandle.MipLevels, skybox.Intensity);
 
         foreach (EnvironmentLight light in skyboxHandle.Lights)
         {

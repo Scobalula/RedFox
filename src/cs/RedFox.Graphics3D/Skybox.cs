@@ -32,4 +32,6 @@ public sealed class Skybox
 
     public float BackgroundBlur { get; set; }
 
+    public float Rotation { get; set; }
+
 }

@@ -16,6 +16,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 {
     private const string AllAnimationsLabel = "All animations";
 
+    private static readonly Vector3 FitViewDirection = Vector3.Normalize(new Vector3(1.0f, -0.28f, -0.2f));
+
     private readonly List<Animation> _animations = [];
     private readonly List<Animation> _appendedAnimations = [];
     private readonly IReadOnlyDictionary<Scene, ScenePreviewBounds> _preparedSceneBounds;
@@ -225,6 +227,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         switch (e.PropertyName)
         {
             case nameof(PreviewSettings.UpAxis):
+            case nameof(PreviewSettings.ModelFront):
                 scene.UpAxis = Settings.UpAxis;
                 FitScene(scene, Settings.AutoFitScene);
                 SceneInvalidated?.Invoke();
@@ -241,6 +244,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
             case nameof(PreviewSettings.ShowSkybox):
             case nameof(PreviewSettings.SkyboxBlur):
+            case nameof(PreviewSettings.SkyboxRotation):
                 ConfigureSkybox(scene.Skybox);
                 SceneInvalidated?.Invoke();
                 break;
@@ -387,6 +391,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         skybox.Enabled			= Settings.HasSkybox;
         skybox.ShowBackground	= Settings.ShowSkybox;
         skybox.BackgroundBlur	= Settings.SkyboxBlur;
+        skybox.Rotation			= float.DegreesToRadians(Settings.SkyboxRotation);
     }
 
     private static void ConfigureGrid(Grid grid, SceneBounds bounds)
@@ -504,6 +509,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         {
             return;
         }
+
+        viewportController.FitViewDirection = PreviewSettings.OrientToModelFront(FitViewDirection, scene.UpAxis, Settings.ModelFront);
 
         SceneBounds sceneBounds;
         if (_preparedSceneData.TryGetValue(scene, out ScenePreviewData? preparedData))

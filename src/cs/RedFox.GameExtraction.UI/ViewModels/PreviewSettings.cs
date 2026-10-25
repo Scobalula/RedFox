@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.GameExtraction;
 using RedFox.Graphics3D;
@@ -20,6 +21,18 @@ public sealed partial class PreviewSettings : ObservableObject
         Type = GameExtractionSettingType.Choice,
         Options = [.. Enum.GetNames<SceneUpAxis>()],
         DefaultValue = SceneUpAxis.Y,
+    };
+
+    private static readonly GameExtractionSetting ModelFrontSetting = new()
+    {
+        Name = "PreviewModelFront",
+        Group = GameExtractionSettingGroup.Preview,
+        Section = "Scene",
+        Label = "Model front",
+        Description = "The axis models face, so previews and thumbnails show them from the front.",
+        Type = GameExtractionSettingType.Choice,
+        Options = ["Positive X", "Negative X", "Positive Y", "Negative Y", "Positive Z", "Negative Z"],
+        DefaultValue = "Positive Z",
     };
 
     private static readonly GameExtractionSetting SkinningModeSetting = new()
@@ -178,6 +191,19 @@ public sealed partial class PreviewSettings : ObservableObject
         Maximum = 1.0,
     };
 
+    private static readonly GameExtractionSetting SkyboxRotationSetting = new()
+    {
+        Name = "PreviewSkyboxRotation",
+        Group = GameExtractionSettingGroup.Preview,
+        Section = "Skybox",
+        Label = "Skybox rotation",
+        Description = "Hold Shift and drag in the 3D preview to rotate the skybox.",
+        Type = GameExtractionSettingType.Slider,
+        DefaultValue = 0.0,
+        Minimum = 0.0,
+        Maximum = 360.0,
+    };
+
     private static readonly GameExtractionSetting PreviewPanelSetting = new()
     {
         Name = "PreviewPanelVisible",
@@ -205,6 +231,7 @@ public sealed partial class PreviewSettings : ObservableObject
     public static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
     [
         UpAxisSetting,
+        ModelFrontSetting,
         SkinningModeSetting,
         LightingModeSetting,
         AntiAliasingSetting,
@@ -219,7 +246,10 @@ public sealed partial class PreviewSettings : ObservableObject
         AssetGridSetting,
         SkyboxSetting,
         SkyboxBlurSetting,
+        SkyboxRotationSetting,
     ];
+
+    internal event Action? SaveRequested;
 
     internal ScenePreviewCameraState? CameraState { get; set; }
 
@@ -228,6 +258,9 @@ public sealed partial class PreviewSettings : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial SceneUpAxis UpAxis { get; set; } = SceneUpAxis.Y;
+
+    [ObservableProperty]
+    internal partial ScenePreviewFrontAxis ModelFront { get; set; } = ScenePreviewFrontAxis.PositiveZ;
 
     /// <summary>
     /// Gets or sets the renderer skinning mode.
@@ -290,6 +323,9 @@ public sealed partial class PreviewSettings : ObservableObject
     [ObservableProperty]
     public partial float SkyboxBlur { get; set; }
 
+    [ObservableProperty]
+    public partial float SkyboxRotation { get; set; }
+
     internal bool HasSkybox => SkyboxTexture is not null;
 
     internal Texture? SkyboxTexture { get; set; }
@@ -318,6 +354,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(settings);
         UpAxis = GetEnumValue(settings, UpAxisSetting, SceneUpAxis.Y);
+        ModelFront = GetEnumValue(settings, ModelFrontSetting, ScenePreviewFrontAxis.PositiveZ);
         SkinningMode = GetEnumValue(settings, SkinningModeSetting, SkinningMode.Linear);
         LightingMode = GetEnumValue(settings, LightingModeSetting, ScenePreviewLightingMode.Scene);
         AntiAliasingSamples = settings.GetSettingValue(AntiAliasingSetting) switch
@@ -338,6 +375,7 @@ public sealed partial class PreviewSettings : ObservableObject
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;
         ShowSkybox = bool.TryParse(settings.GetSettingValue(SkyboxSetting), out bool showSkybox) ? showSkybox : true;
         SkyboxBlur = float.TryParse(settings.GetSettingValue(SkyboxBlurSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float skyboxBlur) ? Math.Clamp(skyboxBlur, 0.0f, 1.0f) : 0.0f;
+        SkyboxRotation = float.TryParse(settings.GetSettingValue(SkyboxRotationSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float skyboxRotation) ? Math.Clamp(skyboxRotation, 0.0f, 360.0f) : 0.0f;
         ShowPreviewPanel = bool.TryParse(settings.GetSettingValue(PreviewPanelSetting), out bool showPreviewPanel) ? showPreviewPanel : true;
         PreviewPanelRatio = double.TryParse(settings.GetSettingValue(PreviewPanelRatioSetting), CultureInfo.InvariantCulture, out double ratio) ? Math.Clamp(ratio, 0.1, 0.9) : 0.4;
     }
@@ -347,6 +385,37 @@ public sealed partial class PreviewSettings : ObservableObject
         settings.SetSettingValue(AssetGridSetting, ShowAssetGrid.ToString());
         settings.SetSettingValue(PreviewPanelSetting, ShowPreviewPanel.ToString());
         settings.SetSettingValue(PreviewPanelRatioSetting, PreviewPanelRatio.ToString(CultureInfo.InvariantCulture));
+        settings.SetSettingValue(SkyboxRotationSetting, SkyboxRotation.ToString(CultureInfo.InvariantCulture));
+    }
+
+    internal void RequestSave() => SaveRequested?.Invoke();
+
+    internal static Vector3 OrientToModelFront(Vector3 viewDirection, SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront)
+    {
+        Vector3 front = modelFront switch
+        {
+            ScenePreviewFrontAxis.PositiveX	=> Vector3.UnitX,
+            ScenePreviewFrontAxis.NegativeX	=> -Vector3.UnitX,
+            ScenePreviewFrontAxis.PositiveY	=> Vector3.UnitY,
+            ScenePreviewFrontAxis.NegativeY	=> -Vector3.UnitY,
+            ScenePreviewFrontAxis.NegativeZ	=> -Vector3.UnitZ,
+            _								=> Vector3.UnitZ,
+        };
+
+        Matrix4x4 sceneAxis = upAxis switch
+        {
+            SceneUpAxis.X	=> Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
+            SceneUpAxis.Z	=> Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
+            _				=> Matrix4x4.Identity,
+        };
+
+        Vector3 displayFront = Vector3.TransformNormal(front, sceneAxis);
+        if (MathF.Abs(displayFront.Y) > 0.5f)
+        {
+            return viewDirection;
+        }
+
+        return Vector3.TransformNormal(viewDirection, Matrix4x4.CreateRotationY(MathF.Atan2(displayFront.X, displayFront.Z)));
     }
 
     private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback) where TEnum : struct, Enum

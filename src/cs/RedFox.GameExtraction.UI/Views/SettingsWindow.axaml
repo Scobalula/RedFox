@@ -80,7 +80,7 @@
                                                 <ItemsControl ItemsSource="{Binding Settings}" Margin="0,10,0,0">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
-                                                            <StackPanel Classes="setting-item" Classes.dependent-setting="{Binding IsDependent}" IsEnabled="{Binding Parent.BooleanValue, FallbackValue=True}" Spacing="4">
+                                                            <StackPanel Classes="setting-item" IsEnabled="{Binding Parent.BooleanValue, FallbackValue=True}" Spacing="4">
                                                                 <TextBlock Classes="setting-label" Text="{Binding Label}" IsVisible="{Binding ShowLabel}"/>
                                                                 <TextBox Classes="search-box" Text="{Binding TextValue}" IsVisible="{Binding IsText}"/>
                                                                 <ItemsControl ItemsSource="{Binding OptionToggles}" IsVisible="{Binding IsOptionList}">
@@ -102,7 +102,7 @@
                                                                 <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" Width="200"/>
                                                                 <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
                                                                 <DockPanel IsVisible="{Binding IsSlider}" HorizontalAlignment="Left" Width="300">
-                                                                    <TextBlock DockPanel.Dock="Right" Width="40" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
+                                                                    <TextBlock DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
                                                                     <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding SliderValue}"/>
                                                                 </DockPanel>
                                                                 <TextBlock Classes="setting-desc" Classes.checkbox-desc="{Binding IsBoolean}" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
