@@ -347,6 +347,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
         config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
+        config.PreviewSettings.SaveRequested += SaveLayout;
 
         if (config.SkyboxPath is not null)
         {
@@ -659,6 +660,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         _assetManager.AssetExportFailed -= OnAssetExportFailed;
         _config.PreviewSettings.PropertyChanged -= OnPreviewSettingsChanged;
+        _config.PreviewSettings.SaveRequested -= SaveLayout;
         Plugins.Dispose();
         _currentCts?.Cancel();
         _currentCts = null;
@@ -698,6 +700,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 Thumbnails.Clear();
             }
+        }
+        else if (e.PropertyName == nameof(PreviewSettings.SkyboxRotation))
+        {
+            PreviewSettings.SaveLayoutTo(_config.Settings);
         }
         else if (e.PropertyName == nameof(PreviewSettings.ShowPreviewPanel))
         {

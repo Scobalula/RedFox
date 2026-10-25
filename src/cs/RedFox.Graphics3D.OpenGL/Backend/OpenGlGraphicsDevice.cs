@@ -549,6 +549,37 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
         return CreateTexture2D(image, usage);
     }
 
+    public IGpuTexture CreateTexture(int width, int height, int mipLevels, ImageFormat format, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mipLevels);
+
+        if (!TryGetTextureFormat(format, usage, out SizedInternalFormat internalFormat, out global::Silk.NET.OpenGL.PixelFormat pixelFormat, out PixelType pixelType, out bool isCompressed))
+        {
+            throw new NotSupportedException($"OpenGL does not support texture format '{format}' for usage '{usage}'.");
+        }
+
+        GL gl = _context.Gl;
+        uint handle = gl.GenTexture();
+        gl.BindTexture(TextureTarget.Texture2D, handle);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, mipLevels > 1 ? (int)GLEnum.LinearMipmapLinear : (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBaseLevel, 0);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, mipLevels - 1);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.Repeat);
+        gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.Repeat);
+
+        for (int mipLevel = 0; mipLevel < mipLevels; mipLevel++)
+        {
+            UploadTextureLevel(gl, TextureTarget.Texture2D, mipLevel, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), format, internalFormat, pixelFormat, pixelType, isCompressed, ReadOnlySpan<byte>.Empty);
+        }
+
+        gl.BindTexture(TextureTarget.Texture2D, 0);
+        return new OpenGlTexture(gl, handle, width, height, format, usage);
+    }
+
     /// <inheritdoc/>
     public IGpuTexture CreateTextureStorage(Image image, TextureUsage usage)
     {
@@ -610,21 +641,28 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
     public IGpuRenderTarget CreateRenderTarget(IGpuTexture? colorTexture, IGpuTexture? depthTexture)
     {
         ThrowIfDisposed();
+        return CreateRenderTarget(colorTexture as OpenGlTexture, 0, depthTexture as OpenGlTexture);
+    }
 
-        OpenGlTexture? openGlColorTexture = colorTexture as OpenGlTexture;
-        OpenGlTexture? openGlDepthTexture = depthTexture as OpenGlTexture;
+    public IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, int mipLevel)
+    {
+        ThrowIfDisposed();
+        return CreateRenderTarget(colorTexture as OpenGlTexture ?? throw new InvalidOperationException($"Expected {nameof(OpenGlTexture)}."), mipLevel, null);
+    }
 
+    private OpenGlRenderTarget CreateRenderTarget(OpenGlTexture? openGlColorTexture, int colorMipLevel, OpenGlTexture? openGlDepthTexture)
+    {
         GL gl = _context.Gl;
         uint handle = gl.GenFramebuffer();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, handle);
         if (openGlColorTexture is not null)
         {
-            AttachFramebufferResource(gl, FramebufferAttachment.ColorAttachment0, openGlColorTexture);
+            AttachFramebufferResource(gl, FramebufferAttachment.ColorAttachment0, openGlColorTexture, colorMipLevel);
         }
 
         if (openGlDepthTexture is not null)
         {
-            AttachFramebufferResource(gl, GetDepthFramebufferAttachment(openGlDepthTexture.Format), openGlDepthTexture);
+            AttachFramebufferResource(gl, GetDepthFramebufferAttachment(openGlDepthTexture.Format), openGlDepthTexture, 0);
         }
 
         GLEnum framebufferStatus = gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
@@ -1348,7 +1386,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             : FramebufferAttachment.DepthAttachment;
     }
 
-    private static void AttachFramebufferResource(GL gl, FramebufferAttachment attachment, OpenGlTexture texture)
+    private static void AttachFramebufferResource(GL gl, FramebufferAttachment attachment, OpenGlTexture texture, int mipLevel)
     {
         if (texture.IsRenderbuffer)
         {
@@ -1356,7 +1394,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             return;
         }
 
-        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, attachment, texture.Target, texture.Handle, 0);
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, attachment, texture.Target, texture.Handle, mipLevel);
     }
 
     private void ThrowIfDisposed()

@@ -150,7 +150,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         return new ThumbnailCacheImage(size.Width, size.Height, bitmaps.Length, pixels);
     }
 
-    private UInt128? CreateCacheKey(AssetRowViewModel row, SceneUpAxis upAxis, int viewCount)
+    private UInt128? CreateCacheKey(AssetRowViewModel row, SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront, int viewCount)
     {
         Asset asset					= row.Asset;
         AssetSourceRequest? request	= row.Source.Request;
@@ -167,7 +167,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             return null;
         }
 
-        string axis = asset.Category == AssetCategory.Model ? upAxis.ToString() : string.Empty;
+        string axis = asset.Category == AssetCategory.Model ? $"{upAxis}|{modelFront}" : string.Empty;
         return ThumbnailCache.CreateKey($"{stamp}|{request?.ProcessName}|{asset.Type}|{asset.Name}|{asset.ThumbnailKey}|{axis}|{viewCount}|{Renderer?.ThumbnailSize}");
     }
 
@@ -196,7 +196,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         }
     }
 
-    private SceneViewportController? CreateViewport(Scene scene, SceneUpAxis upAxis, CancellationToken cancellationToken)
+    private SceneViewportController? CreateViewport(Scene scene, SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront, CancellationToken cancellationToken)
     {
         scene.UpAxis = upAxis;
         scene.TextureMipType = MipType.UltraLow;
@@ -218,7 +218,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         }
 
         OrbitCamera camera					= new("ThumbnailCamera") { AspectRatio = 1.0f };
-        SceneViewportController viewport	= new(scene, camera) { IncludeNodeInBounds = node => node is Mesh, FitViewDirection = FrontViewDirection };
+        SceneViewportController viewport	= new(scene, camera) { IncludeNodeInBounds = node => node is Mesh, FitViewDirection = PreviewSettings.OrientToModelFront(FrontViewDirection, upAxis, modelFront) };
 
         if (!viewport.RecomputeBounds())
         {
@@ -242,6 +242,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             CancellationToken cancellationToken			= _cancellation.Token;
             GameExtractionConfiguration configuration	= configurationFactory();
             SceneUpAxis upAxis							= previewSettings.UpAxis;
+            ScenePreviewFrontAxis modelFront			= previewSettings.ModelFront;
             UInt128? cacheKey							= null;
             UInt128? orbitKey							= null;
             Bitmap? thumbnail							= null;
@@ -250,9 +251,9 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             // Keys stat the source file, so they are created with the read rather than on the UI thread.
             object? source = await Task.Run(() =>
             {
-                cacheKey = CreateCacheKey(row, upAxis, 1);
-                orbitKey = row.Category == AssetCategory.Model ? CreateCacheKey(row, upAxis, OrbitViewCount) : null;
-                return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken);
+                cacheKey = CreateCacheKey(row, upAxis, modelFront, 1);
+                orbitKey = row.Category == AssetCategory.Model ? CreateCacheKey(row, upAxis, modelFront, OrbitViewCount) : null;
+                return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, modelFront, cancellationToken);
             }).ConfigureAwait(true);
 
             try
@@ -299,13 +300,14 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
     {
         GameExtractionConfiguration configuration	= configurationFactory();
         SceneUpAxis upAxis							= previewSettings.UpAxis;
+        ScenePreviewFrontAxis modelFront			= previewSettings.ModelFront;
         UInt128? cacheKey							= null;
         Bitmap[]? frames							= null;
 
         object? source = await Task.Run(() =>
         {
-            cacheKey = CreateCacheKey(row, upAxis, OrbitViewCount);
-            return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, cancellationToken);
+            cacheKey = CreateCacheKey(row, upAxis, modelFront, OrbitViewCount);
+            return ReadThumbnailSourceAsync(row.Asset, cacheKey, configuration, upAxis, modelFront, cancellationToken);
         }).ConfigureAwait(true);
 
         try
@@ -359,7 +361,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         _orbitFrames = [];
     }
 
-    private async Task<object?> ReadThumbnailSourceAsync(Asset asset, UInt128? cacheKey, GameExtractionConfiguration configuration, SceneUpAxis upAxis, CancellationToken cancellationToken)
+    private async Task<object?> ReadThumbnailSourceAsync(Asset asset, UInt128? cacheKey, GameExtractionConfiguration configuration, SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront, CancellationToken cancellationToken)
     {
         try
         {
@@ -375,8 +377,8 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
             {
                 Image data					=> data,
                 Texture texture				=> texture.Data ?? texture.ImageLoader?.Load(texture, assetManager.GetRequiredService<ImageTranslatorService>().Manager, MipType.Low),
-                Scene scene					=> CreateViewport(scene, upAxis, cancellationToken),
-                IEnumerable<Scene> scenes	=> scenes.FirstOrDefault() is { } scene ? CreateViewport(scene, upAxis, cancellationToken) : null,
+                Scene scene					=> CreateViewport(scene, upAxis, modelFront, cancellationToken),
+                IEnumerable<Scene> scenes	=> scenes.FirstOrDefault() is { } scene ? CreateViewport(scene, upAxis, modelFront, cancellationToken) : null,
                 _							=> null,
             };
         }

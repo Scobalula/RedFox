@@ -300,6 +300,40 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         return CreateTexture2D(width, height, format, usage, pixels, rowPitch, slicePitch, 1);
     }
 
+    public unsafe IGpuTexture CreateTexture(int width, int height, int mipLevels, ImageFormat format, TextureUsage usage)
+    {
+        ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mipLevels);
+
+        Format dxgiFormat = D3D11Support.GetDxgiFormat(format);
+        if (dxgiFormat == Format.FormatUnknown)
+        {
+            throw new NotSupportedException($"D3D11 does not support texture format '{format}'.");
+        }
+
+        Texture2DDesc desc = new()
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            MipLevels = (uint)mipLevels,
+            ArraySize = 1,
+            Format = dxgiFormat,
+            SampleDesc = new SampleDesc(1, 0),
+            Usage = D3D11BufferUsage.Default,
+            BindFlags = GetTextureBindFlags(usage),
+            CPUAccessFlags = 0,
+            MiscFlags = 0,
+        };
+
+        ComPtr<ID3D11Texture2D> texture = default;
+        D3D11Support.ThrowIfFailed(_context.Device.Get().CreateTexture2D(ref desc, (SubresourceData*)null, ref texture), "ID3D11Device::CreateTexture2D");
+
+        CreateSampledTextureViews(texture, usage, out ComPtr<ID3D11ShaderResourceView> shaderResourceView, out ComPtr<ID3D11SamplerState> samplerState);
+        return new D3D11Texture(texture, shaderResourceView, samplerState, width, height, 1, mipLevels, format, usage, 1, false);
+    }
+
     /// <inheritdoc/>
     public unsafe IGpuTexture CreateTexture(Image image, TextureUsage usage)
     {
@@ -391,6 +425,23 @@ public sealed unsafe class D3D11GraphicsDevice : IGraphicsDevice
         }
 
         return new D3D11RenderTarget(renderTargetView, depthStencilView, d3dColorTexture, d3dDepthTexture);
+    }
+
+    public unsafe IGpuRenderTarget CreateRenderTarget(IGpuTexture colorTexture, int mipLevel)
+    {
+        ThrowIfDisposed();
+
+        D3D11Texture d3dColorTexture = colorTexture as D3D11Texture ?? throw new InvalidOperationException($"Expected {nameof(D3D11Texture)} for color texture.");
+        RenderTargetViewDesc renderTargetViewDesc = new()
+        {
+            Format = D3D11Support.GetDxgiFormat(d3dColorTexture.Format),
+            ViewDimension = RtvDimension.Texture2D,
+            Texture2D = new Tex2DRtv((uint)mipLevel),
+        };
+
+        ID3D11RenderTargetView* renderTargetViewPointer = null;
+        D3D11Support.ThrowIfFailed(_context.Device.Get().CreateRenderTargetView((ID3D11Resource*)d3dColorTexture.Handle, ref renderTargetViewDesc, &renderTargetViewPointer), "ID3D11Device::CreateRenderTargetView");
+        return new D3D11RenderTarget(new ComPtr<ID3D11RenderTargetView>(renderTargetViewPointer), default, d3dColorTexture, null);
     }
 
     /// <inheritdoc/>

@@ -13,8 +13,10 @@ internal sealed class SkyboxRenderHandle : RenderHandle
 {
     private const int SkyboxTextureSlot = 0;
     private const int SkyboxVertexCount = 3;
+    private const int RotatedEnvironmentMaxWidth = 2048;
 
     internal const string SkyboxMaterialTypeName = "Skybox";
+    internal const string SkyboxRotationMaterialTypeName = "SkyboxRotation";
 
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly IMaterialTypeRegistry _materialTypes;
@@ -22,12 +24,21 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     private readonly Skybox _skybox;
 
     private IGpuPipelineState? _pipeline;
+    private IGpuPipelineState? _rotationPipeline;
     private TextureRenderHandle? _textureHandle;
     private int _mipLevels;
     private Image? _lightsSource;
+    private EnvironmentLight[] _extractedLights = [];
     private EnvironmentLight[] _lights = [];
+    private float _lightsRotation;
+    private IGpuTexture? _rotatedTexture;
+    private IGpuRenderTarget[] _rotatedTargets = [];
+    private float _rotatedAngle;
+    private bool _rotatedComplete;
 
     internal IGpuTexture? Texture => _textureHandle?.BindableTexture;
+
+    internal IGpuTexture? EnvironmentTexture => _skybox.Rotation != 0.0f && Texture is not null && _rotatedTexture is not null ? _rotatedTexture : Texture;
 
     internal int MipLevels => _mipLevels;
 
@@ -62,7 +73,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
             return;
         }
 
-        EnsurePipeline();
+        _pipeline = EnsurePipeline(_pipeline, SkyboxMaterialTypeName);
 
         // The GPU copy is keyed by the texture rather than the scene, so switching previewed assets reuses the uploaded panorama.
         _textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
@@ -71,9 +82,20 @@ internal sealed class SkyboxRenderHandle : RenderHandle
 
         if (!ReferenceEquals(_lightsSource, image))
         {
-            _lights = EnvironmentLightExtractor.Extract(image);
+            _extractedLights = EnvironmentLightExtractor.Extract(image);
             _lightsSource = image;
+            _lightsRotation = float.NaN;
+            ReleaseRotatedTexture();
         }
+
+        if (_lightsRotation != _skybox.Rotation)
+        {
+            Matrix4x4 rotation = Matrix4x4.CreateRotationY(_skybox.Rotation);
+            _lights = [.. _extractedLights.Select(light => light with { Direction = Vector3.TransformNormal(light.Direction, rotation), MajorAxis = Vector3.TransformNormal(light.MajorAxis, rotation) })];
+            _lightsRotation = _skybox.Rotation;
+        }
+
+        UpdateRotatedTexture(commandList, image);
     }
 
     /// <inheritdoc/>
@@ -94,7 +116,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
 
         commandList.SetPipelineState(_pipeline);
         commandList.BindTexture(SkyboxTextureSlot, gpuTexture);
-        commandList.SetUniformMatrix4x4("InverseView", inverseView);
+        commandList.SetUniformMatrix4x4("InverseView", inverseView * Matrix4x4.CreateRotationY(-_skybox.Rotation));
         commandList.SetUniformMatrix4x4("InverseProjection", inverseProjection);
         commandList.SetUniformVector4("SkyboxTint", _skybox.Tint);
         commandList.SetUniformFloat("SkyboxIntensity", MathF.Max(0.0f, _skybox.Intensity));
@@ -109,15 +131,79 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         _textureHandle = null;
         _mipLevels = 0;
         _lightsSource = null;
+        _extractedLights = [];
         _lights = [];
-        ReleasePipeline();
+        ReleaseRotatedTexture();
+        ReleasePipeline(_pipeline, SkyboxMaterialTypeName);
+        ReleasePipeline(_rotationPipeline, SkyboxRotationMaterialTypeName);
+        _pipeline = null;
+        _rotationPipeline = null;
     }
 
-    private void EnsurePipeline()
+    // Materials sample the environment with world directions, so a rotated sky is baked into a copy that is shifted around the panorama.
+    private void UpdateRotatedTexture(ICommandList commandList, Image image)
     {
-        if (_pipeline is not null && !_pipeline.IsDisposed)
+        if (_skybox.Rotation == 0.0f || Texture is not { } source || !_graphicsDevice.SupportsFormat(image.Format, TextureUsage.Sampled | TextureUsage.RenderTarget))
         {
             return;
+        }
+
+        int width	= Math.Min(image.Width, RotatedEnvironmentMaxWidth);
+        int height	= width / 2;
+
+        if (_rotatedTexture is null)
+        {
+            _rotatedTexture		= _graphicsDevice.CreateTexture(width, height, _mipLevels, image.Format, TextureUsage.Sampled | TextureUsage.RenderTarget);
+            _rotatedTargets		= [.. Enumerable.Range(0, _mipLevels).Select(level => _graphicsDevice.CreateRenderTarget(_rotatedTexture, level))];
+            _rotatedComplete	= false;
+        }
+
+        if (_rotatedComplete && _rotatedAngle == _skybox.Rotation)
+        {
+            return;
+        }
+
+        _rotationPipeline = EnsurePipeline(_rotationPipeline, SkyboxRotationMaterialTypeName);
+
+        commandList.SetPipelineState(_rotationPipeline);
+        commandList.BindTexture(SkyboxTextureSlot, source);
+        commandList.SetUniformInt("SourceTexture", SkyboxTextureSlot);
+        commandList.SetUniformFloat("RotationOffset", _skybox.Rotation / MathF.Tau);
+
+        for (int level = 0; level < _rotatedTargets.Length; level++)
+        {
+            Vector2 size = new(Math.Max(1, width >> level), Math.Max(1, height >> level));
+
+            commandList.SetRenderTarget(_rotatedTargets[level]);
+            commandList.SetViewport((int)size.X, (int)size.Y);
+            commandList.SetUniformVector2("TargetSize", size);
+            commandList.SetUniformFloat("SourceLod", level);
+            commandList.Draw(SkyboxVertexCount, 0);
+        }
+
+        commandList.SetRenderTarget(null);
+
+        _rotatedAngle		= _skybox.Rotation;
+        _rotatedComplete	= _textureHandle?.HasPendingUploads == false;
+    }
+
+    private void ReleaseRotatedTexture()
+    {
+        foreach (IGpuRenderTarget target in _rotatedTargets)
+        {
+            target.Dispose();
+        }
+
+        _rotatedTargets = [];
+        _rotatedTexture?.Dispose();
+        _rotatedTexture = null;
+    }
+
+    private IGpuPipelineState EnsurePipeline(IGpuPipelineState? pipeline, string materialTypeName)
+    {
+        if (pipeline is not null && !pipeline.IsDisposed)
+        {
+            return pipeline;
         }
 
         if (_materialTypes is not IMaterialPipelineProvider pipelineProvider)
@@ -125,14 +211,11 @@ internal sealed class SkyboxRenderHandle : RenderHandle
             throw new InvalidOperationException($"Material registry '{_materialTypes.GetType().Name}' does not provide runtime pipeline services.");
         }
 
-        _pipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, SkyboxMaterialTypeName);
+        return pipelineProvider.AcquirePipeline(_graphicsDevice, materialTypeName);
     }
 
-    private void ReleasePipeline()
+    private void ReleasePipeline(IGpuPipelineState? pipeline, string materialTypeName)
     {
-        IGpuPipelineState? pipeline = _pipeline;
-        _pipeline = null;
-
         if (pipeline is null)
         {
             return;
@@ -140,7 +223,7 @@ internal sealed class SkyboxRenderHandle : RenderHandle
 
         if (_materialTypes is IMaterialPipelineProvider pipelineProvider)
         {
-            pipelineProvider.ReleasePipeline(SkyboxMaterialTypeName, pipeline);
+            pipelineProvider.ReleasePipeline(materialTypeName, pipeline);
             return;
         }
 

@@ -1,0 +1,30 @@
+{
+  "name": "SkyboxRotation",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Skybox",
+  "fragmentShaderName": "SkyboxRotation",
+  "vertexAttributes": [],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "counterClockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": false,
+    "depthWrite": false,
+    "depthCompareFunc": "always",
+    "primitiveTopology": "triangles"
+  },
+  "requirements": {
+    "textures": [
+      { "name": "SourceTexture", "slot": 0, "required": true }
+    ],
+    "uniforms": [
+      { "name": "TargetSize", "valueType": "float2", "required": true },
+      { "name": "SourceLod", "valueType": "float", "required": true },
+      { "name": "RotationOffset", "valueType": "float", "required": true }
+    ]
+  }
+}
