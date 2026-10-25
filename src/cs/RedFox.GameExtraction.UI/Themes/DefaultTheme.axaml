@@ -267,6 +267,20 @@
         <Setter Property="Height" Value="15"/>
     </Style>
 
+    <Style Selector="Button.accent-btn.toolbar-icon-btn">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Separator.toolbar-sep">
+        <Setter Property="Width" Value="1"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Margin" Value="4,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeBorderBrush}"/>
+    </Style>
+
     <Style Selector="Button.icon-btn.active">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
