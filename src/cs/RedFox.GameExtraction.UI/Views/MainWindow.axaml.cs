@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Selection;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
+using RedFox.GameExtraction.UI.Controls;
 using RedFox.GameExtraction.UI.Models;
 using RedFox.GameExtraction.UI.ViewModels;
 
@@ -17,6 +20,9 @@ namespace RedFox.GameExtraction.UI.Views;
 public partial class MainWindow : Window
 {
     private PreviewWindow? _previewWindow;
+    private int _assetCursor = -1;
+    private int _assetAnchor = -1;
+    private bool _isMovingAssetSelection;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MainWindow"/> class.
@@ -140,6 +146,12 @@ public partial class MainWindow : Window
         if (DataContext is MainWindowViewModel viewModel && sender is ListBox listBox)
         {
             viewModel.SetSelectedAssets(listBox.SelectedItems?.OfType<AssetRowViewModel>() ?? Enumerable.Empty<AssetRowViewModel>());
+        }
+
+        if (!_isMovingAssetSelection)
+        {
+            _assetCursor = -1;
+            _assetAnchor = -1;
         }
     }
 
@@ -335,15 +347,101 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Source is TextBox || DataContext is not MainWindowViewModel { IsPreviewActive: true, Preview.Content: IPreviewKeyHandler handler })
+        if (e.Source is TextBox)
         {
             return;
         }
 
-        if (handler.HandleKey(e.Key, e.KeyModifiers))
+        if (DataContext is MainWindowViewModel { IsPreviewActive: true, Preview.Content: IPreviewKeyHandler handler } && handler.HandleKey(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!UsesArrowKeys(e.Source) && MoveAssetSelection(e.Key, e.KeyModifiers))
         {
             e.Handled = true;
         }
+    }
+
+    // Controls that move their own value or selection with the arrow keys keep them.
+    private bool UsesArrowKeys(object? source)
+    {
+        for (Visual? visual = source as Visual; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (ReferenceEquals(visual, AssetListBox))
+            {
+                return false;
+            }
+
+            if (visual is Slider or NumericUpDown or SelectingItemsControl or TreeView or DataGrid)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Up and Down move through the assets, as do Left and Right in the grid; Shift extends the selection from where it started.
+    private bool MoveAssetSelection(Key key, KeyModifiers modifiers)
+    {
+        int count = AssetListBox.ItemCount;
+        if (count == 0 || (modifiers & ~KeyModifiers.Shift) != KeyModifiers.None)
+        {
+            return false;
+        }
+
+        int columns = AssetListBox.ItemsPanelRoot is VirtualizingTilePanel tiles ? tiles.Columns : 1;
+        int step = key switch
+        {
+            Key.Up => -columns,
+            Key.Down => columns,
+            Key.Left when columns > 1 => -1,
+            Key.Right when columns > 1 => 1,
+            _ => 0,
+        };
+
+        if (step == 0)
+        {
+            return false;
+        }
+
+        ISelectionModel selection = AssetListBox.Selection;
+        int from = _assetCursor;
+
+        if (from < 0 || from >= count)
+        {
+            // After a click, carry on from the item the click selected.
+            from = selection.AnchorIndex >= 0 && selection.AnchorIndex < count && selection.IsSelected(selection.AnchorIndex) ? selection.AnchorIndex : selection.SelectedIndex;
+        }
+
+        int to = from < 0 ? 0 : Math.Clamp(from + step, 0, count - 1);
+        bool extend = modifiers.HasFlag(KeyModifiers.Shift) && from >= 0;
+
+        if (!extend || _assetAnchor < 0 || _assetAnchor >= count)
+        {
+            _assetAnchor = extend ? from : to;
+        }
+
+        _isMovingAssetSelection = true;
+        selection.BeginBatchUpdate();
+
+        try
+        {
+            selection.Clear();
+            selection.SelectRange(Math.Min(_assetAnchor, to), Math.Max(_assetAnchor, to));
+        }
+        finally
+        {
+            selection.EndBatchUpdate();
+            _isMovingAssetSelection = false;
+        }
+
+        _assetCursor = to;
+        AssetListBox.ScrollIntoView(to);
+        AssetListBox.ContainerFromIndex(to)?.Focus();
+        return true;
     }
 
     private void OnPreviewWindowCloseRequested()
