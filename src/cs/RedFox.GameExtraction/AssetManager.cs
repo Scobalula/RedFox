@@ -50,6 +50,13 @@ public sealed class AssetManager
     public ILogger Logger { get; }
 
     /// <summary>
+    /// Gets or sets a function that returns the directory, relative to the configured output directory, an asset is exported
+    /// into when the export doesn't name one, such as a folder for its game and type. When unset, such assets are exported
+    /// directly into the output directory.
+    /// </summary>
+    public Func<Asset, IAssetSource, string>? OutputDirectoryResolver { get; set; }
+
+    /// <summary>
     /// Occurs after a source has been mounted successfully.
     /// </summary>
     public event EventHandler<SourceEventArgs>? SourceMounted;
@@ -904,7 +911,7 @@ public sealed class AssetManager
         cancellationToken.ThrowIfCancellationRequested();
 
         IAssetSource source = GetRequiredSource(asset);
-        string normalizedDir = NormalizeRelativeOutputDirectory(relativeOutputDirectory);
+        string normalizedDir = NormalizeRelativeOutputDirectory(string.IsNullOrWhiteSpace(relativeOutputDirectory) && OutputDirectoryResolver is { } resolver ? resolver(asset, source) : relativeOutputDirectory);
         IAssetHandler handler = GetRequiredHandler(asset, configuration);
         AssetSourceRequest sourceRequest = GetRequiredSourceRequest(source);
         AssetExportContext exportContext = new(this, source, sourceRequest, configuration, normalizedDir, progress, cancellationToken, userData);
