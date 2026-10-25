@@ -583,6 +583,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         RefreshPreview([.. SelectedAssets]);
     }
 
+    public void ClearThumbnailCache()
+    {
+        Thumbnails.Clear();
+        _thumbnailCache.Clear();
+    }
+
     /// <summary>
     /// Clears all loaded assets and selection state.
     /// </summary>

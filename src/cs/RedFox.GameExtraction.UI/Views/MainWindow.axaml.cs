@@ -247,10 +247,28 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
+        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         await settingsWindow.ShowDialog(this);
         viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
         GameExtractionLogging.ApplySettings(viewModel.Config.Settings);
+    }
+
+    private void ClearThumbnailCache(MainWindowViewModel viewModel)
+    {
+        viewModel.ClearThumbnailCache();
+
+        if (!viewModel.PreviewSettings.ShowAssetGrid)
+        {
+            return;
+        }
+
+        foreach (Control container in AssetListBox.GetRealizedContainers())
+        {
+            if (container.DataContext is AssetRowViewModel row)
+            {
+                viewModel.Thumbnails.Request(row);
+            }
+        }
     }
 
     private static void OpenPluginsWindow(Window owner, MainWindowViewModel viewModel)

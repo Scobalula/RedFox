@@ -23,8 +23,9 @@ public partial class SettingsWindow : Window
     /// <param name="settings">The settings to edit.</param>
     /// <param name="settingDefinitions">The settings to display.</param>
     /// <param name="appName">The application name used for persistence.</param>
+    /// <param name="clearThumbnailCache">Callback invoked when the user clears the thumbnail cache.</param>
     /// <param name="openPlugins">Optional callback invoked when the user opens the plugins window.</param>
-    public void Initialize(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName, Action? openPlugins = null)
+    public void Initialize(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName, Action clearThumbnailCache, Action? openPlugins = null)
     {
         SettingsWindowViewModel viewModel = new(settings, settingDefinitions, appName);
         DataContext = viewModel;
@@ -32,6 +33,7 @@ public partial class SettingsWindow : Window
         viewModel.BrowseSettingRequested += OnBrowseSettingRequested;
         viewModel.SaveRequested += () => Close();
         viewModel.CancelRequested += () => Close();
+        viewModel.ClearThumbnailCacheRequested += clearThumbnailCache;
         if (openPlugins is not null)
             viewModel.OpenPluginsRequested += openPlugins;
     }

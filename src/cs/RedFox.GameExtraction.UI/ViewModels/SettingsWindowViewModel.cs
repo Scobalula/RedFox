@@ -73,6 +73,8 @@ public partial class SettingsWindowViewModel : ObservableObject
     /// </summary>
     public event Action? OpenPluginsRequested;
 
+    public event Action? ClearThumbnailCacheRequested;
+
     /// <summary>
     /// Opens the plugins management window.
     /// </summary>
@@ -132,6 +134,32 @@ public partial class SettingsWindowViewModel : ObservableObject
         }
         catch
         {
+        }
+    }
+
+    [RelayCommand]
+    public void ClearThumbnailCache()
+    {
+        ClearThumbnailCacheRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    public void ClearLogs()
+    {
+        string logsDirectory = GameExtractionLogging.GetLogDirectory(_appName);
+
+        if (!Directory.Exists(logsDirectory))
+            return;
+
+        foreach (string file in Directory.GetFiles(logsDirectory, "*.log"))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException)
+            {
+            }
         }
     }
 

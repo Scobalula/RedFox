@@ -201,7 +201,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
 
-        if ((phase != Rendering.RenderFlags.Opaque && phase != Rendering.RenderFlags.Shadow && phase != Rendering.RenderFlags.DepthPrepass) || VertexCount <= 0 || !_isReadyToRender)
+        if ((phase != Rendering.RenderFlags.Opaque && phase != Rendering.RenderFlags.Transparent && phase != Rendering.RenderFlags.Shadow && phase != Rendering.RenderFlags.DepthPrepass) || VertexCount <= 0 || !_isReadyToRender)
         {
             return;
         }
@@ -225,7 +225,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 
             MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
 
-            if (phase == Rendering.RenderFlags.DepthPrepass && !materialHandle.IsOpaque)
+            // Blended materials draw after every opaque surface, so what's behind them is already there to blend over.
+            if ((phase == Rendering.RenderFlags.DepthPrepass || phase == Rendering.RenderFlags.Opaque) && !materialHandle.IsOpaque || phase == Rendering.RenderFlags.Transparent && materialHandle.IsOpaque)
             {
                 continue;
             }
