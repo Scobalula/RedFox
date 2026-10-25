@@ -28,6 +28,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     private string? _resolvedTypeName;
     private IReadOnlyList<MaterialTextureRequirement> _textureRequirements = [];
     private string[] _textureFlagUniformNames = [];
+    private IReadOnlyList<MaterialUniformRequirement> _uniformRequirements = [];
     private Texture? _diffuseTextureSnapshot;
     private MaterialTextureBinding[]? _textureBindingSnapshot;
     private uint _bindingVersion = uint.MaxValue;
@@ -148,6 +149,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         IsOpaque = descriptor.PipelineState is { Blend: false, DepthWrite: true };
         _textureRequirements = descriptor.Requirements.Textures;
         _textureFlagUniformNames = [.. _textureRequirements.Select(requirement => $"Has{requirement.Name}")];
+        _uniformRequirements = descriptor.Requirements.Uniforms;
     }
 
     private void ReleasePipelineReference()
@@ -197,6 +199,20 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         commandList.SetUniformFloat("MaterialMetallic", _material.Metallic ?? 0.0f);
         commandList.SetUniformFloat("MaterialRoughness", _material.Roughness ?? 1.0f);
         commandList.SetUniformFloat("MaterialAlphaCutoff", _material.AlphaCutoff ?? 0.0f);
+
+        for (int i = 0; i < _uniformRequirements.Count; i++)
+        {
+            string name = _uniformRequirements[i].Name;
+
+            if (_material.TryGetAttribute(name, out Vector4 vector))
+            {
+                commandList.SetUniformVector4(name, vector);
+            }
+            else if (_material.TryGetAttribute(name, out float value))
+            {
+                commandList.SetUniformFloat(name, value);
+            }
+        }
     }
 
     private void BindTextureResources(ICommandList commandList)
