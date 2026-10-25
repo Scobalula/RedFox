@@ -15,22 +15,38 @@ public sealed class SettingGroupViewModel
     /// </summary>
     public string Title => Kind switch
     {
-        GameExtractionSettingGroup.Export => "Export Settings",
-        GameExtractionSettingGroup.Model => "Model Settings",
-        GameExtractionSettingGroup.Animation => "Animation Settings",
-        GameExtractionSettingGroup.Image => "Image Settings",
-        GameExtractionSettingGroup.Sound => "Sound Settings",
-        GameExtractionSettingGroup.Archive => "Archive Settings",
-        GameExtractionSettingGroup.Document => "Document Settings",
-        GameExtractionSettingGroup.General => "General Settings",
-        GameExtractionSettingGroup.Preview => "Preview Settings",
-        _ => "Other Settings",
+        GameExtractionSettingGroup.Export => "Export",
+        GameExtractionSettingGroup.Model => "Models",
+        GameExtractionSettingGroup.Animation => "Animations",
+        GameExtractionSettingGroup.Image => "Textures",
+        GameExtractionSettingGroup.Sound => "Audio",
+        GameExtractionSettingGroup.Archive => "Archives",
+        GameExtractionSettingGroup.Document => "Documents",
+        GameExtractionSettingGroup.General => "General",
+        GameExtractionSettingGroup.Preview => "Preview",
+        _ => "Other",
+    };
+
+    public string Description => Kind switch
+    {
+        GameExtractionSettingGroup.Export => "Output and file handling",
+        GameExtractionSettingGroup.Model => "Model formats and assets",
+        GameExtractionSettingGroup.Animation => "Animation export options",
+        GameExtractionSettingGroup.Image => "Image export options",
+        GameExtractionSettingGroup.Sound => "Audio conversion settings",
+        GameExtractionSettingGroup.Archive => "Archive and container options",
+        GameExtractionSettingGroup.Document => "Text and document options",
+        GameExtractionSettingGroup.General => "App behaviour and logging",
+        GameExtractionSettingGroup.Preview => "Rendering and viewport",
+        _ => "Additional settings",
     };
 
     /// <summary>
     /// Gets the settings in the group.
     /// </summary>
     public IReadOnlyList<GameExtractionSettingViewModel> Settings { get; }
+
+    public IReadOnlyList<SettingSectionViewModel> Sections { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingGroupViewModel"/> class.
@@ -48,5 +64,6 @@ public sealed class SettingGroupViewModel
 
         Kind = kind;
         Settings = settings;
+        Sections = [.. settings.GroupBy(setting => setting.Section).Select(section => new SettingSectionViewModel(section.Key, [.. section]))];
     }
 }

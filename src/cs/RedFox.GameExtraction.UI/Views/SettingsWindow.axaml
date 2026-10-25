@@ -4,11 +4,11 @@
         x:Class="RedFox.GameExtraction.UI.Views.SettingsWindow"
         x:DataType="vm:SettingsWindowViewModel"
         Title="Settings"
-        Width="560" Height="420"
-        MinWidth="480" MinHeight="320"
+        Width="850" Height="600"
+        MinWidth="680" MinHeight="420"
         WindowStartupLocation="CenterOwner">
 
-    <DockPanel Margin="12">
+    <DockPanel Margin="8">
         <Border DockPanel.Dock="Bottom"
                 Classes="panel"
                 Padding="12,10"
@@ -25,47 +25,100 @@
             </DockPanel>
         </Border>
 
+        <Border DockPanel.Dock="Left"
+                Classes="panel"
+                Width="220"
+                Padding="0"
+                Margin="0,0,8,0"
+                ClipToBounds="True">
+            <ListBox Classes="asset-list"
+                     ItemsSource="{Binding Groups}"
+                     SelectedItem="{Binding SelectedGroup}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingGroupViewModel">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="10,5,14,5">
+                            <Border Classes="asset-icon">
+                                <PathIcon Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                <TextBlock Classes="asset-name" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Classes="asset-info" Text="{Binding Description}" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
         <Border Classes="panel" Padding="0" ClipToBounds="True">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding Groups}" Margin="16,4,16,12">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SettingGroupViewModel">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,14,0,4">
-                                    <PathIcon Classes="setting-group-icon"
-                                              Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}"
-                                              Width="14"
-                                              Height="14"
-                                              VerticalAlignment="Center"/>
-                                    <TextBlock Classes="setting-category" Text="{Binding Title}"/>
-                                </StackPanel>
-                                <Separator Classes="sidebar-sep"/>
-                                <ItemsControl ItemsSource="{Binding Settings}" Margin="0,4,0,0">
+            <ContentControl Content="{Binding SelectedGroup}">
+                <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:SettingGroupViewModel">
+                        <DockPanel>
+                            <Border DockPanel.Dock="Top" Classes="preview-toolbar">
+                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" MinHeight="34">
+                                    <Border Classes="asset-icon">
+                                        <PathIcon Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                        <TextBlock Classes="asset-name" Text="{Binding Title}"/>
+                                        <TextBlock Classes="asset-info" Text="{Binding Description}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding Sections}" Margin="16,4,16,12">
                                     <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
-                                            <StackPanel Spacing="4" Margin="0,0,0,10">
-                                                <TextBlock Classes="setting-label" Text="{Binding Label}" IsVisible="{Binding ShowLabel}"/>
-                                                <TextBox Classes="search-box" Text="{Binding TextValue}" IsVisible="{Binding IsText}"/>
-                                                <DockPanel IsVisible="{Binding IsPathSetting}">
-                                                    <Button DockPanel.Dock="Right" Classes="secondary-btn" Content="Browse" Margin="8,0,0,0" Command="{Binding BrowseCommand}"/>
-                                                    <TextBox Classes="search-box" Text="{Binding TextValue}"/>
-                                                </DockPanel>
-                                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" Width="200"/>
-                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
-                                                <DockPanel IsVisible="{Binding IsSlider}" HorizontalAlignment="Left" Width="300">
-                                                    <TextBlock DockPanel.Dock="Right" Width="40" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
-                                                    <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding SliderValue}"/>
-                                                </DockPanel>
-                                                <TextBlock Classes="setting-desc" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
+                                        <DataTemplate x:DataType="vm:SettingSectionViewModel">
+                                            <StackPanel>
+                                                <StackPanel IsVisible="{Binding HasTitle}">
+                                                    <TextBlock Classes="setting-category" Text="{Binding Title}" Margin="0,14,0,4"/>
+                                                    <Separator Classes="sidebar-sep"/>
+                                                </StackPanel>
+                                                <ItemsControl ItemsSource="{Binding Settings}" Margin="0,10,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:GameExtractionSettingViewModel">
+                                                            <StackPanel Classes="setting-item" Classes.dependent-setting="{Binding IsDependent}" IsEnabled="{Binding Parent.BooleanValue, FallbackValue=True}" Spacing="4">
+                                                                <TextBlock Classes="setting-label" Text="{Binding Label}" IsVisible="{Binding ShowLabel}"/>
+                                                                <TextBox Classes="search-box" Text="{Binding TextValue}" IsVisible="{Binding IsText}"/>
+                                                                <ItemsControl ItemsSource="{Binding OptionToggles}" IsVisible="{Binding IsOptionList}">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel ItemSpacing="16"/>
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate x:DataType="vm:SettingOptionViewModel">
+                                                                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" MinWidth="80"/>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                                <DockPanel IsVisible="{Binding IsPathSetting}">
+                                                                    <Button DockPanel.Dock="Right" Classes="secondary-btn" Content="Browse" Margin="8,0,0,0" Command="{Binding BrowseCommand}"/>
+                                                                    <TextBox Classes="search-box" Text="{Binding TextValue}"/>
+                                                                </DockPanel>
+                                                                <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding SelectedOption}" IsVisible="{Binding IsChoice}" HorizontalAlignment="Left" Width="200"/>
+                                                                <CheckBox Content="{Binding Label}" IsChecked="{Binding BooleanValue}" IsVisible="{Binding IsBoolean}"/>
+                                                                <DockPanel IsVisible="{Binding IsSlider}" HorizontalAlignment="Left" Width="300">
+                                                                    <TextBlock DockPanel.Dock="Right" Width="40" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
+                                                                    <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding SliderValue}"/>
+                                                                </DockPanel>
+                                                                <TextBlock Classes="setting-desc" Classes.checkbox-desc="{Binding IsBoolean}" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
                                             </StackPanel>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                            </ScrollViewer>
+                        </DockPanel>
+                    </DataTemplate>
+                </ContentControl.ContentTemplate>
+            </ContentControl>
         </Border>
     </DockPanel>
 </Window>

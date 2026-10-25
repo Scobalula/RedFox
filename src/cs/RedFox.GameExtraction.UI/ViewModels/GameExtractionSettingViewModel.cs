@@ -29,6 +29,12 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         BooleanValue = bool.TryParse(TextValue, out bool booleanValue) ? booleanValue : setting.DefaultValue is true;
         SliderValue = double.TryParse(TextValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) ? Math.Clamp(sliderValue, setting.Minimum, setting.Maximum) : setting.Minimum;
         SelectedOption = ResolveSelectedOption(TextValue);
+
+        if (setting.Type == GameExtractionSettingType.TextArray)
+        {
+            HashSet<string> values = [.. SplitValues(TextValue)];
+            OptionToggles = [.. setting.Options.Select(option => new SettingOptionViewModel(option, values.Contains(option)))];
+        }
     }
 
     /// <summary>
@@ -79,7 +85,19 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// <summary>
     /// Gets a value indicating whether the setting holds a text value.
     /// </summary>
-    public bool IsText => Type is GameExtractionSettingType.Text or GameExtractionSettingType.TextArray;
+    public bool IsText => Type == GameExtractionSettingType.Text || (Type == GameExtractionSettingType.TextArray && OptionToggles.Count == 0);
+
+    public bool IsOptionList => OptionToggles.Count > 0;
+
+    public IReadOnlyList<SettingOptionViewModel> OptionToggles { get; } = [];
+
+    public string? Section => _setting.Section;
+
+    public string? DependsOn => _setting.DependsOn;
+
+    public bool IsDependent => !string.IsNullOrWhiteSpace(DependsOn);
+
+    public GameExtractionSettingViewModel? Parent { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether the setting uses a browseable path editor.
@@ -170,7 +188,21 @@ public partial class GameExtractionSettingViewModel : ObservableObject
             GameExtractionSettingType.Boolean => BooleanValue.ToString(),
             GameExtractionSettingType.Choice => SelectedOption,
             GameExtractionSettingType.Slider => SliderValue.ToString(CultureInfo.InvariantCulture),
+            GameExtractionSettingType.TextArray when IsOptionList => GetOptionListValue(),
             _ => TextValue,
         };
+    }
+
+    private string GetOptionListValue()
+    {
+        IEnumerable<string> selected	= OptionToggles.Where(option => option.IsSelected).Select(option => option.Name);
+        IEnumerable<string> unknown		= SplitValues(TextValue).Where(value => !Options.Contains(value));
+
+        return string.Join(",", selected.Concat(unknown));
+    }
+
+    private static string[] SplitValues(string value)
+    {
+        return value.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
     }
 }

@@ -15,6 +15,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewUpAxis",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Scene",
         Label = "Up axis",
         Type = GameExtractionSettingType.Choice,
         Options = [.. Enum.GetNames<SceneUpAxis>()],
@@ -25,6 +26,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewSkinningMode",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Scene",
         Label = "Skinning mode",
         Type = GameExtractionSettingType.Choice,
         Options = [.. Enum.GetNames<SkinningMode>()],
@@ -35,6 +37,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewLightingMode",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Rendering",
         Label = "Lighting mode",
         Type = GameExtractionSettingType.Choice,
         Options = [.. Enum.GetNames<ScenePreviewLightingMode>()],
@@ -45,6 +48,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAntiAliasing",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Rendering",
         Label = "Anti-aliasing",
         Type = GameExtractionSettingType.Choice,
         Options = ["Off", "2x", "4x", "8x"],
@@ -55,6 +59,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewShadowQuality",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Shadows",
         Label = "Shadow quality",
         Type = GameExtractionSettingType.Choice,
         Options = ["Off", "Ultra Low", "Low", "Medium", "High", "Ultra High"],
@@ -65,6 +70,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewShadowSoftness",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Shadows",
         Label = "Shadow softness",
         Type = GameExtractionSettingType.Slider,
         DefaultValue = 1.0,
@@ -76,6 +82,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewShadowStrength",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Shadows",
         Label = "Shadow strength",
         Type = GameExtractionSettingType.Slider,
         DefaultValue = 1.0,
@@ -87,6 +94,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAmbientOcclusionQuality",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Ambient occlusion",
         Label = "Ambient occlusion quality",
         Type = GameExtractionSettingType.Choice,
         Options = [.. Enum.GetNames<AmbientOcclusionQuality>()],
@@ -97,6 +105,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAmbientOcclusionRadius",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Ambient occlusion",
         Label = "Ambient occlusion radius",
         Type = GameExtractionSettingType.Slider,
         DefaultValue = 0.08,
@@ -108,6 +117,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAmbientOcclusionIntensity",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Ambient occlusion",
         Label = "Ambient occlusion intensity",
         Type = GameExtractionSettingType.Slider,
         DefaultValue = 1.5,
@@ -119,6 +129,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAutoFitScene",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Interface",
         Label = "Auto fit scenes",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = true,
@@ -128,6 +139,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAutoPlayAudio",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Interface",
         Label = "Auto-play audio",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = false,
@@ -137,6 +149,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewAssetGrid",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Interface",
         Label = "Asset grid view",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = false,
@@ -146,6 +159,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewSkybox",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Skybox",
         Label = "Show skybox background",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = true,
@@ -155,6 +169,8 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewSkyboxBlur",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Skybox",
+        DependsOn = "PreviewSkybox",
         Label = "Skybox background blur",
         Type = GameExtractionSettingType.Slider,
         DefaultValue = 0.0,
@@ -166,6 +182,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewPanelVisible",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Interface",
         Label = "Show preview panel",
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = true,
@@ -175,6 +192,7 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         Name = "PreviewPanelRatio",
         Group = GameExtractionSettingGroup.Preview,
+        Section = "Interface",
         Label = "Preview panel width",
         Type = GameExtractionSettingType.Text,
         DefaultValue = 0.4,
