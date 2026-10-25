@@ -143,14 +143,17 @@ public sealed class AssetManager
     }
 
     /// <summary>
-    /// Gets all assets from all mounted sources.
+    /// Gets all assets from all mounted sources. Sources can share an asset, such as fast files that both load it, which
+    /// each list with the same data source. It is returned once, from the earliest mounted source that still lists it.
     /// </summary>
     public IReadOnlyList<Asset> Assets
     {
         get
         {
+            HashSet<object> dataSources = new(ReferenceEqualityComparer.Instance);
+
             lock (_sourceLock)
-                return _assets.ToArray();
+                return [.. _assets.Where(asset => asset.DataSource is null || dataSources.Add(asset.DataSource))];
         }
     }
 
