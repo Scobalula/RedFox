@@ -548,7 +548,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         SelectedAsset = SelectedAssets.LastOrDefault();
         NotifySelectionChanged();
-        TotalCount = _allAssets.Count;
+        TotalCount = GetListedAssets().Length;
         RefreshAssetFilterOptions();
         ApplyFilter();
         RefreshPreview([.. SelectedAssets]);
@@ -1215,7 +1215,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void AddSource(AssetSourceViewModel source, IEnumerable<AssetRowViewModel> rows)
     {
         _allAssets.AddRange(rows);
-        TotalCount = _allAssets.Count;
+        TotalCount = GetListedAssets().Length;
         RefreshAssetFilterOptions();
         ApplyFilter();
     }
@@ -1412,7 +1412,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             SelectedAsset = SelectedAssets.LastOrDefault();
             NotifySelectionChanged();
-            TotalCount = _allAssets.Count;
+            TotalCount = GetListedAssets().Length;
             RefreshAssetFilterOptions();
             ApplyFilter();
             RefreshPreview([.. SelectedAssets]);
@@ -1661,7 +1661,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             previousCancellationSource?.Cancel();
         }
 
-        AssetRowViewModel[] allAssets = [.. _allAssets];
+        AssetRowViewModel[] allAssets = GetListedAssets();
         string[] nameFilters = _assetNameFilter.Contains('*') || _assetNameFilter.Contains('?') ? _assetNameFilter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [_assetNameFilter];
         string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
@@ -1803,10 +1803,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ExportSelectedCommand.NotifyCanExecuteChanged();
     }
 
+    // Sources can share an asset, such as fast files that both load it, which each list with the same data source. It is
+    // listed once, from the earliest mounted source that still has it, so unloading that source shows the next one's row.
+    private AssetRowViewModel[] GetListedAssets()
+    {
+        HashSet<object> dataSources = new(ReferenceEqualityComparer.Instance);
+        return [.. _allAssets.Where(row => row.Asset.DataSource is null || dataSources.Add(row.Asset.DataSource))];
+    }
+
     private void RefreshAssetFilterOptions()
     {
         int generation = ++_filterOptionsGeneration;
-        (string Type, string Source)[] values = [.. _allAssets.Select(asset => (asset.Type, asset.SourceName))];
+        (string Type, string Source)[] values = [.. GetListedAssets().Select(asset => (asset.Type, asset.SourceName))];
         _ = UpdateAssetFilterOptionsAsync(generation, values);
     }
 
