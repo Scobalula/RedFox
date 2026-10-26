@@ -1668,7 +1668,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         AssetRowViewModel[] allAssets = [.. _allAssets];
-        string[] nameFilters = _assetNameFilter.Contains('*') || _assetNameFilter.Contains('?') ? _assetNameFilter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [_assetNameFilter];
+        string[][] nameFilters = ParseNameFilters(_assetNameFilter);
         string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         bool includeAllTypes = _isAllAssetTypesSelected;
@@ -1678,7 +1678,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
     }
 
-    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
         try
         {
@@ -1739,7 +1739,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
     {
         foreach (AssetRowViewModel asset in assets)
         {
@@ -1755,7 +1755,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
     {
         bool matchesName = MatchesNameFilter(asset.Name, nameFilters);
         bool matchesType = includeAllTypes || selectedTypes.Contains(asset.Type, StringComparer.OrdinalIgnoreCase);
@@ -1763,19 +1763,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return matchesName && matchesType && matchesSource;
     }
 
-    private static bool MatchesNameFilter(string name, string[] filters)
+    // Comma separated searches are alternatives, so "hands, arms" lists the assets matching either. Within one, wildcard terms
+    // separated by spaces must all match, and text without wildcards is matched as it is.
+    private static string[][] ParseNameFilters(string text)
     {
-        foreach (string filter in filters)
-        {
-            bool matches = filter.Contains('*') || filter.Contains('?') ? FileSystemName.MatchesSimpleExpression(filter, name, ignoreCase: true) : name.Contains(filter, StringComparison.OrdinalIgnoreCase);
-            if (!matches)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        string[][] filters = [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(filter => filter.Contains('*') || filter.Contains('?') ? filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [filter])];
+        return filters.Length == 0 ? [[string.Empty]] : filters;
     }
+
+    private static bool MatchesNameFilter(string name, string[][] filters) => filters.Any(terms => terms.All(term => MatchesNameTerm(name, term)));
+
+    private static bool MatchesNameTerm(string name, string term) => term.Contains('*') || term.Contains('?') ? FileSystemName.MatchesSimpleExpression(term, name, ignoreCase: true) : name.Contains(term, StringComparison.OrdinalIgnoreCase);
 
     private IComparer<Asset> GetAssetInformationComparer()
     {
