@@ -110,7 +110,7 @@
                 </StackPanel>
                 <TextBox Grid.Column="2"
                          Classes="search-box"
-                         PlaceholderText="Search assets"
+                         PlaceholderText="Search assets (comma separate to match any)"
                          Text="{Binding SearchText}">
                     <TextBox.InnerLeftContent>
                         <PathIcon Data="{StaticResource IconSearch}"
