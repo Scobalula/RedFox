@@ -12,6 +12,7 @@ uniform mat4 NormalMatrix;
 uniform mat4 SceneAxis;
 uniform mat4 View;
 uniform mat4 Projection;
+uniform float ClipDepthBias;
 uniform int UVLayerCount;
 uniform int UVLayerIndex;
 uniform int SkinInfluenceCount;
@@ -287,5 +288,12 @@ void main()
     float handedness = tangent.w < 0.0 ? -1.0 : 1.0;
     WorldTangent = HasTangents != 0 ? vec4(mat3(worldMatrix) * resolvedTangent, determinant(mat3(worldMatrix)) < 0.0 ? -handedness : handedness) : vec4(0.0);
     TextureCoordinate = ResolveTextureCoordinate(uint(gl_VertexID));
-    gl_Position = Projection * View * worldPosition;
+
+    vec4 viewPosition = View * worldPosition;
+    gl_Position = Projection * viewPosition;
+    if (ClipDepthBias != 0.0)
+    {
+        vec4 biasedPosition = Projection * vec4(viewPosition.xy, viewPosition.z * (1.0 - ClipDepthBias), 1.0);
+        gl_Position.z = biasedPosition.z / biasedPosition.w * gl_Position.w;
+    }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
@@ -27,6 +28,9 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     private bool _isReadyToRender = true;
     private DataBuffer? _boundsSource;
     private SceneBounds _localBounds;
+    private MeshGpuBufferBinding? _wireframeIndices;
+    private DataBuffer? _wireframeFaceIndices;
+    private int _wireframeVertexCount;
 
     internal int GeometryVersion { get; private set; }
 
@@ -229,8 +233,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         }
 
         Matrix4x4	model			= Owner.GetBindWorldMatrix();
-        Matrix4x4	world			= model * sceneAxis;
-        Matrix4x4	normalMatrix	= Matrix4x4.Invert(world, out Matrix4x4 inverseWorld) ? Matrix4x4.Transpose(inverseWorld) : world;
+        Matrix4x4	normalMatrix	= CreateNormalMatrix(model * sceneAxis);
 
         for (int i = 0; i < materials.Count; i++)
         {
@@ -248,24 +251,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 continue;
             }
 
-            commandList.SetUniformMatrix4x4("Model", model);
-            commandList.SetUniformMatrix4x4("NormalMatrix", normalMatrix);
-            commandList.SetUniformMatrix4x4("View", view);
-            commandList.SetUniformMatrix4x4("Projection", projection);
-            commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
-            commandList.SetUniformVector3("CameraPosition", cameraPosition);
-            commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
-            commandList.SetUniformInt("UVLayerIndex", materialRanges is null ? i : 0);
-            commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin is { Bones.Count: > 0 } skin ? skin.InfluenceCount : 0);
-            commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
-            commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
-            commandList.SetUniformInt("HasTangents", _buffers[9].HasGpuBuffer ? 1 : 0);
-            commandList.SetUniformInt("DepthPrepass", phase == Rendering.RenderFlags.DepthPrepass ? 1 : 0);
-
-            foreach (MeshGpuBufferBinding buffer in _buffers)
-            {
-                buffer.Bind(commandList, pipeline);
-            }
+            BindDrawState(commandList, pipeline, model, normalMatrix, view, projection, sceneAxis, cameraPosition, materialRanges is null ? i : 0, phase == Rendering.RenderFlags.DepthPrepass);
 
             if (IndexCount > 0)
             {
@@ -284,6 +270,26 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 commandList.Draw(VertexCount, 0);
             }
         }
+    }
+
+    internal void RenderWireframe(ICommandList commandList, IGpuPipelineState pipeline, float depthBias, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(commandList);
+
+        if (VertexCount <= 0 || !_isReadyToRender || !UpdateWireframeIndices())
+        {
+            return;
+        }
+
+        Matrix4x4	model			= Owner.GetBindWorldMatrix();
+        Matrix4x4	normalMatrix	= CreateNormalMatrix(model * sceneAxis);
+
+        commandList.SetPipelineState(pipeline);
+        BindDrawState(commandList, pipeline, model, normalMatrix, view, projection, sceneAxis, cameraPosition, 0, false);
+        commandList.SetUniformFloat("ClipDepthBias", depthBias);
+        _wireframeIndices.Bind(commandList, pipeline);
+        commandList.DrawIndexed(_wireframeIndices.TotalComponentCount, 0, 0);
     }
 
     internal bool UpdateVisibility(in ViewFrustum frustum, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
@@ -332,6 +338,10 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers.Clear();
         }
 
+        _wireframeIndices?.Release();
+        _wireframeIndices = null;
+        _wireframeFaceIndices = null;
+        _wireframeVertexCount = 0;
         _skinMatrixBuffer = [];
         _uploadedSkinMatrices = [];
         _uploadedMorphWeights = [];
@@ -373,6 +383,67 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             HasOpaqueMaterials		|= materialHandle.IsOpaque;
             HasTransparentMaterials	|= !materialHandle.IsOpaque;
         }
+    }
+
+    private void BindDrawState(ICommandList commandList, IGpuPipelineState pipeline, in Matrix4x4 model, in Matrix4x4 normalMatrix, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, int uvLayerIndex, bool depthPrepass)
+    {
+        commandList.SetUniformMatrix4x4("Model", model);
+        commandList.SetUniformMatrix4x4("NormalMatrix", normalMatrix);
+        commandList.SetUniformMatrix4x4("View", view);
+        commandList.SetUniformMatrix4x4("Projection", projection);
+        commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
+        commandList.SetUniformVector3("CameraPosition", cameraPosition);
+        commandList.SetUniformInt("UVLayerCount", Owner.UVLayerCount);
+        commandList.SetUniformInt("UVLayerIndex", uvLayerIndex);
+        commandList.SetUniformInt("SkinInfluenceCount", Owner.Skin is { Bones.Count: > 0 } skin ? skin.InfluenceCount : 0);
+        commandList.SetUniformInt("SkinningMode", (int)(Owner.Skin?.SkinningMode == SkinningMode.DualQuaternion ? SkinningMode.DualQuaternion : commandList.SkinningMode));
+        commandList.SetUniformInt("MorphTargetCount", Owner.Morph is { VertexCount: > 0 } morph ? morph.TargetCount : 0);
+        commandList.SetUniformInt("HasTangents", _buffers[9].HasGpuBuffer ? 1 : 0);
+        commandList.SetUniformInt("DepthPrepass", depthPrepass ? 1 : 0);
+
+        foreach (MeshGpuBufferBinding buffer in _buffers)
+        {
+            buffer.Bind(commandList, pipeline);
+        }
+    }
+
+    [MemberNotNullWhen(true, nameof(_wireframeIndices))]
+    private bool UpdateWireframeIndices()
+    {
+        if (_wireframeIndices is null || !ReferenceEquals(_wireframeFaceIndices, Owner.FaceIndices) || _wireframeVertexCount != VertexCount)
+        {
+            _wireframeIndices?.Release();
+            _wireframeIndices		= MeshGpuBufferBinding.CreateIndex(CreateWireframeIndices(), "WireframeIndices");
+            _wireframeFaceIndices	= Owner.FaceIndices;
+            _wireframeVertexCount	= VertexCount;
+        }
+
+        return _wireframeIndices.Update(_graphicsDevice);
+    }
+
+    private DataBuffer<uint> CreateWireframeIndices()
+    {
+        uint[] faceIndices = Owner.FaceIndices is { TotalComponentCount: > 0 } faces ? faces.ToArray<uint>() : [.. Enumerable.Range(0, VertexCount).Select(index => (uint)index)];
+        uint[] lineIndices = new uint[faceIndices.Length / 3 * 6];
+
+        for (int face = 0; face < lineIndices.Length / 6; face++)
+        {
+            ReadOnlySpan<uint>	triangle	= faceIndices.AsSpan(face * 3, 3);
+            Span<uint>			edges		= lineIndices.AsSpan(face * 6, 6);
+            edges[0] = triangle[0];
+            edges[1] = triangle[1];
+            edges[2] = triangle[1];
+            edges[3] = triangle[2];
+            edges[4] = triangle[2];
+            edges[5] = triangle[0];
+        }
+
+        return new DataBuffer<uint>(lineIndices, 1, 2);
+    }
+
+    private static Matrix4x4 CreateNormalMatrix(in Matrix4x4 world)
+    {
+        return Matrix4x4.Invert(world, out Matrix4x4 inverseWorld) ? Matrix4x4.Transpose(inverseWorld) : world;
     }
 
     private static DataBuffer<float>? CreateMorphDeltaBuffer(Morph? morph)

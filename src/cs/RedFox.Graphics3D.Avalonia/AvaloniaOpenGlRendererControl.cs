@@ -56,6 +56,16 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, bool>(nameof(UseViewBasedLighting));
 
     /// <summary>
+    /// Defines the <see cref="UseFlatShading"/> property.
+    /// </summary>
+    public static readonly StyledProperty<bool> UseFlatShadingProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, bool>(nameof(UseFlatShading));
+
+    /// <summary>
+    /// Defines the <see cref="WireframeMode"/> property.
+    /// </summary>
+    public static readonly StyledProperty<WireframeMode> WireframeModeProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, WireframeMode>(nameof(WireframeMode));
+
+    /// <summary>
     /// Defines the <see cref="SkinningMode"/> property.
     /// </summary>
     public static readonly StyledProperty<SkinningMode> SkinningModeProperty =
@@ -106,6 +116,8 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         ViewportControllerProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, e) => control.OnViewportControllerPropertyChanged(e));
         ClearColorProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         UseViewBasedLightingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        UseFlatShadingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        WireframeModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         SkinningModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         AntiAliasingSamplesProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         ShadowQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
@@ -184,6 +196,24 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(UseViewBasedLightingProperty);
         set => SetValue(UseViewBasedLightingProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether materials are drawn with their base color only, without lighting.
+    /// </summary>
+    public bool UseFlatShading
+    {
+        get => GetValue(UseFlatShadingProperty);
+        set => SetValue(UseFlatShadingProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets how mesh wireframes are drawn.
+    /// </summary>
+    public WireframeMode WireframeMode
+    {
+        get => GetValue(WireframeModeProperty);
+        set => SetValue(WireframeModeProperty, value);
     }
 
     /// <summary>
@@ -466,6 +496,8 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
         _renderer.ClearColor = ClearColor;
         _renderer.UseViewBasedLighting = UseViewBasedLighting;
+        _renderer.UseFlatShading = UseFlatShading;
+        _renderer.WireframeMode = WireframeMode;
         _renderer.SkinningMode = SkinningMode;
         _renderer.AntiAliasingSamples = Math.Max(AntiAliasingSamples, 1);
         _renderer.ShadowQuality = ShadowQuality;

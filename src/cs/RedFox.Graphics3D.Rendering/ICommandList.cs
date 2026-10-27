@@ -78,6 +78,12 @@ public interface ICommandList
     /// <param name="enabled">Whether view-based lighting is enabled.</param>
     void SetUseViewBasedLighting(bool enabled);
 
+    /// <summary>
+    /// Sets whether flat shading is enabled for scene rendering.
+    /// </summary>
+    /// <param name="enabled">Whether flat shading is enabled.</param>
+    void SetUseFlatShading(bool enabled);
+
     void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity);
 
     void SetGlobalTexture(string name, IGpuTexture? texture);

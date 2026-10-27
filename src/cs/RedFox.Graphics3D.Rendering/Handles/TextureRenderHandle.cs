@@ -47,6 +47,8 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
     internal IGpuTexture? BindableTexture => _gpuTexture is null || (_textureUploadPending && _availableBaseMip < 0) ? null : _gpuTexture;
 
+    internal ImageFormat Format => _format;
+
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
     /// </summary>

@@ -20,6 +20,10 @@
                 <CheckBox Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}"/>
                 <CheckBox Content="Grid" IsChecked="{Binding Settings.ShowGrid}"/>
                 <CheckBox Content="Bones" IsChecked="{Binding Settings.ShowBones}"/>
+                <StackPanel Classes="preview-field">
+                    <TextBlock Text="Wireframe"/>
+                    <ComboBox Width="110" ItemsSource="{Binding WireframeModes}" SelectedItem="{Binding Settings.WireframeMode}"/>
+                </StackPanel>
                 <Button Content="Fit scene" Click="OnFitClick"/>
             </WrapPanel>
         </Border>
@@ -30,6 +34,8 @@
                                                Scene="{Binding ActiveScene}"
                                                ViewportController="{Binding ViewportController}"
                                                UseViewBasedLighting="{Binding Settings.UseViewBasedLighting}"
+                                               UseFlatShading="{Binding Settings.UseFlatShading}"
+                                               WireframeMode="{Binding Settings.WireframeMode}"
                                                IsAnimationPaused="{Binding Settings.IsAnimationPaused}"
                                                SkinningMode="{Binding Settings.SkinningMode}"
                                                AntiAliasingSamples="{Binding Settings.AntiAliasingSamples}"

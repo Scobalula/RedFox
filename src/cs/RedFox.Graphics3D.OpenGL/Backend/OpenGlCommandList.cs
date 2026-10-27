@@ -58,6 +58,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private int _shadowPassIndex = -1;
     private SkinningMode _skinningMode = SkinningMode.Linear;
     private bool _useViewBasedLighting;
+    private bool _useFlatShading;
     private uint _vertexArrayHandle;
     private int _vertexInputCount;
 
@@ -94,6 +95,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _sceneAxis = Matrix4x4.Identity;
         _skinningMode = SkinningMode.Linear;
         _useViewBasedLighting = false;
+        _useFlatShading = false;
         _environmentMap = null;
         _context.Gl.DepthMask(true);
 
@@ -210,6 +212,14 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         _useViewBasedLighting = enabled;
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void SetUseFlatShading(bool enabled)
+    {
+        ThrowIfDisposed();
+        _useFlatShading = enabled;
         ApplySceneStateToCurrentProgram();
     }
 
@@ -678,6 +688,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         graphicsProgram.SetVector3("AmbientColor", _ambientColor);
         graphicsProgram.SetInt("SkinningMode", (int)_skinningMode);
         graphicsProgram.SetInt("UseViewBasedLighting", _useViewBasedLighting ? 1 : 0);
+        graphicsProgram.SetInt("UseFlatShading", _useFlatShading ? 1 : 0);
         graphicsProgram.SetInt("HasEnvironmentMap", _environmentMap is null ? 0 : 1);
 
         if (_environmentMap is not null)

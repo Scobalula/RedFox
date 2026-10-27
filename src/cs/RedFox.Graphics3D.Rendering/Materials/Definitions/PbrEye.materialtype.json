@@ -1,0 +1,44 @@
+{
+  "name": "PbrEye",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Default",
+  "fragmentShaderName": "PbrEye",
+  "vertexAttributes": [
+    { "name": "Positions", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 },
+    { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
+  ],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "clockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": true,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "triangles",
+    "alphaToCoverage": true
+  },
+  "requirements": {
+    "textures": [
+      { "name": "OpacityMap", "slot": 0, "required": false },
+      { "name": "NormalMap", "slot": 1, "required": false, "semantic": "normal" },
+      { "name": "RoughnessMap", "slot": 3, "required": false, "semantic": "roughness" },
+      { "name": "OcclusionMap", "slot": 6, "required": false, "semantic": "ao" },
+      { "name": "EmissiveMap", "slot": 7, "required": false, "semantic": "emissive" },
+      { "name": "IrisNormalMap", "slot": 11, "required": false },
+      { "name": "DiffuseMap", "slot": 15, "required": false, "semantic": "diffuse" }
+    ],
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true },
+      { "name": "NormalStrength", "valueType": "float", "required": false, "defaultValue": [1] },
+      { "name": "NormalEncoding", "valueType": "int32", "required": false, "defaultValue": [0] },
+      { "name": "TextureTiling", "valueType": "float2", "required": false, "defaultValue": [1, 1] }
+    ]
+  }
+}

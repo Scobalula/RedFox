@@ -17,6 +17,8 @@ public sealed class SceneRenderer : IDisposable
     private const int DefaultAntiAliasingSamples = 4;
     private const int MinimumAntiAliasingSamples = 1;
     private const float ShadowBlurRadius = 0.005f;
+    private const float WireframeDepthBias = 0.002f;
+    private const string WireframeMaterialTypeName = "Wireframe";
 
     private static readonly RenderFlags[] RenderPhases =
     [
@@ -46,9 +48,11 @@ public sealed class SceneRenderer : IDisposable
     private readonly List<(SceneNode Node, IRenderHandle Handle)> _sceneTraversalHandles = [];
     private readonly List<MeshRenderHandle> _opaqueMeshes = [];
     private readonly List<MeshRenderHandle> _transparentMeshes = [];
+    private readonly List<MeshRenderHandle> _visibleMeshes = [];
     private readonly List<IRenderHandle> _otherHandles = [];
     private readonly Dictionary<string, IGpuPipelineState> _preparedPipelines = [];
     private RenderFrameContext? _frameContext;
+    private IGpuPipelineState? _wireframePipeline;
 
     private IGpuTexture? _antiAliasingColorTexture;
     private IGpuTexture? _antiAliasingDepthTexture;
@@ -114,6 +118,16 @@ public sealed class SceneRenderer : IDisposable
     /// Gets or sets a value indicating whether view-based lighting is enabled.
     /// </summary>
     public bool UseViewBasedLighting { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether materials are drawn with their base color only, without lighting, shadows or ambient occlusion.
+    /// </summary>
+    public bool UseFlatShading { get; set; }
+
+    /// <summary>
+    /// Gets or sets how mesh wireframes are drawn.
+    /// </summary>
+    public WireframeMode WireframeMode { get; set; }
 
     public ShadowQuality ShadowQuality { get; set; } = ShadowQuality.High;
 
@@ -321,6 +335,7 @@ public sealed class SceneRenderer : IDisposable
         _commandList.SetFrontFaceWinding(FaceWinding.CounterClockwise);
         _commandList.SetAmbientColor(AmbientColor);
         _commandList.SetUseViewBasedLighting(UseViewBasedLighting);
+        _commandList.SetUseFlatShading(UseFlatShading);
         _commandList.SetSkinningMode(SkinningMode);
         _commandList.ResetLights(FallbackLightDirection, FallbackLightColor, FallbackLightIntensity);
 
@@ -348,9 +363,14 @@ public sealed class SceneRenderer : IDisposable
         UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
         CollectVisibleHandles(view, sceneAxis);
-        RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
 
-        if (AmbientOcclusionQuality != AmbientOcclusionQuality.Off && _graphicsDevice.SupportsFormat(ImageFormat.D32Float, TextureUsage.DepthStencil | TextureUsage.Sampled))
+        bool shadesSurfaces = !UseFlatShading && WireframeMode != WireframeMode.WireOnly;
+        if (shadesSurfaces)
+        {
+            RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
+        }
+
+        if (shadesSurfaces && AmbientOcclusionQuality != AmbientOcclusionQuality.Off && _graphicsDevice.SupportsFormat(ImageFormat.D32Float, TextureUsage.DepthStencil | TextureUsage.Sampled))
         {
             _depthPrepass.Execute(context);
             _ambientOcclusionPass.Execute(context);
@@ -370,6 +390,12 @@ public sealed class SceneRenderer : IDisposable
 
             RenderSkybox(scene.Skybox, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
             SceneTraversal.Render(meshes, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
+
+            if (phase == RenderFlags.Overlay)
+            {
+                RenderWireframes(view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position);
+            }
+
             SceneTraversal.Render(_otherHandles, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
             RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
@@ -516,6 +542,7 @@ public sealed class SceneRenderer : IDisposable
         ViewFrustum frustum = ViewFrustum.FromViewProjection(view.ViewMatrix * view.ProjectionMatrix);
         _opaqueMeshes.Clear();
         _transparentMeshes.Clear();
+        _visibleMeshes.Clear();
         _otherHandles.Clear();
 
         foreach ((SceneNode _, IRenderHandle handle) in _sceneTraversalHandles)
@@ -527,6 +554,12 @@ public sealed class SceneRenderer : IDisposable
             }
 
             if (!meshHandle.UpdateVisibility(frustum, sceneAxis, view.Position))
+            {
+                continue;
+            }
+
+            _visibleMeshes.Add(meshHandle);
+            if (WireframeMode == WireframeMode.WireOnly)
             {
                 continue;
             }
@@ -771,6 +804,35 @@ public sealed class SceneRenderer : IDisposable
         return true;
     }
 
+    private void RenderWireframes(in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    {
+        if (WireframeMode == WireframeMode.None || GetWireframePipeline() is not { } pipeline)
+        {
+            return;
+        }
+
+        foreach (MeshRenderHandle meshHandle in _visibleMeshes)
+        {
+            meshHandle.RenderWireframe(_commandList, pipeline, WireframeDepthBias, view, projection, sceneAxis, cameraPosition);
+        }
+    }
+
+    private IGpuPipelineState? GetWireframePipeline()
+    {
+        if (_wireframePipeline is { IsDisposed: false })
+        {
+            return _wireframePipeline;
+        }
+
+        if (_graphicsDevice.MaterialTypes is not IMaterialPipelineProvider pipelineProvider || !_graphicsDevice.MaterialTypes.Contains(WireframeMaterialTypeName))
+        {
+            return null;
+        }
+
+        _wireframePipeline = pipelineProvider.AcquirePipeline(_graphicsDevice, WireframeMaterialTypeName);
+        return _wireframePipeline;
+    }
+
     private void RenderSkybox(Skybox skybox, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, Vector3 cameraPosition, Vector2 viewportSize)
     {
         IRenderHandle? graphicsHandle = SceneRenderResources.Get(_graphicsDevice, skybox);
@@ -816,9 +878,15 @@ public sealed class SceneRenderer : IDisposable
             {
                 pipelineProvider.ReleasePipeline(prepared.Key, prepared.Value);
             }
+
+            if (_wireframePipeline is not null)
+            {
+                pipelineProvider.ReleasePipeline(WireframeMaterialTypeName, _wireframePipeline);
+            }
         }
 
         _preparedPipelines.Clear();
+        _wireframePipeline = null;
     }
 
     private void ReleaseAntiAliasingResources()

@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 
 namespace RedFox.Graphics3D.Rendering.Materials;
 
@@ -23,12 +24,29 @@ public sealed record class MaterialTextureRequirement
     public bool Required { get; }
 
     /// <summary>
+    /// Gets the semantic passed to <see cref="Material.GetMapName"/> to find the texture when the material sets no channel source for <see cref="Name"/>.
+    /// </summary>
+    public string? Semantic { get; }
+
+    /// <summary>
     /// Initializes a new <see cref="MaterialTextureRequirement"/> value.
     /// </summary>
     /// <param name="name">The material texture binding name.</param>
     /// <param name="slot">The texture slot expected by the shader.</param>
     /// <param name="required">Whether the texture is required.</param>
-    public MaterialTextureRequirement(string name, int slot, bool required)
+    public MaterialTextureRequirement(string name, int slot, bool required) : this(name, slot, required, null)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new <see cref="MaterialTextureRequirement"/> value with a material semantic.
+    /// </summary>
+    /// <param name="name">The material texture binding name.</param>
+    /// <param name="slot">The texture slot expected by the shader.</param>
+    /// <param name="required">Whether the texture is required.</param>
+    /// <param name="semantic">The semantic passed to <see cref="Material.GetMapName"/>, or <see langword="null"/> for none.</param>
+    [JsonConstructor]
+    public MaterialTextureRequirement(string name, int slot, bool required, string? semantic)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (slot < 0)
@@ -39,5 +57,6 @@ public sealed record class MaterialTextureRequirement
         Name = name;
         Slot = slot;
         Required = required;
+        Semantic = semantic;
     }
 }
