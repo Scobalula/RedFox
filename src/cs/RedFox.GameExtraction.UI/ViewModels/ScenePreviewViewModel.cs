@@ -49,6 +49,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     public IReadOnlyList<string> SceneNames { get; }
 
     /// <summary>
+    /// Gets the wireframe modes offered by the preview toolbar.
+    /// </summary>
+    public IReadOnlyList<WireframeMode> WireframeModes { get; } = Enum.GetValues<WireframeMode>();
+
+    /// <summary>
     /// Gets a value indicating whether more than one scene is available.
     /// </summary>
     public bool HasMultipleScenes => Scenes.Count > 1;

@@ -1,0 +1,38 @@
+{
+  "name": "PbrUnlitTransparent",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Default",
+  "fragmentShaderName": "PbrUnlitTransparent",
+  "vertexAttributes": [
+    { "name": "Positions", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 },
+    { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
+  ],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "clockwise",
+    "wireframe": false,
+    "blend": true,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "inverseSourceAlpha",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": false,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "triangles",
+    "alphaToCoverage": false
+  },
+  "requirements": {
+    "textures": [
+      { "name": "OpacityMap", "slot": 0, "required": false },
+      { "name": "EmissiveMap", "slot": 7, "required": false, "semantic": "emissive" },
+      { "name": "DiffuseMap", "slot": 15, "required": false, "semantic": "diffuse" }
+    ],
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true },
+      { "name": "TextureTiling", "valueType": "float2", "required": false, "defaultValue": [1, 1] }
+    ]
+  }
+}

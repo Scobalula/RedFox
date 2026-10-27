@@ -14,9 +14,10 @@ namespace RedFox.Graphics3D;
 public class Material(string name) : SceneNode(name)
 {
     private List<MaterialTextureBinding> _connections = [];
+    private Dictionary<string, MaterialChannelSource> _channelSources = new(StringComparer.Ordinal);
     private uint _version;
 
-    /// <summary>Gets the mutation version counter. Incremented on every <see cref="Connect"/> or <see cref="Disconnect"/> call; useful for cache invalidation.</summary>
+    /// <summary>Gets the mutation version counter. Incremented whenever texture connections or channel sources change; useful for cache invalidation.</summary>
     public uint Version => _version;
 
     /// <summary>
@@ -324,6 +325,11 @@ public class Material(string name) : SceneNode(name)
     public IReadOnlyList<MaterialTextureBinding> Textures => _connections;
 
     /// <summary>
+    /// Gets the channel sources set on this material, keyed by the material type texture input they feed.
+    /// </summary>
+    public IReadOnlyDictionary<string, MaterialChannelSource> ChannelSources => _channelSources;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Material"/> class with default values.
     /// </summary>
     public Material() : this(string.Empty) { }
@@ -375,6 +381,49 @@ public class Material(string name) : SceneNode(name)
                 return;
             }
         }
+    }
+
+    /// <summary>
+    /// Sets the texture channels that feed a material type texture input, replacing any previous source.
+    /// </summary>
+    /// <param name="mapName">The texture input fed by the source, such as <see cref="PbrMaterial.RoughnessMap"/>.</param>
+    /// <param name="source">The texture channels to read.</param>
+    public void SetChannelSource(string mapName, MaterialChannelSource source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mapName);
+        ArgumentNullException.ThrowIfNull(source);
+        _channelSources[mapName] = source;
+        _version++;
+    }
+
+    /// <summary>
+    /// Removes the channel source of a texture input, if one is set.
+    /// </summary>
+    /// <param name="mapName">The texture input to reset.</param>
+    /// <returns><see langword="true"/> when a source was removed; otherwise <see langword="false"/>.</returns>
+    public bool RemoveChannelSource(string mapName)
+    {
+        ArgumentNullException.ThrowIfNull(mapName);
+
+        if (!_channelSources.Remove(mapName))
+        {
+            return false;
+        }
+
+        _version++;
+        return true;
+    }
+
+    /// <summary>
+    /// Returns the channel source set for a texture input.
+    /// </summary>
+    /// <param name="mapName">The texture input to look up.</param>
+    /// <param name="source">The channel source when one is set; otherwise <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when a source is set for <paramref name="mapName"/>.</returns>
+    public bool TryGetChannelSource(string mapName, [NotNullWhen(true)] out MaterialChannelSource? source)
+    {
+        ArgumentNullException.ThrowIfNull(mapName);
+        return _channelSources.TryGetValue(mapName, out source);
     }
 
     /// <inheritdoc/>
@@ -760,6 +809,7 @@ public class Material(string name) : SceneNode(name)
     protected override void OnCloned()
     {
         _connections = [.. _connections];
+        _channelSources = new(_channelSources, StringComparer.Ordinal);
     }
 
     private Texture GetRequiredTexture(string? slotKey, string slotKeyPropertyName)

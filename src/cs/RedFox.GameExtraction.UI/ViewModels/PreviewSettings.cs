@@ -270,12 +270,18 @@ public sealed partial class PreviewSettings : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UseViewBasedLighting))]
+    [NotifyPropertyChangedFor(nameof(UseFlatShading))]
     internal partial ScenePreviewLightingMode LightingMode { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether view-based lighting is enabled.
     /// </summary>
     public bool UseViewBasedLighting => LightingMode == ScenePreviewLightingMode.ViewBased;
+
+    /// <summary>
+    /// Gets a value indicating whether materials are drawn with their base color only, without lighting.
+    /// </summary>
+    public bool UseFlatShading => LightingMode == ScenePreviewLightingMode.Flat;
 
     [ObservableProperty]
     public partial int AntiAliasingSamples { get; set; } = 8;
@@ -315,6 +321,12 @@ public sealed partial class PreviewSettings : ObservableObject
     /// </summary>
     [ObservableProperty]
     public partial bool ShowBones { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how mesh wireframes are drawn in scene previews.
+    /// </summary>
+    [ObservableProperty]
+    public partial WireframeMode WireframeMode { get; set; }
 
     // The skybox always lights and reflects on the model; these only control the visible background.
     [ObservableProperty]

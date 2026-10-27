@@ -252,6 +252,13 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     }
 
     /// <inheritdoc/>
+    public void SetUseFlatShading(bool enabled)
+    {
+        ThrowIfDisposed();
+        SetUniformInt("UseFlatShading", enabled ? 1 : 0);
+    }
+
+    /// <inheritdoc/>
     public void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity)
     {
         ThrowIfDisposed();

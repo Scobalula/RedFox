@@ -19,6 +19,7 @@ uniform vec4 EnvironmentLightDirections[MAX_LIGHTS];
 uniform vec3 EnvironmentLightPowers[MAX_LIGHTS];
 uniform vec3 CameraPosition;
 uniform int UseViewBasedLighting;
+uniform int UseFlatShading;
 uniform int HasDiffuseMap;
 uniform int UVLayerCount;
 uniform vec4 BaseColor;
@@ -54,6 +55,12 @@ void main()
     if (HasDiffuseMap != 0 && UVLayerCount > 0)
     {
         surfaceColor *= texture(DiffuseMap, TextureCoordinate);
+    }
+
+    if (UseFlatShading != 0)
+    {
+        FragColor = surfaceColor;
+        return;
     }
 
     if (UseViewBasedLighting != 0)

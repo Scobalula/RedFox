@@ -125,6 +125,31 @@ internal sealed class ThumbnailCache : IDisposable
         }
     }
 
+    public void Clear()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            AcquireMutex();
+
+            try
+            {
+                ResetFile(_data, DataMagic);
+                ResetFile(_index, IndexMagic);
+                _records.Clear();
+                _indexLength = HeaderSize;
+            }
+            finally
+            {
+                _mutex.ReleaseMutex();
+            }
+        }
+    }
+
     public void Dispose()
     {
         lock (_sync)

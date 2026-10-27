@@ -28,6 +28,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
     private const uint GlRg = 0x8227;
     private const uint GlRg16f = 0x822F;
     private const uint GlRg32f = 0x8230;
+    private const BufferUsage BufferObjectUsages = BufferUsage.Vertex | BufferUsage.Index | BufferUsage.Uniform | BufferUsage.Structured | BufferUsage.ShaderStorage | BufferUsage.CpuRead;
 
     private readonly List<OpenGlCommandList> _commandLists = [];
     private readonly OpenGlContext _context;
@@ -35,6 +36,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
     private readonly bool _supportsRgtcTextureCompression;
     private readonly bool _supportsS3tcTextureCompression;
     private readonly bool _supportsS3tcSrgbTextureCompression;
+    private readonly int _maxTextureSize;
     private int _remainingBufferUploadBytes;
     private bool _disposed;
 
@@ -86,6 +88,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
         _supportsRgtcTextureCompression = SupportsRgtcTextureCompression(_context.Gl);
         _supportsS3tcTextureCompression = SupportsS3tcTextureCompression(_context.Gl);
         _supportsS3tcSrgbTextureCompression = SupportsS3tcSrgbTextureCompression(_context.Gl);
+        _context.Gl.GetInteger(GLEnum.MaxTextureSize, out _maxTextureSize);
         MaterialTypes = new OpenGlMaterialTypeRegistry();
     }
 
@@ -184,38 +187,20 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             throw new ArgumentOutOfRangeException(nameof(stride));
         }
 
-        int allocatedSizeBytes = GetAllocatedBufferSizeBytes(sizeBytes, usage);
-
-        uint handle = _context.CreateBuffer();
-        GL gl = _context.Gl;
-        BufferTargetARB target = GetAllocationTarget(usage);
-        BufferUsageARB storageUsage = GetBufferUsage(usage);
-        gl.BindBuffer(target, handle);
-        if (initialData.IsEmpty)
+        if (initialData.Length > sizeBytes)
         {
-            gl.BufferData(target, (nuint)allocatedSizeBytes, (void*)null, storageUsage);
+            throw new ArgumentException("Initial buffer data exceeds the requested buffer size.", nameof(initialData));
         }
-        else
-        {
-            if (initialData.Length > sizeBytes)
-            {
-                throw new ArgumentException("Initial buffer data exceeds the requested buffer size.", nameof(initialData));
-            }
 
-            gl.BufferData(target, (nuint)allocatedSizeBytes, (void*)null, storageUsage);
-            fixed (byte* initialDataPointer = initialData)
-            {
-                gl.BufferSubData(target, 0, (nuint)initialData.Length, initialDataPointer);
-            }
-        }
+        bool	needsBufferObject	= !usage.HasFlag(BufferUsage.Sampled) || (usage & BufferObjectUsages) != 0;
+        uint	handle				= needsBufferObject ? CreateBufferObject(GetAllocatedBufferSizeBytes(sizeBytes, usage), GetBufferUsage(usage), initialData) : 0;
 
         TextureTarget sampledTextureTarget = 0;
         uint sampledTextureHandle = usage.HasFlag(BufferUsage.Sampled)
             ? CreateSampledBufferTexture(handle, sizeBytes, stride, elementType, initialData, out sampledTextureTarget)
             : 0;
 
-        gl.BindBuffer(target, 0);
-        return new OpenGlBuffer(_context, handle, sizeBytes, stride, usage, elementType, target, sampledTextureHandle, sampledTextureTarget);
+        return new OpenGlBuffer(_context, handle, sizeBytes, stride, usage, elementType, sampledTextureHandle, sampledTextureTarget);
     }
 
     /// <inheritdoc/>
@@ -232,17 +217,21 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             throw new ArgumentException("Buffer update data exceeds the allocated buffer size.", nameof(data));
         }
 
-        GL gl = _context.Gl;
-        gl.BindBuffer(openGlBuffer.Target, openGlBuffer.Handle);
         if (data.IsEmpty)
         {
-            gl.BindBuffer(openGlBuffer.Target, 0);
             return;
         }
 
-        fixed (byte* dataPointer = data)
+        if (openGlBuffer.Handle != 0)
         {
-            gl.BufferSubData(openGlBuffer.Target, 0, (nuint)data.Length, dataPointer);
+            GL gl = _context.Gl;
+            gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, openGlBuffer.Handle);
+            fixed (byte* dataPointer = data)
+            {
+                gl.BufferSubData(BufferTargetARB.CopyWriteBuffer, 0, (nuint)data.Length, dataPointer);
+            }
+
+            gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, 0);
         }
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Sampled) && openGlBuffer.SampledTextureTarget == TextureTarget.Texture2D)
@@ -254,8 +243,6 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
 
             UpdateEmbeddedSampledTexture(openGlBuffer, data);
         }
-
-        gl.BindBuffer(openGlBuffer.Target, 0);
     }
 
     /// <inheritdoc/>
@@ -304,11 +291,16 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             throw new ArgumentException("Incremental buffer uploads must align to complete elements.", nameof(data));
         }
 
-        GL gl = _context.Gl;
-        gl.BindBuffer(openGlBuffer.Target, openGlBuffer.Handle);
-        fixed (byte* dataPointer = data)
+        if (openGlBuffer.Handle != 0)
         {
-            gl.BufferSubData((GLEnum)openGlBuffer.Target, (nint)byteOffset, (nuint)byteCount, dataPointer);
+            GL gl = _context.Gl;
+            gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, openGlBuffer.Handle);
+            fixed (byte* dataPointer = data)
+            {
+                gl.BufferSubData(BufferTargetARB.CopyWriteBuffer, (nint)byteOffset, (nuint)byteCount, dataPointer);
+            }
+
+            gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, 0);
         }
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Sampled) && openGlBuffer.SampledTextureTarget == TextureTarget.Texture2D)
@@ -316,7 +308,6 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             UpdateEmbeddedSampledTextureRange(openGlBuffer, byteOffset, data[..byteCount]);
         }
 
-        gl.BindBuffer(openGlBuffer.Target, 0);
         _remainingBufferUploadBytes -= byteCount;
         return byteCount;
     }
@@ -847,24 +838,22 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
         return new OpenGlTexture(gl, handle, image.Width, image.Height, image.Format, usage, TextureTarget.TextureCubeMap);
     }
 
-    private static BufferTargetARB GetAllocationTarget(BufferUsage usage)
+    private unsafe uint CreateBufferObject(int allocatedSizeBytes, BufferUsageARB storageUsage, ReadOnlySpan<byte> initialData)
     {
-        if (usage.HasFlag(BufferUsage.Index))
+        uint handle = _context.CreateBuffer();
+        GL gl = _context.Gl;
+        gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, handle);
+        gl.BufferData(BufferTargetARB.CopyWriteBuffer, (nuint)allocatedSizeBytes, (void*)null, storageUsage);
+        if (!initialData.IsEmpty)
         {
-            return BufferTargetARB.ElementArrayBuffer;
+            fixed (byte* initialDataPointer = initialData)
+            {
+                gl.BufferSubData(BufferTargetARB.CopyWriteBuffer, 0, (nuint)initialData.Length, initialDataPointer);
+            }
         }
 
-        if (usage.HasFlag(BufferUsage.ShaderStorage) || usage.HasFlag(BufferUsage.Structured))
-        {
-            return BufferTargetARB.ShaderStorageBuffer;
-        }
-
-        if (usage.HasFlag(BufferUsage.Uniform))
-        {
-            return BufferTargetARB.UniformBuffer;
-        }
-
-        return BufferTargetARB.ArrayBuffer;
+        gl.BindBuffer(BufferTargetARB.CopyWriteBuffer, 0);
+        return handle;
     }
 
     private static BufferUsageARB GetBufferUsage(BufferUsage usage)
@@ -995,8 +984,7 @@ public sealed class OpenGlGraphicsDevice : IGraphicsDevice, IProgressiveTextureU
             throw new NotSupportedException("OpenGL ES sampled buffers require at least one sampled element.");
         }
 
-        _context.Gl.GetInteger(GLEnum.MaxTextureSize, out int maxTextureSize);
-        width = Math.Min(Math.Max(1, maxTextureSize), elementCount);
+        width = Math.Min(Math.Max(1, _maxTextureSize), elementCount);
         height = (elementCount + width - 1) / width;
     }
 

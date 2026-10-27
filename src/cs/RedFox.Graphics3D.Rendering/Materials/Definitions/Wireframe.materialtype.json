@@ -1,0 +1,33 @@
+{
+  "name": "Wireframe",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Default",
+  "fragmentShaderName": "Wireframe",
+  "vertexAttributes": [
+    { "name": "Positions", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 },
+    { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
+  ],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "clockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": true,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "lines",
+    "alphaToCoverage": false
+  },
+  "requirements": {
+    "textures": [],
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true }
+    ]
+  }
+}

@@ -36,15 +36,7 @@ internal static class SceneRenderResources
     public static IRenderHandle? GetOrCreate(SceneNode node, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return Get(graphicsDevice, node) ?? node switch
-        {
-            Mesh mesh => GetOrCreate(graphicsDevice, mesh, () => new MeshRenderHandle(graphicsDevice, mesh)),
-            Material material => GetOrCreate(graphicsDevice, material, () => new MaterialRenderHandle(graphicsDevice, material)),
-            Texture texture => GetOrCreate(graphicsDevice, texture, () => new TextureRenderHandle(graphicsDevice, texture)),
-            SkeletonBone bone => GetOrCreate(graphicsDevice, bone, () => new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, bone)),
-            Light light => GetOrCreate(graphicsDevice, light, () => new LightRenderHandle(light)),
-            _ => null,
-        };
+        return Get(graphicsDevice, node) ?? Create(node, graphicsDevice, materialTypes);
     }
 
     public static void Release(IGraphicsDevice graphicsDevice, object owner)
@@ -72,6 +64,19 @@ internal static class SceneRenderResources
         }
 
         handles.Clear();
+    }
+
+    private static IRenderHandle? Create(SceneNode node, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
+    {
+        return node switch
+        {
+            Mesh mesh => GetOrCreate(graphicsDevice, mesh, () => new MeshRenderHandle(graphicsDevice, mesh)),
+            Material material => GetOrCreate(graphicsDevice, material, () => new MaterialRenderHandle(graphicsDevice, material)),
+            Texture texture => GetOrCreate(graphicsDevice, texture, () => new TextureRenderHandle(graphicsDevice, texture)),
+            SkeletonBone bone => GetOrCreate(graphicsDevice, bone, () => new SkeletonBoneRenderHandle(graphicsDevice, materialTypes, bone)),
+            Light light => GetOrCreate(graphicsDevice, light, () => new LightRenderHandle(light)),
+            _ => null,
+        };
     }
 
     private static void Release(Dictionary<object, IRenderHandle> handles, object owner)

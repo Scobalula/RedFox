@@ -7,6 +7,7 @@
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
 using RedFox.Graphics3D;
+using RedFox.Imaging.Processing;
 
 namespace RedFox.Tests.Graphics3D;
 
@@ -288,5 +289,54 @@ public sealed class MaterialConnectionTests
         Assert.Equal(1, material.Textures[1].Slot);
         Assert.Equal("diffuse", material.Textures[0].SamplerUniform);
         Assert.Equal("normal", material.Textures[1].SamplerUniform);
+    }
+
+    [Fact]
+    public void SetChannelSource_BumpsVersionAndIsReturned()
+    {
+        Material material = new("mat");
+        MaterialChannelSource source = new("ATOS", ColorChannel.Red);
+        uint versionBefore = material.Version;
+
+        material.SetChannelSource(PbrMaterial.OpacityMap, source);
+
+        Assert.NotEqual(versionBefore, material.Version);
+        Assert.True(material.TryGetChannelSource(PbrMaterial.OpacityMap, out MaterialChannelSource? stored));
+        Assert.Same(source, stored);
+    }
+
+    [Fact]
+    public void RemoveChannelSource_BumpsVersionOnlyWhenRemoved()
+    {
+        Material material = new("mat");
+        material.SetChannelSource(PbrMaterial.RoughnessMap, new MaterialChannelSource("NormalMap", ColorChannel.Blue));
+        uint versionAfterSet = material.Version;
+
+        Assert.False(material.RemoveChannelSource(PbrMaterial.MetallicMap));
+        Assert.Equal(versionAfterSet, material.Version);
+        Assert.True(material.RemoveChannelSource(PbrMaterial.RoughnessMap));
+        Assert.NotEqual(versionAfterSet, material.Version);
+        Assert.False(material.TryGetChannelSource(PbrMaterial.RoughnessMap, out _));
+    }
+
+    [Fact]
+    public void Clone_CopiesChannelSourcesIndependently()
+    {
+        Material material = new("mat");
+        material.SetChannelSource(PbrMaterial.OpacityMap, new MaterialChannelSource("ATOS", ColorChannel.Red));
+
+        Material clone = (Material)material.Clone();
+        clone.RemoveChannelSource(PbrMaterial.OpacityMap);
+
+        Assert.True(material.TryGetChannelSource(PbrMaterial.OpacityMap, out _));
+        Assert.Empty(clone.ChannelSources);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(5)]
+    public void MaterialChannelSource_RejectsUnsupportedChannelCounts(int channelCount)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MaterialChannelSource("ATOS", new ColorChannel[channelCount]));
     }
 }

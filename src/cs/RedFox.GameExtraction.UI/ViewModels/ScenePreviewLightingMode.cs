@@ -4,4 +4,5 @@ internal enum ScenePreviewLightingMode
 {
     Scene,
     ViewBased,
+    Flat,
 }

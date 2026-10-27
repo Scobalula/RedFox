@@ -1,3 +1,4 @@
+using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering;
 using RedFox.Graphics3D.Rendering.Materials;
 
@@ -75,6 +76,59 @@ public sealed class MaterialTypeJsonLoaderTests
         Assert.NotNull(gridDefinition.Descriptor);
         Assert.Empty(gridDefinition.Descriptor.VertexAttributes);
         Assert.Contains(gridDefinition.Descriptor.Requirements.Uniforms, static uniform => uniform.Name == "GridCellSize" && uniform.ValueType == MaterialValueType.Float);
+    }
+
+    [Fact]
+    public void LoadStringReadsTextureSemanticsAndUniformDefaults()
+    {
+        const string Json = """
+        {
+          "name": "SemanticDefaults",
+          "pipelineKind": "graphics",
+          "vertexShaderName": "Default",
+          "fragmentShaderName": "Pbr",
+          "pipelineState": { "depthTest": true, "depthWrite": true, "primitiveTopology": "triangles" },
+          "requirements": {
+            "textures": [
+              { "name": "NormalMap", "slot": 1, "required": false, "semantic": "normal" },
+              { "name": "OpacityMap", "slot": 0, "required": false }
+            ],
+            "uniforms": [
+              { "name": "TextureTiling", "valueType": "float2", "required": false, "defaultValue": [2, 3] },
+              { "name": "Model", "valueType": "matrix4x4", "required": true }
+            ]
+          }
+        }
+        """;
+
+        MaterialTypeDescriptor descriptor = MaterialTypeJsonLoader.LoadString(Json);
+
+        Assert.Equal("normal", descriptor.Requirements.Textures[0].Semantic);
+        Assert.Null(descriptor.Requirements.Textures[1].Semantic);
+        Assert.Equal([2.0f, 3.0f], descriptor.Requirements.Uniforms[0].DefaultValue);
+        Assert.Null(descriptor.Requirements.Uniforms[1].DefaultValue);
+    }
+
+    [Theory]
+    [InlineData(PbrMaterial.TypeName)]
+    [InlineData(PbrMaterial.TransparentTypeName)]
+    [InlineData(PbrMaterial.HairTypeName)]
+    [InlineData(PbrMaterial.HairTransparentTypeName)]
+    [InlineData(PbrMaterial.EyeTypeName)]
+    [InlineData(PbrMaterial.UnlitTypeName)]
+    [InlineData(PbrMaterial.UnlitTransparentTypeName)]
+    [InlineData(PbrMaterial.AdditiveTypeName)]
+    public void BuiltInPbrDefinitionsFitTheFragmentSamplerBudget(string typeName)
+    {
+        IReadOnlyList<MaterialTypeDefinition> definitions = BuiltInMaterialTypes.CreateDefinitions(new TestMaterialShaderFactory());
+
+        MaterialTypeDescriptor descriptor = Assert.Single(definitions, definition => definition.Name == typeName).Descriptor;
+        MaterialTextureRequirement diffuse = Assert.Single(descriptor.Requirements.Textures, static texture => texture.Name == PbrMaterial.DiffuseMap);
+        MaterialUniformRequirement tiling = Assert.Single(descriptor.Requirements.Uniforms, static uniform => uniform.Name == PbrMaterial.TextureTiling);
+        Assert.Equal(15, diffuse.Slot);
+        Assert.Equal("diffuse", diffuse.Semantic);
+        Assert.Equal([1.0f, 1.0f], tiling.DefaultValue);
+        Assert.InRange(descriptor.Requirements.Textures.Count, 1, 12);
     }
 
     private sealed class TestMaterialShaderFactory : IMaterialShaderFactory

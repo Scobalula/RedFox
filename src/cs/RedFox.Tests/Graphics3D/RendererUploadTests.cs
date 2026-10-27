@@ -7,6 +7,7 @@ using RedFox.Graphics3D.Buffers.PackedVector;
 using RedFox.Graphics3D.Rendering;
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
+using RedFox.Imaging.Processing;
 
 namespace RedFox.Tests.Graphics3D;
 
@@ -141,5 +142,32 @@ public class RendererUploadTests
         Assert.Equal(1, device.TextureAllocations);
         Assert.Equal(1, device.TextureUploads);
         Assert.False(handle.RequiresPerFrameUpdate);
+    }
+
+    [Fact]
+    public void MaterialChannelSource_TransformSelectsScalesAndBiasesChannels()
+    {
+        Vector4 texel = new(0.1f, 0.2f, 0.3f, 0.4f);
+        MaterialChannelSource normal = new("Normal", ColorChannel.Alpha, ColorChannel.Green) { Scale = new Vector4(1.0f, -1.0f, 1.0f, 1.0f), Bias = new Vector4(0.0f, 1.0f, 0.0f, 0.0f) };
+        MaterialChannelSource gloss = new("Normal", ColorChannel.Blue) { Scale = new Vector4(-1.0f), Bias = Vector4.One };
+        MaterialChannelSource constant = new("Mask", ColorChannel.One, ColorChannel.Red, ColorChannel.Zero);
+
+        AssertNearlyEqual(new Vector4(0.4f, 0.8f, 0.2f, 0.2f), ApplyChannelTransform(normal, texel));
+        AssertNearlyEqual(new Vector4(0.7f), ApplyChannelTransform(gloss, texel));
+        AssertNearlyEqual(new Vector4(1.0f, 0.1f, 0.0f, 0.0f), ApplyChannelTransform(constant, texel));
+    }
+
+    private static Vector4 ApplyChannelTransform(MaterialChannelSource source, Vector4 texel)
+    {
+        Type transformType = typeof(MeshGpuBufferBinding).Assembly.GetType("RedFox.Graphics3D.Rendering.Handles.MaterialChannelTransform", true)!;
+        object transform = transformType.GetMethod("From")!.Invoke(null, [source])!;
+        Matrix4x4 matrix = (Matrix4x4)transformType.GetProperty("Matrix")!.GetValue(transform)!;
+        Vector4 bias = (Vector4)transformType.GetProperty("Bias")!.GetValue(transform)!;
+        return Vector4.Transform(texel, matrix) + bias;
+    }
+
+    private static void AssertNearlyEqual(Vector4 expected, Vector4 actual)
+    {
+        Assert.True(Vector4.Distance(expected, actual) < 1e-5f, $"Expected {expected}, got {actual}.");
     }
 }

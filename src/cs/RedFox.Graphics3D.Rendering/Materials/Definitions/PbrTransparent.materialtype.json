@@ -1,0 +1,54 @@
+{
+  "name": "PbrTransparent",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Default",
+  "fragmentShaderName": "PbrTransparent",
+  "vertexAttributes": [
+    { "name": "Positions", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 },
+    { "name": "Normals", "componentCount": 3, "type": "float32", "offsetBytes": 0, "strideBytes": 12 }
+  ],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "clockwise",
+    "wireframe": false,
+    "blend": true,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "inverseSourceAlpha",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": false,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "triangles",
+    "alphaToCoverage": false
+  },
+  "requirements": {
+    "textures": [
+      { "name": "OpacityMap", "slot": 0, "required": false },
+      { "name": "NormalMap", "slot": 1, "required": false, "semantic": "normal" },
+      { "name": "DetailNormalMap", "slot": 2, "required": false },
+      { "name": "RoughnessMap", "slot": 3, "required": false, "semantic": "roughness" },
+      { "name": "MetallicMap", "slot": 4, "required": false, "semantic": "metallic" },
+      { "name": "SpecularMap", "slot": 5, "required": false, "semantic": "specular" },
+      { "name": "OcclusionMap", "slot": 6, "required": false, "semantic": "ao" },
+      { "name": "EmissiveMap", "slot": 7, "required": false, "semantic": "emissive" },
+      { "name": "SubsurfaceMap", "slot": 8, "required": false },
+      { "name": "TranslucencyMap", "slot": 9, "required": false },
+      { "name": "DiffuseMap", "slot": 15, "required": false, "semantic": "diffuse" }
+    ],
+    "uniforms": [
+      { "name": "Model", "valueType": "matrix4x4", "required": true },
+      { "name": "SceneAxis", "valueType": "matrix4x4", "required": true },
+      { "name": "View", "valueType": "matrix4x4", "required": true },
+      { "name": "Projection", "valueType": "matrix4x4", "required": true },
+      { "name": "Reflectance", "valueType": "float", "required": false, "defaultValue": [0.5] },
+      { "name": "NormalStrength", "valueType": "float", "required": false, "defaultValue": [1] },
+      { "name": "NormalEncoding", "valueType": "int32", "required": false, "defaultValue": [0] },
+      { "name": "DetailNormalStrength", "valueType": "float", "required": false, "defaultValue": [1] },
+      { "name": "DetailNormalTiling", "valueType": "float2", "required": false, "defaultValue": [1, 1] },
+      { "name": "TextureTiling", "valueType": "float2", "required": false, "defaultValue": [1, 1] },
+      { "name": "SubsurfaceStrength", "valueType": "float", "required": false, "defaultValue": [0] },
+      { "name": "SubsurfaceColor", "valueType": "float3", "required": false, "defaultValue": [1, 0.37, 0.25] },
+      { "name": "TranslucencyStrength", "valueType": "float", "required": false, "defaultValue": [0] }
+    ]
+  }
+}

@@ -18,6 +18,8 @@ internal abstract class RenderHandle : IRenderHandle
     /// <inheritdoc/>
     public virtual RenderHandleFlags Flags => RenderHandleFlags.None;
 
+    internal bool IsReleased => _disposed;
+
     /// <inheritdoc/>
     public abstract void Update(ICommandList commandList);
 
