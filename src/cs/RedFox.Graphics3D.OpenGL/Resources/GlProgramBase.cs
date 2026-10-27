@@ -14,10 +14,13 @@ namespace RedFox.Graphics3D.OpenGL.Resources;
 /// </summary>
 internal abstract class GlProgramBase : IDisposable
 {
+    private const int SamplerBufferBaseSlot = 16;
+
     private static readonly ConcurrentDictionary<string, GlProgramBinary> ProgramBinaries = new(StringComparer.Ordinal);
 
-    private readonly Dictionary<string, int> _uniformLocations;
-    private readonly Dictionary<string, int> _samplerSlots;
+    private readonly Dictionary<string, GlUniformState>	_uniforms;
+    private readonly Dictionary<string, int>			_attributeLocations;
+    private readonly Dictionary<string, int>			_samplerSlots;
     private bool _disposed;
 
     /// <summary>
@@ -36,8 +39,9 @@ internal abstract class GlProgramBase : IDisposable
         }
 
         Gl = gl;
-        _uniformLocations = new Dictionary<string, int>(StringComparer.Ordinal);
-        _samplerSlots = new Dictionary<string, int>(StringComparer.Ordinal);
+        _uniforms			= new Dictionary<string, GlUniformState>(StringComparer.Ordinal);
+        _attributeLocations	= new Dictionary<string, int>(StringComparer.Ordinal);
+        _samplerSlots		= new Dictionary<string, int>(StringComparer.Ordinal);
 
         string? binaryKey = CreateBinaryKey(shaders);
         if (binaryKey is not null && TryLoadBinary(binaryKey))
@@ -148,7 +152,12 @@ internal abstract class GlProgramBase : IDisposable
             return false;
         }
 
-        location = Gl.GetAttribLocation(Handle, attributeName);
+        if (!_attributeLocations.TryGetValue(attributeName, out location))
+        {
+            location = Gl.GetAttribLocation(Handle, attributeName);
+            _attributeLocations.Add(attributeName, location);
+        }
+
         return location >= 0;
     }
 
@@ -173,7 +182,7 @@ internal abstract class GlProgramBase : IDisposable
             return true;
         }
 
-        slot = _samplerSlots.Count;
+        slot = SamplerBufferBaseSlot + _samplerSlots.Count;
         _samplerSlots.Add(samplerName, slot);
         return true;
     }
@@ -185,13 +194,15 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The integer value.</param>
     public void SetInt(string uniformName, int value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || (uniform.HasValue && uniform.IntValue == value))
         {
             return;
         }
 
-        Gl.Uniform1(location, value);
+        uniform.IntValue = value;
+        uniform.HasValue = true;
+        Gl.Uniform1(uniform.Location, value);
     }
 
     /// <summary>
@@ -201,13 +212,13 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The float value.</param>
     public void SetFloat(string uniformName, float value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || !TryStoreVector(uniform, new Vector4(value, 0.0f, 0.0f, 0.0f)))
         {
             return;
         }
 
-        Gl.Uniform1(location, value);
+        Gl.Uniform1(uniform.Location, value);
     }
 
     /// <summary>
@@ -217,13 +228,13 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The vector value.</param>
     public void SetVector2(string uniformName, Vector2 value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || !TryStoreVector(uniform, new Vector4(value, 0.0f, 0.0f)))
         {
             return;
         }
 
-        Gl.Uniform2(location, value.X, value.Y);
+        Gl.Uniform2(uniform.Location, value.X, value.Y);
     }
 
     /// <summary>
@@ -233,13 +244,13 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The vector value.</param>
     public void SetVector3(string uniformName, Vector3 value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || !TryStoreVector(uniform, new Vector4(value, 0.0f)))
         {
             return;
         }
 
-        Gl.Uniform3(location, value.X, value.Y, value.Z);
+        Gl.Uniform3(uniform.Location, value.X, value.Y, value.Z);
     }
 
     /// <summary>
@@ -249,13 +260,13 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The vector value.</param>
     public void SetVector4(string uniformName, Vector4 value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || !TryStoreVector(uniform, value))
         {
             return;
         }
 
-        Gl.Uniform4(location, value.X, value.Y, value.Z, value.W);
+        Gl.Uniform4(uniform.Location, value.X, value.Y, value.Z, value.W);
     }
 
     /// <summary>
@@ -265,14 +276,16 @@ internal abstract class GlProgramBase : IDisposable
     /// <param name="value">The matrix value.</param>
     public unsafe void SetMatrix4(string uniformName, Matrix4x4 value)
     {
-        int location = GetUniformLocation(uniformName);
-        if (location < 0)
+        GlUniformState uniform = GetUniformState(uniformName);
+        if (uniform.Location < 0 || (uniform.HasValue && uniform.MatrixValue == value))
         {
             return;
         }
 
+        uniform.MatrixValue = value;
+        uniform.HasValue = true;
         float* pointer = (float*)Unsafe.AsPointer(ref value.M11);
-        Gl.UniformMatrix4(location, 1, false, pointer);
+        Gl.UniformMatrix4(uniform.Location, 1, false, pointer);
     }
 
     public bool HasUniform(string uniformName)
@@ -313,16 +326,32 @@ internal abstract class GlProgramBase : IDisposable
     /// <returns>The uniform location, or a negative value when the uniform is not active.</returns>
     protected int GetUniformLocation(string uniformName)
     {
+        return GetUniformState(uniformName).Location;
+    }
+
+    private GlUniformState GetUniformState(string uniformName)
+    {
         ThrowIfDisposed();
 
-        if (_uniformLocations.TryGetValue(uniformName, out int location))
+        if (!_uniforms.TryGetValue(uniformName, out GlUniformState? uniform))
         {
-            return location;
+            uniform = new GlUniformState(Gl.GetUniformLocation(Handle, uniformName));
+            _uniforms.Add(uniformName, uniform);
         }
 
-        location = Gl.GetUniformLocation(Handle, uniformName);
-        _uniformLocations.Add(uniformName, location);
-        return location;
+        return uniform;
+    }
+
+    private static bool TryStoreVector(GlUniformState uniform, Vector4 value)
+    {
+        if (uniform.HasValue && uniform.VectorValue == value)
+        {
+            return false;
+        }
+
+        uniform.VectorValue = value;
+        uniform.HasValue = true;
+        return true;
     }
 
     private uint CompileShader(ShaderType shaderType, string source)

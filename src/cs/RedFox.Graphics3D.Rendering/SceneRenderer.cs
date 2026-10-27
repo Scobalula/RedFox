@@ -1,9 +1,6 @@
 using System;
 using System.Numerics;
-using System.Threading;
-using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
-using RedFox.Imaging.IO;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering.Handles;
 using RedFox.Graphics3D.Rendering.Materials;
@@ -36,16 +33,20 @@ public sealed class SceneRenderer : IDisposable
         SkyboxRenderHandle.SkyboxMaterialTypeName,
     ];
 
+    private static readonly Comparison<MeshRenderHandle> FrontToBack = static (left, right) => left.ViewDistanceSquared.CompareTo(right.ViewDistanceSquared);
+    private static readonly Comparison<MeshRenderHandle> BackToFront = static (left, right) => right.ViewDistanceSquared.CompareTo(left.ViewDistanceSquared);
+
     private readonly ClearAndStateResetPass _clearAndStateResetPass;
     private readonly DepthPrepass _depthPrepass;
     private readonly AmbientOcclusionPass _ambientOcclusionPass;
     private readonly ICommandList _commandList;
-    private readonly AutoResetEvent _backgroundImageLoadSignal = new(false);
-    private readonly object _backgroundImageLoadSync = new();
-    private readonly Thread _backgroundImageLoadThread;
+    private readonly BackgroundTextureLoader _textureLoader = new();
     private readonly IGraphicsDevice _graphicsDevice;
     private IReadOnlyList<SceneNode> _sceneTraversalNodes = [];
     private readonly List<(SceneNode Node, IRenderHandle Handle)> _sceneTraversalHandles = [];
+    private readonly List<MeshRenderHandle> _opaqueMeshes = [];
+    private readonly List<MeshRenderHandle> _transparentMeshes = [];
+    private readonly List<IRenderHandle> _otherHandles = [];
     private readonly Dictionary<string, IGpuPipelineState> _preparedPipelines = [];
     private RenderFrameContext? _frameContext;
 
@@ -56,12 +57,9 @@ public sealed class SceneRenderer : IDisposable
     private int _antiAliasingSamples = DefaultAntiAliasingSamples;
     private int _antiAliasingTargetHeight;
     private int _antiAliasingTargetWidth;
-    private readonly Queue<(Texture Texture, Image Image)> _completedBackgroundImageLoads = new();
     private int _externalAntiAliasingSamples = MinimumAntiAliasingSamples;
-    private (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager, MipType MipType)? _pendingBackgroundImageLoad;
-    private volatile bool _backgroundImageLoadThreadStopping;
-    private bool _backgroundImageLoading;
     private bool _disposed;
+    private bool _hasPendingUploads;
     private bool _initialized;
     private Scene? _sceneTraversalScene;
     private long _sceneTraversalVersion = -1;
@@ -178,6 +176,19 @@ public sealed class SceneRenderer : IDisposable
     public bool HasPendingWork { get; private set; }
 
     /// <summary>
+    /// Gets or sets how many textures are loaded at the same time. Every <see cref="ITextureLoader"/> must be thread-safe when this is above one.
+    /// </summary>
+    public int TextureLoadConcurrency
+    {
+        get => _textureLoader.Concurrency;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            _textureLoader.Concurrency = value;
+        }
+    }
+
+    /// <summary>
     /// Gets or sets the sample count already provided by the bound default framebuffer.
     /// When greater than one, the renderer uses that framebuffer directly instead of resolving into it.
     /// </summary>
@@ -220,15 +231,8 @@ public sealed class SceneRenderer : IDisposable
     {
         _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
         _commandList = graphicsDevice.CreateCommandList();
-        _backgroundImageLoadThread = new Thread(BackgroundImageLoadLoop)
-        {
-            IsBackground = true,
-            Name = $"{nameof(SceneRenderer)}.{nameof(BackgroundImageLoadLoop)}",
-        };
-
-        _backgroundImageLoadThread.Start();
         _clearAndStateResetPass = new ClearAndStateResetPass(clearColor);
-        _depthPrepass = new DepthPrepass(graphicsDevice, _sceneTraversalHandles);
+        _depthPrepass = new DepthPrepass(graphicsDevice, _opaqueMeshes);
         _ambientOcclusionPass = new AmbientOcclusionPass(graphicsDevice);
         AmbientColor = ambientColor;
         FallbackLightDirection = fallbackLightDirection;
@@ -332,18 +336,18 @@ public sealed class SceneRenderer : IDisposable
 
 
         IReadOnlyList<SceneNode> sceneTraversalNodes = GetSceneTraversalNodes(scene);
-        ApplyCompletedBackgroundImageLoad();
-        TryQueueBackgroundImageLoad(sceneTraversalNodes, scene);
+        _textureLoader.ApplyCompleted();
+        _textureLoader.QueueLoads(sceneTraversalNodes, scene);
 
         if (_graphicsDevice is IFrameBufferUploadBudget uploadBudget)
         {
             uploadBudget.BeginFrameBufferUploads();
         }
 
-        SceneTraversal.Update(sceneTraversalNodes, _commandList, _graphicsDevice, _graphicsDevice.MaterialTypes);
         UpdateSceneRenderHandles(sceneTraversalNodes);
         UpdateSkybox(scene.Skybox, scene);
         UpdateGrid(scene.Grid);
+        CollectVisibleHandles(view, sceneAxis);
         RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
 
         if (AmbientOcclusionQuality != AmbientOcclusionQuality.Off && _graphicsDevice.SupportsFormat(ImageFormat.D32Float, TextureUsage.DepthStencil | TextureUsage.Sampled))
@@ -357,8 +361,16 @@ public sealed class SceneRenderer : IDisposable
         for (int i = 0; i < RenderPhases.Length; i++)
         {
             RenderFlags phase = RenderPhases[i];
+            IReadOnlyList<MeshRenderHandle> meshes = phase switch
+            {
+                RenderFlags.Opaque		=> _opaqueMeshes,
+                RenderFlags.Transparent	=> _transparentMeshes,
+                _						=> [],
+            };
+
             RenderSkybox(scene.Skybox, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
-            SceneTraversal.Render(_sceneTraversalHandles, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
+            SceneTraversal.Render(meshes, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
+            SceneTraversal.Render(_otherHandles, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
             RenderGrid(scene.Grid, phase, view.ViewMatrix, view.ProjectionMatrix, view.Position, viewportSize);
         }
 
@@ -418,10 +430,7 @@ public sealed class SceneRenderer : IDisposable
             return;
         }
 
-        _backgroundImageLoadThreadStopping = true;
-        _backgroundImageLoadSignal.Set();
-        _backgroundImageLoadThread.Join();
-        _backgroundImageLoadSignal.Dispose();
+        _textureLoader.Dispose();
         ReleaseAntiAliasingResources();
         _clearAndStateResetPass.Dispose();
         _depthPrepass.Dispose();
@@ -463,18 +472,14 @@ public sealed class SceneRenderer : IDisposable
 
     private bool HasPendingSceneWork(IReadOnlyList<SceneNode> nodes, Skybox skybox)
     {
-        lock (_backgroundImageLoadSync)
+        if (_hasPendingUploads || _textureLoader.HasPendingLoads)
         {
-            if (_backgroundImageLoading || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0)
-            {
-                return true;
-            }
+            return true;
         }
 
         for (int i = 0; i < nodes.Count; i++)
         {
-            SceneNode node = nodes[i];
-            if (node is Texture { Data: null, LoadAttempted: false, ImageLoader: not null } || SceneRenderResources.Get(_graphicsDevice, node)?.HasPendingUploads == true)
+            if (nodes[i] is Texture { Data: null, LoadAttempted: false, ImageLoader: not null })
             {
                 return true;
             }
@@ -486,16 +491,59 @@ public sealed class SceneRenderer : IDisposable
     private void UpdateSceneRenderHandles(IReadOnlyList<SceneNode> nodes)
     {
         _sceneTraversalHandles.Clear();
+        _hasPendingUploads = false;
         for (int i = 0; i < nodes.Count; i++)
         {
             SceneNode node = nodes[i];
             if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
                 continue;
 
-            IRenderHandle? handle = SceneRenderResources.Get(_graphicsDevice, node);
-            if (handle is not null && !handle.Flags.HasFlag(RenderHandleFlags.SubHandle))
+            IRenderHandle? handle = SceneRenderResources.GetOrCreate(node, _graphicsDevice, _graphicsDevice.MaterialTypes);
+            if (handle is null)
+                continue;
+
+            if (handle.RequiresPerFrameUpdate)
+                handle.Update(_commandList);
+
+            _hasPendingUploads |= handle.HasPendingUploads;
+            if (!handle.Flags.HasFlag(RenderHandleFlags.SubHandle))
                 _sceneTraversalHandles.Add((node, handle));
         }
+    }
+
+    private void CollectVisibleHandles(in CameraView view, in Matrix4x4 sceneAxis)
+    {
+        ViewFrustum frustum = ViewFrustum.FromViewProjection(view.ViewMatrix * view.ProjectionMatrix);
+        _opaqueMeshes.Clear();
+        _transparentMeshes.Clear();
+        _otherHandles.Clear();
+
+        foreach ((SceneNode _, IRenderHandle handle) in _sceneTraversalHandles)
+        {
+            if (handle is not MeshRenderHandle meshHandle)
+            {
+                _otherHandles.Add(handle);
+                continue;
+            }
+
+            if (!meshHandle.UpdateVisibility(frustum, sceneAxis, view.Position))
+            {
+                continue;
+            }
+
+            if (meshHandle.HasOpaqueMaterials)
+            {
+                _opaqueMeshes.Add(meshHandle);
+            }
+
+            if (meshHandle.HasTransparentMaterials)
+            {
+                _transparentMeshes.Add(meshHandle);
+            }
+        }
+
+        _opaqueMeshes.Sort(FrontToBack);
+        _transparentMeshes.Sort(BackToFront);
     }
 
     private IGpuRenderTarget? EnsureAntiAliasingRenderTarget()
@@ -758,174 +806,6 @@ public sealed class SceneRenderer : IDisposable
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-    }
-
-    private void BackgroundImageLoadLoop()
-    {
-        while (true)
-        {
-            _backgroundImageLoadSignal.WaitOne();
-
-            if (_backgroundImageLoadThreadStopping)
-            {
-                return;
-            }
-
-            while (TryDequeueBackgroundImageLoad(out (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager, MipType MipType) pendingBackgroundImageLoad))
-            {
-                Image? image = TryLoadImage(pendingBackgroundImageLoad.ImageLoader, pendingBackgroundImageLoad.Texture, pendingBackgroundImageLoad.TranslatorManager, pendingBackgroundImageLoad.MipType);
-                if (image is null)
-                {
-                    lock (_backgroundImageLoadSync)
-                    {
-                        _backgroundImageLoading = false;
-                    }
-
-                    continue;
-                }
-
-                lock (_backgroundImageLoadSync)
-                {
-                    _completedBackgroundImageLoads.Enqueue((pendingBackgroundImageLoad.Texture, image));
-                    _backgroundImageLoading = false;
-                }
-
-                break;
-            }
-        }
-    }
-
-    private void ApplyCompletedBackgroundImageLoad()
-    {
-        List<(Texture Texture, Image Image)> completedBackgroundImageLoads = [];
-        lock (_backgroundImageLoadSync)
-        {
-            while (_completedBackgroundImageLoads.TryDequeue(out (Texture Texture, Image Image) completedBackgroundImageLoad))
-            {
-                completedBackgroundImageLoads.Add(completedBackgroundImageLoad);
-            }
-        }
-
-        for (int i = 0; i < completedBackgroundImageLoads.Count; i++)
-        {
-            (Texture texture, Image image) = completedBackgroundImageLoads[i];
-            if (texture.Data is null)
-            {
-                texture.Data = image;
-            }
-        }
-    }
-
-    private void TryQueueBackgroundImageLoad(IReadOnlyList<SceneNode> sceneTraversalNodes, Scene scene)
-    {
-        ArgumentNullException.ThrowIfNull(sceneTraversalNodes);
-        ArgumentNullException.ThrowIfNull(scene);
-
-        lock (_backgroundImageLoadSync)
-        {
-            if (_pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0)
-            {
-                return;
-            }
-        }
-
-        for (int i = 0; i < sceneTraversalNodes.Count; i++)
-        {
-            if (sceneTraversalNodes[i] is Texture texture && TryQueueBackgroundImageLoad(texture, scene))
-            {
-                return;
-            }
-        }
-
-        if (scene.Skybox.Texture is { } skyboxTexture)
-        {
-            TryQueueBackgroundImageLoad(skyboxTexture, scene);
-        }
-    }
-
-    private bool TryQueueBackgroundImageLoad(Texture texture, Scene scene)
-    {
-        ArgumentNullException.ThrowIfNull(texture);
-        ArgumentNullException.ThrowIfNull(scene);
-
-        if (texture.Data is not null || texture.LoadAttempted || texture.ImageLoader is not { } imageLoader)
-        {
-            return false;
-        }
-
-        string path = texture.EffectiveFilePath;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            texture.LoadAttempted = true;
-            return false;
-        }
-
-        lock (_backgroundImageLoadSync)
-        {
-            if (_backgroundImageLoadThreadStopping || _pendingBackgroundImageLoad is not null || _completedBackgroundImageLoads.Count > 0 || texture.Data is not null || texture.LoadAttempted)
-            {
-                return false;
-            }
-
-            texture.LoadAttempted = true;
-            _pendingBackgroundImageLoad = (texture, imageLoader, path, scene.ImageTranslators, scene.TextureMipType);
-        }
-
-        _backgroundImageLoadSignal.Set();
-        return true;
-    }
-
-    private bool TryDequeueBackgroundImageLoad(out (Texture Texture, ITextureLoader ImageLoader, string Path, ImageTranslatorManager TranslatorManager, MipType MipType) pendingBackgroundImageLoad)
-    {
-        lock (_backgroundImageLoadSync)
-        {
-            if (_pendingBackgroundImageLoad is not { } pendingLoad)
-            {
-                pendingBackgroundImageLoad = default;
-                return false;
-            }
-
-            pendingBackgroundImageLoad = pendingLoad;
-            _pendingBackgroundImageLoad = null;
-            _backgroundImageLoading = true;
-            return true;
-        }
-    }
-
-    private static Image? TryLoadImage(ITextureLoader imageLoader, Texture texture, ImageTranslatorManager translatorManager, MipType mipType)
-    {
-        ArgumentNullException.ThrowIfNull(imageLoader);
-        ArgumentNullException.ThrowIfNull(texture);
-        ArgumentNullException.ThrowIfNull(translatorManager);
-
-        try
-        {
-            return imageLoader.Load(texture, translatorManager, mipType);
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return null;
-        }
-        catch (FileNotFoundException)
-        {
-            return null;
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (NotSupportedException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
     }
 
     private void ReleasePreparedPipelines()

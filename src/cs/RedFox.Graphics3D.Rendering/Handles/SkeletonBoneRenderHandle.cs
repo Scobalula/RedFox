@@ -67,7 +67,11 @@ internal sealed class SkeletonBoneRenderHandle : RenderHandle
             return;
         }
 
-        _batch = SceneRenderResources.GetOrCreate(_graphicsDevice, typeof(SkeletonBoneBatch), () => new SkeletonBoneBatch(_graphicsDevice, _materialTypes));
+        if (_batch is null || _batch.IsReleased)
+        {
+            _batch = SceneRenderResources.GetOrCreate(_graphicsDevice, typeof(SkeletonBoneBatch), () => new SkeletonBoneBatch(_graphicsDevice, _materialTypes));
+        }
+
         _batch.Update(commandList);
 
         long transformVersion = Transform.Version;

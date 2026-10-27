@@ -38,11 +38,6 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     public GpuBufferElementType ElementType { get; }
 
     /// <summary>
-    /// Gets the GL bind target used by the buffer.
-    /// </summary>
-    internal BufferTargetARB Target { get; }
-
-    /// <summary>
     /// Gets the optional texture-buffer view used for sampled access.
     /// </summary>
     internal uint SampledTextureHandle { get; private set; }
@@ -51,6 +46,8 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// Gets the GL texture target used for sampled access.
     /// </summary>
     internal TextureTarget SampledTextureTarget { get; }
+
+    internal OpenGlVertexArray? VertexArray { get; set; }
 
     /// <inheritdoc/>
     public bool IsDisposed { get; private set; }
@@ -64,10 +61,9 @@ internal sealed class OpenGlBuffer : IGpuBuffer
     /// <param name="strideBytes">The element stride in bytes.</param>
     /// <param name="usage">The usage flags.</param>
     /// <param name="elementType">The scalar or packed storage type carried by the buffer.</param>
-    /// <param name="target">The GL bind target used by the buffer.</param>
     /// <param name="sampledTextureHandle">The optional texture-buffer view used for sampled access.</param>
     /// <param name="sampledTextureTarget">The GL texture target used for sampled access.</param>
-    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage, GpuBufferElementType elementType, BufferTargetARB target, uint sampledTextureHandle, TextureTarget sampledTextureTarget)
+    public OpenGlBuffer(OpenGlContext context, uint handle, int sizeBytes, int strideBytes, BufferUsage usage, GpuBufferElementType elementType, uint sampledTextureHandle, TextureTarget sampledTextureTarget)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         Handle = handle;
@@ -75,7 +71,6 @@ internal sealed class OpenGlBuffer : IGpuBuffer
         StrideBytes = strideBytes;
         Usage = usage;
         ElementType = elementType;
-        Target = target;
         SampledTextureHandle = sampledTextureHandle;
         SampledTextureTarget = sampledTextureTarget;
     }
@@ -93,6 +88,9 @@ internal sealed class OpenGlBuffer : IGpuBuffer
             _context.Gl.DeleteTexture(SampledTextureHandle);
             SampledTextureHandle = 0;
         }
+
+        VertexArray?.Dispose();
+        VertexArray = null;
 
         _context.DeleteBuffer(Handle);
         Handle = 0;

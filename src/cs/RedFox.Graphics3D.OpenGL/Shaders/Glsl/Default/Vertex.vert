@@ -8,6 +8,7 @@ layout (location = 0) in vec3 Positions;
 layout (location = 1) in vec3 Normals;
 
 uniform mat4 Model;
+uniform mat4 NormalMatrix;
 uniform mat4 SceneAxis;
 uniform mat4 View;
 uniform mat4 Projection;
@@ -281,8 +282,7 @@ void main()
     mat4 worldMatrix = SceneAxis * Model;
     vec4 worldPosition = worldMatrix * vec4(resolvedPosition, 1.0);
     WorldPosition = worldPosition.xyz;
-    mat3 normalMatrix = mat3(transpose(inverse(worldMatrix)));
-    WorldNormal = normalize(normalMatrix * resolvedNormal);
+    WorldNormal = normalize(mat3(NormalMatrix) * resolvedNormal);
 
     float handedness = tangent.w < 0.0 ? -1.0 : 1.0;
     WorldTangent = HasTangents != 0 ? vec4(mat3(worldMatrix) * resolvedTangent, determinant(mat3(worldMatrix)) < 0.0 ? -handedness : handedness) : vec4(0.0);

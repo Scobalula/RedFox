@@ -42,6 +42,9 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
     public override bool HasPendingUploads => _textureUploadPending;
 
+    /// <inheritdoc/>
+    public override RenderHandleFlags Flags => RenderHandleFlags.SubHandle;
+
     internal IGpuTexture? BindableTexture => _gpuTexture is null || (_textureUploadPending && _availableBaseMip < 0) ? null : _gpuTexture;
 
     /// <summary>

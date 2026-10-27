@@ -2,7 +2,7 @@ using RedFox.Imaging.Primitives;
 
 namespace RedFox.Graphics3D.Rendering;
 
-internal sealed class DepthPrepass(IGraphicsDevice graphicsDevice, IReadOnlyList<(SceneNode Node, IRenderHandle Handle)> handles) : RenderPass
+internal sealed class DepthPrepass(IGraphicsDevice graphicsDevice, IReadOnlyList<IRenderHandle> handles) : RenderPass
 {
     private const string SceneDepthMapName = "SceneDepthMap";
 

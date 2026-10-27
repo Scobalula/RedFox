@@ -3,6 +3,7 @@ using RedFox.Graphics3D.OpenGL.Resources;
 using Silk.NET.OpenGL;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 
 namespace RedFox.Graphics3D.OpenGL;
@@ -17,6 +18,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private const int ShadowMapSlot = 30;
     private const int GlobalTextureSlot = 29;
     private const int MaxGlobalTextures = 4;
+    private const int MaxVertexInputs = 16;
     private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
     private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
     private static readonly string[] EnvironmentLightDirectionUniformNames = CreateIndexedUniformNames("EnvironmentLightDirections", MaxLights);
@@ -24,7 +26,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private static readonly string[] ShadowMatrixUniformNames = CreateIndexedUniformNames("ShadowMatrices", OpenGlShadowMapArray.MaxLayers);
     private static readonly string[] ShadowFilterRadiusUniformNames = CreateIndexedUniformNames("ShadowFilterRadii", OpenGlShadowMapArray.MaxLayers);
 
-    private readonly Dictionary<int, OpenGlBuffer> _boundBuffers = [];
     private readonly List<string> _globalTextureNames = [];
     private readonly List<string> _globalTextureFlagNames = [];
     private readonly List<IGpuTexture?> _globalTextures = [];
@@ -36,13 +37,13 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private readonly Matrix4x4[] _shadowMatrices = new Matrix4x4[OpenGlShadowMapArray.MaxLayers];
     private readonly Vector2[] _shadowFilterRadii = new Vector2[OpenGlShadowMapArray.MaxLayers];
     private readonly OpenGlShadowMapArray _shadowMaps;
+    private readonly OpenGlBuffer?[] _vertexInputs = new OpenGlBuffer?[MaxVertexInputs];
     private OpenGlPipelineState? _currentPipelineState;
     private Vector3 _ambientColor;
     private bool _disposed;
     private float _environmentIntensity;
     private IGpuTexture? _environmentMap;
     private int _environmentMipLevels;
-    private int _enabledVertexAttributeCount;
     private int _environmentLightCount;
     private Vector3 _fallbackLightColor = Vector3.One;
     private Vector3 _fallbackLightDirection = -Vector3.UnitY;
@@ -58,6 +59,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private SkinningMode _skinningMode = SkinningMode.Linear;
     private bool _useViewBasedLighting;
     private uint _vertexArrayHandle;
+    private int _vertexInputCount;
 
     /// <inheritdoc/>
     public ulong FrameIndex { get; private set; }
@@ -78,14 +80,13 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         IncrementFrameIndex();
-        _boundBuffers.Clear();
         _currentPipelineState = null;
         _ambientColor = Vector3.Zero;
         _fallbackLightDirection = -Vector3.UnitY;
         _fallbackLightColor = Vector3.One;
         _fallbackLightIntensity = 1.0f;
         _frontFaceWinding = FaceWinding.Clockwise;
-        _indexBuffer = null;
+        ClearVertexInputs();
         _lightCount = 0;
         _environmentLightCount = 0;
         _shadowCount = 0;
@@ -367,8 +368,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             return;
         }
 
-        _boundBuffers[slot] = openGlBuffer;
-
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Index))
         {
             BindIndexBuffer(openGlBuffer);
@@ -396,7 +395,8 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
 
         if (openGlBuffer.Usage.HasFlag(BufferUsage.Vertex) && slot < _currentPipelineState.VertexAttributes.Length)
         {
-            ConfigureVertexAttribute(slot, openGlBuffer, _currentPipelineState);
+            _vertexInputs[slot] = openGlBuffer;
+            _vertexInputCount = Math.Max(_vertexInputCount, slot + 1);
             return;
         }
 
@@ -425,8 +425,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         _indexBuffer = openGlBuffer;
-        _context.Gl.BindVertexArray(_vertexArrayHandle);
-        _context.Gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, openGlBuffer.Handle);
     }
 
     /// <inheritdoc/>
@@ -488,12 +486,14 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         ThrowIfDisposed();
         if (_shadowPassIndex >= 0 && !CanCastShadow())
         {
+            ClearVertexInputs();
             return;
         }
 
         PrimitiveType primitiveType = GetPrimitiveType();
-        _context.Gl.BindVertexArray(_vertexArrayHandle);
+        BindVertexInputs(_currentPipelineState);
         _context.Gl.DrawArrays((GLEnum)primitiveType, startVertex, (uint)vertexCount);
+        ClearVertexInputs();
     }
 
     /// <inheritdoc/>
@@ -502,11 +502,12 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         ThrowIfDisposed();
         if (_shadowPassIndex >= 0 && !CanCastShadow())
         {
+            ClearVertexInputs();
             return;
         }
 
         PrimitiveType primitiveType = GetPrimitiveType();
-        _context.Gl.BindVertexArray(_vertexArrayHandle);
+        BindVertexInputs(_currentPipelineState);
         GpuBufferElementType indexElementType = _indexBuffer?.ElementType ?? GpuBufferElementType.Unknown;
         DrawElementsType drawElementsType = GetDrawElementsType(indexElementType);
         int indexElementSizeBytes = GetIndexElementSizeBytes(indexElementType);
@@ -522,6 +523,8 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
                 _context.Gl.DrawElementsBaseVertex(primitiveType, (uint)indexCount, drawElementsType, indexOffset, baseVertex);
             }
         }
+
+        ClearVertexInputs();
     }
 
     /// <inheritdoc/>
@@ -578,7 +581,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         _shadowMaps.Dispose();
-        _boundBuffers.Clear();
         _currentPipelineState = null;
         _disposed = true;
         GC.SuppressFinalize(this);
@@ -591,8 +593,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         if (pipelineState.GraphicsProgram is not null)
         {
             pipelineState.GraphicsProgram.Use();
-            gl.BindVertexArray(_vertexArrayHandle);
-            DisableUnusedVertexAttributes(pipelineState.VertexAttributes.Length);
         }
         else
         {
@@ -649,29 +649,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private bool CanCastShadow()
     {
         return _currentPipelineState is { BlendEnabled: false, GraphicsProgram: { } program } && program.HasUniform("ShadowPass");
-    }
-
-    private unsafe void ConfigureVertexAttribute(int slot, OpenGlBuffer buffer, OpenGlPipelineState pipelineState)
-    {
-        if (slot < 0 || slot >= pipelineState.VertexAttributes.Length)
-        {
-            return;
-        }
-
-        VertexAttribute attribute = pipelineState.VertexAttributes[slot];
-        GL gl = _context.Gl;
-        gl.BindVertexArray(_vertexArrayHandle);
-        gl.BindBuffer(BufferTargetARB.ArrayBuffer, buffer.Handle);
-        gl.EnableVertexAttribArray((uint)slot);
-        _enabledVertexAttributeCount = Math.Max(_enabledVertexAttributeCount, slot + 1);
-
-        if (attribute.Type is VertexAttributeType.Int32 or VertexAttributeType.UInt32 or VertexAttributeType.Int16 or VertexAttributeType.UInt16 or VertexAttributeType.Int8 or VertexAttributeType.UInt8)
-        {
-            gl.VertexAttribIPointer((uint)slot, attribute.ComponentCount, GetVertexAttribIntegerType(attribute.Type), (uint)attribute.StrideBytes, (void*)attribute.OffsetBytes);
-            return;
-        }
-
-        gl.VertexAttribPointer((uint)slot, attribute.ComponentCount, GetVertexAttribFloatType(attribute.Type), false, (uint)attribute.StrideBytes, (void*)attribute.OffsetBytes);
     }
 
     private GlProgramBase GetActiveProgram()
@@ -795,6 +772,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
     }
 
+    [MemberNotNull(nameof(_currentPipelineState))]
     private PrimitiveType GetPrimitiveType()
     {
         if (_currentPipelineState is null)
@@ -873,35 +851,6 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         };
     }
 
-    private static VertexAttribIType GetVertexAttribIntegerType(VertexAttributeType vertexAttributeType)
-    {
-        return vertexAttributeType switch
-        {
-            VertexAttributeType.Int32 => VertexAttribIType.Int,
-            VertexAttributeType.UInt32 => VertexAttribIType.UnsignedInt,
-            VertexAttributeType.Int16 => VertexAttribIType.Short,
-            VertexAttributeType.UInt16 => VertexAttribIType.UnsignedShort,
-            VertexAttributeType.Int8 => VertexAttribIType.Byte,
-            VertexAttributeType.UInt8 => VertexAttribIType.UnsignedByte,
-            _ => VertexAttribIType.Int,
-        };
-    }
-
-    private static VertexAttribPointerType GetVertexAttribFloatType(VertexAttributeType vertexAttributeType)
-    {
-        return vertexAttributeType switch
-        {
-            VertexAttributeType.Float16 => VertexAttribPointerType.HalfFloat,
-            VertexAttributeType.Int32 => VertexAttribPointerType.Int,
-            VertexAttributeType.UInt32 => VertexAttribPointerType.UnsignedInt,
-            VertexAttributeType.Int16 => VertexAttribPointerType.Short,
-            VertexAttributeType.UInt16 => VertexAttribPointerType.UnsignedShort,
-            VertexAttributeType.Int8 => VertexAttribPointerType.Byte,
-            VertexAttributeType.UInt8 => VertexAttribPointerType.UnsignedByte,
-            _ => VertexAttribPointerType.Float,
-        };
-    }
-
     private static DrawElementsType GetDrawElementsType(GpuBufferElementType elementType)
     {
         return elementType switch
@@ -924,15 +873,29 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         };
     }
 
-    private void DisableUnusedVertexAttributes(int requiredAttributeCount)
+    private void BindVertexInputs(OpenGlPipelineState pipelineState)
     {
-        GL gl = _context.Gl;
-        for (int slot = requiredAttributeCount; slot < _enabledVertexAttributeCount; slot++)
+        OpenGlBuffer? owner = _indexBuffer;
+        for (int slot = 0; owner is null && slot < _vertexInputCount; slot++)
         {
-            gl.DisableVertexAttribArray((uint)slot);
+            owner = _vertexInputs[slot];
         }
 
-        _enabledVertexAttributeCount = requiredAttributeCount;
+        if (owner is null)
+        {
+            _context.Gl.BindVertexArray(_vertexArrayHandle);
+            return;
+        }
+
+        owner.VertexArray ??= new OpenGlVertexArray(_context);
+        owner.VertexArray.Bind(pipelineState, _vertexInputs.AsSpan(0, _vertexInputCount), _indexBuffer);
+    }
+
+    private void ClearVertexInputs()
+    {
+        Array.Clear(_vertexInputs, 0, _vertexInputCount);
+        _vertexInputCount = 0;
+        _indexBuffer = null;
     }
 
     private void ThrowIfDisposed()

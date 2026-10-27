@@ -1,7 +1,5 @@
 using System;
 using System.Numerics;
-using RedFox.Imaging;
-using RedFox.Imaging.Primitives;
 using RedFox.Graphics3D.Rendering.Materials;
 
 namespace RedFox.Graphics3D.Rendering.Handles;
@@ -29,8 +27,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     private IReadOnlyList<MaterialTextureRequirement> _textureRequirements = [];
     private string[] _textureFlagUniformNames = [];
     private IReadOnlyList<MaterialUniformRequirement> _uniformRequirements = [];
-    private Texture? _diffuseTextureSnapshot;
-    private MaterialTextureBinding[]? _textureBindingSnapshot;
+    private MaterialTextureSlot[] _textureSlots = [];
     private uint _bindingVersion = uint.MaxValue;
     private ulong _lastUpdateFrameIndex = ulong.MaxValue;
 
@@ -41,6 +38,8 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     internal IGpuPipelineState? Pipeline => _pipeline;
 
     internal bool IsOpaque { get; private set; }
+
+    internal Material Material => _material;
 
 
     /// <inheritdoc/>
@@ -104,6 +103,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             EnsurePipeline(requestedTypeName);
         }
 
+        UpdateTextureSlots(commandList);
         _lastUpdateFrameIndex = frameIndex;
     }
 
@@ -127,8 +127,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
     protected override void ReleaseResources()
     {
         ReleasePipelineReference();
-        _diffuseTextureSnapshot = null;
-        _textureBindingSnapshot = null;
+        _textureSlots = [];
         _bindingVersion = uint.MaxValue;
         _lastUpdateFrameIndex = ulong.MaxValue;
     }
@@ -150,6 +149,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         _textureRequirements = descriptor.Requirements.Textures;
         _textureFlagUniformNames = [.. _textureRequirements.Select(requirement => $"Has{requirement.Name}")];
         _uniformRequirements = descriptor.Requirements.Uniforms;
+        _bindingVersion = uint.MaxValue;
     }
 
     private void ReleasePipelineReference()
@@ -169,26 +169,60 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
         pipelineProvider.ReleasePipeline(resolvedTypeName, pipeline);
     }
 
-    private MaterialTextureBinding[] GetTextureBindingSnapshot()
+    private void UpdateTextureSlots(ICommandList commandList)
     {
-        RefreshTextureSnapshot();
-        return _textureBindingSnapshot!;
-    }
-
-    private Texture? GetDiffuseTextureSnapshot()
-    {
-        RefreshTextureSnapshot();
-        return _diffuseTextureSnapshot;
-    }
-
-    private void RefreshTextureSnapshot()
-    {
-        if (_textureBindingSnapshot is null || _material.Version != _bindingVersion)
+        if (_bindingVersion != _material.Version || HasReleasedTextureSlot())
         {
-            _textureBindingSnapshot = [.. _material.Textures];
-            _diffuseTextureSnapshot = _material.DiffuseMap;
+            _textureSlots = CreateTextureSlots();
             _bindingVersion = _material.Version;
         }
+
+        foreach (MaterialTextureSlot textureSlot in _textureSlots)
+        {
+            textureSlot.Handle?.Update(commandList);
+        }
+    }
+
+    private MaterialTextureSlot[] CreateTextureSlots()
+    {
+        List<MaterialTextureSlot> textureSlots = [];
+
+        if (_textureRequirements.Count == 0)
+        {
+            foreach (MaterialTextureBinding binding in _material.Textures)
+            {
+                textureSlots.Add(new MaterialTextureSlot(GetTextureHandle(binding.Texture), binding.SamplerUniform, binding.Slot, null));
+            }
+        }
+
+        for (int i = 0; i < _textureRequirements.Count; i++)
+        {
+            MaterialTextureRequirement requirement = _textureRequirements[i];
+            TextureRenderHandle? textureHandle = _material.TryGetTexture(requirement.Name, out Texture? texture) ? GetTextureHandle(texture) : null;
+            textureSlots.Add(new MaterialTextureSlot(textureHandle, requirement.Name, requirement.Slot, _textureFlagUniformNames[i]));
+        }
+
+        TextureRenderHandle? diffuseHandle = _material.DiffuseMap is { } diffuseTexture ? GetTextureHandle(diffuseTexture) : null;
+        textureSlots.Add(new MaterialTextureSlot(diffuseHandle, DiffuseTextureUniformName, DiffuseTextureSlot, HasDiffuseMapUniformName));
+        return [.. textureSlots];
+    }
+
+    private bool HasReleasedTextureSlot()
+    {
+        foreach (MaterialTextureSlot textureSlot in _textureSlots)
+        {
+            if (textureSlot.Handle is { IsReleased: true })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private TextureRenderHandle GetTextureHandle(Texture texture)
+    {
+        return SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
     }
 
     private void SetMaterialUniforms(ICommandList commandList)
@@ -217,71 +251,19 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
 
     private void BindTextureResources(ICommandList commandList)
     {
-        commandList.SetUniformInt(HasDiffuseMapUniformName, 0);
-
-        // Types that declare their textures bind only those, at their declared slots below. Binding every connection
-        // would spill materials with dozens of textures onto units the renderer reserves, such as the environment map.
-        if (_textureRequirements.Count == 0)
+        foreach (MaterialTextureSlot textureSlot in _textureSlots)
         {
-            MaterialTextureBinding[] snapshot = GetTextureBindingSnapshot();
-            for (int i = 0; i < snapshot.Length; i++)
+            bool bound = textureSlot.Handle?.Bind(commandList, textureSlot.Slot) == true;
+            if (bound)
             {
-                MaterialTextureBinding binding = snapshot[i];
-                if (!HasTextureData(binding.Texture))
-                {
-                    continue;
-                }
+                commandList.SetUniformInt(textureSlot.SamplerUniform, textureSlot.Slot);
+            }
 
-                TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, binding.Texture, () => new TextureRenderHandle(_graphicsDevice, binding.Texture));
-
-                commandList.SetUniformInt(binding.SamplerUniform, binding.Slot);
-                textureHandle.Update(commandList);
-                textureHandle.Bind(commandList, binding.Slot);
+            if (textureSlot.FlagUniform is not null)
+            {
+                commandList.SetUniformInt(textureSlot.FlagUniform, bound ? 1 : 0);
             }
         }
-
-        for (int i = 0; i < _textureRequirements.Count; i++)
-        {
-            MaterialTextureRequirement requirement = _textureRequirements[i];
-            bool bound = _material.TryGetTexture(requirement.Name, out Texture? texture) && TryBindTexture(commandList, texture, requirement.Slot, requirement.Name);
-            commandList.SetUniformInt(_textureFlagUniformNames[i], bound ? 1 : 0);
-        }
-
-        Texture? diffuseTexture = GetDiffuseTextureSnapshot();
-        if (diffuseTexture is not null)
-        {
-            if (TryBindTexture(commandList, diffuseTexture, DiffuseTextureSlot, DiffuseTextureUniformName))
-            {
-                commandList.SetUniformInt(HasDiffuseMapUniformName, 1);
-            }
-        }
-    }
-
-    private bool TryBindTexture(ICommandList commandList, Texture texture, int slot, string samplerUniform)
-    {
-        if (!HasTextureData(texture))
-        {
-            return false;
-        }
-
-        TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
-
-        commandList.SetUniformInt(samplerUniform, slot);
-        textureHandle.Update(commandList);
-        return textureHandle.Bind(commandList, slot);
-    }
-
-    private static bool HasTextureData(Texture texture)
-    {
-        ArgumentNullException.ThrowIfNull(texture);
-
-        Image? image = texture.Data;
-        return image is not null
-            && image.Width > 0
-            && image.Height > 0
-            && image.Depth == 1
-            && image.Format != ImageFormat.Unknown
-            && !image.PixelMemory.IsEmpty;
     }
 
     private bool NeedsPerFrameUpdate()
@@ -291,7 +273,7 @@ internal sealed class MaterialRenderHandle(IGraphicsDevice graphicsDevice, Mater
             return true;
         }
 
-        if (_textureBindingSnapshot is null || _bindingVersion != _material.Version)
+        if (_bindingVersion != _material.Version)
         {
             return true;
         }

@@ -169,25 +169,6 @@ public static class SceneTraversal
 
     private sealed record PreparedPostOrder(long Version, IReadOnlyList<SceneNode> Nodes);
 
-    internal static void Update(IReadOnlyList<SceneNode> nodes, ICommandList commandList, IGraphicsDevice graphicsDevice, IMaterialTypeRegistry materialTypes)
-    {
-        ArgumentNullException.ThrowIfNull(nodes);
-        ArgumentNullException.ThrowIfNull(commandList);
-        ArgumentNullException.ThrowIfNull(graphicsDevice);
-        ArgumentNullException.ThrowIfNull(materialTypes);
-
-        for (int i = 0; i < nodes.Count; i++)
-        {
-            SceneNode node = nodes[i];
-            if ((node.Flags & SceneNodeFlags.NoDraw) != 0)
-            {
-                continue;
-            }
-
-            UpdateNode(node, commandList, graphicsDevice, materialTypes);
-        }
-    }
-
     internal static void Render(IReadOnlyList<IRenderHandle> handles, ICommandList commandList, RenderFlags phase, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition, Vector2 viewportSize)
     {
         ArgumentNullException.ThrowIfNull(handles);

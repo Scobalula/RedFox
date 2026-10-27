@@ -19,6 +19,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
 {
     private readonly List<MeshGpuBufferBinding> _buffers = [];
     private readonly IGraphicsDevice _graphicsDevice = graphicsDevice;
+    private MaterialRenderHandle[] _materialHandles = [];
     private Matrix4x4[] _skinMatrixBuffer = [];
     private Matrix4x4[] _uploadedSkinMatrices = [];
     private float[] _uploadedMorphWeights = [];
@@ -28,6 +29,12 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     private SceneBounds _localBounds;
 
     internal int GeometryVersion { get; private set; }
+
+    internal bool HasOpaqueMaterials { get; private set; }
+
+    internal bool HasTransparentMaterials { get; private set; }
+
+    internal float ViewDistanceSquared { get; private set; }
 
     /// <summary>
     /// Gets the mesh that owns this handle.
@@ -193,6 +200,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 break;
             }
         }
+
+        UpdateMaterialHandles(commandList);
     }
 
     /// <inheritdoc/>
@@ -207,7 +216,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         }
 
         List<Material>? materials = Owner.Materials;
-        if (materials is not { Count: > 0 })
+        if (materials is not { Count: > 0 } || materials.Count != _materialHandles.Length)
         {
             return;
         }
@@ -219,20 +228,19 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             throw new InvalidOperationException($"Mesh '{Owner.Name}' needs one index range per material or one UV layer per material.");
         }
 
+        Matrix4x4	model			= Owner.GetBindWorldMatrix();
+        Matrix4x4	world			= model * sceneAxis;
+        Matrix4x4	normalMatrix	= Matrix4x4.Invert(world, out Matrix4x4 inverseWorld) ? Matrix4x4.Transpose(inverseWorld) : world;
+
         for (int i = 0; i < materials.Count; i++)
         {
-            Material material = materials[i];
+            MaterialRenderHandle materialHandle = _materialHandles[i];
 
-            MaterialRenderHandle materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
-
-            // Blended materials draw after every opaque surface, so what's behind them is already there to blend over.
             if ((phase == Rendering.RenderFlags.DepthPrepass || phase == Rendering.RenderFlags.Opaque) && !materialHandle.IsOpaque || phase == Rendering.RenderFlags.Transparent && materialHandle.IsOpaque)
             {
                 continue;
             }
 
-            // A texture can take several frames to upload. Keep the mesh visible with its base
-            // material color while those textures finish instead of hiding the whole mesh.
             materialHandle.BindResources(commandList);
 
             if (materialHandle.Pipeline is not { } pipeline)
@@ -240,7 +248,8 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 continue;
             }
 
-            commandList.SetUniformMatrix4x4("Model", Owner.GetBindWorldMatrix());
+            commandList.SetUniformMatrix4x4("Model", model);
+            commandList.SetUniformMatrix4x4("NormalMatrix", normalMatrix);
             commandList.SetUniformMatrix4x4("View", view);
             commandList.SetUniformMatrix4x4("Projection", projection);
             commandList.SetUniformMatrix4x4("SceneAxis", sceneAxis);
@@ -275,6 +284,13 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
                 commandList.Draw(VertexCount, 0);
             }
         }
+    }
+
+    internal bool UpdateVisibility(in ViewFrustum frustum, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    {
+        SceneBounds bounds = GetWorldBounds(sceneAxis);
+        ViewDistanceSquared = Vector3.DistanceSquared(bounds.Center, cameraPosition);
+        return frustum.Intersects(bounds);
     }
 
     internal SceneBounds GetWorldBounds(in Matrix4x4 sceneAxis)
@@ -320,10 +336,43 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         _uploadedSkinMatrices = [];
         _uploadedMorphWeights = [];
         _morphSource = null;
+        _materialHandles = [];
         _isReadyToRender = true;
         _boundsSource = null;
         VertexCount = 0;
         IndexCount = 0;
+    }
+
+    private void UpdateMaterialHandles(ICommandList commandList)
+    {
+        HasOpaqueMaterials		= false;
+        HasTransparentMaterials	= false;
+
+        if (Owner.Materials is not { } materials)
+        {
+            _materialHandles = [];
+            return;
+        }
+
+        if (_materialHandles.Length != materials.Count)
+        {
+            _materialHandles = new MaterialRenderHandle[materials.Count];
+        }
+
+        for (int i = 0; i < materials.Count; i++)
+        {
+            MaterialRenderHandle? materialHandle = _materialHandles[i];
+            if (materialHandle is null || materialHandle.IsReleased || !ReferenceEquals(materialHandle.Material, materials[i]))
+            {
+                Material material = materials[i];
+                materialHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, material, () => new MaterialRenderHandle(_graphicsDevice, material));
+                _materialHandles[i] = materialHandle;
+            }
+
+            materialHandle.Update(commandList);
+            HasOpaqueMaterials		|= materialHandle.IsOpaque;
+            HasTransparentMaterials	|= !materialHandle.IsOpaque;
+        }
     }
 
     private static DataBuffer<float>? CreateMorphDeltaBuffer(Morph? morph)

@@ -22,6 +22,9 @@ public sealed class MeshGpuBufferBinding
     private int _uploadedBytes;
     private bool _incrementalUploadPending;
     private DataBuffer? _unpackedData;
+    private IGpuPipelineState? _slotPipeline;
+    private int _slot;
+    private bool _hasSlot;
 
     /// <summary>
     /// Gets the shader-visible name used to resolve the backend binding slot.
@@ -190,7 +193,13 @@ public sealed class MeshGpuBufferBinding
             return;
         }
 
-        if (!pipeline.TryGetBufferSlot(ShaderName, out int slot))
+        if (!ReferenceEquals(_slotPipeline, pipeline))
+        {
+            _hasSlot		= pipeline.TryGetBufferSlot(ShaderName, out _slot);
+            _slotPipeline	= pipeline;
+        }
+
+        if (!_hasSlot)
         {
             return;
         }
@@ -200,12 +209,12 @@ public sealed class MeshGpuBufferBinding
             // Assign sampler units even when this optional resource has no GPU buffer.
             // Otherwise absent samplers retain unit 0, which can alias samplers of a
             // different type (for example usampler2D bone indices and sampler2D data).
-            commandList.SetUniformInt(ShaderName, slot);
+            commandList.SetUniformInt(ShaderName, _slot);
         }
 
         if (GpuBuffer is { IsDisposed: false } buffer)
         {
-            commandList.BindBuffer(slot, buffer);
+            commandList.BindBuffer(_slot, buffer);
         }
     }
 
