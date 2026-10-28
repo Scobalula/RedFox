@@ -112,7 +112,7 @@ public sealed class ObjWriter
                 for (int i = 0; i < vertexCount; i++)
                 {
                     Vector2 uv = mesh.UVLayers!.GetVector2(i, 0);
-                    writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"vt {uv.X:G9} {uv.Y:G9}"));
+                    writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"vt {uv.X:G9} {1f - uv.Y:G9}"));
                 }
             }
 

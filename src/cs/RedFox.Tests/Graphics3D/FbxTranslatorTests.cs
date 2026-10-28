@@ -33,6 +33,29 @@ public sealed class FbxTranslatorTests
     }
 
     [Fact]
+    public void FbxTranslator_Write_FlipsUVsToBottomLeftOriginAndBackOnRead()
+    {
+        Scene       source      = CreateSampleScene();
+        Mesh        mesh        = Assert.Single(source.GetDescendants<Mesh>());
+        FbxDocument document    = FbxSceneExporter.Export(new SceneTranslationSelection(source, SceneNodeFlags.None), new FbxWriteOptions(), null);
+        FbxNode     geometry    = document.FirstNode("Objects")!.ChildrenNamed("Geometry").First();
+        double[]    uvs         = geometry.FirstChild("LayerElementUV")!.FirstChild("UV")!.GetDoubles();
+
+        Assert.Equal(1.0 - mesh.UVLayers!.Get<float>(1, 0, 1), uvs[3], 5);
+
+        Mesh loaded = Assert.Single(RoundTrip(source, "uvs.fbx").GetDescendants<Mesh>());
+
+        for (int vertex = 0; vertex < loaded.VertexCount; vertex++)
+        {
+            Vector3 position = loaded.GetVertexPosition(vertex, true);
+            int     original = Enumerable.Range(0, mesh.VertexCount).First(index => mesh.GetVertexPosition(index, true) == position);
+
+            Assert.True(Vector2.Distance(mesh.UVLayers.GetVector2(original, 0), loaded.UVLayers!.GetVector2(vertex, 0)) < 1e-5f);
+            Assert.True(Vector2.Distance(mesh.UVLayers.GetVector2(original, 1), loaded.UVLayers.GetVector2(vertex, 1)) < 1e-5f);
+        }
+    }
+
+    [Fact]
     public void FbxTranslator_RoundTrip_PreservesBoneWorldTransforms()
     {
         Scene source = CreateSampleScene();

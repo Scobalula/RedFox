@@ -554,7 +554,7 @@ public sealed class ObjReader
         if (i0 < 0)
         {
             float uOnly = float.Parse(span, NumberStyles.Float, CultureInfo.InvariantCulture);
-            return new Vector2(uOnly, 0f);
+            return new Vector2(uOnly, 1f);
         }
 
         float u = float.Parse(span[..i0], NumberStyles.Float, CultureInfo.InvariantCulture);
@@ -563,7 +563,7 @@ public sealed class ObjReader
         int i1 = rest.IndexOf(' ');
         float v = i1 < 0 ? float.Parse(rest, NumberStyles.Float, CultureInfo.InvariantCulture) : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
 
-        return new Vector2(u, v);
+        return new Vector2(u, 1f - v);
     }
 
 }

@@ -159,7 +159,12 @@ public sealed class FbxMeshLayers
             Write(attributes[BinormalOffset..], binormal);
 
         for (int i = 0; i < UVs.Count; i++)
-            ReadValues(UVs[i], corner, controlPoint, polygon, attributes.Slice(UVOffset + i * 2, 2));
+        {
+            Span<float> uv = attributes.Slice(UVOffset + i * 2, 2);
+
+            if (ReadValues(UVs[i], corner, controlPoint, polygon, uv))
+                uv[1] = 1.0f - uv[1];
+        }
 
         for (int i = 0; i < Colors.Count; i++)
             ReadValues(Colors[i], corner, controlPoint, polygon, attributes.Slice(ColorOffset + i * 4, 4));
@@ -184,15 +189,17 @@ public sealed class FbxMeshLayers
         return length > 0.0f ? transformed / length : transformed;
     }
 
-    private static void ReadValues(FbxLayerElement element, int corner, int controlPoint, int polygon, Span<float> destination)
+    private static bool ReadValues(FbxLayerElement element, int corner, int controlPoint, int polygon, Span<float> destination)
     {
         int index = element.ResolveIndex(corner, controlPoint, polygon, -1);
 
         if (index < 0)
-            return;
+            return false;
 
         for (int i = 0; i < destination.Length; i++)
             destination[i] = (float)element.Values[index * element.ComponentCount + i];
+
+        return true;
     }
 
     private static void Write(Span<float> destination, Vector3 value)

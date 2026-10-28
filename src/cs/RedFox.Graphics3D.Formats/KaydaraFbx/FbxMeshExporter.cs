@@ -120,7 +120,7 @@ public static class FbxMeshExporter
             for (int vertex = 0; vertex < mesh.VertexCount; vertex++)
             {
                 values[vertex * 2]		= mesh.UVLayers!.Get<float>(vertex, layer, 0);
-                values[vertex * 2 + 1]	= mesh.UVLayers.Get<float>(vertex, layer, 1);
+                values[vertex * 2 + 1]	= 1.0 - mesh.UVLayers.Get<float>(vertex, layer, 1);
             }
 
             element.AddChild("UV", new FbxProperty(values));
