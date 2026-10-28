@@ -27,7 +27,11 @@ public sealed class FbxDocument
     /// <returns>A sequence of matching root nodes.</returns>
     public IEnumerable<FbxNode> NodesNamed(string name)
     {
-        return Nodes.Where(node => string.Equals(node.Name, name, StringComparison.Ordinal));
+        foreach (FbxNode node in Nodes)
+        {
+            if (string.Equals(node.Name, name, StringComparison.Ordinal))
+                yield return node;
+        }
     }
 
     /// <summary>
@@ -37,7 +41,13 @@ public sealed class FbxDocument
     /// <returns>The first matching root node, or <see langword="null"/>.</returns>
     public FbxNode? FirstNode(string name)
     {
-        return Nodes.FirstOrDefault(node => string.Equals(node.Name, name, StringComparison.Ordinal));
+        foreach (FbxNode node in Nodes)
+        {
+            if (string.Equals(node.Name, name, StringComparison.Ordinal))
+                return node;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -46,12 +56,10 @@ public sealed class FbxDocument
     /// <returns>A depth-first sequence over the full document tree.</returns>
     public IEnumerable<FbxNode> EnumerateNodesDepthFirst()
     {
-        for (int i = 0; i < Nodes.Count; i++)
+        foreach (FbxNode root in Nodes)
         {
-            foreach (FbxNode node in Nodes[i].EnumerateSubtree())
-            {
+            foreach (FbxNode node in root.EnumerateSubtree())
                 yield return node;
-            }
         }
     }
 
@@ -62,6 +70,12 @@ public sealed class FbxDocument
     /// <returns>The first matching node, or <see langword="null"/>.</returns>
     public FbxNode? FirstNodeRecursive(string name)
     {
-        return EnumerateNodesDepthFirst().FirstOrDefault(node => string.Equals(node.Name, name, StringComparison.Ordinal));
+        foreach (FbxNode node in EnumerateNodesDepthFirst())
+        {
+            if (string.Equals(node.Name, name, StringComparison.Ordinal))
+                return node;
+        }
+
+        return null;
     }
 }
