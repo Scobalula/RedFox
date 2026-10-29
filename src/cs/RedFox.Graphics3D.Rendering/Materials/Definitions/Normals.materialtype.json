@@ -1,0 +1,56 @@
+{
+  "name": "Normals",
+  "pipelineKind": "graphics",
+  "vertexShaderName": "Normals",
+  "fragmentShaderName": "Normals",
+  "vertexAttributes": [],
+  "pipelineState": {
+    "cullMode": "none",
+    "faceWinding": "clockwise",
+    "wireframe": false,
+    "blend": false,
+    "sourceBlendFactor": "one",
+    "destinationBlendFactor": "zero",
+    "blendOperation": "add",
+    "depthTest": true,
+    "depthWrite": false,
+    "depthCompareFunc": "lessOrEqual",
+    "primitiveTopology": "lines",
+    "alphaToCoverage": false
+  },
+  "requirements": {
+    "textures": [],
+    "uniforms": [
+      {
+        "name": "Model",
+        "valueType": "matrix4x4",
+        "required": true
+      },
+      {
+        "name": "SceneAxis",
+        "valueType": "matrix4x4",
+        "required": true
+      },
+      {
+        "name": "View",
+        "valueType": "matrix4x4",
+        "required": true
+      },
+      {
+        "name": "Projection",
+        "valueType": "matrix4x4",
+        "required": true
+      },
+      {
+        "name": "NormalMatrix",
+        "valueType": "matrix4x4",
+        "required": true
+      },
+      {
+        "name": "NormalLength",
+        "valueType": "float",
+        "required": true
+      }
+    ]
+  }
+}

@@ -137,6 +137,14 @@ public partial class ScenePreviewView : UserControl
 
     private void OnOptionsClick(object? sender, RoutedEventArgs e) => OpenOptions();
 
+    private void OnPlayPauseClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel is { } viewModel)
+        {
+            viewModel.Settings.IsAnimationPaused = !viewModel.Settings.IsAnimationPaused;
+        }
+    }
+
     private void OnRestartClick(object? sender, RoutedEventArgs e)
     {
         if (_viewModel is { } viewModel)
@@ -159,9 +167,11 @@ public partial class ScenePreviewView : UserControl
         menu.Items.Add(fit);
         menu.Items.Add(CreateToggle("Auto fit", settings.AutoFitScene, value => settings.AutoFitScene = value));
         menu.Items.Add(new Separator());
+        menu.Items.Add(CreateChoices("Merge mode", settings.MergeMode, value => settings.MergeMode = value));
         menu.Items.Add(CreateChoices("Wireframe", settings.WireframeMode, value => settings.WireframeMode = value));
         menu.Items.Add(CreateChoices("Shading", settings.LightingMode, value => settings.LightingMode = value));
         menu.Items.Add(CreateToggle("Grid", settings.ShowGrid, value => settings.ShowGrid = value));
+        menu.Items.Add(CreateToggle("Vertex normals", settings.ShowNormals, value => settings.ShowNormals = value));
         menu.Items.Add(CreateToggle("Bones", settings.ShowBones, value => settings.ShowBones = value));
         menu.Items.Add(CreateToggle("Skybox background", settings.ShowSkybox, value => settings.ShowSkybox = value));
 
@@ -212,7 +222,12 @@ public partial class ScenePreviewView : UserControl
         {
             MenuItem item = new()
             {
-                Header		= value.ToString(),
+                Header = value.ToString() switch
+                {
+                    "InPlace"		=> "Merge in place",
+                    "ConnectBones"	=> "Connect bones",
+                    _				=> value.ToString(),
+                },
                 ToggleType	= MenuItemToggleType.Radio,
                 IsChecked	= value.Equals(selected),
             };

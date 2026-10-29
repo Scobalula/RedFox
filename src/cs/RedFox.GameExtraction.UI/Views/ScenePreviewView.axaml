@@ -13,18 +13,27 @@
                     <TextBlock Text="Scene"/>
                     <ComboBox Width="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
                 </StackPanel>
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasAnimations}">
+                    <TextBlock Text="Animation"/>
+                    <ComboBox Width="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
+                </StackPanel>
+                <Button Content="Clear selection" Command="{Binding ClearSelectionCommand}" IsVisible="{Binding HasModelSelection}"/>
                 <Button Content="Fit scene" Click="OnFitClick"/>
                 <Button Content="View options" Click="OnOptionsClick" ToolTip.Tip="Preview options are also available by right-clicking the scene."/>
             </WrapPanel>
         </Border>
 
         <Border DockPanel.Dock="Bottom" Classes="preview-toolbar" IsVisible="{Binding HasAnimations}">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto">
-                <ComboBox Grid.ColumnSpan="4" Margin="0,0,0,6" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
-                <CheckBox Grid.Row="1" Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}" Margin="0,0,12,0"/>
-                <Button Grid.Row="1" Grid.Column="1" Content="Restart" Click="OnRestartClick" Margin="0,0,12,0"/>
-                <Slider Grid.Row="1" Grid.Column="2" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationPosition, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="Scrub animation (seconds)"/>
-                <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <Button Click="OnPlayPauseClick" Margin="0,0,12,0" ToolTip.Tip="{Binding PlaybackAction}" AutomationProperties.Name="{Binding PlaybackAction}">
+                    <Panel>
+                        <PathIcon Data="{StaticResource IconPlay}" Width="12" Height="12" IsVisible="{Binding Settings.IsAnimationPaused}"/>
+                        <PathIcon Data="{StaticResource IconPause}" Width="12" Height="12" IsVisible="{Binding !Settings.IsAnimationPaused}"/>
+                    </Panel>
+                </Button>
+                <Button Grid.Column="1" Content="Restart" Click="OnRestartClick" Margin="0,0,12,0"/>
+                <Slider Grid.Column="2" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationPosition, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="Scrub animation (seconds)"/>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{Binding AnimationPosition, StringFormat={}{0:F2}}"/>
                     <TextBlock Text=" / "/>
                     <TextBlock Text="{Binding AnimationDuration, StringFormat={}{0:F2} s}"/>
@@ -39,6 +48,7 @@
                                                ViewportController="{Binding ViewportController}"
                                                UseViewBasedLighting="{Binding Settings.UseViewBasedLighting}"
                                                UseFlatShading="{Binding Settings.UseFlatShading}"
+                                               ShowNormals="{Binding Settings.ShowNormals}"
                                                WireframeMode="{Binding Settings.WireframeMode}"
                                                IsAnimationPaused="{Binding Settings.IsAnimationPaused}"
                                                SkinningMode="{Binding Settings.SkinningMode}"

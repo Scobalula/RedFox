@@ -1832,16 +1832,7 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
         foreach (var source in EnumerateHierarchy(SceneNodeFlags.None))
         {
-            var clone = (SceneNode)source.MemberwiseClone();
-
-            clone._children = null;
-            clone._scene = null;
-            clone._disposed = false;
-            clone.Parent = null;
-            clone.BindTransform = source.BindTransform.Clone();
-            clone.LiveTransform = source.LiveTransform.Clone();
-            clone.Attributes = source.Attributes is null ? null : new(source.Attributes);
-            clone.OnCloned();
+            SceneNode clone = source.CreateClone();
 
             clones[source] = clone;
 
@@ -1853,6 +1844,23 @@ public abstract class SceneNode : IUpdatable, IDisposable
             node.RemapClonedReferences(clones);
 
         return clones[this];
+    }
+
+    internal void CloneChildrenTo(SceneNode target, CancellationToken cancellationToken)
+    {
+        Dictionary<SceneNode, SceneNode> clones = new() { [this] = target };
+        foreach (SceneNode source in EnumerateDescendants(SceneNodeFlags.None))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SceneNode clone = source.CreateClone();
+            clones[source] = clone;
+            clones[source.Parent ?? this].AddNode(clone);
+        }
+        foreach (SceneNode clone in clones.Values.Where(node => !ReferenceEquals(node, target)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            clone.RemapClonedReferences(clones);
+        }
     }
 
     /// <summary>
@@ -3439,6 +3447,20 @@ public abstract class SceneNode : IUpdatable, IDisposable
     private bool MatchesFilter(SceneNodeFlags filter) => filter == SceneNodeFlags.None || (Flags & filter) == filter;
 
     private bool MatchesName(string namePattern) => FileSystemName.MatchesSimpleExpression(namePattern, Name);
+
+    private SceneNode CreateClone()
+    {
+        SceneNode clone		= (SceneNode)MemberwiseClone();
+        clone._children		= null;
+        clone._scene		= null;
+        clone._disposed		= false;
+        clone.Parent		= null;
+        clone.BindTransform	= BindTransform.Clone();
+        clone.LiveTransform	= LiveTransform.Clone();
+        clone.Attributes	= Attributes is null ? null : new(Attributes);
+        clone.OnCloned();
+        return clone;
+    }
 
     /// <summary>
     /// Resolves duplicates in <paramref name="targetParent"/>'s hierarchy and either attaches this

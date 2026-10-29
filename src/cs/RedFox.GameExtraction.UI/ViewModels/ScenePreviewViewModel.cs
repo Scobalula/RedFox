@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Numerics;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering;
@@ -39,6 +40,20 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// Gets the viewer preferences shared with other scene previews.
     /// </summary>
     public PreviewSettings Settings { get; }
+
+    /// <summary>
+    /// Gets or sets the command that clears the preview model selection.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasModelSelection))]
+    public partial ICommand? ClearSelectionCommand { get; set; }
+
+    /// <summary>
+    /// Gets whether the preview has a model selection to clear.
+    /// </summary>
+    public bool HasModelSelection => ClearSelectionCommand is not null;
+
+    internal SceneCombineMode? CombinationMode { get; init; }
 
     /// <summary>
     /// Gets the available scenes.
@@ -106,6 +121,11 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// Gets a value indicating whether the displayed scene has more than one animation.
     /// </summary>
     public bool HasMultipleAnimations => AnimationNames.Count > 2;
+
+    /// <summary>
+    /// Gets the available playback action.
+    /// </summary>
+    public string PlaybackAction => Settings.IsAnimationPaused ? "Play" : "Pause";
 
     /// <summary>
     /// Gets whether the scene contains animations.
@@ -311,6 +331,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 break;
 
             case nameof(PreviewSettings.IsAnimationPaused):
+                OnPropertyChanged(nameof(PlaybackAction));
                 scene.IsAnimationPaused = Settings.IsAnimationPaused;
                 break;
 
@@ -648,7 +669,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         if (rebuildPlayers || !_preparedSceneData.ContainsKey(scene))
         {
-            scene.CreateAnimationPlayers();
+            if (CombinationMode is { } mode)
+            {
+                SceneCombiner.BindAnimations(scene, mode, CancellationToken.None);
+            }
+            else
+            {
+                scene.CreateAnimationPlayers();
+            }
             _allAnimationPlayersByScene[scene] = [.. scene.AnimationPlayers];
         }
         else if (_allAnimationPlayersByScene.TryGetValue(scene, out AnimationPlayer[]? allPlayers))

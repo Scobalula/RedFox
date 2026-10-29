@@ -53,6 +53,7 @@ public sealed class SceneRenderer : IDisposable
     private readonly Dictionary<string, IGpuPipelineState> _preparedPipelines = [];
     private RenderFrameContext? _frameContext;
     private IGpuPipelineState? _wireframePipeline;
+    private IGpuPipelineState? _normalPipeline;
 
     private IGpuTexture? _antiAliasingColorTexture;
     private IGpuTexture? _antiAliasingDepthTexture;
@@ -128,6 +129,11 @@ public sealed class SceneRenderer : IDisposable
     /// Gets or sets how mesh wireframes are drawn.
     /// </summary>
     public WireframeMode WireframeMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether vertex normal direction lines are drawn over meshes.
+    /// </summary>
+    public bool ShowNormals { get; set; }
 
     public ShadowQuality ShadowQuality { get; set; } = ShadowQuality.High;
 
@@ -394,6 +400,7 @@ public sealed class SceneRenderer : IDisposable
             if (phase == RenderFlags.Overlay)
             {
                 RenderWireframes(view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position);
+                RenderNormals(view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position);
             }
 
             SceneTraversal.Render(_otherHandles, _commandList, phase, view.ViewMatrix, view.ProjectionMatrix, sceneAxis, view.Position, viewportSize);
@@ -498,7 +505,7 @@ public sealed class SceneRenderer : IDisposable
 
     private bool HasPendingSceneWork(IReadOnlyList<SceneNode> nodes, Skybox skybox)
     {
-        if (_hasPendingUploads || _textureLoader.HasPendingLoads)
+        if (_hasPendingUploads || _textureLoader.HasPendingLoads || ShowNormals && _visibleMeshes.Any(mesh => mesh.HasPendingNormalUploads))
         {
             return true;
         }
@@ -817,6 +824,21 @@ public sealed class SceneRenderer : IDisposable
         }
     }
 
+    private void RenderNormals(in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    {
+        if (!ShowNormals || _graphicsDevice.MaterialTypes is not IMaterialPipelineProvider pipelineProvider)
+        {
+            return;
+        }
+
+        _normalPipeline ??= pipelineProvider.AcquirePipeline(_graphicsDevice, "Normals");
+        foreach (MeshRenderHandle meshHandle in _visibleMeshes)
+        {
+            float length = MathF.Max(meshHandle.GetWorldBounds(sceneAxis).Radius * 0.03f, 0.001f);
+            meshHandle.RenderNormals(_commandList, _normalPipeline, length, view, projection, sceneAxis, cameraPosition);
+        }
+    }
+
     private IGpuPipelineState? GetWireframePipeline()
     {
         if (_wireframePipeline is { IsDisposed: false })
@@ -879,6 +901,10 @@ public sealed class SceneRenderer : IDisposable
                 pipelineProvider.ReleasePipeline(prepared.Key, prepared.Value);
             }
 
+            if (_normalPipeline is not null)
+            {
+                pipelineProvider.ReleasePipeline("Normals", _normalPipeline);
+            }
             if (_wireframePipeline is not null)
             {
                 pipelineProvider.ReleasePipeline(WireframeMaterialTypeName, _wireframePipeline);
@@ -886,7 +912,8 @@ public sealed class SceneRenderer : IDisposable
         }
 
         _preparedPipelines.Clear();
-        _wireframePipeline = null;
+        _wireframePipeline	= null;
+        _normalPipeline		= null;
     }
 
     private void ReleaseAntiAliasingResources()

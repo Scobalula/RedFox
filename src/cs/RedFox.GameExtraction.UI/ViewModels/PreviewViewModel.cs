@@ -150,16 +150,17 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
         ArgumentNullException.ThrowIfNull(selection);
 
         Cancel();
-        SelectionCount = selection.Count;
-        AssetRowViewModel? selectedAsset = selection.Count > 0 ? selection[^1] : null;
-        Asset = selectedAsset;
-        ErrorMessage = null;
-        ReferenceCount = 0;
-        PayloadTypeDisplay = "-";
+        SetRequestedModels(null);
+        SelectionCount						= selection.Count;
+        AssetRowViewModel? selectedAsset	= selection.Count > 0 ? selection[^1] : null;
+        Asset								= selectedAsset;
+        ErrorMessage						= null;
+        ReferenceCount						= 0;
+        PayloadTypeDisplay					= "-";
         if (selectedAsset is null)
         {
             HandlerDisplay = "-";
-            SetContent(null);
+            Clear();
             StatusText = "Waiting for selection";
             return;
         }
@@ -189,6 +190,30 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
             if (loadVersion != _loadVersion)
             {
                 return;
+            }
+
+            Scene[] snapshots = await Task.Run(() => GetScenes(result.Data).Select(scene => SceneCombiner.Combine([scene], SceneCombineMode.InPlace, cancellationToken)).ToArray(), cancellationToken);
+            if (loadVersion != _loadVersion)
+            {
+                return;
+            }
+            if (selectedAsset.Category == AssetCategory.Model && snapshots.Length > 0)
+            {
+                ResetModelGroup();
+                _modelAsset			= selectedAsset;
+                _modelScenes		= snapshots;
+                _externalAnimations	= [];
+            }
+            else if (selectedAsset.Category == AssetCategory.Animation && snapshots.Length > 0)
+            {
+                _externalAnimations	= snapshots;
+                _animationSource	= selectedAsset.Source;
+            }
+            else
+            {
+                ResetModelGroup();
+                _modelAsset		= null;
+                _modelScenes	= [];
             }
 
             IReadOnlyDictionary<Scene, ScenePreviewData> preparedSceneData = await Task.Run(
@@ -256,6 +281,13 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
     public void Clear()
     {
         Cancel();
+        ResetModelGroup();
+        _requestedModels	= null;
+        _modelAsset			= null;
+        _modelScenes		= [];
+        _externalAnimations	= [];
+        _animationSource	= null;
+        Asset				= null;
         SetContent(null);
     }
 

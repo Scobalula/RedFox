@@ -544,6 +544,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="source">The source row to remove.</param>
     public void RemoveSource(AssetSourceViewModel source)
     {
+        _ = Preview.RemoveModelSourceAsync(source);
         _allAssets.RemoveAll(row => ReferenceEquals(row.Source, source));
         for (int index = SelectedAssets.Count - 1; index >= 0; index--)
         {
@@ -558,7 +559,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         TotalCount = _allAssets.Count;
         RefreshAssetFilterOptions();
         ApplyFilter();
-        RefreshPreview([.. SelectedAssets]);
+        if (!Preview.HasModelGroup)
+        {
+            RefreshPreview([.. SelectedAssets]);
+        }
     }
 
     /// <summary>
@@ -622,6 +626,29 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Clears the browser selection and toggles a model asset in the preview group.
+    /// </summary>
+    /// <param name="asset">The asset clicked with the middle mouse button.</param>
+    /// <returns>A task that completes when the browser selection and preview are updated.</returns>
+    public async Task TogglePreviewModelAsync(AssetRowViewModel asset)
+    {
+        CancelScheduledPreviewRefresh();
+        SelectedAssets.Clear();
+        SelectedAsset = null;
+        NotifySelectionChanged();
+        if (asset.Category != AssetCategory.Model)
+        {
+            return;
+        }
+
+        if (!IsPreviewActive)
+        {
+            PreviewSettings.ShowPreviewPanel = true;
+        }
+        await Preview.ToggleModelAsync(asset);
+    }
+
+    /// <summary>
     /// Updates whether the preview window is open.
     /// </summary>
     /// <param name="value">Whether the preview window is open.</param>
@@ -637,13 +664,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         // Preview views cannot move between hosts, so release the current one and build a fresh view for the new host.
         CancelScheduledPreviewRefresh();
-        Preview.Clear();
+        bool hasGroup = Preview.HasModelGroup;
+        Preview.ReleaseView();
         _isPreviewWindowOpen = value;
         NotifyPreviewLayoutChanged();
 
         if (IsPreviewActive)
         {
-            _ = Preview.UpdateSelectionAsync(selection);
+            _ = hasGroup ? Preview.RebuildModelGroupAsync() : Preview.UpdateSelectionAsync(selection);
         }
     }
 
@@ -730,6 +758,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnPreviewSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PreviewSettings.MergeMode) && Preview.HasModelGroup && !Preview.IsLoading)
+        {
+            _ = Preview.RebuildModelGroupAsync();
+        }
         if (e.PropertyName == nameof(PreviewSettings.SkyboxFile))
         {
             _ = LoadSkyboxAsync();
@@ -758,7 +790,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             if (IsPreviewActive)
             {
-                _ = Preview.UpdateSelectionAsync([.. SelectedAssets]);
+                _ = Preview.HasModelGroup ? Preview.RebuildModelGroupAsync() : Preview.UpdateSelectionAsync([.. SelectedAssets]);
             }
             else
             {
@@ -831,6 +863,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PreviewSelected()
     {
+        if (Preview.HasModelGroup)
+        {
+            PreviewRequested?.Invoke();
+            return;
+        }
         RequestPreview([.. SelectedAssets]);
     }
 
@@ -1449,6 +1486,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             HashSet<AssetSourceViewModel> unloadedSources = new(results.Where(result => result.Unloaded).Select(result => result.Source), ReferenceEqualityComparer.Instance);
             foreach (AssetSourceViewModel source in unloadedSources)
             {
+                await Preview.RemoveModelSourceAsync(source);
                 LoadedSources.Remove(source);
             }
 
@@ -1466,7 +1504,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             TotalCount = _allAssets.Count;
             RefreshAssetFilterOptions();
             ApplyFilter();
-            RefreshPreview([.. SelectedAssets]);
+            if (!Preview.HasModelGroup)
+            {
+                RefreshPreview([.. SelectedAssets]);
+            }
 
             int failedCount = results.Count(result => result.Error is not null);
             string summary = failedCount > 0

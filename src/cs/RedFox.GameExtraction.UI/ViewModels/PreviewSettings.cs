@@ -12,6 +12,27 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// </summary>
 public sealed partial class PreviewSettings : ObservableObject
 {
+    private static readonly GameExtractionSetting NormalsSetting = new()
+    {
+        Name			= "PreviewNormals",
+        Group			= GameExtractionSettingGroup.Preview,
+        Section			= "Scene",
+        Label			= "Show vertex normals",
+        Type			= GameExtractionSettingType.Boolean,
+        DefaultValue	= false,
+    };
+
+    private static readonly GameExtractionSetting MergeModeSetting = new()
+    {
+        Name			= "PreviewMergeMode",
+        Group			= GameExtractionSettingGroup.Preview,
+        Section			= "Scene",
+        Label			= "Merge mode",
+        Type			= GameExtractionSettingType.Choice,
+        Options			= ["In place", "Connect bones"],
+        DefaultValue	= "Connect bones",
+    };
+
     private static readonly GameExtractionSetting WireframeSetting = new()
     {
         Name			= "PreviewWireframe",
@@ -271,6 +292,8 @@ public sealed partial class PreviewSettings : ObservableObject
     /// </summary>
     public static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } =
     [
+        NormalsSetting,
+        MergeModeSetting,
         WireframeSetting,
         GridSetting,
         BonesSetting,
@@ -296,6 +319,12 @@ public sealed partial class PreviewSettings : ObservableObject
     internal event Action? SaveRequested;
 
     internal ScenePreviewCameraState? CameraState { get; set; }
+
+    /// <summary>
+    /// Gets or sets how models in the preview group are combined.
+    /// </summary>
+    [ObservableProperty]
+    public partial SceneCombineMode MergeMode { get; set; } = SceneCombineMode.ConnectBones;
 
     /// <summary>
     /// Gets or sets the scene up axis.
@@ -367,6 +396,12 @@ public sealed partial class PreviewSettings : ObservableObject
     public partial bool ShowBones { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets whether vertex normal direction lines are shown in scene previews.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool ShowNormals { get; set; }
+
+    /// <summary>
     /// Gets or sets how mesh wireframes are drawn in scene previews.
     /// </summary>
     [ObservableProperty]
@@ -421,6 +456,8 @@ public sealed partial class PreviewSettings : ObservableObject
     internal void LoadFrom(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ShowNormals			= bool.TryParse(settings.GetSettingValue(NormalsSetting), out bool showNormals) && showNormals;
+        MergeMode			= GetEnumValue(settings, MergeModeSetting, SceneCombineMode.ConnectBones);
         WireframeMode		= GetEnumValue(settings, WireframeSetting, WireframeMode.None);
         ShowGrid			= !bool.TryParse(settings.GetSettingValue(GridSetting), out bool grid) || grid;
         ShowBones			= !bool.TryParse(settings.GetSettingValue(BonesSetting), out bool bones) || bones;
@@ -454,6 +491,8 @@ public sealed partial class PreviewSettings : ObservableObject
 
     internal void SaveLayoutTo(GameExtractionSettings settings)
     {
+        settings.SetSettingValue(NormalsSetting, ShowNormals.ToString());
+        settings.SetSettingValue(MergeModeSetting, MergeMode.ToString());
         settings.SetSettingValue(WireframeSetting, WireframeMode.ToString());
         settings.SetSettingValue(GridSetting, ShowGrid.ToString());
         settings.SetSettingValue(BonesSetting, ShowBones.ToString());

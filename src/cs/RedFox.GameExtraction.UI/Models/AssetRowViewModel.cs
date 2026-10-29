@@ -72,6 +72,12 @@ public sealed partial class AssetRowViewModel : ObservableObject
     /// </summary>
     public string Information => _information;
 
+    /// <summary>
+    /// Gets or sets whether this asset belongs to the model preview group.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsInPreviewGroup { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayedThumbnail), nameof(HasThumbnail))]
     public partial Bitmap? Thumbnail { get; set; }
