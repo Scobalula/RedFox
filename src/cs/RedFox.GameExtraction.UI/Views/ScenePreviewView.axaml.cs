@@ -18,6 +18,7 @@ public partial class ScenePreviewView : UserControl
 
     private ScenePreviewViewModel? _viewModel;
     private Point? _skyboxDragPosition;
+    private Point? _contextMenuPosition;
     private double _fpsSampleDuration;
     private int _fpsSampleFrameCount;
 
@@ -54,6 +55,11 @@ public partial class ScenePreviewView : UserControl
 
     private void OnRenderFrame(object? sender, AvaloniaRenderFrameEventArgs args)
     {
+        if (_viewModel?.HasAnimations == true)
+        {
+            Dispatcher.UIThread.Post(() => _viewModel?.RefreshTimeline());
+        }
+
         if (args.ElapsedTime <= TimeSpan.Zero)
         {
             return;
@@ -74,6 +80,11 @@ public partial class ScenePreviewView : UserControl
 
     private void OnRendererPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (e.GetCurrentPoint(Renderer).Properties.IsRightButtonPressed)
+        {
+            _contextMenuPosition = e.GetPosition(Renderer);
+        }
+
         if (e.KeyModifiers == KeyModifiers.Shift && e.GetCurrentPoint(Renderer).Properties.IsLeftButtonPressed)
         {
             _skyboxDragPosition = e.GetPosition(Renderer);
@@ -82,6 +93,15 @@ public partial class ScenePreviewView : UserControl
 
     private void OnRendererPointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_contextMenuPosition is { } start)
+        {
+            Point current = e.GetPosition(Renderer);
+            if (Math.Abs(current.X - start.X) >= 4 || Math.Abs(current.Y - start.Y) >= 4)
+            {
+                _contextMenuPosition = null;
+            }
+        }
+
         if (_skyboxDragPosition is not { } previous || _viewModel is null)
         {
             return;
@@ -96,6 +116,16 @@ public partial class ScenePreviewView : UserControl
 
     private void OnRendererPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (e.InitialPressMouseButton == MouseButton.Right && _contextMenuPosition is { } start)
+        {
+            _contextMenuPosition	= null;
+            Point end				= e.GetPosition(Renderer);
+            if (Math.Abs(end.X - start.X) < 4 && Math.Abs(end.Y - start.Y) < 4)
+            {
+                OpenOptions();
+            }
+        }
+
         if (_skyboxDragPosition is null)
         {
             return;
@@ -103,6 +133,97 @@ public partial class ScenePreviewView : UserControl
 
         _skyboxDragPosition = null;
         _viewModel?.Settings.RequestSave();
+    }
+
+    private void OnOptionsClick(object? sender, RoutedEventArgs e) => OpenOptions();
+
+    private void OnRestartClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel is { } viewModel)
+        {
+            viewModel.AnimationPosition = 0;
+        }
+    }
+
+    private void OpenOptions()
+    {
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        PreviewSettings settings	= viewModel.Settings;
+        ContextMenu menu			= new();
+        MenuItem fit				= new() { Header = "Fit scene" };
+        fit.Click += (_, _) => viewModel.FitSceneToView();
+        menu.Items.Add(fit);
+        menu.Items.Add(CreateToggle("Auto fit", settings.AutoFitScene, value => settings.AutoFitScene = value));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(CreateChoices("Wireframe", settings.WireframeMode, value => settings.WireframeMode = value));
+        menu.Items.Add(CreateChoices("Shading", settings.LightingMode, value => settings.LightingMode = value));
+        menu.Items.Add(CreateToggle("Grid", settings.ShowGrid, value => settings.ShowGrid = value));
+        menu.Items.Add(CreateToggle("Bones", settings.ShowBones, value => settings.ShowBones = value));
+        menu.Items.Add(CreateToggle("Skybox background", settings.ShowSkybox, value => settings.ShowSkybox = value));
+
+        MenuItem skyboxes = new()
+        {
+            Header		= "Skybox",
+            IsEnabled	= settings.SkyboxFiles.Count > 0,
+        };
+        foreach (string path in settings.SkyboxFiles)
+        {
+            MenuItem item = new()
+            {
+                Header		= Path.GetFileNameWithoutExtension(path),
+                ToggleType	= MenuItemToggleType.Radio,
+                IsChecked	= string.Equals(path, settings.SkyboxFile, StringComparison.OrdinalIgnoreCase),
+            };
+            item.Click += (_, _) =>
+            {
+                settings.SkyboxFile = path;
+                settings.RequestSave();
+            };
+            skyboxes.Items.Add(item);
+        }
+        menu.Items.Add(skyboxes);
+        menu.Open(Renderer);
+    }
+
+    private MenuItem CreateToggle(string label, bool value, Action<bool> setValue)
+    {
+        MenuItem item = new()
+        {
+            Header		= label,
+            ToggleType	= MenuItemToggleType.CheckBox,
+            IsChecked	= value,
+        };
+        item.Click += (_, _) =>
+        {
+            setValue(item.IsChecked);
+            _viewModel?.Settings.RequestSave();
+        };
+        return item;
+    }
+
+    private MenuItem CreateChoices<T>(string label, T selected, Action<T> setValue) where T : struct, Enum
+    {
+        MenuItem menu = new() { Header = label };
+        foreach (T value in Enum.GetValues<T>())
+        {
+            MenuItem item = new()
+            {
+                Header		= value.ToString(),
+                ToggleType	= MenuItemToggleType.Radio,
+                IsChecked	= value.Equals(selected),
+            };
+            item.Click += (_, _) =>
+            {
+                setValue(value);
+                _viewModel?.Settings.RequestSave();
+            };
+            menu.Items.Add(item);
+        }
+        return menu;
     }
 
     private void OnFitClick(object? sender, RoutedEventArgs e) => _viewModel?.FitSceneToView();

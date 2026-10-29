@@ -346,21 +346,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         Preview = new PreviewViewModel(_assetManager, CreateConfiguration, config.Previewers, config.PreviewSettings);
         _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
-        config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
         config.PreviewSettings.SaveRequested += SaveLayout;
 
-        if (config.SkyboxPath is not null)
+        string skyboxDirectory = config.SkyboxFolder ?? Path.Combine(AppContext.BaseDirectory, "skybox");
+        if (config.SkyboxFolder is null && config.SkyboxPath is not null)
         {
-            string cacheDirectory = Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(config.AppName))!, "skybox");
-            ImageTranslatorManager translators = new();
-            BuiltInImageFormats.RegisterAll(translators);
-
-            Texture skyboxTexture = new(config.SkyboxPath) { ImageLoader = new SkyboxImageLoader(translators, cacheDirectory) };
-
-            // Warm the loader at startup so the first preview finds the panorama ready instead of decoding it then.
-            config.PreviewSettings.SkyboxTexture = skyboxTexture;
-            _ = Task.Run(() => skyboxTexture.ImageLoader.Load(skyboxTexture, new ImageTranslatorManager(), MipType.High));
+            skyboxDirectory = Path.GetDirectoryName(Path.GetFullPath(config.SkyboxPath)) ?? skyboxDirectory;
         }
+
+        ImageTranslatorManager skyboxTranslators = new();
+        BuiltInImageFormats.RegisterAll(skyboxTranslators);
+        if (Directory.Exists(skyboxDirectory))
+        {
+            config.PreviewSettings.SkyboxFiles = [.. Directory.EnumerateFiles(skyboxDirectory).Where(path => skyboxTranslators.TryGetTranslator(path, Path.GetExtension(path), out _)).Order(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        if (!File.Exists(config.PreviewSettings.SkyboxFile))
+        {
+            config.PreviewSettings.SkyboxFile = config.SkyboxPath ?? config.PreviewSettings.SkyboxFiles.FirstOrDefault() ?? string.Empty;
+        }
+        config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
+        _ = LoadSkyboxAsync();
         Preview.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PreviewViewModel.Content))
@@ -694,8 +700,41 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedAssetChanged(AssetRowViewModel? value) => UpdateThumbnailOrbit();
 
+    private async Task LoadSkyboxAsync()
+    {
+        if (!File.Exists(PreviewSettings.SkyboxFile))
+        {
+            return;
+        }
+
+        string cacheDirectory				= Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(_config.AppName)) ?? AppContext.BaseDirectory, "skybox");
+        ImageTranslatorManager translators	= new();
+        BuiltInImageFormats.RegisterAll(translators);
+        Texture texture = new(PreviewSettings.SkyboxFile)
+        {
+            ImageLoader = new SkyboxImageLoader(translators, cacheDirectory),
+        };
+        try
+        {
+            await Task.Run(() => texture.ImageLoader.Load(texture, translators, MipType.High));
+            if (!_isDisposed && string.Equals(PreviewSettings.SkyboxFile, texture.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                PreviewSettings.SkyboxTexture = texture;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            StatusText = $"Skybox error: {exception.Message}";
+        }
+    }
+
     private void OnPreviewSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PreviewSettings.SkyboxFile))
+        {
+            _ = LoadSkyboxAsync();
+        }
+
         if (e.PropertyName == nameof(PreviewSettings.ShowAssetGrid))
         {
             PreviewSettings.SaveLayoutTo(_config.Settings);

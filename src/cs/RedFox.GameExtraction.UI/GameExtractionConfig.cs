@@ -78,6 +78,11 @@ public sealed class GameExtractionConfig
     public string? SkyboxPath { get; init; }
 
     /// <summary>
+    /// Gets the skybox folder, defaulting to the configured skybox file directory or the application's skybox folder.
+    /// </summary>
+    public string? SkyboxFolder { get; init; }
+
+    /// <summary>
     /// Gets the file picker filter string, using the WinForms-style format "Label|*.ext|All Files|*.*".
     /// </summary>
     public string FileFilter { get; init; } = "All Files|*.*";
