@@ -77,6 +77,8 @@ public class MorphAnimation : Animation
         base.Read(reader, nodes);
 
         int trackCount = reader.ReadInt32();
+        if (trackCount < 0 || trackCount > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene morph track count.");
         Tracks = new(trackCount);
 
         for (int i = 0; i < trackCount; i++)

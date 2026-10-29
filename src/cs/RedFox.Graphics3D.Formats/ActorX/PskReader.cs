@@ -6,8 +6,7 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.ActorX;
 
 /// <summary>
-/// Reads ActorX PSK and PSKX mesh files into a <see cref="Scene"/>, including geometry,
-/// materials, the reference skeleton, and skin weights.
+/// Reads ActorX PSK and PSKX mesh files into a <see cref="Scene"/>, including geometry, materials, the reference skeleton, and skin weights.
 /// </summary>
 public sealed class PskReader
 {
@@ -29,23 +28,32 @@ public sealed class PskReader
     /// Reads the PSK/PSKX content and populates the supplied scene.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
-    public void Read(Scene scene)
+    public void Read(Scene scene) => Read(scene, CancellationToken.None);
+
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Read(Scene scene, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         using var reader = new BinaryReader(_stream, System.Text.Encoding.UTF8, leaveOpen: true);
 
         var header = ActorXChunkHeader.Read(reader);
         if (!header.ChunkId.StartsWith(ActorXChunkId.MeshHeader, StringComparison.Ordinal))
             throw new InvalidDataException("Invalid PSK file: missing ACTRHEAD chunk.");
 
-        Vector3[] points = [];
-        List<ActorXVertex> wedges = [];
-        List<ActorXTriangle> faces = [];
-        List<ActorXMaterial> materials = [];
-        List<ActorXBone> boneRecords = [];
-        List<ActorXInfluence> influences = [];
+        Vector3[] points					= [];
+        List<ActorXVertex> wedges			= [];
+        List<ActorXTriangle> faces			= [];
+        List<ActorXMaterial> materials		= [];
+        List<ActorXBone> boneRecords		= [];
+        List<ActorXInfluence> influences	= [];
 
         while (reader.BaseStream.Position < reader.BaseStream.Length)
         {
+            token.ThrowIfCancellationRequested();
             var chunk = ActorXChunkHeader.Read(reader);
 
             if (chunk.ChunkId.StartsWith(ActorXChunkId.Points, StringComparison.Ordinal))
@@ -94,13 +102,13 @@ public sealed class PskReader
             else
             {
                 pointIndex = reader.ReadUInt16();
-                reader.ReadUInt16(); // padding
+                reader.ReadUInt16();
             }
 
-            var uv = new Vector2(reader.ReadSingle(), reader.ReadSingle());
-            byte materialIndex = reader.ReadByte();
-            reader.ReadByte();   // reserved
-            reader.ReadUInt16(); // padding
+            var uv				= new Vector2(reader.ReadSingle(), reader.ReadSingle());
+            byte materialIndex	= reader.ReadByte();
+            reader.ReadByte();
+            reader.ReadUInt16();
 
             wedges.Add(new ActorXVertex(pointIndex, uv, materialIndex));
         }
@@ -113,12 +121,12 @@ public sealed class PskReader
         var faces = new List<ActorXTriangle>(count);
         for (int i = 0; i < count; i++)
         {
-            int w0 = extended ? reader.ReadInt32() : reader.ReadUInt16();
-            int w1 = extended ? reader.ReadInt32() : reader.ReadUInt16();
-            int w2 = extended ? reader.ReadInt32() : reader.ReadUInt16();
-            byte materialIndex = reader.ReadByte();
-            byte auxMaterialIndex = reader.ReadByte();
-            uint smoothingGroups = reader.ReadUInt32();
+            int w0					= extended ? reader.ReadInt32() : reader.ReadUInt16();
+            int w1					= extended ? reader.ReadInt32() : reader.ReadUInt16();
+            int w2					= extended ? reader.ReadInt32() : reader.ReadUInt16();
+            byte materialIndex		= reader.ReadByte();
+            byte auxMaterialIndex	= reader.ReadByte();
+            uint smoothingGroups	= reader.ReadUInt32();
 
             faces.Add(new ActorXTriangle(w0, w1, w2, materialIndex, auxMaterialIndex, smoothingGroups));
         }
@@ -153,8 +161,8 @@ public sealed class PskReader
 
         for (int i = 0; i < bones.Length; i++)
         {
-            var record = boneRecords[i];
-            bool isRoot = i == 0 || record.ParentIndex < 0 || record.ParentIndex >= bones.Length || record.ParentIndex == i;
+            var record	= boneRecords[i];
+            bool isRoot	= i == 0 || record.ParentIndex == -1;
 
             bones[i].MoveTo(isRoot ? model : bones[record.ParentIndex], ReparentTransformMode.PreserveExisting);
             bones[i].BindTransform.LocalPosition = record.Position;
@@ -166,15 +174,15 @@ public sealed class PskReader
 
     private static void BuildMeshes(MeshGroup model, Vector3[] points, List<ActorXVertex> wedges, List<ActorXTriangle> faces, List<ActorXMaterial> materials, SkeletonBone[] bones, List<ActorXInfluence> influences)
     {
-        var influencesByPoint = GroupInfluences(influences, out int maxInfluences);
-        bool hasSkinning = maxInfluences > 0 && bones.Length > 0;
+        var influencesByPoint	= GroupInfluences(influences, out int maxInfluences);
+        bool hasSkinning		= maxInfluences > 0 && bones.Length > 0;
 
         var materialNodes = BuildMaterials(model, materials);
 
         var facesByMaterial = new Dictionary<int, List<ActorXTriangle>>();
         foreach (var face in faces)
         {
-            int materialIndex = face.MaterialIndex >= 0 && face.MaterialIndex < materialNodes.Length ? face.MaterialIndex : 0;
+            int materialIndex = face.MaterialIndex;
             if (!facesByMaterial.TryGetValue(materialIndex, out var bucket))
                 facesByMaterial[materialIndex] = bucket = [];
             bucket.Add(face);
@@ -182,8 +190,8 @@ public sealed class PskReader
 
         foreach (var (materialIndex, materialFaces) in facesByMaterial)
         {
-            var material = materialNodes[materialIndex];
-            var mesh = model.AddNode<Mesh>(material.Name);
+            var material	= materialNodes[materialIndex];
+            var mesh		= model.AddNode<Mesh>(material.Name);
 
             var remap = new Dictionary<int, int>();
             var order = new List<int>();
@@ -197,16 +205,16 @@ public sealed class PskReader
                 faceIndices[f * 3 + 2] = ResolveWedgeIndex(face.Wedge2, remap, order);
             }
 
-            int vertexCount = order.Count;
-            var positions = new float[vertexCount * 3];
-            var uvs = new float[vertexCount * 2];
-            int[]? boneIndices = hasSkinning ? new int[vertexCount * maxInfluences] : null;
-            float[]? boneWeights = hasSkinning ? new float[vertexCount * maxInfluences] : null;
+            int vertexCount			= order.Count;
+            var positions			= new float[vertexCount * 3];
+            var uvs					= new float[vertexCount * 2];
+            int[]? boneIndices		= hasSkinning ? new int[vertexCount * maxInfluences] : null;
+            float[]? boneWeights	= hasSkinning ? new float[vertexCount * maxInfluences] : null;
 
             for (int v = 0; v < vertexCount; v++)
             {
-                var wedge = wedges[order[v]];
-                var position = (uint)wedge.PointIndex < (uint)points.Length ? points[wedge.PointIndex] : Vector3.Zero;
+                var wedge		= wedges[order[v]];
+                var position	= points[wedge.PointIndex];
 
                 positions[v * 3] = position.X;
                 positions[v * 3 + 1] = position.Y;
@@ -220,9 +228,10 @@ public sealed class PskReader
                 influencesByPoint.TryGetValue(wedge.PointIndex, out var links);
                 for (int j = 0; j < maxInfluences; j++)
                 {
-                    bool present = links is not null && j < links.Count;
-                    boneIndices[v * maxInfluences + j] = present ? links![j].BoneIndex : 0;
-                    boneWeights[v * maxInfluences + j] = present ? links![j].Weight : 0f;
+                    if (links is null || j >= links.Count)
+                        continue;
+                    boneIndices[v * maxInfluences + j]	= links[j].BoneIndex;
+                    boneWeights[v * maxInfluences + j]	= links[j].Weight;
                 }
             }
 
@@ -268,14 +277,15 @@ public sealed class PskReader
 
     private static Material[] BuildMaterials(MeshGroup model, List<ActorXMaterial> materials)
     {
+        MaterialGroup materialGroup = model.AddNode<MaterialGroup>();
         if (materials.Count == 0)
-            return [model.AddNode<Material>($"{model.Name}_Material")];
+            return [materialGroup.AddNode<Material>($"{model.Name}_Material")];
 
         var nodes = new Material[materials.Count];
         for (int i = 0; i < materials.Count; i++)
         {
             string name = string.IsNullOrWhiteSpace(materials[i].Name) ? $"Material_{i}" : materials[i].Name;
-            nodes[i] = model.AddNode<Material>(name);
+            nodes[i] = materialGroup.AddNode<Material>(name);
         }
 
         return nodes;

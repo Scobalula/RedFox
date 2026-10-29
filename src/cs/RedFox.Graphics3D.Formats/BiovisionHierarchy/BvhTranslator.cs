@@ -4,20 +4,6 @@ namespace RedFox.Graphics3D.Formats.BiovisionHierarchy;
 
 /// <summary>
 /// Provides reading and writing of Biovision Hierarchy (<c>.bvh</c>) animation files.
-/// <para>
-/// BVH files encode one skeleton hierarchy, bind-pose offsets, and a single motion clip composed of per-joint
-/// translation and rotation channels. They do not encode mesh geometry, normals, tangents, UVs, materials, or
-/// skinning weights.
-/// </para>
-/// <para>
-/// On import, the translator creates a hierarchy of <see cref="SkeletonBone"/> nodes and a
-/// <see cref="Skeletal.SkeletonAnimation"/> that stores the motion clip in local absolute space.
-/// </para>
-/// <para>
-/// On export, the translator validates that the scene only contains data representable by BVH. Unsupported scene
-/// content is rejected explicitly instead of being silently discarded, and the writer emits a stable default BVH
-/// channel order rather than coupling the scene graph to format-specific node types.
-/// </para>
 /// </summary>
 public sealed class BvhTranslator : SceneTranslator
 {
@@ -48,8 +34,9 @@ public sealed class BvhTranslator : SceneTranslator
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         BvhReader reader = new(stream, context.Name, context.Options);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <summary>
@@ -61,7 +48,8 @@ public sealed class BvhTranslator : SceneTranslator
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         BvhWriter writer = new(stream, context.Name, context.Options);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

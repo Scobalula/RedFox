@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text;
+using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
@@ -9,12 +10,20 @@ namespace RedFox.Graphics3D.Formats.MayaAscii;
 
 /// <summary>
 /// Writes a <see cref="Scene"/> to a Maya ASCII (.ma) file stream.
-/// Supports meshes with UVs, normals, vertex colors, skinning, materials,
-/// skeleton hierarchies, and skeletal animation curves. Compatible with
-/// Autodesk Maya 2012 and later.
 /// </summary>
 public sealed class MayaAsciiWriter
 {
+    private readonly StreamWriter			_writer;
+    private readonly MayaAsciiWriteOptions	_options;
+
+    private readonly List<MayaConnection>			_connections		= [];
+    private readonly Dictionary<SceneNode, string>	_nodeNames			= [];
+    private readonly HashSet<string>				_usedNames			= [];
+    private readonly Dictionary<Material, string>	_shadingGroupNames	= [];
+
+    private SceneTranslationSelection?	_selection;
+    private string?						_targetDirectoryPath;
+
     /// <summary>
     /// The minimum Maya version string written to the file header, ensuring compatibility with Maya 2012 and later.
     /// </summary>
@@ -29,13 +38,6 @@ public sealed class MayaAsciiWriter
     /// The <c>requires</c> directive version string for the core Maya plugin.
     /// </summary>
     public const string RequiresVersion = "2012";
-
-    private readonly StreamWriter _writer;
-    private readonly MayaAsciiWriteOptions _options;
-    private readonly List<MayaConnection> _connections = [];
-    private readonly Dictionary<SceneNode, string> _nodeNames = [];
-    private readonly HashSet<string> _usedNames = [];
-    private SceneTranslationSelection? _selection;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MayaAsciiWriter"/> class that writes to the specified stream.
@@ -56,93 +58,36 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes the entire scene to the output stream as a Maya ASCII file.
-    /// All supported node types are exported: models, groups, skeletons, bones,
-    /// meshes, cameras, lights, constraints, materials, and skeletal animations.
     /// </summary>
     /// <param name="scene">The scene to export. Must not be <see langword="null"/>.</param>
     /// <param name="name">The file or scene name used in the file header.</param>
-    public void Write(Scene scene, string name)
-        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), name);
+    public void Write(Scene scene, string name) => Write(scene, name, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to write.</param>
+    /// <param name="name">The scene name.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(Scene scene, string name, CancellationToken token) => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), name, token);
 
     /// <summary>
     /// Writes the selected scene view to the output stream as a Maya ASCII file.
     /// </summary>
     /// <param name="selection">The filtered scene selection to export.</param>
     /// <param name="name">The file or scene name used in the file header.</param>
-    public void Write(SceneTranslationSelection selection, string name)
-    {
-        ArgumentNullException.ThrowIfNull(selection);
-
-        _connections.Clear();
-        _nodeNames.Clear();
-        _usedNames.Clear();
-        _selection = selection;
-
-        WriteHeader(name);
-
-        MeshGroup[] models = selection.GetDescendants<MeshGroup>();
-        Group[] groups = selection.GetDescendants<Group>();
-        SkeletonBone[] bones = selection.GetDescendants<SkeletonBone>();
-        Mesh[] meshes = selection.GetDescendants<Mesh>();
-        Camera[] cameras = [.. selection.EnumerateHierarchy<Camera>()];
-        Light[] lights = selection.GetDescendants<Light>();
-        ConstraintNode[] constraints = [.. selection.EnumerateHierarchy<ConstraintNode>()];
-        SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
-
-        Dictionary<Material, string> materialNodeNames = [];
-        Dictionary<Mesh, string> meshShapeNames = [];
-
-        foreach (MeshGroup model in models)
-        {
-            WriteTransformNode(model);
-        }
-
-        foreach (Group group in groups)
-        {
-            WriteTransformNode(group);
-        }
-
-        foreach (SkeletonBone bone in bones)
-        {
-            WriteJointNode(bone);
-        }
-
-        foreach (Camera camera in cameras)
-        {
-            WriteTransformNode(camera);
-        }
-
-        foreach (Light light in lights)
-        {
-            WriteTransformNode(light);
-        }
-
-        foreach (Mesh mesh in meshes)
-        {
-            WriteMeshNode(mesh, materialNodeNames, meshShapeNames);
-        }
-
-        foreach (ConstraintNode constraint in constraints)
-        {
-            WriteConstraintNode(constraint);
-        }
-
-        if (_options.WriteAnimations)
-        {
-            foreach (SkeletonAnimation animation in animations)
-            {
-                WriteSkeletonAnimation(animation);
-            }
-        }
-
-        WriteConnections();
-
-        _writer.Flush();
-    }
+    public void Write(SceneTranslationSelection selection, string name) => Write(selection, name, CancellationToken.None);
 
     /// <summary>
-    /// Writes the Maya ASCII file header including the file identifier, requires directives,
-    /// and currentUnit / fileInfo blocks.
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="selection">The selected scene data to write.</param>
+    /// <param name="name">The scene name.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(SceneTranslationSelection selection, string name, CancellationToken token) => Write(selection, name, null, token);
+
+    /// <summary>
+    /// Writes the Maya ASCII file header including the file identifier, requires directives, and currentUnit / fileInfo blocks.
     /// </summary>
     /// <param name="name">The scene or file name to embed in the fileInfo section.</param>
     public void WriteHeader(string name)
@@ -163,24 +108,21 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes a scene node as a Maya <c>transform</c> DAG node, preserving the parent-child
-    /// hierarchy from the scene graph. Used for non-mesh and non-bone <see cref="SceneNode"/>
-    /// instances, including groups, cameras, and lights.
+    /// Writes a scene node as a Maya <c>transform</c> DAG node, preserving the parent-child hierarchy from the scene graph.
     /// </summary>
     /// <param name="node">The scene node to write as a transform.</param>
     public void WriteTransformNode(SceneNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        string nodeName = RegisterDagNodeName(node);
-        string? parentName = GetParentDagName(node);
+        string nodeName		= RegisterDagNodeName(node);
+        string? parentName	= GetParentDagName(node);
         WriteCreateNode(MayaNodeTypes.Transform, nodeName, parentName);
         WriteTransformAttributes(node);
     }
 
     /// <summary>
     /// Writes translation, rotation, and scale <c>setAttr</c> commands for a transform node.
-    /// Only non-identity values are emitted to keep the output concise.
     /// </summary>
     /// <param name="node">The scene node whose bind-pose local transform to write.</param>
     public void WriteTransformAttributes(SceneNode node)
@@ -209,25 +151,21 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes a <see cref="SkeletonBone"/> as a Maya <c>joint</c> node with proper
-    /// joint orient, translation, and scale attributes for the bind pose.
+    /// Writes a <see cref="SkeletonBone"/> as a Maya <c>joint</c> node with proper joint orient, translation, and scale attributes for the bind pose.
     /// </summary>
     /// <param name="bone">The skeleton bone to write as a joint.</param>
     public void WriteJointNode(SkeletonBone bone)
     {
         ArgumentNullException.ThrowIfNull(bone);
 
-        string nodeName = RegisterDagNodeName(bone);
-        string? parentName = GetParentDagName(bone);
+        string nodeName		= RegisterDagNodeName(bone);
+        string? parentName	= GetParentDagName(bone);
         WriteCreateNode(MayaNodeTypes.Joint, nodeName, parentName);
         WriteJointAttributes(bone);
     }
 
     /// <summary>
-    /// Writes a single mesh as a Maya transform + mesh shape node pair, including vertex positions,
-    /// face topology with edge definitions, UV sets, normals, vertex colors, and optional skin cluster deformer.
-    /// When skinning is enabled, an intermediate "Orig" shape holds the base geometry while the visible
-    /// shape receives deformed output from the skin cluster.
+    /// Writes a single mesh as a Maya transform + mesh shape node pair, including vertex positions, face topology with edge definitions, UV sets, normals, vertex colors, and optional skin cluster deformer.
     /// </summary>
     /// <param name="mesh">The mesh to export.</param>
     /// <param name="materialNodeNames">A dictionary that receives the mapping from <see cref="Material"/> to Maya shader node name.</param>
@@ -236,8 +174,8 @@ public sealed class MayaAsciiWriter
     {
         ArgumentNullException.ThrowIfNull(mesh);
 
-        string meshTransformName = RegisterDagNodeName(mesh);
-        string meshShapeName = RegisterName(mesh.Name + "Shape");
+        string meshTransformName	= RegisterDagNodeName(mesh);
+        string meshShapeName		= RegisterName(mesh.Name + "Shape");
         meshShapeNames[mesh] = meshShapeName;
 
         bool hasSkinning = mesh.HasSkinning;
@@ -249,7 +187,7 @@ public sealed class MayaAsciiWriter
 
         if (hasSkinning)
         {
-            // Visible shape: receives deformed mesh from skin cluster
+
             WriteCreateNode(MayaNodeTypes.Mesh, meshShapeName, meshTransformName);
             _writer.WriteLine("setAttr -k off \".v\";");
             _writer.WriteLine("setAttr -s 2 \".iog[0].og\";");
@@ -264,8 +202,6 @@ public sealed class MayaAsciiWriter
             _writer.WriteLine("setAttr \".covm[0]\"  0 1 1;");
             _writer.WriteLine("setAttr \".cdvm[0]\"  0 1 1;");
 
-            // Orig shape: intermediate object holding base geometry.
-            // MUST use raw (rest-pose) positions — the skinCluster deforms at load time.
             string meshShapeOrigName = RegisterName(mesh.Name + "ShapeOrig");
             WriteCreateNode(MayaNodeTypes.Mesh, meshShapeOrigName, meshTransformName);
             _writer.WriteLine("setAttr \".io\" yes;");
@@ -280,8 +216,9 @@ public sealed class MayaAsciiWriter
 
         if (_options.WriteMaterials && mesh.Materials is not null)
         {
-            foreach (Material material in mesh.Materials)
+            for (int materialIndex = 0; materialIndex < mesh.Materials.Count; materialIndex++)
             {
+                Material material = mesh.Materials[materialIndex];
                 if (_selection is not null && !_selection.Includes(material))
                 {
                     throw new InvalidDataException($"Cannot write Maya ASCII: mesh '{mesh.Name}' references material '{material.Name}' that is not included in the export selection.");
@@ -292,8 +229,21 @@ public sealed class MayaAsciiWriter
                     WriteMaterial(material, materialNodeNames);
                 }
 
-                string sgName = materialNodeNames[material] + "SG";
-                _connections.Add(new MayaConnection(meshShapeName + ".iog", sgName + ".dsm", true));
+                string sgName = _shadingGroupNames[material];
+                if (mesh.MaterialIndexRanges is { Count: > 0 } ranges)
+                {
+                    if (ranges.Count != mesh.Materials.Count)
+                        throw new InvalidDataException("Inconsistent Maya material ranges.");
+                    (int start, int count) = ranges[materialIndex];
+                    if (start < 0 || count <= 0 || start % 3 != 0 || count % 3 != 0 || (long)start + count > mesh.IndexCount)
+                        throw new InvalidDataException("Invalid Maya material triangle range.");
+                    _writer.WriteLine($"setAttr \"{meshShapeName}.iog.og[{materialIndex}].gcl\" -type \"componentList\" 1 \"f[{start / 3}:{(start + count) / 3 - 1}]\";");
+                    _connections.Add(new MayaConnection(meshShapeName + $".iog.og[{materialIndex}]", sgName + ".dsm", true));
+                }
+                else
+                {
+                    _connections.Add(new MayaConnection(meshShapeName + ".iog", sgName + ".dsm", true));
+                }
             }
         }
     }
@@ -302,9 +252,7 @@ public sealed class MayaAsciiWriter
     public void WriteMeshGeometry(Mesh mesh) => WriteMeshGeometry(mesh, false);
 
     /// <summary>
-    /// Writes the core polygon geometry data for a mesh, including vertex positions, edge definitions,
-    /// and face topology using Maya's edge-based <c>polyFaces</c> format. Also sets required mesh shape
-    /// attributes for Maya to correctly display the geometry.
+    /// Writes the core polygon geometry data for a mesh, including vertex positions, edge definitions, and face topology using Maya's edge-based <c>polyFaces</c> format.
     /// </summary>
     /// <param name="mesh">The mesh whose geometry data to write.</param>
     /// <param name="forceRawPositions">Whether to use positions before skinning deformation.</param>
@@ -317,9 +265,9 @@ public sealed class MayaAsciiWriter
             return;
         }
 
-        int vertexCount = mesh.VertexCount;
-        int faceCount = mesh.FaceCount;
-        bool hasColors = _options.WriteVertexColors && mesh.ColorLayers is not null && mesh.FaceIndices is not null;
+        int vertexCount	= mesh.VertexCount;
+        int faceCount	= mesh.FaceCount;
+        bool hasColors	= _options.WriteVertexColors && mesh.ColorLayers is not null && mesh.FaceIndices is not null;
 
         _writer.WriteLine("setAttr -k off \".v\";");
         _writer.WriteLine("setAttr \".vir\" yes;");
@@ -352,17 +300,17 @@ public sealed class MayaAsciiWriter
 
         if (mesh.FaceIndices is not null)
         {
-            int indexCount = mesh.IndexCount;
-            int edgeCount = faceCount * 3;
+            int indexCount	= mesh.IndexCount;
+            int edgeCount	= faceCount * 3;
 
             _writer.WriteLine($"setAttr -s {edgeCount} \".ed\";");
             _writer.Write($"setAttr \".ed[0:{edgeCount - 1}]\"");
             for (int f = 0; f < faceCount; f++)
             {
-                int baseIndex = f * 3;
-                int i0 = mesh.FaceIndices.Get<int>(baseIndex, 0, 0);
-                int i1 = mesh.FaceIndices.Get<int>(baseIndex + 1, 0, 0);
-                int i2 = mesh.FaceIndices.Get<int>(baseIndex + 2, 0, 0);
+                int baseIndex	= f * 3;
+                int i0			= mesh.FaceIndices.Get<int>(baseIndex, 0, 0);
+                int i1			= mesh.FaceIndices.Get<int>(baseIndex + 1, 0, 0);
+                int i2			= mesh.FaceIndices.Get<int>(baseIndex + 2, 0, 0);
 
                 _writer.Write($" {i0} {i1} 0 {i1} {i2} 0 {i2} {i0} 0");
             }
@@ -376,10 +324,10 @@ public sealed class MayaAsciiWriter
             _writer.Write($"setAttr -s {faceCount} \".fc[0:{faceCount - 1}]\" -type \"polyFaces\"");
             for (int f = 0; f < faceCount; f++)
             {
-                int baseIndex = f * 3;
-                int i0 = mesh.FaceIndices.Get<int>(baseIndex, 0, 0);
-                int i1 = mesh.FaceIndices.Get<int>(baseIndex + 1, 0, 0);
-                int i2 = mesh.FaceIndices.Get<int>(baseIndex + 2, 0, 0);
+                int baseIndex	= f * 3;
+                int i0			= mesh.FaceIndices.Get<int>(baseIndex, 0, 0);
+                int i1			= mesh.FaceIndices.Get<int>(baseIndex + 1, 0, 0);
+                int i2			= mesh.FaceIndices.Get<int>(baseIndex + 2, 0, 0);
 
                 int edgeBase = f * 3;
                 _writer.Write($" f 3 {edgeBase} {edgeBase + 1} {edgeBase + 2}");
@@ -411,7 +359,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes UV set data for a mesh as <c>setAttr</c> commands on the mesh shape's <c>.uvst</c> attribute.
-    /// Each UV layer is written as a separate UV set with unique name.
     /// </summary>
     /// <param name="mesh">The mesh whose UV layers to export.</param>
     public void WriteMeshUVSets(Mesh mesh)
@@ -445,8 +392,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes per-vertex or per-face-vertex normal data for a mesh.
-    /// Normals are written as <c>setAttr</c> commands on the mesh shape's <c>.n</c> attribute
-    /// using the <c>polyNormal</c> representation.
     /// </summary>
     /// <param name="mesh">The mesh whose normal data to export.</param>
     /// <param name="bakeTransform">Optional uniform transform for baking normals on displaced meshes.</param>
@@ -470,8 +415,8 @@ public sealed class MayaAsciiWriter
         _writer.Write($"setAttr \".n[0:{indexCount - 1}]\" -type \"float3\"");
         for (int i = 0; i < indexCount; i++)
         {
-            int vertexIndex = mesh.FaceIndices.Get<int>(i, 0, 0);
-            Vector3 normal = mesh.Normals.GetVector3(vertexIndex, 0);
+            int vertexIndex	= mesh.FaceIndices.Get<int>(i, 0, 0);
+            Vector3 normal	= mesh.Normals.GetVector3(vertexIndex, 0);
             if (bakeTransform.HasValue)
             {
                 normal = Vector3.Normalize(Vector3.TransformNormal(normal, bakeTransform.Value));
@@ -482,8 +427,7 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes vertex color set data for a mesh as <c>setAttr</c> commands on the mesh shape's
-    /// <c>.clst</c> attribute. Each color layer is written as a separate color set.
+    /// Writes vertex color set data for a mesh as <c>setAttr</c> commands on the mesh shape's <c>.clst</c> attribute.
     /// </summary>
     /// <param name="mesh">The mesh whose vertex color layers to export.</param>
     public void WriteMeshColorSets(Mesh mesh)
@@ -533,10 +477,7 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes a skin cluster deformer connecting a mesh to skeleton bones, including per-vertex
-    /// bone weights, influence indices, pre-bind matrices, and the geometry matrix.
-    /// Creates the full deformation pipeline: Orig shape → groupParts → tweak → groupParts → skinCluster → visible shape,
-    /// with associated objectSet, groupId, and groupParts nodes matching Maya's internal pattern.
+    /// Writes a skin cluster deformer connecting a mesh to skeleton bones, including per-vertex bone weights, influence indices, pre-bind matrices, and the geometry matrix.
     /// </summary>
     /// <param name="mesh">The mesh containing skinning data.</param>
     /// <param name="meshShapeName">The Maya visible mesh shape node name.</param>
@@ -554,8 +495,10 @@ public sealed class MayaAsciiWriter
         List<string> missingBones = [];
         foreach (SkeletonBone bone in skin.Bones)
         {
-            if (!_nodeNames.ContainsKey(bone))
+            if (_selection is not null && !_selection.Includes(bone))
                 missingBones.Add(bone.Name);
+            else
+                RegisterDagNodeName(bone);
         }
 
         if (missingBones.Count > 0)
@@ -563,21 +506,20 @@ public sealed class MayaAsciiWriter
             throw new InvalidDataException($"Cannot write Maya ASCII: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
         }
 
-        string baseName = SanitizeMayaName(mesh.Name);
-        string skinClusterName = RegisterName(skin.Name ?? $"skinCluster_{baseName}");
-        string tweakName = RegisterName($"tweak_{baseName}");
-        string skinClusterSetName = RegisterName($"{skinClusterName}Set");
-        string skinClusterGroupIdName = RegisterName($"{skinClusterName}GroupId");
-        string skinClusterGroupPartsName = RegisterName($"{skinClusterName}GroupParts");
-        string tweakSetName = RegisterName($"{tweakName}Set");
-        string tweakGroupIdName = RegisterName($"{tweakName}GroupId");
-        string tweakGroupPartsName = RegisterName($"{tweakName}GroupParts");
+        string baseName						= SanitizeMayaName(mesh.Name);
+        string skinClusterName				= RegisterName(skin.Name ?? $"skinCluster_{baseName}");
+        string tweakName					= RegisterName($"tweak_{baseName}");
+        string skinClusterSetName			= RegisterName($"{skinClusterName}Set");
+        string skinClusterGroupIdName		= RegisterName($"{skinClusterName}GroupId");
+        string skinClusterGroupPartsName	= RegisterName($"{skinClusterName}GroupParts");
+        string tweakSetName					= RegisterName($"{tweakName}Set");
+        string tweakGroupIdName				= RegisterName($"{tweakName}GroupId");
+        string tweakGroupPartsName			= RegisterName($"{tweakName}GroupParts");
 
-        // Skin cluster node with weights and matrices
         WriteCreateNode(MayaNodeTypes.SkinCluster, skinClusterName, null);
 
-        int vertexCount = mesh.VertexCount;
-        int influenceCount = skin.InfluenceCount;
+        int vertexCount		= mesh.VertexCount;
+        int influenceCount	= skin.InfluenceCount;
 
         _writer.WriteLine($"setAttr -s {vertexCount} \".wl\";");
         List<(int boneIndex, float weight)> weights = [];
@@ -586,8 +528,8 @@ public sealed class MayaAsciiWriter
             weights.Clear();
             for (int w = 0; w < influenceCount; w++)
             {
-                int boneIdx = skin.BoneIndices.Get<int>(v, w, 0);
-                float weight = skin.BoneWeights.Get<float>(v, w, 0);
+                int boneIdx		= skin.BoneIndices.Get<int>(v, w, 0);
+                float weight	= skin.BoneWeights.Get<float>(v, w, 0);
                 if (weight > 0.0f && boneIdx >= 0 && boneIdx < skin.Bones.Count)
                 {
                     weights.Add((boneIdx, weight));
@@ -611,10 +553,7 @@ public sealed class MayaAsciiWriter
         _writer.WriteLine($"setAttr -s {skin.Bones.Count} \".pm\";");
         for (int i = 0; i < skin.Bones.Count; i++)
         {
-            Matrix4x4 boneWorldMatrix = skin.Bones[i].GetBindWorldMatrix();
-            Matrix4x4 bindMatrix = Matrix4x4.Invert(boneWorldMatrix, out Matrix4x4 inverseBoneWorld)
-                ? inverseBoneWorld
-                : Matrix4x4.Identity;
+            Matrix4x4 bindMatrix = skin.GetInverseBindMatrix(i, mesh.GetBindWorldMatrix());
 
             WriteSetAttrMatrix($".pm[{i}]", bindMatrix);
         }
@@ -636,7 +575,6 @@ public sealed class MayaAsciiWriter
         _writer.WriteLine("setAttr \".mi\" 5;");
         _writer.WriteLine("setAttr \".ucm\" yes;");
 
-        // Tweak, objectSet, groupId, groupParts nodes
         WriteCreateNode(MayaNodeTypes.Tweak, tweakName, null);
 
         WriteCreateNode(MayaNodeTypes.ObjectSet, skinClusterSetName, null);
@@ -661,7 +599,6 @@ public sealed class MayaAsciiWriter
         _writer.WriteLine("setAttr \".ihi\" 0;");
         _writer.WriteLine("setAttr \".ic\" -type \"componentList\" 1 \"vtx[*]\";");
 
-        // Pipeline: Orig → tweakGroupParts → tweak → skinClusterGroupParts → skinCluster → visibleShape
         _connections.Add(new MayaConnection(meshShapeOrigName + ".w", tweakGroupPartsName + ".ig", false));
         _connections.Add(new MayaConnection(tweakGroupIdName + ".id", tweakGroupPartsName + ".gi", false));
         _connections.Add(new MayaConnection(tweakGroupPartsName + ".og", tweakName + ".ip[0].ig", false));
@@ -672,14 +609,12 @@ public sealed class MayaAsciiWriter
         _connections.Add(new MayaConnection(skinClusterGroupIdName + ".id", skinClusterName + ".ip[0].gi", false));
         _connections.Add(new MayaConnection(skinClusterName + ".og[0]", meshShapeName + ".i", false));
 
-        // Visible shape object groups
         _connections.Add(new MayaConnection(skinClusterGroupIdName + ".id", meshShapeName + ".iog.og[0].gid", false));
         _connections.Add(new MayaConnection(skinClusterSetName + ".mwc", meshShapeName + ".iog.og[0].gco", false));
         _connections.Add(new MayaConnection(tweakGroupIdName + ".id", meshShapeName + ".iog.og[1].gid", false));
         _connections.Add(new MayaConnection(tweakSetName + ".mwc", meshShapeName + ".iog.og[1].gco", false));
         _connections.Add(new MayaConnection(tweakName + ".vl[0].vt[0]", meshShapeName + ".twl", false));
 
-        // Object set membership
         _connections.Add(new MayaConnection(skinClusterGroupIdName + ".msg", skinClusterSetName + ".gn", true));
         _connections.Add(new MayaConnection(meshShapeName + ".iog.og[0]", skinClusterSetName + ".dsm", true));
         _connections.Add(new MayaConnection(skinClusterName + ".msg", skinClusterSetName + ".ub[0]", false));
@@ -687,7 +622,6 @@ public sealed class MayaAsciiWriter
         _connections.Add(new MayaConnection(meshShapeName + ".iog.og[1]", tweakSetName + ".dsm", true));
         _connections.Add(new MayaConnection(tweakName + ".msg", tweakSetName + ".ub[0]", false));
 
-        // Joint connections
         for (int i = 0; i < skin.Bones.Count; i++)
         {
             SkeletonBone bone = skin.Bones[i];
@@ -700,8 +634,7 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes a <see cref="Material"/> as a Maya Lambert or Phong shader node plus its shading engine
-    /// and material info nodes.
+    /// Writes a <see cref="Material"/> as a Maya Lambert or Phong shader node plus its shading engine and material info nodes.
     /// </summary>
     /// <param name="material">The material to export.</param>
     /// <param name="materialNodeNames">A dictionary that receives the mapping from <see cref="Material"/> to Maya node name.</param>
@@ -710,9 +643,9 @@ public sealed class MayaAsciiWriter
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(materialNodeNames);
 
-        bool hasSpecular = material.SpecularMapName is not null || material.SpecularColor is not null || material.Shininess is not null;
-        string shaderType = hasSpecular ? MayaNodeTypes.Phong : MayaNodeTypes.Lambert;
-        string shaderName = RegisterName(material.Name);
+        bool hasSpecular	= material.SpecularMapName is not null || material.SpecularColor is not null || material.Shininess is not null;
+        string shaderType	= hasSpecular ? MayaNodeTypes.Phong : MayaNodeTypes.Lambert;
+        string shaderName	= RegisterName(material.Name);
         materialNodeNames[material] = shaderName;
 
         WriteCreateNode(shaderType, shaderName, null);
@@ -732,56 +665,49 @@ public sealed class MayaAsciiWriter
             _writer.WriteLine($"setAttr \".cp\" {FormatFloat(shininess)};");
         }
 
-        // Shading engine
-        string sgName = shaderName + "SG";
+        string sgName = RegisterName(shaderName + "SG");
+        _shadingGroupNames[material] = sgName;
         WriteCreateNode(MayaNodeTypes.ShadingEngine, sgName, null);
         _writer.WriteLine("setAttr \".ihi\" 0;");
         _writer.WriteLine("setAttr \".ro\" yes;");
 
-        // Material info
         string matInfoName = RegisterName($"materialInfo_{SanitizeMayaName(material.Name)}");
         WriteCreateNode(MayaNodeTypes.MaterialInfo, matInfoName, null);
 
-        // Connect shader → SG → materialInfo
         _connections.Add(new MayaConnection(shaderName + ".outColor", sgName + ".surfaceShader", false));
         _connections.Add(new MayaConnection(sgName + ".message", matInfoName + ".shadingGroup", false));
 
-        // Write texture file nodes for diffuse map
         if (material.DiffuseMapName is not null)
         {
-            WriteFileTextureNode(material.DiffuseMapName, shaderName + ".color");
+            WriteFileTextureNode(material.TryGetTexture(material.DiffuseMapName, out Texture? diffuseTexture) ? diffuseTexture.GetPortableFilePath(_targetDirectoryPath) : material.DiffuseMapName, shaderName + ".color");
         }
 
-        // Write texture file nodes for normal map
         if (material.NormalMapName is not null)
         {
-            WriteFileTextureNode(material.NormalMapName, shaderName + ".normalCamera");
+            WriteFileTextureNode(material.TryGetTexture(material.NormalMapName, out Texture? normalTexture) ? normalTexture.GetPortableFilePath(_targetDirectoryPath) : material.NormalMapName, shaderName + ".normalCamera");
         }
 
-        // Write texture file nodes for specular map
         if (hasSpecular && material.SpecularMapName is not null)
         {
-            WriteFileTextureNode(material.SpecularMapName, shaderName + ".specularColor");
+            WriteFileTextureNode(material.TryGetTexture(material.SpecularMapName, out Texture? specularTexture) ? specularTexture.GetPortableFilePath(_targetDirectoryPath) : material.SpecularMapName, shaderName + ".specularColor");
         }
     }
 
     /// <summary>
-    /// Writes a Maya <c>file</c> texture node and its associated <c>place2dTexture</c> node,
-    /// then connects the texture output to the specified shader attribute.
+    /// Writes a Maya <c>file</c> texture node and its associated <c>place2dTexture</c> node, then connects the texture output to the specified shader attribute.
     /// </summary>
     /// <param name="texturePath">The file path or name of the texture image.</param>
     /// <param name="targetAttribute">The shader attribute to connect the texture output to (e.g., "lambert1.color").</param>
     public void WriteFileTextureNode(string texturePath, string targetAttribute)
     {
-        string fileNodeName = RegisterName($"file_{SanitizeMayaName(Path.GetFileNameWithoutExtension(texturePath))}");
-        string placeName = RegisterName($"place2dTexture_{SanitizeMayaName(Path.GetFileNameWithoutExtension(texturePath))}");
+        string fileNodeName	= RegisterName($"file_{SanitizeMayaName(Path.GetFileNameWithoutExtension(texturePath))}");
+        string placeName	= RegisterName($"place2dTexture_{SanitizeMayaName(Path.GetFileNameWithoutExtension(texturePath))}");
 
         WriteCreateNode(MayaNodeTypes.File, fileNodeName, null);
         _writer.WriteLine($"setAttr \".ftn\" -type \"string\" \"{EscapeMayaString(texturePath)}\";");
 
         WriteCreateNode(MayaNodeTypes.Place2dTexture, placeName, null);
 
-        // Connect place2dTexture → file node
         _connections.Add(new MayaConnection(placeName + ".outUV", fileNodeName + ".uvCoord", false));
         _connections.Add(new MayaConnection(placeName + ".outUvFilterSize", fileNodeName + ".uvFilterSize", false));
         _connections.Add(new MayaConnection(placeName + ".coverage", fileNodeName + ".coverage", false));
@@ -801,33 +727,24 @@ public sealed class MayaAsciiWriter
         _connections.Add(new MayaConnection(placeName + ".rotateUV", fileNodeName + ".rotateUV", false));
         _connections.Add(new MayaConnection(placeName + ".noiseUV", fileNodeName + ".noiseUV", false));
 
-        // Connect file node output to shader attribute
         _connections.Add(new MayaConnection(fileNodeName + ".outColor", targetAttribute, false));
     }
 
     /// <summary>
-    /// Writes a <see cref="SkeletonAnimation"/> as a set of Maya animCurve nodes,
-    /// one per channel (translateX, translateY, translateZ, rotateX, rotateY, rotateZ,
-    /// scaleX, scaleY, scaleZ) per bone track.
+    /// Writes a <see cref="SkeletonAnimation"/> as a set of Maya animCurve nodes, one per channel (translateX, translateY, translateZ, rotateX, rotateY, rotateZ, scaleX, scaleY, scaleZ) per bone track.
     /// </summary>
     /// <param name="animation">The skeleton animation to export.</param>
     public void WriteSkeletonAnimation(SkeletonAnimation animation)
     {
         ArgumentNullException.ThrowIfNull(animation);
 
+        Dictionary<string, SkeletonBone> bonesByName = new(StringComparer.OrdinalIgnoreCase);
+        foreach (SkeletonBone bone in _nodeNames.Keys.OfType<SkeletonBone>())
+            bonesByName.TryAdd(bone.Name, bone);
         foreach (SkeletonAnimationTrack track in animation.Tracks)
         {
-            string? targetJointName = null;
-            SkeletonBone? targetBone = null;
-            foreach ((SceneNode node, string name) in _nodeNames)
-            {
-                if (node is SkeletonBone bone && string.Equals(bone.Name, track.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetJointName = name;
-                    targetBone = bone;
-                    break;
-                }
-            }
+            bonesByName.TryGetValue(track.Name, out SkeletonBone? targetBone);
+            string? targetJointName = targetBone is null ? null : _nodeNames[targetBone];
 
             if (targetJointName is null)
             {
@@ -851,8 +768,8 @@ public sealed class MayaAsciiWriter
                     rotationTransformType = animation.TransformType;
                 }
 
-                bool isAbsoluteLocalRotation = rotationTransformType == TransformType.Absolute && rotationCurve.TransformSpace != TransformSpace.World;
-                Quaternion? bindRotation = isAbsoluteLocalRotation ? targetBone?.GetBindLocalRotation() : null;
+                bool isAbsoluteLocalRotation	= rotationTransformType == TransformType.Absolute && rotationCurve.TransformSpace != TransformSpace.World;
+                Quaternion? bindRotation		= isAbsoluteLocalRotation ? targetBone?.GetBindLocalRotation() : null;
                 WriteAnimCurveChannels(rotationCurve, targetJointName, MayaNodeTypes.AnimCurveTA, "rotate", rotationCurve.ComponentCount, animation.Framerate, bindRotation);
             }
 
@@ -865,7 +782,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes animation curve data for individual X/Y/Z (and optionally W) channels.
-    /// For rotation curves with 4 components (quaternions), the values are converted to Euler angles in degrees.
     /// </summary>
     /// <param name="curve">The animation curve containing keyframe data.</param>
     /// <param name="targetJointName">The Maya joint node name to connect the curves to.</param>
@@ -878,63 +794,8 @@ public sealed class MayaAsciiWriter
         WriteAnimCurveChannels(curve, targetJointName, curveType, attributeBase, componentCount, framerate, null);
     }
 
-    private void WriteAnimCurveChannels(AnimationCurve curve, string targetJointName, string curveType, string attributeBase, int componentCount, float framerate, Quaternion? bindRotation)
-    {
-        string[] channelSuffixes = ["X", "Y", "Z"];
-        int channelCount = Math.Min(componentCount, 3);
-        bool isQuaternion = componentCount == 4;
-
-        for (int channel = 0; channel < channelCount; channel++)
-        {
-            string channelAttr = attributeBase + channelSuffixes[channel];
-            string curveName = RegisterName($"{SanitizeMayaName(targetJointName)}_{channelAttr}");
-
-            WriteCreateNode(curveType, curveName, null);
-
-            int keyCount = curve.KeyFrameCount;
-            float sourceFramerate = float.IsFinite(framerate) && framerate > 0f ? framerate : 24f;
-            float mayaFramerate = GetTimeUnitFramerate(_options.TimeUnit);
-            _writer.WriteLine($"setAttr -s {keyCount} \".ktv[0:{keyCount - 1}]\"");
-
-            for (int k = 0; k < keyCount; k++)
-            {
-                float time = curve.Keys!.Get<float>(k, 0, 0);
-                float mayaTime = time * mayaFramerate / sourceFramerate;
-
-                float value;
-                if (isQuaternion)
-                {
-                    Quaternion q = new(curve.Values!.Get<float>(k, 0, 0), curve.Values!.Get<float>(k, 0, 1), curve.Values!.Get<float>(k, 0, 2), curve.Values!.Get<float>(k, 0, 3));
-                    if (bindRotation is Quaternion localBindRotation)
-                    {
-                        q = Quaternion.Normalize(Quaternion.Inverse(localBindRotation) * q);
-                    }
-
-                    Vector3 euler = QuaternionToEulerDegrees(q);
-                    value = channel switch
-                    {
-                        0 => euler.X,
-                        1 => euler.Y,
-                        _ => euler.Z,
-                    };
-                }
-                else
-                {
-                    value = curve.Values!.Get<float>(k, 0, channel);
-                }
-
-                _writer.Write($" {FormatFloat(mayaTime)} {FormatFloat(value)}");
-            }
-
-            _writer.WriteLine(";");
-
-            _connections.Add(new MayaConnection(curveName + ".output", targetJointName + "." + channelAttr, false));
-        }
-    }
-
     /// <summary>
     /// Writes all accumulated <c>connectAttr</c> commands that wire the Maya dependency graph together.
-    /// This method is called at the end of the export process after all nodes have been emitted.
     /// </summary>
     public void WriteConnections()
     {
@@ -953,7 +814,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes a <c>createNode</c> command for a Maya dependency graph or DAG node.
-    /// When a parent is specified, the <c>-p</c> flag is included to establish the DAG hierarchy.
     /// </summary>
     /// <param name="nodeType">The Maya node type (e.g., "transform", "joint", "mesh").</param>
     /// <param name="nodeName">The unique name for the new node.</param>
@@ -971,10 +831,7 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Writes joint-specific <c>setAttr</c> commands for a skeleton bone node, including
-    /// translation, joint orient (as Euler angles in degrees), and scale attributes.
-    /// The rotation (<c>.r</c>) is left at its default zero value since the bind pose
-    /// orientation is carried entirely by <c>.jo</c> (joint orient).
+    /// Writes joint-specific <c>setAttr</c> commands for a skeleton bone node, including translation, joint orient (as Euler angles in degrees), and scale attributes.
     /// </summary>
     /// <param name="bone">The skeleton bone to export joint attributes for.</param>
     public void WriteJointAttributes(SkeletonBone bone)
@@ -992,8 +849,8 @@ public sealed class MayaAsciiWriter
         _writer.WriteLine("setAttr \".mnrl\" -type \"double3\" -360 -360 -360;");
         _writer.WriteLine("setAttr \".mxrl\" -type \"double3\" 360 360 360;");
 
-        Quaternion rotation = Quaternion.Normalize(transform.LocalRotation ?? Quaternion.Identity);
-        Vector3 euler = QuaternionToEulerDegrees(rotation);
+        Quaternion rotation	= Quaternion.Normalize(transform.LocalRotation ?? Quaternion.Identity);
+        Vector3 euler		= QuaternionToEulerDegrees(rotation);
         _writer.WriteLine($"setAttr \".jo\" -type \"double3\" {FormatFloat(euler.X)} {FormatFloat(euler.Y)} {FormatFloat(euler.Z)};");
 
         Vector3 scale = transform.Scale ?? Vector3.One;
@@ -1004,7 +861,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Writes a <c>setAttr</c> command for a 4x4 matrix attribute value.
-    /// The matrix is written in Maya's row-major attribute format as 16 space-separated doubles.
     /// </summary>
     /// <param name="attribute">The attribute name (e.g., ".pm[0]").</param>
     /// <param name="matrix">The 4x4 matrix to write.</param>
@@ -1019,8 +875,7 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Registers a unique Maya node name for the given base name, tracking it in the
-    /// <see cref="_usedNames"/> set. A numeric suffix is appended only when a collision occurs.
+    /// Registers a unique Maya node name for the given base name, tracking it in the <see cref="_usedNames"/> set.
     /// </summary>
     /// <param name="baseName">The base name to sanitize and register.</param>
     /// <returns>A unique Maya-safe node name.</returns>
@@ -1043,13 +898,14 @@ public sealed class MayaAsciiWriter
     }
 
     /// <summary>
-    /// Registers a scene node as a DAG node in the Maya name map, generating a unique name
-    /// and storing the mapping for parent-child lookups via <see cref="GetParentDagName"/>.
+    /// Registers a scene node as a DAG node in the Maya name map, generating a unique name and storing the mapping for parent-child lookups via <see cref="GetParentDagName"/>.
     /// </summary>
     /// <param name="node">The scene node to register.</param>
     /// <returns>The unique Maya DAG node name.</returns>
     public string RegisterDagNodeName(SceneNode node)
     {
+        if (_nodeNames.TryGetValue(node, out string? existing))
+            return existing;
         string name = RegisterName(node.Name);
         _nodeNames[node] = name;
         return name;
@@ -1057,7 +913,6 @@ public sealed class MayaAsciiWriter
 
     /// <summary>
     /// Looks up the Maya DAG node name for the parent of the specified scene node.
-    /// Returns <see langword="null"/> if the parent has not been registered or is the scene root.
     /// </summary>
     /// <param name="node">The scene node whose parent to look up.</param>
     /// <returns>The parent Maya node name, or <see langword="null"/> if no parent is registered.</returns>
@@ -1072,200 +927,8 @@ public sealed class MayaAsciiWriter
         return null;
     }
 
-    private SceneNode? GetExportParent(SceneNode node)
-    {
-        for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
-        {
-            if (_nodeNames.ContainsKey(current))
-                return current;
-        }
-
-        return null;
-    }
-
-    private Transform GetExportBindTransform(SceneNode node)
-    {
-        SceneNode? exportParent = GetExportParent(node);
-        Vector3 worldPosition = node.GetBindWorldPosition();
-        Quaternion worldRotation = Quaternion.Normalize(node.GetBindWorldRotation());
-        Vector3 localScale = node.GetBindLocalScale();
-
-        if (exportParent is not null)
-        {
-            Vector3 parentWorldPosition = exportParent.GetBindWorldPosition();
-            Quaternion parentWorldRotation = Quaternion.Normalize(exportParent.GetBindWorldRotation());
-
-            return new Transform
-            {
-                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
-                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
-                Scale = localScale,
-            };
-        }
-
-        return new Transform
-        {
-            LocalPosition = worldPosition,
-            LocalRotation = worldRotation,
-            Scale = localScale,
-        };
-    }
-
-
-    /// <summary>
-    /// Converts a quaternion rotation to Euler angles expressed in degrees using XYZ rotation order.
-    /// The conversion handles gimbal lock edge cases by clamping the pitch component.
-    /// </summary>
-    /// <param name="q">The quaternion to convert.</param>
-    /// <returns>A <see cref="Vector3"/> containing rotation angles in degrees as (X, Y, Z).</returns>
-    private static Vector3 QuaternionToEulerDegrees(Quaternion q)
-    {
-        q = Quaternion.Normalize(q);
-
-        const float radToDeg = 180.0f / MathF.PI;
-
-        // Yaw (Y-axis rotation) — check for gimbal lock first
-        float sinYaw = 2.0f * (q.W * q.Y - q.Z * q.X);
-
-        if (MathF.Abs(sinYaw) >= 0.9999f)
-        {
-            // Gimbal lock: X and Z axes are aligned, only their sum/difference is determined.
-            // Convention: assign the combined rotation to X, set Z = 0.
-            float yaw = MathF.CopySign(MathF.PI / 2.0f, sinYaw);
-            float pitch = 2.0f * MathF.Atan2(q.X, q.W);
-            return new Vector3(pitch * radToDeg, yaw * radToDeg, 0f);
-        }
-
-        float yawNormal = MathF.Asin(sinYaw);
-
-        // Pitch (X-axis rotation)
-        float sinPitch = 2.0f * (q.W * q.X + q.Y * q.Z);
-        float cosPitch = 1.0f - 2.0f * (q.X * q.X + q.Y * q.Y);
-        float pitch2 = MathF.Atan2(sinPitch, cosPitch);
-
-        // Roll (Z-axis rotation)
-        float sinRoll = 2.0f * (q.W * q.Z + q.X * q.Y);
-        float cosRoll = 1.0f - 2.0f * (q.Y * q.Y + q.Z * q.Z);
-        float roll = MathF.Atan2(sinRoll, cosRoll);
-
-        return new Vector3(pitch2 * radToDeg, yawNormal * radToDeg, roll * radToDeg);
-    }
-
-    /// <summary>
-    /// Sanitizes a name string for use as a Maya node identifier. Non-alphanumeric characters
-    /// (except underscores and colons) are replaced with underscores, and leading digits are prefixed.
-    /// Colons are preserved to support Maya namespace syntax (e.g., <c>t7::bone_name</c>).
-    /// </summary>
-    /// <param name="name">The raw name to sanitize.</param>
-    /// <returns>A Maya-safe node name string.</returns>
-    private static string SanitizeMayaName(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-        {
-            return "node";
-        }
-
-        Span<char> buffer = name.Length <= 256 ? stackalloc char[name.Length] : new char[name.Length];
-        for (int i = 0; i < name.Length; i++)
-        {
-            char c = name[i];
-            buffer[i] = char.IsLetterOrDigit(c) || c == '_' || c == ':' ? c : '_';
-        }
-
-        // Maya names cannot start with a digit
-        if (char.IsDigit(buffer[0]))
-        {
-            return "_" + new string(buffer);
-        }
-
-        return new string(buffer);
-    }
-
-    /// <summary>
-    /// Escapes a string for safe inclusion in a Maya ASCII quoted string context.
-    /// Backslashes and double-quotes are escaped with a preceding backslash.
-    /// </summary>
-    /// <param name="value">The string value to escape.</param>
-    /// <returns>The escaped string suitable for Maya ASCII output.</returns>
-    private static string EscapeMayaString(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return value;
-        }
-
-        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
-
-    /// <summary>
-    /// Formats a floating-point value using invariant culture to ensure consistent decimal separators
-    /// regardless of the host system's locale settings.
-    /// </summary>
-    /// <param name="value">The float value to format.</param>
-    /// <returns>A string representation of the value using '.' as the decimal separator.</returns>
-    private static string FormatFloat(float value) =>
-        value.ToString("G9", CultureInfo.InvariantCulture);
-
-    /// <summary>
-    /// Returns the Maya ASCII linear unit keyword for the specified <see cref="MayaLinearUnit"/> value.
-    /// </summary>
-    /// <param name="unit">The linear unit to format.</param>
-    /// <returns>The corresponding Maya unit string (e.g., "cm", "m", "in").</returns>
-    private static string FormatLinearUnit(MayaLinearUnit unit) => unit switch
-    {
-        MayaLinearUnit.Millimeter => "mm",
-        MayaLinearUnit.Centimeter => "cm",
-        MayaLinearUnit.Meter => "m",
-        MayaLinearUnit.Inch => "in",
-        MayaLinearUnit.Foot => "ft",
-        MayaLinearUnit.Yard => "yd",
-        _ => "cm",
-    };
-
-    /// <summary>
-    /// Returns the Maya ASCII angular unit keyword for the specified <see cref="MayaAngularUnit"/> value.
-    /// </summary>
-    /// <param name="unit">The angular unit to format.</param>
-    /// <returns>The corresponding Maya unit string (e.g., "deg", "rad").</returns>
-    private static string FormatAngularUnit(MayaAngularUnit unit) => unit switch
-    {
-        MayaAngularUnit.Degree => "deg",
-        MayaAngularUnit.Radian => "rad",
-        _ => "deg",
-    };
-
-    /// <summary>
-    /// Returns the Maya ASCII time unit keyword for the specified <see cref="MayaTimeUnit"/> value.
-    /// </summary>
-    /// <param name="unit">The time unit to format.</param>
-    /// <returns>The corresponding Maya time keyword (e.g., "film", "ntsc", "pal").</returns>
-    private static string FormatTimeUnit(MayaTimeUnit unit) => unit switch
-    {
-        MayaTimeUnit.Film => "film",
-        MayaTimeUnit.Game => "game",
-        MayaTimeUnit.Ntsc => "ntsc",
-        MayaTimeUnit.Pal => "pal",
-        MayaTimeUnit.Show => "show",
-        MayaTimeUnit.NtscField => "ntscf",
-        MayaTimeUnit.PalField => "palf",
-        _ => "film",
-    };
-
-    private static float GetTimeUnitFramerate(MayaTimeUnit unit) => unit switch
-    {
-        MayaTimeUnit.Game => 15f,
-        MayaTimeUnit.Ntsc => 30_000f / 1_001f,
-        MayaTimeUnit.Pal => 25f,
-        MayaTimeUnit.Show => 48f,
-        MayaTimeUnit.NtscField => 60_000f / 1_001f,
-        MayaTimeUnit.PalField => 50f,
-        _ => 24f,
-    };
-
     /// <summary>
     /// Writes a <see cref="ConstraintNode"/> as the appropriate Maya constraint node type.
-    /// Supports <see cref="ParentConstraintNode"/>, <see cref="OrientConstraintNode"/>, <see cref="PointConstraintNode"/> and <see cref="ScaleConstraintNode"/>.
-    /// The constraint is parented under its constrained node in the Maya DAG.
     /// </summary>
     /// <param name="constraint">The constraint node to export.</param>
     public void WriteConstraintNode(ConstraintNode constraint)
@@ -1410,4 +1073,230 @@ public sealed class MayaAsciiWriter
             _connections.Add(new MayaConnection(sourceName + ".pm", constraintName + ".tg[0].tpm", false));
         }
     }
+
+    internal void Write(SceneTranslationSelection selection, string name, string? targetDirectoryPath, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        token.ThrowIfCancellationRequested();
+        _targetDirectoryPath = targetDirectoryPath;
+        _shadingGroupNames.Clear();
+        _connections.Clear();
+        _nodeNames.Clear();
+        _usedNames.Clear();
+        _selection = selection;
+
+        WriteHeader(name);
+
+        ConstraintNode[] constraints	= [.. selection.EnumerateHierarchy<ConstraintNode>()];
+        SkeletonAnimation[] animations	= selection.GetDescendants<SkeletonAnimation>();
+        Dictionary<Material, string> materialNodeNames = [];
+        Dictionary<Mesh, string> meshShapeNames = [];
+        foreach (SceneNode node in selection.EnumerateDescendants<SceneNode>())
+        {
+            token.ThrowIfCancellationRequested();
+            if (node is Mesh mesh)
+                WriteMeshNode(mesh, materialNodeNames, meshShapeNames);
+            else if (node is SkeletonBone bone)
+                WriteJointNode(bone);
+            else if (node is Group or Skeleton or Camera or Light)
+                WriteTransformNode(node);
+        }
+
+        foreach (ConstraintNode constraint in constraints)
+        {
+            WriteConstraintNode(constraint);
+        }
+
+        if (_options.WriteAnimations)
+        {
+            foreach (SkeletonAnimation animation in animations)
+            {
+                WriteSkeletonAnimation(animation);
+            }
+        }
+
+        WriteConnections();
+
+        _writer.Flush();
+    }
+
+    private void WriteAnimCurveChannels(AnimationCurve curve, string targetJointName, string curveType, string attributeBase, int componentCount, float framerate, Quaternion? bindRotation)
+    {
+        DataBuffer keys		= curve.Keys ?? throw new InvalidDataException("Missing Maya animation keys.");
+        DataBuffer values	= curve.Values ?? throw new InvalidDataException("Missing Maya animation values.");
+        if (keys.ValueCount != 1 || keys.ComponentCount != 1 || values.ElementCount != keys.ElementCount || values.ValueCount != 1 || values.ComponentCount != componentCount)
+            throw new InvalidDataException("Invalid Maya animation curve dimensions.");
+
+        string[] channelSuffixes	= ["X", "Y", "Z"];
+        int channelCount			= Math.Min(componentCount, 3);
+        bool isQuaternion			= componentCount == 4;
+
+        for (int channel = 0; channel < channelCount; channel++)
+        {
+            string channelAttr	= attributeBase + channelSuffixes[channel];
+            string curveName	= RegisterName($"{SanitizeMayaName(targetJointName)}_{channelAttr}");
+
+            WriteCreateNode(curveType, curveName, null);
+
+            int keyCount			= curve.KeyFrameCount;
+            float sourceFramerate	= float.IsFinite(framerate) && framerate > 0f ? framerate : 24f;
+            float mayaFramerate		= GetTimeUnitFramerate(_options.TimeUnit);
+            _writer.WriteLine($"setAttr -s {keyCount} \".ktv[0:{keyCount - 1}]\"");
+
+            for (int k = 0; k < keyCount; k++)
+            {
+                float time		= keys.Get<float>(k, 0, 0);
+                float mayaTime	= time * mayaFramerate / sourceFramerate;
+
+                float value;
+                if (isQuaternion)
+                {
+                    Quaternion q = new(values.Get<float>(k, 0, 0), values.Get<float>(k, 0, 1), values.Get<float>(k, 0, 2), values.Get<float>(k, 0, 3));
+                    if (bindRotation is Quaternion localBindRotation)
+                    {
+                        q = Quaternion.Normalize(Quaternion.Inverse(localBindRotation) * q);
+                    }
+
+                    Vector3 euler = QuaternionToEulerDegrees(q);
+                    value = channel switch
+                    {
+                        0 => euler.X,
+                        1 => euler.Y,
+                        _ => euler.Z,
+                    };
+                }
+                else
+                {
+                    value = values.Get<float>(k, 0, channel);
+                }
+
+                _writer.Write($" {FormatFloat(mayaTime)} {FormatFloat(value)}");
+            }
+
+            _writer.WriteLine(";");
+
+            _connections.Add(new MayaConnection(curveName + ".output", targetJointName + "." + channelAttr, false));
+        }
+    }
+
+    private SceneNode? GetExportParent(SceneNode node)
+    {
+        for (SceneNode? current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (_nodeNames.ContainsKey(current))
+                return current;
+        }
+
+        return null;
+    }
+
+    private Transform GetExportBindTransform(SceneNode node)
+    {
+        return SkeletonExportTransforms.DecomposeMatrix(SkeletonExportTransforms.GetRelativeBindMatrix(node, GetExportParent(node)));
+    }
+
+    private Vector3 QuaternionToEulerDegrees(Quaternion q)
+    {
+        q = Quaternion.Normalize(q);
+
+        const float radToDeg = 180.0f / MathF.PI;
+
+        float sinYaw = 2.0f * (q.W * q.Y - q.Z * q.X);
+
+        if (MathF.Abs(sinYaw) >= 0.9999f)
+        {
+
+            float yaw	= MathF.CopySign(MathF.PI / 2.0f, sinYaw);
+            float pitch	= 2.0f * MathF.Atan2(q.X, q.W);
+            return (_options.AngularUnit == MayaAngularUnit.Radian ? MathF.PI / 180f : 1f) * new Vector3(pitch * radToDeg, yaw * radToDeg, 0f);
+        }
+
+        float yawNormal = MathF.Asin(sinYaw);
+
+        float sinPitch	= 2.0f * (q.W * q.X + q.Y * q.Z);
+        float cosPitch	= 1.0f - 2.0f * (q.X * q.X + q.Y * q.Y);
+        float pitch2	= MathF.Atan2(sinPitch, cosPitch);
+
+        float sinRoll	= 2.0f * (q.W * q.Z + q.X * q.Y);
+        float cosRoll	= 1.0f - 2.0f * (q.Y * q.Y + q.Z * q.Z);
+        float roll		= MathF.Atan2(sinRoll, cosRoll);
+
+        return (_options.AngularUnit == MayaAngularUnit.Radian ? MathF.PI / 180f : 1f) * new Vector3(pitch2 * radToDeg, yawNormal * radToDeg, roll * radToDeg);
+    }
+
+    private static string SanitizeMayaName(string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            return "node";
+        }
+
+        Span<char> buffer = name.Length <= 256 ? stackalloc char[name.Length] : new char[name.Length];
+        for (int i = 0; i < name.Length; i++)
+        {
+            char c = name[i];
+            buffer[i] = char.IsLetterOrDigit(c) || c == '_' || c == ':' ? c : '_';
+        }
+
+        if (char.IsDigit(buffer[0]))
+        {
+            return "_" + new string(buffer);
+        }
+
+        return new string(buffer);
+    }
+
+    private static string EscapeMayaString(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static string FormatFloat(float value) => value.ToString("G9", CultureInfo.InvariantCulture);
+
+    private static string FormatLinearUnit(MayaLinearUnit unit) => unit switch
+    {
+        MayaLinearUnit.Millimeter => "mm",
+        MayaLinearUnit.Centimeter => "cm",
+        MayaLinearUnit.Meter => "m",
+        MayaLinearUnit.Inch => "in",
+        MayaLinearUnit.Foot => "ft",
+        MayaLinearUnit.Yard => "yd",
+        _ => "cm",
+    };
+
+    private static string FormatAngularUnit(MayaAngularUnit unit) => unit switch
+    {
+        MayaAngularUnit.Degree => "deg",
+        MayaAngularUnit.Radian => "rad",
+        _ => "deg",
+    };
+
+    private static string FormatTimeUnit(MayaTimeUnit unit) => unit switch
+    {
+        MayaTimeUnit.Film => "film",
+        MayaTimeUnit.Game => "game",
+        MayaTimeUnit.Ntsc => "ntsc",
+        MayaTimeUnit.Pal => "pal",
+        MayaTimeUnit.Show => "show",
+        MayaTimeUnit.NtscField => "ntscf",
+        MayaTimeUnit.PalField => "palf",
+        _ => "film",
+    };
+
+    private static float GetTimeUnitFramerate(MayaTimeUnit unit) => unit switch
+    {
+        MayaTimeUnit.Game => 15f,
+        MayaTimeUnit.Ntsc => 30_000f / 1_001f,
+        MayaTimeUnit.Pal => 25f,
+        MayaTimeUnit.Show => 48f,
+        MayaTimeUnit.NtscField => 60_000f / 1_001f,
+        MayaTimeUnit.PalField => 50f,
+        _ => 24f,
+    };
 }

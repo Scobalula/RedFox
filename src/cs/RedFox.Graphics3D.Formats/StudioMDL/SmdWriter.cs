@@ -10,22 +10,10 @@ namespace RedFox.Graphics3D.Formats.StudioMDL;
 
 /// <summary>
 /// Writes scene data as Valve SMD (.smd) text files.
-/// <para>
-/// When the scene contains <see cref="Mesh"/> geometry the writer produces a
-/// <em>reference</em> SMD with a <c>nodes</c> section (skeleton), a single-frame
-/// <c>skeleton</c> section containing the bind pose, and a <c>triangles</c> section.
-/// </para>
-/// <para>
-/// When the scene contains no meshes but has a <see cref="SkeletonAnimation"/>, the
-/// writer produces an <em>animation</em> SMD with a <c>nodes</c> section and a
-/// multi-frame <c>skeleton</c> section encoding the keyframe data.
-/// </para>
 /// </summary>
 public sealed class SmdWriter
 {
-    private readonly Stream                _stream;
-    private readonly string                _name;
-    private readonly SceneTranslatorOptions _options;
+    private readonly Stream	_stream;
 
     /// <summary>
     /// Initializes an SMD writer for the supplied destination stream and translation settings.
@@ -35,9 +23,7 @@ public sealed class SmdWriter
     /// <param name="options">The options that control SMD export.</param>
     public SmdWriter(Stream stream, string name, SceneTranslatorOptions options)
     {
-        _stream  = stream;
-        _name    = name;
-        _options = options;
+        _stream		= stream;
     }
 
     /// <summary>
@@ -46,7 +32,14 @@ public sealed class SmdWriter
     /// <param name="scene">
     /// The scene to serialise.
     /// </param>
-    public void Write(Scene scene) => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None));
+    public void Write(Scene scene) => Write(scene, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to write.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(Scene scene, CancellationToken token) => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), token);
 
     /// <summary>
     /// Serialises the selected scene view to the output stream in SMD format.
@@ -54,15 +47,23 @@ public sealed class SmdWriter
     /// <param name="selection">
     /// The filtered scene selection to serialise.
     /// </param>
-    public void Write(SceneTranslationSelection selection)
+    public void Write(SceneTranslationSelection selection) => Write(selection, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="selection">The selected scene data to write.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(SceneTranslationSelection selection, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(selection);
 
-        var meshes   = selection.GetDescendants<Mesh>();
-        var skelAnim = selection.TryGetFirstOfType<SkeletonAnimation>();
+        var	meshes		= selection.GetDescendants<Mesh>();
+        var	skelAnim	= selection.TryGetFirstOfType<SkeletonAnimation>();
 
-        bool hasMeshes = meshes.Length > 0;
-        bool hasAnim   = skelAnim is not null;
+        bool	hasMeshes	= meshes.Length > 0;
+        bool	hasAnim		= skelAnim is not null;
 
         if (!hasMeshes && !hasAnim)
             throw new InvalidOperationException("Scene must contain at least one mesh or a skeleton animation to be written as SMD.");
@@ -72,96 +73,55 @@ public sealed class SmdWriter
         writer.WriteLine("version 1");
 
         var allBones = selection.GetDescendants<SkeletonBone>();
+        if (hasMeshes && allBones.Length == 0)
+            allBones = [new SkeletonBone("root")];
         SceneNode[] exportedBoneNodes = Array.ConvertAll(allBones, static bone => (SceneNode)bone);
 
         if (hasMeshes)
         {
             WriteNodes(writer, allBones, exportedBoneNodes);
             WriteBindPoseSkeleton(writer, allBones, exportedBoneNodes);
-            WriteTriangles(writer, meshes, allBones, selection);
+            WriteTriangles(writer, meshes, allBones, selection, token);
         }
         else
         {
-            // Animation-only path: fall back to bones from the scene if they exist,
-            // otherwise synthesise placeholder bones from the track names.
-            SkeletonBone[] bonesForAnim = allBones.Length > 0 ? allBones : SynthesiseBonesFromAnimation(skelAnim!);
-            SceneNode[] exportedAnimBoneNodes = Array.ConvertAll(bonesForAnim, static bone => (SceneNode)bone);
+            SkeletonAnimation animation			= skelAnim ?? throw new InvalidDataException("Missing SMD animation.");
+            SkeletonBone[] bonesForAnim			= allBones.Length > 0 ? allBones : SynthesiseBonesFromAnimation(animation);
+            SceneNode[] exportedAnimBoneNodes	= Array.ConvertAll(bonesForAnim, static bone => (SceneNode)bone);
             WriteNodes(writer, bonesForAnim, exportedAnimBoneNodes);
-            WriteAnimationSkeleton(writer, skelAnim!, bonesForAnim, exportedAnimBoneNodes);
+            WriteAnimationSkeleton(writer, animation, bonesForAnim, exportedAnimBoneNodes, token);
         }
 
         writer.Flush();
     }
 
-    // ------------------------------------------------------------------
-    // nodes section
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Writes the SMD nodes section for the provided skeleton bones.
-    /// </summary>
-    /// <param name="writer">
-    /// The output writer.
-    /// </param>
-    /// <param name="bones">
-    /// The ordered bone array.</param>
-    /// <param name="exportedBoneNodes">The exported nodes used to resolve each bone's parent index.</param>
     private static void WriteNodes(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
     {
+        int[] parentIndices = SkeletonExportTransforms.BuildExportedParentIndices(bones, exportedBoneNodes);
         writer.WriteLine("nodes");
         for (int i = 0; i < bones.Length; i++)
         {
-            int parentIdx = SceneNode.GetBestParentIndex(bones[i], exportedBoneNodes);
+            int parentIdx = parentIndices[i];
             writer.WriteLine($"  {i} \"{EscapeName(bones[i].Name)}\" {parentIdx}");
         }
         writer.WriteLine("end");
     }
 
-    // ------------------------------------------------------------------
-    // skeleton section — bind pose
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Writes a single-frame bind pose skeleton section.
-    /// </summary>
-    /// <param name="writer">
-    /// The output writer.
-    /// </param>
-    /// <param name="bones">
-    /// The ordered bone array.
-    /// </param>
-    /// <param name="exportedBoneNodes">The exported nodes used to resolve bind-pose transforms.</param>
     private static void WriteBindPoseSkeleton(StreamWriter writer, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
     {
+        Dictionary<SkeletonBone, SkeletonBone?> parents = SkeletonExportTransforms.BuildExportedParentMap(bones, exportedBoneNodes);
         writer.WriteLine("skeleton");
         writer.WriteLine("  time 0");
         for (int i = 0; i < bones.Length; i++)
         {
-            SkeletonExportTransforms.GetRelativeBindTransform(bones[i], exportedBoneNodes, out Vector3 pos, out Quaternion rotQuat);
-            var rot   = QuaternionToEulerXYZ(rotQuat);
+            SkeletonExportTransforms.GetRelativeBindTransform(bones[i], parents[bones[i]], out Vector3 pos, out Quaternion rotQuat);
+            var rot		= QuaternionToEulerXYZ(rotQuat);
             writer.WriteLine($"  {i}  {FormatFloat(pos.X)} {FormatFloat(pos.Y)} {FormatFloat(pos.Z)}  {FormatFloat(rot.X)} {FormatFloat(rot.Y)} {FormatFloat(rot.Z)}");
         }
         writer.WriteLine("end");
     }
 
-    // ------------------------------------------------------------------
-    // skeleton section — animation frames
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Writes a multi-frame animation skeleton section.
-    /// </summary>
-    /// <param name="writer">
-    /// The output writer.
-    /// </param>
-    /// <param name="anim">
-    /// The source skeleton animation.
-    /// </param>
-    /// <param name="bones">
-    /// The ordered bone array.
-    /// </param>
-    /// <param name="exportedBoneNodes">The exported nodes used to resolve animated transforms.</param>
-    private static void WriteAnimationSkeleton(StreamWriter writer, SkeletonAnimation anim, SkeletonBone[] bones, SceneNode[] exportedBoneNodes)
+    private static void WriteAnimationSkeleton(StreamWriter writer, SkeletonAnimation anim, SkeletonBone[] bones, SceneNode[] exportedBoneNodes, CancellationToken token)
     {
         var trackByName = new Dictionary<string, SkeletonAnimationTrack>(StringComparer.OrdinalIgnoreCase);
         foreach (var track in anim.Tracks)
@@ -170,11 +130,12 @@ public sealed class SmdWriter
         var (_, maxFrameF) = anim.GetAnimationFrameRange();
         int frameCount = maxFrameF > float.MinValue ? (int)MathF.Ceiling(maxFrameF) + 1 : 1;
         Dictionary<SkeletonBone, SkeletonBone?> exportedParents = SkeletonExportTransforms.BuildExportedParentMap(bones, exportedBoneNodes);
-        Dictionary<SkeletonBone, (Vector3 Position, Quaternion Rotation)> worldTransforms = [];
+        Dictionary<SkeletonBone, Matrix4x4> worldTransforms = [];
 
         writer.WriteLine("skeleton");
         for (int frame = 0; frame < frameCount; frame++)
         {
+            token.ThrowIfCancellationRequested();
             writer.WriteLine($"  time {frame}");
             float t = frame;
             worldTransforms.Clear();
@@ -189,24 +150,7 @@ public sealed class SmdWriter
         writer.WriteLine("end");
     }
 
-    // ------------------------------------------------------------------
-    // triangles section
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Writes the SMD triangles section for all writable meshes.
-    /// </summary>
-    /// <param name="writer">
-    /// The output writer.
-    /// </param>
-    /// <param name="meshes">
-    /// The source meshes.
-    /// </param>
-    /// <param name="allBones">
-    /// The full skeleton bone array.
-    /// </param>
-    /// <param name="selection">The scene selection used to resolve material names.</param>
-    private static void WriteTriangles(StreamWriter writer, Mesh[] meshes, SkeletonBone[] allBones, SceneTranslationSelection selection)
+    private static void WriteTriangles(StreamWriter writer, Mesh[] meshes, SkeletonBone[] allBones, SceneTranslationSelection selection, CancellationToken token)
     {
         var boneIndexMap = BuildBoneIndexMap(allBones);
 
@@ -215,19 +159,22 @@ public sealed class SmdWriter
         var sb = new StringBuilder(256);
         foreach (var mesh in meshes)
         {
+            token.ThrowIfCancellationRequested();
             if (mesh.Positions is null || mesh.FaceIndices is null)
                 continue;
 
             string materialName = ResolveMaterialName(mesh, selection);
 
-            int faceCount  = mesh.FaceIndices.ElementCount / 3;
-            Skin? skin = mesh.Skin;
-            int influences = skin?.BoneIndices.ValueCount ?? 0;
-            int[] globalBoneTable = BuildGlobalBoneIndexTable(mesh, allBones, boneIndexMap);
+            int		faceCount		= mesh.FaceIndices.ElementCount / 3;
+            Skin?	skin			= mesh.Skin;
+            int		influences		= skin?.BoneIndices.ValueCount ?? 0;
+            int[]	globalBoneTable	= BuildGlobalBoneIndexTable(mesh, allBones, boneIndexMap);
 
-            int[]? pooledBoneIndices = influences > 0 ? ArrayPool<int>.Shared.Rent(influences) : null;
-            float[]? pooledBoneWeights = influences > 0 ? ArrayPool<float>.Shared.Rent(influences) : null;
+            int[]? pooledBoneIndices	= influences > 0 ? ArrayPool<int>.Shared.Rent(influences) : null;
+            float[]? pooledBoneWeights	= influences > 0 ? ArrayPool<float>.Shared.Rent(influences) : null;
 
+            Span<int> boneIndices	= pooledBoneIndices;
+            Span<float> boneWeights	= pooledBoneWeights;
             try
             {
                 for (int f = 0; f < faceCount; f++)
@@ -238,13 +185,12 @@ public sealed class SmdWriter
                     {
                         int vertIdx = mesh.FaceIndices.Get<int>(f * 3 + v, 0, 0);
 
-                    var pos = mesh.GetVertexPosition(vertIdx, raw: true);
-                    var nrm = mesh.Normals is not null ? mesh.GetVertexNormal(vertIdx, raw: true) : Vector3.UnitY;
-                    var uv = mesh.UVLayers is not null ? mesh.UVLayers.GetVector2(vertIdx, 0) : Vector2.Zero;
+                        var pos	= mesh.GetVertexPosition(vertIdx, raw: true);
+                        var nrm	= mesh.Normals is not null ? mesh.GetVertexNormal(vertIdx, raw: true) : Vector3.UnitY;
+                        var uv	= mesh.UVLayers is not null ? mesh.UVLayers.GetVector2(vertIdx, 0) : Vector2.Zero;
 
-                        // ---- Gather bone-weight pairs ----
-                        int parentBone = 0;
-                        int linkCount = 0;
+                        int parentBone	= 0;
+                        int linkCount	= 0;
 
                         if (influences > 0 && pooledBoneIndices is not null && pooledBoneWeights is not null && skin is not null)
                         {
@@ -252,7 +198,7 @@ public sealed class SmdWriter
                             {
                                 float weight = skin.BoneWeights.Get<float>(vertIdx, j, 0);
                                 if (weight <= 0f) continue;
-                                int localIdx  = skin.BoneIndices.Get<int>(vertIdx, j, 0);
+                                int localIdx	= skin.BoneIndices.Get<int>(vertIdx, j, 0);
                                 if ((uint)localIdx >= (uint)globalBoneTable.Length)
                                 {
                                     throw new InvalidDataException($"Cannot write SMD: mesh '{mesh.Name}' contains skin index {localIdx} outside the exported skin table.");
@@ -268,16 +214,15 @@ public sealed class SmdWriter
                                 parentBone = pooledBoneIndices[0];
                         }
 
-                    // ---- Emit vertex line ----
-                    sb.Clear();
-                    sb.Append("  ");
-                    sb.Append(parentBone);
-                    sb.Append("  ");
-                    sb.Append(FormatFloat(pos.X)); sb.Append(' '); sb.Append(FormatFloat(pos.Y)); sb.Append(' '); sb.Append(FormatFloat(pos.Z));
-                    sb.Append("  ");
-                    sb.Append(FormatFloat(nrm.X)); sb.Append(' '); sb.Append(FormatFloat(nrm.Y)); sb.Append(' '); sb.Append(FormatFloat(nrm.Z));
-                    sb.Append("  ");
-                    sb.Append(FormatFloat(uv.X)); sb.Append(' '); sb.Append(FormatFloat(uv.Y));
+                        sb.Clear();
+                        sb.Append("  ");
+                        sb.Append(parentBone);
+                        sb.Append("  ");
+                        sb.Append(FormatFloat(pos.X)); sb.Append(' '); sb.Append(FormatFloat(pos.Y)); sb.Append(' '); sb.Append(FormatFloat(pos.Z));
+                        sb.Append("  ");
+                        sb.Append(FormatFloat(nrm.X)); sb.Append(' '); sb.Append(FormatFloat(nrm.Y)); sb.Append(' '); sb.Append(FormatFloat(nrm.Z));
+                        sb.Append("  ");
+                        sb.Append(FormatFloat(uv.X)); sb.Append(' '); sb.Append(FormatFloat(uv.Y));
 
                         if (linkCount > 0)
                         {
@@ -286,9 +231,9 @@ public sealed class SmdWriter
                             for (int i = 0; i < linkCount; i++)
                             {
                                 sb.Append("  ");
-                                sb.Append(pooledBoneIndices![i]);
+                                sb.Append(boneIndices[i]);
                                 sb.Append(' ');
-                                sb.Append(FormatFloat(pooledBoneWeights![i]));
+                                sb.Append(FormatFloat(boneWeights[i]));
                             }
                         }
 
@@ -308,19 +253,6 @@ public sealed class SmdWriter
         writer.WriteLine("end");
     }
 
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Builds a lookup from bone reference to global bone index.
-    /// </summary>
-    /// <param name="bones">
-    /// The ordered bone array.
-    /// </param>
-    /// <returns>
-    /// A dictionary mapping each bone to its index.
-    /// </returns>
     private static Dictionary<SkeletonBone, int> BuildBoneIndexMap(SkeletonBone[] bones)
     {
         var map = new Dictionary<SkeletonBone, int>(bones.Length);
@@ -329,21 +261,6 @@ public sealed class SmdWriter
         return map;
     }
 
-    /// <summary>
-    /// Builds a local-to-global bone index table for one skinned mesh.
-    /// </summary>
-    /// <param name="mesh">
-    /// The source mesh.
-    /// </param>
-    /// <param name="allBones">
-    /// The full skeleton bone array.
-    /// </param>
-    /// <param name="boneIndexMap">
-    /// The global bone index lookup.
-    /// </param>
-    /// <returns>
-    /// A local index to global index mapping array.
-    /// </returns>
     private static int[] BuildGlobalBoneIndexTable(Mesh mesh, SkeletonBone[] allBones, Dictionary<SkeletonBone, int> boneIndexMap)
     {
         _ = allBones;
@@ -351,8 +268,8 @@ public sealed class SmdWriter
         if (skinnedBones is null || skinnedBones.Count == 0)
             return [];
 
-        var table = new int[skinnedBones.Count];
-        List<string> missingBones = [];
+        var table					= new int[skinnedBones.Count];
+        List<string> missingBones	= [];
         for (int i = 0; i < skinnedBones.Count; i++)
         {
             if (!boneIndexMap.TryGetValue(skinnedBones[i], out int globalIdx))
@@ -371,15 +288,6 @@ public sealed class SmdWriter
         return table;
     }
 
-    /// <summary>
-    /// Creates synthetic bones from animation track names when no scene skeleton exists.
-    /// </summary>
-    /// <param name="anim">
-    /// The source animation.
-    /// </param>
-    /// <returns>
-    /// An array of synthetic bones.
-    /// </returns>
     private static SkeletonBone[] SynthesiseBonesFromAnimation(SkeletonAnimation anim)
     {
         return [.. anim.Tracks.Select(t => new SkeletonBone(t.Name))];
@@ -402,68 +310,33 @@ public sealed class SmdWriter
         return string.IsNullOrWhiteSpace(mesh.Name) ? "default" : mesh.Name;
     }
 
-    /// <summary>
-    /// Formats a float using fixed six-decimal invariant culture output.
-    /// </summary>
-    /// <param name="value">
-    /// The value to format.
-    /// </param>
-    /// <returns>
-    /// A fixed precision numeric string.
-    /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static string FormatFloat(float value) => value.ToString("F6", CultureInfo.InvariantCulture);
 
-    /// <summary>
-    /// Escapes an SMD node name by replacing embedded quotes.
-    /// </summary>
-    /// <param name="name">
-    /// The source name.
-    /// </param>
-    /// <returns>
-    /// The escaped name.
-    /// </returns>
     private static string EscapeName(string name) => name.Replace("\"", "'");
 
-    // ------------------------------------------------------------------
-    // Rotation conversion — Quaternion → Euler XYZ (radians)
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Decomposes a quaternion into SMD Euler angles in XYZ intrinsic order.
-    /// </summary>
-    /// <param name="q">
-    /// The source quaternion.
-    /// </param>
-    /// <returns>
-    /// A vector containing X, Y, and Z Euler rotations in radians.
-    /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Vector3 QuaternionToEulerXYZ(Quaternion q)
     {
         float w = q.W, x = q.X, y = q.Y, z = q.Z;
 
-        // For R = Rz * Ry * Rx, the (2,0) entry is –sin(ry).
-        // Quaternion rotation matrix (column-vector convention):
-        //   R[2,0] = 2*(x*z – w*y)
-        float sinRy = Math.Clamp(-2f * (x * z - w * y), -1f, 1f); // = 2*(w*y – x*z)
-        float ry    = MathF.Asin(sinRy);
+        float	sinRy	= Math.Clamp(-2f * (x * z - w * y), -1f, 1f);
+        float	ry		= MathF.Asin(sinRy);
 
         float rx, rz;
         if (MathF.Abs(sinRy) < 0.9999f)
         {
-            // No gimbal lock
-            float r21 = 2f * (y * z + w * x);          // R[2,1] = cy*sx
-            float r22 = 1f - 2f * (x * x + y * y);     // R[2,2] = cy*cx
+            float r21	= 2f * (y * z + w * x);
+            float r22	= 1f - 2f * (x * x + y * y);
             rx = MathF.Atan2(r21, r22);
 
-            float r10 = 2f * (x * y + w * z);           // R[1,0] = cy*sz
-            float r00 = 1f - 2f * (y * y + z * z);      // R[0,0] = cy*cz
+            float r10	= 2f * (x * y + w * z);
+            float r00	= 1f - 2f * (y * y + z * z);
             rz = MathF.Atan2(r10, r00);
         }
         else
         {
-            // Gimbal lock (ry ≈ ±π/2): only rx ± rz is recoverable; set rz = 0.
+
             float r01 = 2f * (x * y - w * z);
             float r02 = 2f * (x * z + w * y);
             rx = MathF.Atan2(sinRy > 0f ? r01 : -r01, sinRy > 0f ? r02 : -r02);

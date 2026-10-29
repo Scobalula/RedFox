@@ -5,13 +5,11 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.ActorX;
 
 /// <summary>
-/// Reads ActorX PSA animation files into a <see cref="Scene"/>, producing one
-/// <see cref="SkeletonAnimation"/> per stored sequence.
+/// Reads ActorX PSA animation files into a <see cref="Scene"/>, producing one <see cref="SkeletonAnimation"/> per stored sequence.
 /// </summary>
 public sealed class PsaReader
 {
     private readonly Stream _stream;
-    private readonly string _name;
 
     /// <summary>
     /// Initializes a new <see cref="PsaReader"/>.
@@ -21,27 +19,35 @@ public sealed class PsaReader
     public PsaReader(Stream stream, string name)
     {
         _stream = stream;
-        _name = name;
     }
 
     /// <summary>
     /// Reads the PSA content and populates the supplied scene.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
-    public void Read(Scene scene)
+    public void Read(Scene scene) => Read(scene, CancellationToken.None);
+
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Read(Scene scene, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         using var reader = new BinaryReader(_stream, Encoding.UTF8, leaveOpen: true);
 
         var header = ActorXChunkHeader.Read(reader);
         if (!header.ChunkId.StartsWith(ActorXChunkId.AnimationHeader, StringComparison.Ordinal))
             throw new InvalidDataException("Invalid PSA file: missing ANIMHEAD chunk.");
 
-        List<ActorXBone> boneRecords = [];
-        List<ActorXAnimInfo> sequences = [];
-        List<ActorXAnimKey> keys = [];
+        List<ActorXBone> boneRecords	= [];
+        List<ActorXAnimInfo> sequences	= [];
+        List<ActorXAnimKey> keys		= [];
 
         while (reader.BaseStream.Position < reader.BaseStream.Length)
         {
+            token.ThrowIfCancellationRequested();
             var chunk = ActorXChunkHeader.Read(reader);
 
             if (chunk.ChunkId.StartsWith(ActorXChunkId.BoneNames, StringComparison.Ordinal))
@@ -74,9 +80,9 @@ public sealed class PsaReader
         var keys = new List<ActorXAnimKey>(count);
         for (int i = 0; i < count; i++)
         {
-            Vector3 position = ActorXBinary.ReadVector3(reader);
-            Quaternion orientation = ActorXBinary.ReadQuaternion(reader);
-            float time = reader.ReadSingle();
+            Vector3 position		= ActorXBinary.ReadVector3(reader);
+            Quaternion orientation	= ActorXBinary.ReadQuaternion(reader);
+            float time				= reader.ReadSingle();
             keys.Add(new ActorXAnimKey(position, orientation, time));
         }
 
@@ -85,7 +91,9 @@ public sealed class PsaReader
 
     private static SkeletonAnimation BuildAnimation(ActorXAnimInfo sequence, List<ActorXBone> boneRecords, List<ActorXAnimKey> keys)
     {
-        int boneCount = sequence.TotalBones > 0 ? sequence.TotalBones : boneRecords.Count;
+        int boneCount = sequence.TotalBones;
+        if (boneCount <= 0 || sequence.StartBone < 0 || (long)sequence.StartBone + boneCount > boneRecords.Count || sequence.FirstRawFrame < 0 || sequence.RawFrameCount < 0 || ((long)sequence.FirstRawFrame + sequence.RawFrameCount) * boneCount > keys.Count)
+            throw new InvalidDataException("Invalid PSA sequence or key range.");
 
         var animation = new SkeletonAnimation(sequence.Name, boneCount, TransformType.Absolute)
         {
@@ -96,7 +104,7 @@ public sealed class PsaReader
         var tracks = new SkeletonAnimationTrack[boneCount];
         for (int b = 0; b < boneCount; b++)
         {
-            string boneName = b < boneRecords.Count ? boneRecords[b].Name : $"Bone_{b}";
+            string boneName = boneRecords[sequence.StartBone + b].Name;
             tracks[b] = new SkeletonAnimationTrack(boneName)
             {
                 TransformType = TransformType.Absolute,
@@ -110,11 +118,8 @@ public sealed class PsaReader
             int frameBase = (sequence.FirstRawFrame + frame) * boneCount;
             for (int b = 0; b < boneCount; b++)
             {
-                int keyIndex = frameBase + b;
-                if ((uint)keyIndex >= (uint)keys.Count)
-                    continue;
-
-                var key = keys[keyIndex];
+                int keyIndex	= frameBase + b;
+                var key			= keys[keyIndex];
                 tracks[b].AddTranslationFrame(frame, key.Position);
                 tracks[b].AddRotationFrame(frame, ActorXBinary.ToLocalRotation(key.Orientation, b));
             }

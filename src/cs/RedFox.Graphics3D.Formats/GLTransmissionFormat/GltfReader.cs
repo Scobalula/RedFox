@@ -8,31 +8,21 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.GLTransmissionFormat;
 
 /// <summary>
-/// Reads a glTF 2.0 asset (.gltf or .glb) and populates a <see cref="Scene"/>
-/// with models, meshes, materials, skeletons, and animations.
-/// <para>
-/// Supports both JSON-based (.gltf) files with external binary buffers and
-/// GLB binary containers. Buffer URIs may be file paths (resolved relative to
-/// a base directory) or <c>data:</c> URIs with Base64 payloads.
-/// </para>
+/// Reads a glTF 2.0 asset (.gltf or .glb) and populates a <see cref="Scene"/> with models, meshes, materials, skeletons, and animations.
 /// </summary>
 public sealed class GltfReader
 {
-    private readonly GltfDocument _doc;
-    private readonly string _name;
-    private readonly SceneTranslatorOptions _options;
-    private readonly string? _baseDirectory;
-    private readonly Dictionary<int, int> _parentByNode = [];
+    private CancellationToken _cancellationToken;
 
-    /// <summary>
-    /// Node-index to <see cref="SkeletonBone"/> mapping, populated during skeleton construction.
-    /// </summary>
-    private readonly Dictionary<int, SkeletonBone> _jointBones = [];
+    private readonly GltfDocument	_doc;
+    private readonly string			_name;
+    private readonly string?		_baseDirectory;
 
-    /// <summary>
-    /// Set of all node indices that are referenced as joints by any skin.
-    /// </summary>
-    private readonly HashSet<int> _jointIndices = [];
+    private readonly Dictionary<int, int>		_parentByNode		= [];
+    private readonly Dictionary<int, Matrix4x4>	_nodeWorldMatrices	= [];
+
+    private readonly Dictionary<int, SkeletonBone>	_jointBones		= [];
+    private readonly HashSet<int>					_jointIndices	= [];
 
     /// <summary>
     /// Initializes a new <see cref="GltfReader"/> with a pre-parsed <see cref="GltfDocument"/>.
@@ -56,125 +46,136 @@ public sealed class GltfReader
     {
         _doc = doc ?? throw new ArgumentNullException(nameof(doc));
         _name = name ?? throw new ArgumentNullException(nameof(name));
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
         _baseDirectory = baseDirectory;
 
         for (int parentIndex = 0; parentIndex < _doc.Nodes.Count; parentIndex++)
             if (_doc.Nodes[parentIndex].Children is { } children)
                 foreach (int childIndex in children)
-                    _parentByNode.TryAdd(childIndex, parentIndex);
+                {
+                    if ((uint)childIndex >= (uint)_doc.Nodes.Count || !_parentByNode.TryAdd(childIndex, parentIndex))
+                        throw new InvalidDataException("Invalid glTF child or multiple parents.");
+                }
+
+        byte[] states = new byte[_doc.Nodes.Count];
+        for (int i = 0; i < states.Length; i++)
+        {
+            int current = i;
+            while (states[current] == 0)
+            {
+                states[current] = 1;
+                if (!_parentByNode.TryGetValue(current, out current))
+                {
+                    current = -1;
+                    break;
+                }
+            }
+            if (current >= 0 && states[current] == 1)
+                throw new InvalidDataException("Cyclic glTF hierarchy.");
+            current = i;
+            while (states[current] == 1)
+            {
+                states[current] = 2;
+                if (!_parentByNode.TryGetValue(current, out current))
+                    break;
+            }
+        }
     }
 
     /// <summary>
-    /// Parses a GLB binary container from the specified stream and returns a fully
-    /// loaded <see cref="GltfDocument"/> with buffer data resolved.
+    /// Parses a GLB binary container from the specified stream and returns a fully loaded <see cref="GltfDocument"/> with buffer data resolved.
     /// </summary>
     /// <param name="stream">The GLB input stream.</param>
     /// <returns>A <see cref="GltfDocument"/> with all buffer data populated.</returns>
     /// <exception cref="InvalidOperationException">Thrown when the GLB header or chunks are invalid.</exception>
     public static GltfDocument ParseGlb(Stream stream)
     {
-        Span<byte> header = stackalloc byte[GltfConstants.GlbHeaderSize];
+        long start			= stream.Position;
+        Span<byte> header	= stackalloc byte[GltfConstants.GlbHeaderSize];
         ReadExact(stream, header);
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header) != GltfConstants.GlbMagic || BinaryPrimitives.ReadUInt32LittleEndian(header[4..]) != GltfConstants.GltfVersion)
+            throw new InvalidOperationException("Invalid GLB header or version.");
 
-        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(header);
-        if (magic != GltfConstants.GlbMagic)
-            throw new InvalidOperationException($"Invalid GLB magic: 0x{magic:X8}");
+        uint declaredLength = BinaryPrimitives.ReadUInt32LittleEndian(header[8..]);
+        if (declaredLength < 20 || declaredLength != stream.Length - start)
+            throw new InvalidDataException("Invalid GLB declared length.");
 
-        uint version = BinaryPrimitives.ReadUInt32LittleEndian(header[4..]);
-        if (version != GltfConstants.GltfVersion)
-            throw new InvalidOperationException($"Unsupported glTF version: {version}");
-
-        // Parse JSON chunk
-        Span<byte> chunkHeader = stackalloc byte[GltfConstants.GlbChunkHeaderSize];
-        ReadExact(stream, chunkHeader);
-
-        uint jsonLength = BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader);
-        uint jsonType = BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader[4..]);
-
-        if (jsonType != GltfConstants.ChunkTypeJson)
-            throw new InvalidOperationException($"Expected JSON chunk, got 0x{jsonType:X8}");
-
-        byte[] jsonBytes = new byte[jsonLength];
-        ReadExact(stream, jsonBytes);
-
-        GltfDocument doc = GltfJsonParser.Parse(jsonBytes);
-
-        // Parse optional BIN chunk
-        if (stream.Position < stream.Length)
+        long end				= start + declaredLength;
+        Span<byte> chunkHeader	= stackalloc byte[GltfConstants.GlbChunkHeaderSize];
+        GltfDocument? doc		= null;
+        bool hasBinary			= false;
+        int chunkIndex			= 0;
+        while (stream.Position < end)
         {
+            if (end - stream.Position < chunkHeader.Length)
+                throw new InvalidDataException("Truncated GLB chunk header.");
             ReadExact(stream, chunkHeader);
-            uint binLength = BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader);
-            uint binType = BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader[4..]);
+            uint length	= BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader);
+            uint type	= BinaryPrimitives.ReadUInt32LittleEndian(chunkHeader[4..]);
+            if (length % 4 != 0 || length > int.MaxValue || length > end - stream.Position)
+                throw new InvalidDataException("Invalid GLB chunk boundary.");
+            if (chunkIndex == 0 && type != GltfConstants.ChunkTypeJson)
+                throw new InvalidOperationException("The first GLB chunk must contain JSON.");
 
-            if (binType == GltfConstants.ChunkTypeBin)
+            if (type == GltfConstants.ChunkTypeJson)
             {
-                byte[] binData = new byte[binLength];
-                ReadExact(stream, binData);
-
-                if (doc.Buffers.Count > 0)
-                    doc.Buffers[0].Data = binData;
+                if (doc is not null)
+                    throw new InvalidDataException("Duplicate GLB JSON chunk.");
+                byte[] json = new byte[(int)length];
+                ReadExact(stream, json);
+                doc = GltfJsonParser.Parse(json);
             }
+            else if (type == GltfConstants.ChunkTypeBin)
+            {
+                if (hasBinary || chunkIndex != 1 || doc is null || doc.Buffers.Count == 0 || doc.Buffers[0].Uri is not null || doc.Buffers[0].ByteLength < 0 || length < doc.Buffers[0].ByteLength || length - doc.Buffers[0].ByteLength > 3)
+                    throw new InvalidDataException("Invalid GLB binary chunk.");
+                byte[] binary = new byte[(int)length];
+                ReadExact(stream, binary);
+                doc.Buffers[0].Data = binary;
+                hasBinary = true;
+            }
+            else
+            {
+                stream.Position += length;
+            }
+            chunkIndex++;
         }
-
+        if (doc is null)
+            throw new InvalidDataException("Missing GLB JSON chunk.");
+        ResolveBuffers(doc, null);
         return doc;
     }
 
     /// <summary>
-    /// Parses a JSON-based glTF file from the specified stream and resolves external
-    /// buffer URIs relative to the given base directory.
+    /// Parses a JSON-based glTF file from the specified stream and resolves external buffer URIs relative to the given base directory.
     /// </summary>
     /// <param name="stream">The JSON input stream.</param>
     /// <param name="baseDirectory">The directory to resolve relative buffer URIs against, or <see langword="null"/> if external resolution is not available.</param>
     /// <returns>A <see cref="GltfDocument"/> with all buffer data populated.</returns>
     public static GltfDocument ParseGltf(Stream stream, string? baseDirectory)
     {
-        byte[] jsonBytes;
+        GltfDocument doc;
         if (stream is MemoryStream ms && ms.TryGetBuffer(out ArraySegment<byte> segment))
         {
-            jsonBytes = segment.ToArray();
+            doc			= GltfJsonParser.Parse(segment.AsMemory(checked((int)ms.Position)));
+            ms.Position	= ms.Length;
         }
         else
         {
             using MemoryStream copy = new();
             stream.CopyTo(copy);
-            jsonBytes = copy.ToArray();
+            doc = GltfJsonParser.Parse(copy.GetBuffer().AsMemory(0, checked((int)copy.Length)));
         }
 
-        GltfDocument doc = GltfJsonParser.Parse(jsonBytes);
         ResolveBuffers(doc, baseDirectory);
         return doc;
     }
 
     /// <summary>
-    /// Populates the specified <see cref="Scene"/> with models, meshes, materials,
-    /// skeletons, and animations from the parsed glTF document.
+    /// Populates the specified <see cref="Scene"/> with models, meshes, materials, skeletons, and animations from the parsed glTF document.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
-    public void Read(Scene scene)
-    {
-        MeshGroup model = scene.RootNode.AddNode<MeshGroup>(_name);
-
-        // Collect all joint node indices
-        CollectJointIndices();
-
-        // Build materials
-        Material[] materials = BuildMaterials(model);
-
-        // Build skeletons
-        SkeletonBone[] skeletons = BuildSkeletons(scene);
-
-        // Process scene nodes to build meshes
-        int[] rootNodes = GetSceneRootNodes();
-        int meshCounter = 0;
-        foreach (int nodeIdx in rootNodes)
-        {
-            ProcessNodeForMeshes(nodeIdx, model, materials, skeletons, ref meshCounter);
-        }
-
-        // Build animations
-        BuildAnimations(scene, skeletons);
-    }
+    public void Read(Scene scene) => Read(scene, CancellationToken.None);
 
     /// <summary>
     /// Collects all node indices referenced as joints across all skins.
@@ -183,6 +184,7 @@ public sealed class GltfReader
     {
         foreach (GltfSkin skin in _doc.Skins)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             foreach (int jointIdx in skin.Joints)
                 _jointIndices.Add(jointIdx);
         }
@@ -198,21 +200,11 @@ public sealed class GltfReader
         if (sceneIdx < _doc.Scenes.Count)
             return _doc.Scenes[sceneIdx].Nodes;
 
-        // Fallback: return all root nodes (nodes that aren't children of any other node)
-        HashSet<int> childNodes = [];
-        foreach (GltfNode node in _doc.Nodes)
-        {
-            if (node.Children is not null)
-            {
-                foreach (int c in node.Children)
-                    childNodes.Add(c);
-            }
-        }
-
         List<int> roots = [];
         for (int i = 0; i < _doc.Nodes.Count; i++)
         {
-            if (!childNodes.Contains(i))
+            _cancellationToken.ThrowIfCancellationRequested();
+            if (!_parentByNode.ContainsKey(i))
                 roots.Add(i);
         }
 
@@ -229,72 +221,8 @@ public sealed class GltfReader
     /// <param name="meshCounter">A running counter used to generate unique mesh names.</param>
     public void ProcessNodeForMeshes(int nodeIdx, MeshGroup model, Material[] materials, SkeletonBone[] skeletons, ref int meshCounter)
     {
-        if (nodeIdx < 0 || nodeIdx >= _doc.Nodes.Count) return;
-
-        GltfNode node = _doc.Nodes[nodeIdx];
-
-        if (node.Mesh >= 0 && node.Mesh < _doc.Meshes.Count)
-        {
-            GltfMesh gltfMesh = _doc.Meshes[node.Mesh];
-
-            // Find the skin for this node, if any
-            GltfSkin? skin = null;
-            int skinIdx = -1;
-            if (node.Skin >= 0 && node.Skin < _doc.Skins.Count)
-            {
-                skinIdx = node.Skin;
-                skin = _doc.Skins[skinIdx];
-            }
-
-            for (int primIdx = 0; primIdx < gltfMesh.Primitives.Count; primIdx++)
-            {
-                GltfMeshPrimitive prim = gltfMesh.Primitives[primIdx];
-
-                // Only support triangles
-                if (prim.Mode != GltfConstants.ModeTriangles)
-                    continue;
-
-                string meshName = gltfMesh.Name ?? $"Mesh_{meshCounter}";
-                if (gltfMesh.Primitives.Count > 1)
-                    meshName = $"{meshName}_{primIdx}";
-
-                // Ensure unique name
-                while (model.Children?.Any(c => c.Name.Equals(meshName, StringComparison.OrdinalIgnoreCase)) == true)
-                    meshName = $"{meshName}_{meshCounter}";
-
-                Mesh mesh = model.AddNode<Mesh>(meshName);
-                meshCounter++;
-
-                // Set transform from node TRS
-                ApplyNodeTransform(node, mesh.BindTransform);
-
-                // Read vertex attributes
-                ReadPrimitiveAttributes(prim, mesh);
-
-                // Read face indices
-                if (prim.Indices >= 0)
-                    ReadFaceIndices(prim.Indices, mesh);
-
-                // Assign material
-                if (prim.Material >= 0 && prim.Material < materials.Length)
-                    mesh.Materials = [materials[prim.Material]];
-
-                // Read morph targets
-                if (prim.Targets is { Count: > 0 })
-                    ReadMorph(gltfMesh, prim.Targets, mesh);
-
-                // Set up skinning
-                if (skin is not null && skinIdx >= 0 && skinIdx < skeletons.Length)
-                    SetupSkinning(skin, prim, mesh);
-            }
-        }
-
-        // Process children
-        if (node.Children is not null)
-        {
-            foreach (int childIdx in node.Children)
-                ProcessNodeForMeshes(childIdx, model, materials, skeletons, ref meshCounter);
-        }
+        HashSet<string> names = new(model.EnumerateChildren().Select(static node => node.Name), StringComparer.OrdinalIgnoreCase);
+        ProcessNodeForMeshes(nodeIdx, model, materials, skeletons, ref meshCounter, names);
     }
 
     /// <summary>
@@ -304,37 +232,38 @@ public sealed class GltfReader
     /// <param name="mesh">The target mesh to populate with vertex data.</param>
     public void ReadPrimitiveAttributes(GltfMeshPrimitive prim, Mesh mesh)
     {
-        // Positions
+
         if (prim.Attributes.TryGetValue("POSITION", out int posAccessor))
         {
+            if (_doc.Accessors[posAccessor].Type != "VEC3")
+                throw new InvalidDataException("Invalid glTF attribute shape.");
             float[] positions = _doc.ReadAccessorAsFloats(posAccessor);
             mesh.Positions = new DataBuffer<float>(positions, 1, 3);
         }
 
-        // Normals
         if (prim.Attributes.TryGetValue("NORMAL", out int normAccessor))
         {
+            if (_doc.Accessors[normAccessor].Type != "VEC3" || _doc.Accessors[normAccessor].Count != mesh.VertexCount)
+                throw new InvalidDataException("Invalid glTF attribute shape.");
             float[] normals = _doc.ReadAccessorAsFloats(normAccessor);
             mesh.Normals = new DataBuffer<float>(normals, 1, 3);
         }
 
-        // Tangents (VEC4: XYZ = tangent direction, W = bitangent sign)
         if (prim.Attributes.TryGetValue("TANGENT", out int tanAccessor))
         {
+            if (_doc.Accessors[tanAccessor].Type != "VEC4" || _doc.Accessors[tanAccessor].Count != mesh.VertexCount)
+                throw new InvalidDataException("Invalid glTF attribute shape.");
             float[] tangents = _doc.ReadAccessorAsFloats(tanAccessor);
             mesh.Tangents = new DataBuffer<float>(tangents, 1, 4);
         }
 
-        // UV Layers
         ReadUVLayers(prim, mesh);
 
-        // Color Layers
         ReadColorLayers(prim, mesh);
     }
 
     /// <summary>
-    /// Reads UV texture coordinate layers (TEXCOORD_0, TEXCOORD_1, ...) and combines
-    /// them into a single multi-value DataBuffer.
+    /// Reads UV texture coordinate layers (TEXCOORD_0, TEXCOORD_1, ...) and combines them into a single multi-value DataBuffer.
     /// </summary>
     /// <param name="prim">The glTF mesh primitive containing UV accessor references.</param>
     /// <param name="mesh">The target mesh to populate with UV layer data.</param>
@@ -343,19 +272,23 @@ public sealed class GltfReader
         List<float[]> uvSets = [];
         for (int i = 0; ; i++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (!prim.Attributes.TryGetValue($"TEXCOORD_{i}", out int uvAccessor))
                 break;
+            if (_doc.Accessors[uvAccessor].Type != "VEC2" || _doc.Accessors[uvAccessor].Count != mesh.VertexCount)
+                throw new InvalidDataException("Invalid glTF texture coordinate shape.");
             uvSets.Add(_doc.ReadAccessorAsFloats(uvAccessor));
         }
 
         if (uvSets.Count == 0) return;
 
-        int vertexCount = uvSets[0].Length / 2;
-        int layerCount = uvSets.Count;
-        float[] combined = new float[vertexCount * layerCount * 2];
+        int vertexCount		= uvSets[0].Length / 2;
+        int layerCount		= uvSets.Count;
+        float[] combined	= new float[vertexCount * layerCount * 2];
 
         for (int v = 0; v < vertexCount; v++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             for (int layer = 0; layer < layerCount; layer++)
             {
                 int dstIdx = (v * layerCount + layer) * 2;
@@ -369,37 +302,39 @@ public sealed class GltfReader
     }
 
     /// <summary>
-    /// Reads vertex color layers (COLOR_0, COLOR_1, ...) and combines them
-    /// into a single multi-value DataBuffer.
+    /// Reads vertex color layers (COLOR_0, COLOR_1, ...) and combines them into a single multi-value DataBuffer.
     /// </summary>
     /// <param name="prim">The glTF mesh primitive containing color accessor references.</param>
     /// <param name="mesh">The target mesh to populate with vertex color data.</param>
     public void ReadColorLayers(GltfMeshPrimitive prim, Mesh mesh)
     {
-        List<float[]> colorSets = [];
-        List<int> componentCounts = [];
+        List<float[]> colorSets		= [];
+        List<int> componentCounts	= [];
         for (int i = 0; ; i++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (!prim.Attributes.TryGetValue($"COLOR_{i}", out int colorAccessor))
                 break;
+            if (_doc.Accessors[colorAccessor].Type is not ("VEC3" or "VEC4") || _doc.Accessors[colorAccessor].Count != mesh.VertexCount)
+                throw new InvalidDataException("Invalid glTF color shape.");
             colorSets.Add(_doc.ReadAccessorAsFloats(colorAccessor));
             componentCounts.Add(_doc.Accessors[colorAccessor].ComponentCount);
         }
 
         if (colorSets.Count == 0) return;
 
-        // Normalize all to 4 components (RGBA)
-        int vertexCount = colorSets[0].Length / componentCounts[0];
-        int layerCount = colorSets.Count;
-        float[] combined = new float[vertexCount * layerCount * 4];
+        int vertexCount		= colorSets[0].Length / componentCounts[0];
+        int layerCount		= colorSets.Count;
+        float[] combined	= new float[vertexCount * layerCount * 4];
 
         for (int v = 0; v < vertexCount; v++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             for (int layer = 0; layer < layerCount; layer++)
             {
-                int dstIdx = (v * layerCount + layer) * 4;
-                int compCount = componentCounts[layer];
-                int srcIdx = v * compCount;
+                int dstIdx		= (v * layerCount + layer) * 4;
+                int compCount	= componentCounts[layer];
+                int srcIdx		= v * compCount;
 
                 combined[dstIdx] = colorSets[layer][srcIdx];
                 combined[dstIdx + 1] = compCount >= 2 ? colorSets[layer][srcIdx + 1] : 0f;
@@ -412,23 +347,25 @@ public sealed class GltfReader
     }
 
     /// <summary>
-    /// Reads joint indices (JOINTS_n) and weights (WEIGHTS_n) for skinning and combines
-    /// multiple sets into single DataBuffers.
+    /// Reads joint indices (JOINTS_n) and weights (WEIGHTS_n) for skinning and combines multiple sets into single DataBuffers.
     /// </summary>
     /// <param name="prim">The glTF mesh primitive containing joint and weight accessor references.</param>
     /// <returns>The combined bone index and weight buffers, or <see langword="null"/> when the primitive has no skin influences.</returns>
     public (DataBuffer BoneIndices, DataBuffer BoneWeights)? ReadSkinInfluences(GltfMeshPrimitive prim)
     {
-        List<int[]> jointSets = [];
-        List<float[]> weightSets = [];
+        List<int[]> jointSets		= [];
+        List<float[]> weightSets	= [];
 
         for (int i = 0; ; i++)
         {
-            bool hasJoints = prim.Attributes.TryGetValue($"JOINTS_{i}", out int jAccessor);
-            bool hasWeights = prim.Attributes.TryGetValue($"WEIGHTS_{i}", out int wAccessor);
+            _cancellationToken.ThrowIfCancellationRequested();
+            bool hasJoints	= prim.Attributes.TryGetValue($"JOINTS_{i}", out int jAccessor);
+            bool hasWeights	= prim.Attributes.TryGetValue($"WEIGHTS_{i}", out int wAccessor);
 
-            if (!hasJoints || !hasWeights)
+            if (!hasJoints && !hasWeights)
                 break;
+            if (!hasJoints || !hasWeights || _doc.Accessors[jAccessor].Type != "VEC4" || _doc.Accessors[wAccessor].Type != "VEC4" || _doc.Accessors[jAccessor].Count != _doc.Accessors[wAccessor].Count)
+                throw new InvalidDataException("Inconsistent glTF skin attributes.");
 
             jointSets.Add(_doc.ReadAccessorAsInts(jAccessor));
             weightSets.Add(_doc.ReadAccessorAsFloats(wAccessor));
@@ -436,13 +373,13 @@ public sealed class GltfReader
 
         if (jointSets.Count == 0) return null;
 
-        int vertexCount = jointSets[0].Length / 4;
-        int influenceCount = jointSets.Count * 4;
+        int vertexCount		= jointSets[0].Length / 4;
+        int influenceCount	= jointSets.Count * 4;
 
-        // Bone indices
         int[] allJoints = new int[vertexCount * influenceCount];
         for (int v = 0; v < vertexCount; v++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             for (int set = 0; set < jointSets.Count; set++)
             {
                 for (int comp = 0; comp < 4; comp++)
@@ -453,10 +390,10 @@ public sealed class GltfReader
             }
         }
 
-        // Bone weights
         float[] allWeights = new float[vertexCount * influenceCount];
         for (int v = 0; v < vertexCount; v++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             for (int set = 0; set < weightSets.Count; set++)
             {
                 for (int comp = 0; comp < 4; comp++)
@@ -476,13 +413,15 @@ public sealed class GltfReader
     /// <param name="mesh">The target mesh to populate with face indices.</param>
     public void ReadFaceIndices(int accessorIndex, Mesh mesh)
     {
+        GltfAccessor accessor = _doc.Accessors[accessorIndex];
+        if (accessor.Type != "SCALAR" || accessor.ComponentType is not (5121 or 5123 or 5125) || accessor.Normalized || accessor.Count % 3 != 0)
+            throw new InvalidDataException("Invalid glTF triangle index accessor.");
         int[] indices = _doc.ReadAccessorAsInts(accessorIndex);
         mesh.FaceIndices = new DataBuffer<int>(indices, 1, 1);
     }
 
     /// <summary>
     /// Reads morph targets into a <see cref="Morph"/> on the mesh.
-    /// Each target may contain POSITION, NORMAL, and/or TANGENT deltas.
     /// </summary>
     /// <param name="gltfMesh">The glTF mesh that holds the default target weights and names.</param>
     /// <param name="targets">The list of morph target dictionaries mapping attribute names to accessor indices.</param>
@@ -510,11 +449,12 @@ public sealed class GltfReader
         if (!targets.Exists(target => target.ContainsKey(attribute)))
             return null;
 
-        int targetCount = targets.Count;
-        float[] deltas = new float[vertexCount * targetCount * 3];
+        int targetCount	= targets.Count;
+        float[] deltas	= new float[vertexCount * targetCount * 3];
 
         for (int t = 0; t < targetCount; t++)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (!targets[t].TryGetValue(attribute, out int accessorIndex))
                 continue;
 
@@ -534,34 +474,31 @@ public sealed class GltfReader
     /// <returns>An array of <see cref="Material"/> instances corresponding to each glTF material.</returns>
     public Material[] BuildMaterials(MeshGroup model)
     {
-        Material[] result = new Material[_doc.Materials.Count];
+        Material[] result		= new Material[_doc.Materials.Count];
+        HashSet<string> names	= new(model.EnumerateChildren().Select(static node => node.Name), StringComparer.OrdinalIgnoreCase);
 
         for (int i = 0; i < _doc.Materials.Count; i++)
         {
-            GltfMaterial gltfMat = _doc.Materials[i];
-            string matName = gltfMat.Name ?? $"Material_{i}";
+            _cancellationToken.ThrowIfCancellationRequested();
+            GltfMaterial gltfMat	= _doc.Materials[i];
+            string matName			= gltfMat.Name ?? $"Material_{i}";
 
-            // Ensure unique name
-            while (model.Children?.Any(c => c.Name.Equals(matName, StringComparison.OrdinalIgnoreCase)) == true)
+            while (!names.Add(matName))
                 matName = $"{matName}_{i}";
 
             Material mat = model.AddNode<Material>(matName);
             mat.DoubleSided = gltfMat.DoubleSided;
 
-            // Base color
             mat.DiffuseColor = new Vector4(gltfMat.BaseColorFactor[0], gltfMat.BaseColorFactor[1], gltfMat.BaseColorFactor[2], gltfMat.BaseColorFactor[3]);
 
-            // Metallic/Roughness
             mat.MetallicColor = new Vector4(gltfMat.MetallicFactor, gltfMat.MetallicFactor, gltfMat.MetallicFactor, 1f);
             mat.RoughnessColor = new Vector4(gltfMat.RoughnessFactor, gltfMat.RoughnessFactor, gltfMat.RoughnessFactor, 1f);
 
-            // Emissive
             if (gltfMat.EmissiveFactor[0] != 0f || gltfMat.EmissiveFactor[1] != 0f || gltfMat.EmissiveFactor[2] != 0f)
             {
                 mat.EmissiveColor = new Vector4(gltfMat.EmissiveFactor[0], gltfMat.EmissiveFactor[1], gltfMat.EmissiveFactor[2], 1f);
             }
 
-            // Texture references
             ResolveTextureReference(gltfMat.BaseColorTextureIndex, mat, "diffuse", v => mat.DiffuseMapName = v);
             ResolveTextureReference(gltfMat.NormalTextureIndex, mat, "normal", v => mat.NormalMapName = v);
             ResolveTextureReference(gltfMat.MetallicRoughnessTextureIndex, mat, "metallic", v => mat.MetallicMapName = v);
@@ -590,9 +527,9 @@ public sealed class GltfReader
         if (tex.Source < 0 || tex.Source >= _doc.Images.Count)
             return;
 
-        GltfImage image = _doc.Images[tex.Source];
-        string imagePath = image.Uri ?? image.Name ?? $"image_{tex.Source}";
-        string? resolvedPath = FilePathResolver.ResolveReferencePath(imagePath, _baseDirectory);
+        GltfImage image			= _doc.Images[tex.Source];
+        string imagePath		= image.Uri ?? image.Name ?? $"image_{tex.Source}";
+        string? resolvedPath	= FilePathResolver.ResolveReferencePath(imagePath, _baseDirectory);
 
         setMapName(slot);
 
@@ -615,70 +552,45 @@ public sealed class GltfReader
     /// <returns>An array of root <see cref="SkeletonBone"/> instances corresponding to each glTF skin.</returns>
     public SkeletonBone[] BuildSkeletons(Scene scene)
     {
+        CollectJointIndices();
         SkeletonBone[] result = new SkeletonBone[_doc.Skins.Count];
-
-        for (int skinIdx = 0; skinIdx < _doc.Skins.Count; skinIdx++)
+        foreach (int nodeIndex in _jointIndices)
         {
-            GltfSkin skin = _doc.Skins[skinIdx];
-            string skelName = skin.Name ?? $"Skeleton_{skinIdx}";
-
-            SkeletonBone? rootBone = null;
-
-            // Read inverse bind matrices
-            Matrix4x4[]? ibms = null;
-            if (skin.InverseBindMatrices >= 0)
-            {
-                float[] ibmData = _doc.ReadAccessorAsFloats(skin.InverseBindMatrices);
-                ibms = new Matrix4x4[skin.Joints.Length];
-                for (int j = 0; j < skin.Joints.Length; j++)
-                {
-                    int offset = j * 16;
-                    ibms[j] = ReadMatrix4x4(ibmData, offset);
-                }
-            }
-
-            // Create bones for each joint
-            // First pass: create all bones
-            Dictionary<int, SkeletonBone> bonesByNodeIdx = [];
-            for (int j = 0; j < skin.Joints.Length; j++)
-            {
-                int nodeIdx = skin.Joints[j];
-                GltfNode jointNode = _doc.Nodes[nodeIdx];
-                string boneName = jointNode.Name ?? $"Bone_{j}";
-
-                SkeletonBone bone = new(boneName);
-                ApplyNodeTransform(jointNode, bone.BindTransform);
-
-                bonesByNodeIdx[nodeIdx] = bone;
-                _jointBones[nodeIdx] = bone;
-            }
-
-            // Second pass: build parent-child hierarchy
-            HashSet<int> jointIndices = [.. skin.Joints];
-            foreach (int nodeIdx in skin.Joints)
-            {
-                SkeletonBone bone = bonesByNodeIdx[nodeIdx];
-
-                // Find parent in the joint set
-                int? parentNodeIdx = FindParentJoint(nodeIdx, jointIndices);
-
-                if (parentNodeIdx.HasValue && bonesByNodeIdx.TryGetValue(parentNodeIdx.Value, out SkeletonBone? parentBone))
-                {
-                    parentBone.AddNode(bone);
-                }
-                else
-                {
-                    // Root bone
-                    if (rootBone == null)
-                        rootBone = bone;
-                    scene.RootNode.AddNode(bone);
-                }
-            }
-
-            result[skinIdx] = rootBone
-                ?? throw new InvalidDataException($"glTF skin '{skelName}' does not contain a root joint.");
+            _cancellationToken.ThrowIfCancellationRequested();
+            if ((uint)nodeIndex >= (uint)_doc.Nodes.Count)
+                throw new InvalidDataException("Invalid glTF joint index.");
+            _jointBones[nodeIndex] = new SkeletonBone(_doc.Nodes[nodeIndex].Name ?? $"Bone_{nodeIndex}");
         }
 
+        for (int skinIndex = 0; skinIndex < _doc.Skins.Count; skinIndex++)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            GltfSkin skin = _doc.Skins[skinIndex];
+            if (skin.Joints.Length == 0)
+                throw new InvalidDataException("A glTF skin must contain unique joints.");
+            Skeleton container = new(skin.Name ?? $"Skeleton_{skinIndex}");
+            foreach (int nodeIndex in skin.Joints)
+            {
+                SkeletonBone bone	= _jointBones[nodeIndex];
+                int? parentIndex	= FindParentJoint(nodeIndex, _jointIndices);
+                Matrix4x4 matrix	= GetNodeWorldMatrix(nodeIndex);
+                if (parentIndex is int parent)
+                {
+                    if (!Matrix4x4.Invert(GetNodeWorldMatrix(parent), out Matrix4x4 inverse))
+                        throw new InvalidDataException("Singular glTF joint transform.");
+                    matrix *= inverse;
+                }
+                bone.BindTransform = SkeletonExportTransforms.DecomposeMatrix(matrix);
+                if (bone.Parent is null)
+                    (parentIndex is int index ? (SceneNode)_jointBones[index] : container).AddNode(bone);
+            }
+            if (container.Children is { Count: > 0 })
+            {
+                container.Name = $"{container.Name}_{skinIndex}";
+                scene.RootNode.AddNode(container);
+            }
+            result[skinIndex] = _jointBones[skin.Joints[0]];
+        }
         return result;
     }
 
@@ -712,34 +624,23 @@ public sealed class GltfReader
     /// <param name="mesh">The mesh to apply skinning to.</param>
     public void SetupSkinning(GltfSkin skin, GltfMeshPrimitive prim, Mesh mesh)
     {
-        List<SkeletonBone> bones = [];
-        List<Matrix4x4> ibmList = [];
-
-        // Read inverse bind matrices
-        Matrix4x4[]? ibms = null;
+        SkeletonBone[] bones	= new SkeletonBone[skin.Joints.Length];
+        Matrix4x4[] matrices	= new Matrix4x4[skin.Joints.Length];
+        float[]? values			= null;
         if (skin.InverseBindMatrices >= 0)
         {
-            float[] ibmData = _doc.ReadAccessorAsFloats(skin.InverseBindMatrices);
-            ibms = new Matrix4x4[skin.Joints.Length];
-            for (int j = 0; j < skin.Joints.Length; j++)
-                ibms[j] = ReadMatrix4x4(ibmData, j * 16);
+            GltfAccessor accessor = _doc.Accessors[skin.InverseBindMatrices];
+            if (accessor.Type != "MAT4" || accessor.Count != bones.Length)
+                throw new InvalidDataException("Invalid glTF inverse bind matrix shape.");
+            values = _doc.ReadAccessorAsFloats(skin.InverseBindMatrices);
         }
-
-        for (int j = 0; j < skin.Joints.Length; j++)
+        for (int i = 0; i < bones.Length; i++)
         {
-            int nodeIdx = skin.Joints[j];
-            if (_jointBones.TryGetValue(nodeIdx, out SkeletonBone? bone))
-            {
-                bones.Add(bone);
-                ibmList.Add(ibms is not null ? ibms[j] : Matrix4x4.Identity);
-            }
+            bones[i]	= _jointBones[skin.Joints[i]];
+            matrices[i]	= values is null ? Matrix4x4.Identity : ReadMatrix4x4(values, i * 16);
         }
-
-        if (bones.Count > 0 && ReadSkinInfluences(prim) is var (boneIndices, boneWeights))
-            mesh.Skin = new Skin(bones, boneIndices, boneWeights, ibmList)
-            {
-                Name = skin.Name,
-            };
+        if (ReadSkinInfluences(prim) is var (boneIndices, boneWeights))
+            mesh.Skin = new Skin(bones, boneIndices, boneWeights, matrices) { Name = skin.Name };
     }
 
     /// <summary>
@@ -751,10 +652,10 @@ public sealed class GltfReader
     {
         for (int animIdx = 0; animIdx < _doc.Animations.Count; animIdx++)
         {
-            GltfAnimation gltfAnim = _doc.Animations[animIdx];
-            string animName = gltfAnim.Name ?? $"Animation_{animIdx}";
+            _cancellationToken.ThrowIfCancellationRequested();
+            GltfAnimation gltfAnim	= _doc.Animations[animIdx];
+            string animName			= gltfAnim.Name ?? $"Animation_{animIdx}";
 
-            SkeletonBone? targetBone = skeletons.Length > 0 ? skeletons[0] : null;
             const float frameRate = 30f;
 
             SkeletonAnimation anim = new(animName)
@@ -764,7 +665,6 @@ public sealed class GltfReader
                 TransformSpace = TransformSpace.Local,
             };
 
-            // Group channels by target node
             Dictionary<int, SkeletonAnimationTrack> tracksByNode = [];
 
             foreach (GltfAnimationChannel channel in gltfAnim.Channels)
@@ -772,16 +672,26 @@ public sealed class GltfReader
                 if (channel.TargetNode < 0) continue;
 
                 GltfAnimationSampler sampler = gltfAnim.Samplers[channel.Sampler];
+                if (sampler.Interpolation != GltfConstants.InterpolationLinear)
+                    throw new NotSupportedException($"glTF interpolation '{sampler.Interpolation}' is not supported.");
 
-                // Read keyframe times
-                float[] times = _doc.ReadAccessorAsFloats(sampler.Input);
-                float[] values = _doc.ReadAccessorAsFloats(sampler.Output);
+                GltfAccessor input	= _doc.Accessors[sampler.Input];
+                GltfAccessor output	= _doc.Accessors[sampler.Output];
+                string shape		= channel.TargetPath switch
+                {
+                    GltfConstants.PathTranslation or GltfConstants.PathScale => "VEC3",
+                    GltfConstants.PathRotation => "VEC4",
+                    _ => throw new NotSupportedException($"glTF animation path '{channel.TargetPath}' is not supported."),
+                };
+                if (input.Type != "SCALAR" || input.ComponentType != GltfConstants.ComponentTypeFloat || output.Type != shape || output.Count != input.Count)
+                    throw new InvalidDataException("Invalid glTF animation accessor shape.");
+                float[] times	= _doc.ReadAccessorAsFloats(sampler.Input);
+                float[] values	= _doc.ReadAccessorAsFloats(sampler.Output);
 
-                // Get or create track for this node
                 if (!tracksByNode.TryGetValue(channel.TargetNode, out SkeletonAnimationTrack? track))
                 {
-                    GltfNode targetNode = _doc.Nodes[channel.TargetNode];
-                    string trackName = targetNode.Name ?? $"Node_{channel.TargetNode}";
+                    GltfNode targetNode	= _doc.Nodes[channel.TargetNode];
+                    string trackName	= targetNode.Name ?? $"Node_{channel.TargetNode}";
                     track = new SkeletonAnimationTrack(trackName)
                     {
                         TransformSpace = TransformSpace.Local,
@@ -790,16 +700,13 @@ public sealed class GltfReader
                     tracksByNode[channel.TargetNode] = track;
                 }
 
-                // Handle cubic spline: take only the main value (skip in/out tangents)
-                bool isCubicSpline = sampler.Interpolation == GltfConstants.InterpolationCubicSpline;
-
                 switch (channel.TargetPath)
                 {
                     case GltfConstants.PathTranslation:
                         for (int k = 0; k < times.Length; k++)
                         {
-                            int offset = isCubicSpline ? (k * 9 + 3) : (k * 3);
-                            Vector3 translation = new(values[offset], values[offset + 1], values[offset + 2]);
+                            int offset			= k * 3;
+                            Vector3 translation	= new(values[offset], values[offset + 1], values[offset + 2]);
                             track.AddTranslationFrame(times[k] * frameRate, translation);
                         }
                         break;
@@ -807,8 +714,8 @@ public sealed class GltfReader
                     case GltfConstants.PathRotation:
                         for (int k = 0; k < times.Length; k++)
                         {
-                            int offset = isCubicSpline ? (k * 12 + 4) : (k * 4);
-                            Quaternion rotation = new(values[offset], values[offset + 1], values[offset + 2], values[offset + 3]);
+                            int offset			= k * 4;
+                            Quaternion rotation	= new(values[offset], values[offset + 1], values[offset + 2], values[offset + 3]);
                             track.AddRotationFrame(times[k] * frameRate, rotation);
                         }
                         break;
@@ -816,15 +723,14 @@ public sealed class GltfReader
                     case GltfConstants.PathScale:
                         for (int k = 0; k < times.Length; k++)
                         {
-                            int offset = isCubicSpline ? (k * 9 + 3) : (k * 3);
-                            Vector3 scale = new(values[offset], values[offset + 1], values[offset + 2]);
+                            int offset		= k * 3;
+                            Vector3 scale	= new(values[offset], values[offset + 1], values[offset + 2]);
                             track.AddScaleFrame(times[k] * frameRate, scale);
                         }
                         break;
                 }
             }
 
-            // Add tracks to animation
             foreach (SkeletonAnimationTrack track in tracksByNode.Values)
                 anim.Tracks.Add(track);
 
@@ -840,16 +746,14 @@ public sealed class GltfReader
     /// <param name="transform">The target transform to apply the node's transformation to.</param>
     public static void ApplyNodeTransform(GltfNode node, Transform transform)
     {
+        if (node.Matrix is not null && node.Matrix.Length != 16 || node.Translation is not null && node.Translation.Length != 3 || node.Rotation is not null && node.Rotation.Length != 4 || node.Scale is not null && node.Scale.Length != 3)
+            throw new InvalidDataException("Invalid glTF transform shape.");
         if (node.Matrix is { Length: 16 })
         {
-            // Decompose column-major matrix into TRS
-            Matrix4x4 mat = ReadMatrix4x4(node.Matrix, 0);
-            if (Matrix4x4.Decompose(mat, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
-            {
-                transform.SetLocalPosition(translation);
-                transform.SetLocalRotation(rotation);
-                transform.Scale = scale;
-            }
+            SkeletonExportTransforms.DecomposeMatrix(ReadMatrix4x4(node.Matrix, 0), out Vector3 scale, out Quaternion rotation, out Vector3 position);
+            transform.SetLocalPosition(position);
+            transform.SetLocalRotation(rotation);
+            transform.Scale = scale;
         }
         else
         {
@@ -870,14 +774,12 @@ public sealed class GltfReader
     /// <returns>A <see cref="Matrix4x4"/> in row-major (.NET) format.</returns>
     public static Matrix4x4 ReadMatrix4x4(float[] data, int offset)
     {
-        // glTF stores column-major: [col0.x, col0.y, col0.z, col0.w, col1.x, ...]
-        // .NET Matrix4x4 constructor is row-major: (m11, m12, m13, m14, m21, ...)
-        return new Matrix4x4(data[offset + 0], data[offset + 4], data[offset + 8], data[offset + 12], data[offset + 1], data[offset + 5], data[offset + 9], data[offset + 13], data[offset + 2], data[offset + 6], data[offset + 10], data[offset + 14], data[offset + 3], data[offset + 7], data[offset + 11], data[offset + 15]);
+
+        return new Matrix4x4(data[offset], data[offset + 1], data[offset + 2], data[offset + 3], data[offset + 4], data[offset + 5], data[offset + 6], data[offset + 7], data[offset + 8], data[offset + 9], data[offset + 10], data[offset + 11], data[offset + 12], data[offset + 13], data[offset + 14], data[offset + 15]);
     }
 
     /// <summary>
-    /// Resolves buffer data for all buffers in the document using external URIs
-    /// or data URIs.
+    /// Resolves buffer data for all buffers in the document using external URIs or data URIs.
     /// </summary>
     /// <param name="doc">The glTF document whose buffers need to be resolved.</param>
     /// <param name="baseDirectory">The base directory for resolving relative buffer URIs, or <see langword="null"/> if external resolution is not available.</param>
@@ -893,7 +795,7 @@ public sealed class GltfReader
 
             if (buffer.Uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
-                // Data URI: data:application/octet-stream;base64,...
+
                 int commaIdx = buffer.Uri.IndexOf(',');
                 if (commaIdx >= 0)
                 {
@@ -927,12 +829,114 @@ public sealed class GltfReader
         }
     }
 
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Read(Scene scene, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        _cancellationToken = token;
+        MeshGroup model = scene.RootNode.AddNode<MeshGroup>(_name);
+
+        Material[] materials = BuildMaterials(model);
+
+        SkeletonBone[] skeletons = BuildSkeletons(scene);
+
+        int[] rootNodes			= GetSceneRootNodes();
+        int meshCounter			= 0;
+        HashSet<string> names	= new(model.EnumerateChildren().Select(static node => node.Name), StringComparer.OrdinalIgnoreCase);
+        foreach (int nodeIdx in rootNodes)
+        {
+            _cancellationToken.ThrowIfCancellationRequested();
+            ProcessNodeForMeshes(nodeIdx, model, materials, skeletons, ref meshCounter, names);
+        }
+
+        BuildAnimations(scene, skeletons);
+    }
+
+    private void ProcessNodeForMeshes(int nodeIdx, MeshGroup model, Material[] materials, SkeletonBone[] skeletons, ref int meshCounter, HashSet<string> names)
+    {
+        if (nodeIdx < 0 || nodeIdx >= _doc.Nodes.Count) return;
+
+        GltfNode node = _doc.Nodes[nodeIdx];
+
+        if (node.Mesh >= 0 && node.Mesh < _doc.Meshes.Count)
+        {
+            GltfMesh gltfMesh = _doc.Meshes[node.Mesh];
+
+            GltfSkin? skin	= null;
+            int skinIdx		= -1;
+            if (node.Skin >= 0 && node.Skin < _doc.Skins.Count)
+            {
+                skinIdx	= node.Skin;
+                skin	= _doc.Skins[skinIdx];
+            }
+
+            for (int primIdx = 0; primIdx < gltfMesh.Primitives.Count; primIdx++)
+            {
+                GltfMeshPrimitive prim = gltfMesh.Primitives[primIdx];
+
+                if (prim.Mode != GltfConstants.ModeTriangles)
+                    continue;
+
+                string meshName = gltfMesh.Name ?? $"Mesh_{meshCounter}";
+                if (gltfMesh.Primitives.Count > 1)
+                    meshName = $"{meshName}_{primIdx}";
+
+                while (!names.Add(meshName))
+                    meshName = $"{meshName}_{meshCounter}";
+
+                Mesh mesh = model.AddNode<Mesh>(meshName);
+                meshCounter++;
+
+                Transform worldTransform = SkeletonExportTransforms.DecomposeMatrix(GetNodeWorldMatrix(nodeIdx));
+                mesh.BindTransform = worldTransform;
+
+                ReadPrimitiveAttributes(prim, mesh);
+
+                if (prim.Indices >= 0)
+                    ReadFaceIndices(prim.Indices, mesh);
+
+                if (prim.Material != -1)
+                    mesh.Materials = [materials[prim.Material]];
+
+                if (prim.Targets is { Count: > 0 })
+                    ReadMorph(gltfMesh, prim.Targets, mesh);
+
+                if (skin is not null && skinIdx >= 0 && skinIdx < skeletons.Length)
+                    SetupSkinning(skin, prim, mesh);
+            }
+        }
+
+        if (node.Children is not null)
+        {
+            foreach (int childIdx in node.Children)
+                ProcessNodeForMeshes(childIdx, model, materials, skeletons, ref meshCounter, names);
+        }
+    }
+
+    private Matrix4x4 GetNodeWorldMatrix(int nodeIndex)
+    {
+        if (_nodeWorldMatrices.TryGetValue(nodeIndex, out Matrix4x4 matrix))
+            return matrix;
+        Transform transform = new();
+        ApplyNodeTransform(_doc.Nodes[nodeIndex], transform);
+        matrix = Matrix4x4.CreateScale(transform.Scale ?? Vector3.One) * Matrix4x4.CreateFromQuaternion(transform.LocalRotation ?? Quaternion.Identity) * Matrix4x4.CreateTranslation(transform.LocalPosition ?? Vector3.Zero);
+        if (_parentByNode.TryGetValue(nodeIndex, out int parent))
+            matrix *= GetNodeWorldMatrix(parent);
+        _nodeWorldMatrices[nodeIndex] = matrix;
+        return matrix;
+    }
+
     private int? FindParentJoint(int nodeIdx, IReadOnlySet<int> jointSet)
     {
-        // Walk up the glTF node tree to find a parent that's also a joint
+
         int? parentIdx = FindParentNode(nodeIdx);
         while (parentIdx.HasValue)
         {
+            _cancellationToken.ThrowIfCancellationRequested();
             if (jointSet.Contains(parentIdx.Value))
                 return parentIdx.Value;
             parentIdx = FindParentNode(parentIdx.Value);

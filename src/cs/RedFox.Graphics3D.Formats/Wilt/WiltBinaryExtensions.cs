@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text;
 using RedFox.Graphics3D.Buffers;
 using RedFox.IO;
@@ -64,7 +65,15 @@ internal static class WiltBinaryExtensions
         writer.Write(bytes);
     }
 
-    public static string ReadWiltString(this BinaryReader reader) => Encoding.UTF8.GetString(reader.ReadBytes(checked((int)reader.ReadUInt32())));
+    public static string ReadWiltString(this BinaryReader reader)
+    {
+        uint count = reader.ReadUInt32();
+        if (count > int.MaxValue || count > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid Wilt string length.");
+        byte[] data = new byte[(int)count];
+        reader.BaseStream.ReadExactly(data);
+        return Encoding.UTF8.GetString(data);
+    }
 
     public static void WriteWiltValue(this BinaryWriter writer, object? value)
     {
@@ -164,9 +173,9 @@ internal static class WiltBinaryExtensions
         if (type == WiltBufferType.None)
             return null;
 
-        int componentCount	= reader.ReadByte();
-        int valueCount		= reader.ReadUInt16();
-        int elementCount	= checked((int)reader.ReadUInt32());
+        int	componentCount	= reader.ReadByte();
+        int	valueCount		= reader.ReadUInt16();
+        int	elementCount	= checked((int)reader.ReadUInt32());
 
         return type switch
         {
@@ -200,7 +209,9 @@ internal static class WiltBinaryExtensions
 
     private static DataBuffer<T> ReadBuffer<T>(BinaryReader reader, int elementCount, int valueCount, int componentCount) where T : unmanaged, INumber<T>
     {
-        T[] values = new T[elementCount * valueCount * componentCount];
+        if (elementCount < 0 || valueCount <= 0 || componentCount <= 0 || (long)elementCount * valueCount > int.MaxValue / componentCount || (long)elementCount * valueCount * componentCount > (reader.BaseStream.Length - reader.BaseStream.Position) / Unsafe.SizeOf<T>())
+            throw new InvalidDataException("Invalid Wilt buffer dimensions.");
+        T[] values = new T[checked(elementCount * valueCount * componentCount)];
         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(values.AsSpan()));
         return new DataBuffer<T>(values, valueCount, componentCount);
     }

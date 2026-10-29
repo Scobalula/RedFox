@@ -2,7 +2,6 @@ namespace RedFox.Graphics3D.Formats.ActorX;
 
 /// <summary>
 /// The 32-byte header that precedes every data chunk in an ActorX PSK/PSKX or PSA file.
-/// It identifies the chunk, the size of a single record, and the number of records that follow.
 /// </summary>
 public struct ActorXChunkHeader
 {
@@ -29,13 +28,31 @@ public struct ActorXChunkHeader
     /// </summary>
     /// <param name="reader">The source reader.</param>
     /// <returns>The decoded header.</returns>
-    public static ActorXChunkHeader Read(BinaryReader reader) => new()
+    public static ActorXChunkHeader Read(BinaryReader reader)
     {
-        ChunkId = ActorXBinary.ReadFixedString(reader, IdLength),
-        TypeFlag = reader.ReadInt32(),
-        DataSize = reader.ReadInt32(),
-        DataCount = reader.ReadInt32(),
-    };
+        ActorXChunkHeader chunk = new()
+        {
+            ChunkId		= ActorXBinary.ReadFixedString(reader, IdLength),
+            TypeFlag	= reader.ReadInt32(),
+            DataSize	= reader.ReadInt32(),
+            DataCount	= reader.ReadInt32(),
+        };
+        int expectedSize = chunk.ChunkId switch
+        {
+            ActorXChunkId.MeshHeader or ActorXChunkId.AnimationHeader			 => 0,
+            ActorXChunkId.Points or ActorXChunkId.Faces or ActorXChunkId.Weights => 12,
+            ActorXChunkId.Wedges or ActorXChunkId.WedgesExtended				 => 16,
+            ActorXChunkId.FacesExtended											 => 18,
+            ActorXChunkId.Materials												 => 88,
+            ActorXChunkId.Bones or ActorXChunkId.BoneNames						 => 120,
+            ActorXChunkId.AnimationInfo											 => 168,
+            ActorXChunkId.AnimationKeys											 => 32,
+            _																	 => chunk.DataSize,
+        };
+        if (chunk.DataSize < 0 || chunk.DataCount < 0 || chunk.DataSize != expectedSize || chunk.BodySize > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid ActorX chunk dimensions.");
+        return chunk;
+    }
 
     /// <summary>
     /// Writes a chunk header to the supplied writer.

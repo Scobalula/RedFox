@@ -4,32 +4,6 @@ namespace RedFox.Graphics3D.Formats.StudioMDL;
 
 /// <summary>
 /// Provides reading and writing of Valve SMD (<c>.smd</c>) scene files.
-/// <para>
-/// Two SMD sub-formats are supported:
-/// </para>
-/// <list type="bullet">
-///   <item>
-///     <description>
-///       <b>Reference SMD</b> — contains a skeleton bind pose and triangle mesh data.
-///       When a scene contains <see cref="Mesh"/> nodes the writer produces this format
-///       (a <c>nodes</c> section, a single <c>time 0</c> skeleton section, and a
-///       <c>triangles</c> section).
-///     </description>
-///   </item>
-///   <item>
-///     <description>
-///       <b>Sequence (animation) SMD</b> — contains only a skeleton and per-frame bone
-///       transforms. When a scene contains a <see cref="Skeletal.SkeletonAnimation"/> but no meshes
-///       the writer produces this format.
-///     </description>
-///   </item>
-/// </list>
-/// <para>
-/// On reading, the translator detects the sub-format automatically: a file with a
-/// <c>triangles</c> section is treated as a reference SMD while a file whose
-/// <c>skeleton</c> section contains more than one <c>time</c> frame is treated as a
-/// sequence SMD (both may also be present in the same file).
-/// </para>
 /// </summary>
 public sealed class SmdTranslator : SceneTranslator
 {
@@ -68,8 +42,9 @@ public sealed class SmdTranslator : SceneTranslator
     /// </param>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var reader = new SmdReader(stream, context.Name, context.Options);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <summary>
@@ -89,7 +64,8 @@ public sealed class SmdTranslator : SceneTranslator
     /// </param>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var writer = new SmdWriter(stream, context.Name, context.Options);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

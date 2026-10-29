@@ -11,21 +11,6 @@ namespace RedFox.Graphics3D.IO;
 /// </summary>
 public sealed class SceneReadContext
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SceneReadContext"/> class.
-    /// </summary>
-    /// <param name="target">The scene the staged nodes are committed into.</param>
-    /// <param name="merge">The options controlling duplicate detection and resolution.</param>
-    public SceneReadContext(Scene target, SceneMergeOptions merge)
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        ArgumentNullException.ThrowIfNull(merge);
-
-        Target = target;
-        Merge = merge;
-        Staging = new Scene(target.Name);
-        Staging.ImageTranslators.RegisterRange(target.ImageTranslators.Translators);
-    }
 
     /// <summary>
     /// Gets the scene the staged nodes are committed into.
@@ -41,6 +26,21 @@ public sealed class SceneReadContext
     /// Gets the options controlling duplicate detection and resolution.
     /// </summary>
     public SceneMergeOptions Merge { get; }
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SceneReadContext"/> class.
+    /// </summary>
+    /// <param name="target">The scene the staged nodes are committed into.</param>
+    /// <param name="merge">The options controlling duplicate detection and resolution.</param>
+    public SceneReadContext(Scene target, SceneMergeOptions merge)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentNullException.ThrowIfNull(merge);
+
+        Target	= target;
+        Merge	= merge;
+        Staging	= new Scene(target.Name);
+        Staging.ImageTranslators.RegisterRange(target.ImageTranslators.Translators);
+    }
 
     /// <summary>
     /// Commits the staged nodes into the target scene. When the target scene is empty,
@@ -49,14 +49,14 @@ public sealed class SceneReadContext
     public void Commit()
     {
         bool targetIsEmpty = Target.RootNode.Children is null or { Count: 0 };
+        SceneMerger.MergeChildren(Target.RootNode, Staging.RootNode, Merge);
+
         if (targetIsEmpty)
         {
             Target.Name = Staging.Name;
             Target.UpAxis = Staging.UpAxis;
             Target.Attributes = Staging.Attributes;
         }
-
-        SceneMerger.MergeChildren(Target.RootNode, Staging.RootNode, Merge);
 
         if (Staging.AnimationPlayers.Count > 0)
         {

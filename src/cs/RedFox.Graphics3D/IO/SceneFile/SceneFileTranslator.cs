@@ -1,4 +1,5 @@
 using System.Text;
+using RedFox.IO;
 using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.Skeletal;
 
@@ -47,11 +48,11 @@ public sealed class SceneFileTranslator : SceneTranslator
         RegisterNodeType("Camera",				() => new Camera());
         RegisterNodeType("Hair",				() => new Hair());
         RegisterNodeType("SceneReference",		() => new SceneReference(string.Empty, string.Empty));
-        RegisterNodeType("OrientConstraint",	() => new OrientConstraintNode(string.Empty, null!, null!));
-        RegisterNodeType("ParentConstraint",	() => new ParentConstraintNode(string.Empty, null!, null!));
-        RegisterNodeType("PointConstraint",		() => new PointConstraintNode(string.Empty, null!, null!));
-        RegisterNodeType("ScaleConstraint",		() => new ScaleConstraintNode(string.Empty, null!, null!));
-        RegisterNodeType("IKHandle",			() => new IKHandleNode(string.Empty, null!, null!));
+        RegisterNodeType("OrientConstraint",	() => new OrientConstraintNode(string.Empty, new Group(), new Group()));
+        RegisterNodeType("ParentConstraint",	() => new ParentConstraintNode(string.Empty, new Group(), new Group()));
+        RegisterNodeType("PointConstraint",		() => new PointConstraintNode(string.Empty, new Group(), new Group()));
+        RegisterNodeType("ScaleConstraint",		() => new ScaleConstraintNode(string.Empty, new Group(), new Group()));
+        RegisterNodeType("IKHandle",			() => new IKHandleNode(string.Empty, new Group(), new Group()));
         RegisterNodeType("SkeletonAnimation",	() => new SkeletonAnimation());
         RegisterNodeType("MorphAnimation",		() => new MorphAnimation(string.Empty));
     }
@@ -71,6 +72,7 @@ public sealed class SceneFileTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         using BinaryReader reader = new(stream, Encoding.UTF8, true);
 
         if (!reader.ReadBytes(MagicValue.Length).AsSpan().SequenceEqual(MagicValue))
@@ -82,7 +84,11 @@ public sealed class SceneFileTranslator : SceneTranslator
         if (majorVersion != MajorVersion)
             throw new InvalidDataException($"Unsupported RedFox Scene version: {majorVersion}.");
 
-        SceneNode[]	nodes			= new SceneNode[reader.ReadInt32()];
+        int count = reader.ReadInt32();
+        if (count < 0 || count > stream.Length - stream.Position)
+            throw new InvalidDataException("Invalid scene node count.");
+
+        SceneNode[]	nodes			= new SceneNode[count];
         int[]		parentIndices	= new int[nodes.Length];
 
         for (int i = 0; i < nodes.Length; i++)
@@ -91,6 +97,27 @@ public sealed class SceneFileTranslator : SceneTranslator
             parentIndices[i]	= reader.ReadInt32();
         }
 
+        byte[] states = new byte[nodes.Length];
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            int current = i;
+            while (current != -1 && states[current] == 0)
+            {
+                states[current] = 1;
+                int parent = parentIndices[current];
+                if (parent < -1 || parent >= nodes.Length)
+                    throw new InvalidDataException("Invalid scene parent index.");
+                current = parent;
+            }
+            if (current != -1 && states[current] == 1)
+                throw new InvalidDataException("Cyclic scene hierarchy.");
+            current = i;
+            while (current != -1 && states[current] == 1)
+            {
+                states[current]	= 2;
+                current			= parentIndices[current];
+            }
+        }
         scene.LinkHierarchyUnsafe(nodes, parentIndices);
 
         ReadRecord(reader, scene, nodes);
@@ -105,6 +132,7 @@ public sealed class SceneFileTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         List<SceneNode> nodes = [];
         CollectNodes(scene, nodes);
 
@@ -122,7 +150,7 @@ public sealed class SceneFileTranslator : SceneTranslator
 
         foreach (SceneNode node in nodes)
         {
-            writer.Write(GetTypeName(node.GetType())!);
+            writer.Write(GetTypeName(node.GetType()));
             writer.Write(node.Parent is { } parent && nodeIndices.TryGetValue(parent, out int parentIndex) ? parentIndex : -1);
         }
 
@@ -142,15 +170,12 @@ public sealed class SceneFileTranslator : SceneTranslator
 
         foreach (SceneNode child in parent.Children)
         {
-            if (GetTypeName(child.GetType()) is null)
-                continue;
-
             nodes.Add(child);
             CollectNodes(child, nodes);
         }
     }
 
-    private string? GetTypeName(Type? type)
+    private string GetTypeName(Type? type)
     {
         while (type is not null)
         {
@@ -160,16 +185,21 @@ public sealed class SceneFileTranslator : SceneTranslator
             type = type.BaseType;
         }
 
-        return null;
+        return "Group";
     }
 
     private static void ReadRecord(BinaryReader reader, SceneNode node, IReadOnlyList<SceneNode> nodes)
     {
-        int		size	= reader.ReadInt32();
-        long	end		= reader.BaseStream.Position + size;
-
-        node.Read(reader, nodes);
-        reader.BaseStream.Position = end;
+        int size	= reader.ReadInt32();
+        long start	= reader.BaseStream.Position;
+        if (size < 0 || size > reader.BaseStream.Length - start)
+            throw new InvalidDataException("Invalid scene record length.");
+        using SubStream record = new(reader.BaseStream, start, size, true);
+        using BinaryReader recordReader = new(record, Encoding.UTF8, true);
+        node.Read(recordReader, nodes);
+        if (record.Position > record.Length)
+            throw new InvalidDataException("Scene record exceeded its boundary.");
+        reader.BaseStream.Position = start + size;
     }
 
     private static void WriteRecord(BinaryWriter writer, SceneNode node, IReadOnlyDictionary<SceneNode, int> nodeIndices)
@@ -181,7 +211,7 @@ public sealed class SceneFileTranslator : SceneTranslator
 
         long end = writer.BaseStream.Position;
         writer.BaseStream.Position = sizePosition;
-        writer.Write((int)(end - sizePosition - sizeof(int)));
+        writer.Write(checked((int)(end - sizePosition - sizeof(int))));
         writer.BaseStream.Position = end;
     }
 }

@@ -1,6 +1,7 @@
 using System.Numerics;
 using CallOfFile;
 using RedFox.Graphics3D.IO;
+using RedFox.Graphics3D.Buffers;
 
 namespace RedFox.Graphics3D.Formats.IwEngine;
 
@@ -10,6 +11,7 @@ internal static class XModelWriter
 
     public static void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? cancellationToken)
     {
+        cancellationToken?.ThrowIfCancellationRequested();
         SceneTranslationSelection selection = context.GetSelection(scene);
 
         Mesh[] meshes = selection.GetDescendants<Mesh>();
@@ -28,33 +30,57 @@ internal static class XModelWriter
             boneIndices.Add(bones[i], i);
 
         List<Material> materialList = [];
+        Dictionary<Material, int> materialIndices = [];
+        Dictionary<Mesh, int[]> materialRangeOrders = [];
+        bool needsDefaultMaterial = false;
 
         foreach (Mesh mesh in meshes)
         {
-            if (mesh.Materials is null)
+            if (mesh.MaterialIndexRanges is { Count: > 0 } ranges)
+            {
+                if (ranges.Count != mesh.Materials?.Count)
+                    throw new InvalidDataException("Inconsistent XModel material ranges.");
+                int[] order = Enumerable.Range(0, ranges.Count).ToArray();
+                Array.Sort(order, (a, b) => ranges[a].StartIndex.CompareTo(ranges[b].StartIndex));
+                int cursor = 0;
+                foreach (int index in order)
+                {
+                    (int start, int count) = ranges[index];
+                    if (start < cursor || count < 0 || start % 3 != 0 || count % 3 != 0 || (long)start + count > mesh.IndexCount)
+                        throw new InvalidDataException("Invalid XModel material range.");
+                    needsDefaultMaterial |= start > cursor;
+                    cursor = start + count;
+                }
+                needsDefaultMaterial |= cursor < mesh.IndexCount;
+                materialRangeOrders.Add(mesh, order);
+            }
+            if (mesh.Materials is not { Count: > 0 })
+            {
+                needsDefaultMaterial = true;
                 continue;
-
+            }
             foreach (Material material in mesh.Materials)
             {
-                if (!materialList.Contains(material))
+                if (!selection.Includes(material))
+                    throw new InvalidDataException($"XModel mesh '{mesh.Name}' references a filtered material.");
+                if (materialIndices.TryAdd(material, materialList.Count))
                     materialList.Add(material);
             }
         }
 
-        if (materialList.Count == 0)
+        int defaultMaterialIndex = 0;
+        if (needsDefaultMaterial || materialList.Count == 0)
+        {
+            defaultMaterialIndex = materialList.Count;
             materialList.Add(new Material("default"));
+        }
         if (materialList.Count > ushort.MaxValue || meshes.Length > ushort.MaxValue)
             throw new NotSupportedException("XModel does not support more than 65535 materials or objects.");
 
-        Dictionary<Material, int> materialIndices = [];
-
-        for (int i = 0; i < materialList.Count; i++)
-            materialIndices.Add(materialList[i], i);
-
         List<(Mesh Mesh, int BaseVertex)> meshVertices = [];
 
-        int vertexCount = 0;
-        int faceCount = 0;
+        int vertexCount	= 0;
+        int faceCount	= 0;
 
         foreach (Mesh mesh in meshes)
         {
@@ -98,8 +124,8 @@ internal static class XModelWriter
         {
             cancellationToken?.ThrowIfCancellationRequested();
 
-            Matrix4x4 rotation = Matrix4x4.CreateFromQuaternion(bones[i].GetActiveWorldRotation());
-            Vector3 scale = bones[i].BindTransform.Scale ?? Vector3.One;
+            Matrix4x4 rotation	= Matrix4x4.CreateFromQuaternion(bones[i].GetActiveWorldRotation());
+            Vector3 scale		= bones[i].BindTransform.Scale ?? Vector3.One;
 
             writer.WriteUShort("BONE", checked((ushort)i));
             writer.WriteVector3("OFFSET", bones[i].GetActiveWorldPosition());
@@ -120,9 +146,10 @@ internal static class XModelWriter
         List<(int BoneIndex, float Weight)> weights = [];
         foreach ((Mesh mesh, int baseVertex) in meshVertices)
         {
-            int[] skinBoneIndices = GetSkinBoneIndices(mesh, boneIndices);
-            Matrix4x4[] skinTransforms = [];
-            Matrix4x4[] normalTransforms = [];
+            DataBuffer positions			= mesh.Positions ?? throw new InvalidDataException("Missing XModel positions.");
+            int[] skinBoneIndices			= GetSkinBoneIndices(mesh, boneIndices);
+            Matrix4x4[] skinTransforms		= [];
+            Matrix4x4[] normalTransforms	= [];
             if (!context.Options.WriteRawVertices && mesh.Skin is { } skin)
             {
                 skinTransforms = new Matrix4x4[skin.Bones.Count];
@@ -133,7 +160,7 @@ internal static class XModelWriter
             }
             skinTransformsByMesh[mesh] = (skinTransforms, normalTransforms);
 
-            for (int vertexIndex = 0; vertexIndex < mesh.Positions!.ElementCount; vertexIndex++)
+            for (int vertexIndex = 0; vertexIndex < positions.ElementCount; vertexIndex++)
             {
                 cancellationToken?.ThrowIfCancellationRequested();
                 weights.Clear();
@@ -153,22 +180,45 @@ internal static class XModelWriter
         for (int objectIndex = 0; objectIndex < meshVertices.Count; objectIndex++)
         {
             (Mesh mesh, int baseVertex) = meshVertices[objectIndex];
+            DataBuffer positions					= mesh.Positions ?? throw new InvalidDataException("Missing XModel positions.");
+            DataBuffer faceIndices					= mesh.FaceIndices ?? throw new InvalidDataException("Missing XModel face indices.");
+            IReadOnlyList<Material> meshMaterials	= mesh.Materials is { } assigned ? assigned : Array.Empty<Material>();
             (Matrix4x4[] skinTransforms, Matrix4x4[] normalTransforms) = skinTransformsByMesh[mesh];
-            int materialIndex = mesh.Materials is { Count: > 0 } && materialIndices.TryGetValue(mesh.Materials[0], out int mappedMaterialIndex) ? mappedMaterialIndex : 0;
+            int materialIndex	= mesh.Materials is { Count: > 0 } ? materialIndices[mesh.Materials[0]] : defaultMaterialIndex;
+            int materialRange	= 0;
+            List<(int StartIndex, int IndexCount)>? ranges = mesh.MaterialIndexRanges;
+            int[] rangeOrder = Array.Empty<int>();
+            if (ranges is { Count: > 0 })
+                rangeOrder = materialRangeOrders[mesh];
             Vector2[] uvValues = new Vector2[Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1)];
-            for (int faceIndex = 0; faceIndex < mesh.FaceIndices!.ElementCount; faceIndex += 3)
+            for (int faceIndex = 0; faceIndex < faceIndices.ElementCount; faceIndex += 3)
             {
+                if (ranges is { Count: > 0 })
+                {
+                    while (materialRange < ranges.Count && faceIndex >= ranges[rangeOrder[materialRange]].StartIndex + ranges[rangeOrder[materialRange]].IndexCount)
+                        materialRange++;
+                    materialIndex = defaultMaterialIndex;
+                    if (materialRange < ranges.Count && faceIndex >= ranges[rangeOrder[materialRange]].StartIndex)
+                        materialIndex = materialIndices[meshMaterials[rangeOrder[materialRange]]];
+                }
                 if (objectIndex <= byte.MaxValue && materialIndex <= byte.MaxValue)
                     writer.WriteTri("TRI", objectIndex, materialIndex);
                 else
                     writer.WriteTri16("TRI16", objectIndex, materialIndex);
                 for (int corner = 0; corner < 3; corner++)
                 {
-                    int vertexIndex = mesh.FaceIndices.Get<int>(faceIndex + ClockwiseCorners[corner], 0, 0);
-                    if ((uint)vertexIndex >= (uint)mesh.Positions!.ElementCount)
+                    int vertexIndex = faceIndices.Get<int>(faceIndex + ClockwiseCorners[corner], 0, 0);
+                    if ((uint)vertexIndex >= (uint)positions.ElementCount)
                         throw new InvalidDataException($"Mesh '{mesh.Name}' face index {vertexIndex} is outside its vertex range.");
                     WriteVertexIndex(writer, wideVertices, baseVertex + vertexIndex);
-                    Vector3 normal = mesh.Normals is null ? Vector3.UnitZ : context.Options.WriteRawVertices ? mesh.GetVertexNormal(vertexIndex, raw: true) : mesh.GetVertexNormal(vertexIndex, skinTransforms, normalTransforms);
+                    Vector3 normal = Vector3.UnitZ;
+                    if (mesh.Normals is not null)
+                    {
+                        if (context.Options.WriteRawVertices)
+                            normal = mesh.GetVertexNormal(vertexIndex, raw: true);
+                        else
+                            normal = mesh.GetVertexNormal(vertexIndex, skinTransforms, normalTransforms);
+                    }
                     writer.WriteVector316Bit("NORMAL", normal);
                     writer.WriteVector48Bit("COLOR", mesh.ColorLayers is null ? Vector4.One : mesh.ColorLayers.GetVector4(vertexIndex, 0));
                     for (int layer = 0; layer < uvValues.Length; layer++)
@@ -186,7 +236,7 @@ internal static class XModelWriter
         for (int i = 0; i < materialList.Count; i++)
         {
             Material material = materialList[i];
-            writer.WriteUShortStringX3("MATERIAL", checked((ushort)i), material.Name, "Lambert", GetDiffuseTextureName(material));
+            writer.WriteUShortStringX3("MATERIAL", checked((ushort)i), material.Name, "Lambert", GetDiffuseTextureName(material, context.TargetDirectoryPath));
             writer.WriteVector48Bit("COLOR", material.DiffuseColor ?? Vector4.One);
             writer.WriteVector4("TRANSPARENCY", Vector4.Zero);
             writer.WriteVector4("AMBIENTCOLOR", Vector4.Zero);
@@ -267,10 +317,10 @@ internal static class XModelWriter
             weights[i] = (weights[i].BoneIndex, (float)(weights[i].Weight / totalWeight));
     }
 
-    private static string GetDiffuseTextureName(Material material)
+    private static string GetDiffuseTextureName(Material material, string? targetDirectory)
     {
         if (material.DiffuseMapName is not null && material.TryGetTexture(material.DiffuseMapName, out Texture? texture))
-            return texture.FilePath ?? texture.Name;
+            return texture.GetPortableFilePath(targetDirectory);
         return string.Empty;
     }
 

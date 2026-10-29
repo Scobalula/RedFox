@@ -27,6 +27,7 @@ public sealed class CastTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         foreach (var root in CastReader.Load(stream).Roots)
         {
             if (root.Metadata?.UpAxis is string upAxis)
@@ -46,23 +47,25 @@ public sealed class CastTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        var root = new RootNode();
-        SceneTranslationSelection selection = context.GetSelection(scene);
+        token?.ThrowIfCancellationRequested();
+        var root							= new RootNode();
+        SceneTranslationSelection selection	= context.GetSelection(scene);
 
         string upAxis = selection.Scene.UpAxis switch
         {
             SceneUpAxis.X => "x",
             SceneUpAxis.Z => "z",
-            _ => "y",
+            _             => "y",
         };
         root.AddNode(new MetadataNode
         {
             UpAxis = upAxis,
-            Software = Assembly.GetEntryAssembly()?.GetName().Name,
+            // TODO: Change this, tbh could do with a refactor to how we pass "shared" settings to these? let apps set their own stuff
+            Software = "RedFox Library via Cast.NET"/*Assembly.GetEntryAssembly()?.GetName().Name*/,
         });
 
-        foreach (var model in GetExportModels(selection))
-            CastModelTranslator.Write(root, model, selection, context.TargetDirectoryPath);
+        foreach (var (model, content) in GetExportModels(selection))
+            CastModelTranslator.Write(root, model, content, selection, context.TargetDirectoryPath);
 
         foreach (var animation in selection.GetDescendants<SkeletonAnimation>())
             CastAnimationTranslator.Write(root, animation);
@@ -80,10 +83,10 @@ public sealed class CastTranslator : SceneTranslator
     {
         return transformType switch
         {
-            "absolute" => TransformType.Absolute,
-            "relative" => TransformType.Relative,
-            "additive" => TransformType.Additive,
-            _          => TransformType.Unknown,
+            "absolute"  => TransformType.Absolute,
+            "relative"  => TransformType.Relative,
+            "additive"  => TransformType.Additive,
+            _			=> TransformType.Unknown,
         };
     }
 
@@ -91,22 +94,10 @@ public sealed class CastTranslator : SceneTranslator
     {
         return type switch
         {
-            TransformType.Absolute => "absolute",
-            TransformType.Additive => "additive",
-            _                      => "relative",
+            TransformType.Absolute  => "absolute",
+            TransformType.Additive  => "additive",
+            _						=> "relative",
         };
-    }
-
-    private static IReadOnlyList<SceneNode> GetExportModels(SceneTranslationSelection selection)
-    {
-        // Without any mesh groups the scene itself is the model, unless it holds no model data at all (e.g. animation only scenes).
-        if (selection.GetDescendants<MeshGroup>().Length == 0)
-            return selection.GetDescendants<Mesh>().Length > 0 || selection.GetDescendants<SkeletonBone>().Length > 0 || selection.GetDescendants<Material>().Length > 0 ? [selection.Scene] : [];
-
-        var meshModels = selection.GetDescendants<Mesh>().Select(mesh => mesh.EnumerateAncestors<MeshGroup>().FirstOrDefault());
-        var materialModels = selection.GetDescendants<Material>().Select(material => material.EnumerateAncestors<MeshGroup>().FirstOrDefault());
-
-        return [.. selection.GetDescendants<MeshGroup>().Concat(meshModels).Concat(materialModels).OfType<MeshGroup>().Distinct()];
     }
 
     internal static string GetUniqueName(SceneNode parent, string name)
@@ -117,5 +108,31 @@ public sealed class CastTranslator : SceneTranslator
             candidate = $"{name}_{index}";
 
         return candidate;
+    }
+
+    private static Dictionary<SceneNode, List<SceneNode>> GetExportModels(SceneTranslationSelection selection)
+    {
+        Dictionary<SceneNode, List<SceneNode>> models = [];
+        foreach (SceneNode node in selection.EnumerateDescendants<SceneNode>())
+        {
+            if (node is not (Mesh or Material or SkeletonBone or Hair or ConstraintNode or IKHandleNode))
+                continue;
+            SceneNode owner = selection.Scene;
+            for (SceneNode? ancestor = node.Parent; ancestor is not null; ancestor = ancestor.Parent)
+            {
+                if (ancestor is MeshGroup)
+                {
+                    owner = ancestor;
+                    break;
+                }
+            }
+            if (!models.TryGetValue(owner, out List<SceneNode>? content))
+            {
+                content = [];
+                models.Add(owner, content);
+            }
+            content.Add(node);
+        }
+        return models;
     }
 }

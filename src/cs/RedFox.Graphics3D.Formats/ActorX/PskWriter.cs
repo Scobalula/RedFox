@@ -6,8 +6,7 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.ActorX;
 
 /// <summary>
-/// Writes a <see cref="Scene"/> selection to an ActorX PSK file, automatically upgrading to the
-/// PSKX 32-bit chunk layout when wedge counts exceed the 16-bit limit.
+/// Writes a <see cref="Scene"/> selection to an ActorX PSK file, automatically upgrading to the PSKX 32-bit chunk layout when wedge counts exceed the 16-bit limit.
 /// </summary>
 public sealed class PskWriter
 {
@@ -23,39 +22,48 @@ public sealed class PskWriter
     /// Writes the meshes and skeleton contained in the selection as PSK/PSKX.
     /// </summary>
     /// <param name="selection">The scene selection to export.</param>
-    public void Write(SceneTranslationSelection selection)
+    public void Write(SceneTranslationSelection selection) => Write(selection, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="selection">The selected scene data to write.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(SceneTranslationSelection selection, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(selection);
 
         var meshes = selection.GetDescendants<Mesh>();
         if (meshes.Length == 0)
             throw new InvalidOperationException("Scene must contain at least one mesh to be written as PSK.");
 
-        var bones = selection.GetDescendants<SkeletonBone>();
-        SceneNode[] boneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
-        var boneIndexMap = new Dictionary<SkeletonBone, int>(bones.Length);
+        var bones				= selection.GetDescendants<SkeletonBone>();
+        SceneNode[] boneNodes	= Array.ConvertAll(bones, static bone => (SceneNode)bone);
+        var boneIndexMap		= new Dictionary<SkeletonBone, int>(bones.Length);
         for (int i = 0; i < bones.Length; i++)
             boneIndexMap[bones[i]] = i;
 
-        var materials = new List<Material>();
-        var materialIndices = new Dictionary<Material, int>();
+        var materials		= new List<Material>();
+        var materialIndices	= new Dictionary<Material, int>();
 
-        var points = new List<Vector3>();
-        var wedges = new List<ActorXVertex>();
-        var faces = new List<ActorXTriangle>();
-        var influences = new List<ActorXInfluence>();
+        var points		= new List<Vector3>();
+        var wedges		= new List<ActorXVertex>();
+        var faces		= new List<ActorXTriangle>();
+        var influences	= new List<ActorXInfluence>();
 
         foreach (var mesh in meshes)
         {
+            token.ThrowIfCancellationRequested();
             if (mesh.Positions is null || mesh.FaceIndices is null)
                 continue;
 
-            byte materialIndex = ResolveMaterialIndex(mesh, selection, materials, materialIndices);
-            int baseWedge = wedges.Count;
-            int vertexCount = mesh.Positions.ElementCount;
-            Skin? skin = mesh.Skin;
-            int influenceCount = skin?.BoneIndices.ValueCount ?? 0;
-            int[]? globalBones = BuildGlobalBoneTable(mesh, boneIndexMap, influenceCount);
+            byte materialIndex	= ResolveMaterialIndex(mesh, selection, materials, materialIndices);
+            int baseWedge		= wedges.Count;
+            int vertexCount		= mesh.Positions.ElementCount;
+            Skin? skin			= mesh.Skin;
+            int influenceCount	= skin?.BoneIndices.ValueCount ?? 0;
+            int[]? globalBones	= BuildGlobalBoneTable(mesh, boneIndexMap, influenceCount);
 
             for (int v = 0; v < vertexCount; v++)
             {
@@ -74,11 +82,14 @@ public sealed class PskWriter
                     if (weight <= 0f)
                         continue;
 
-                    int local = skin.BoneIndices.Get<int>(v, j, 0);
-                    int global = (uint)local < (uint)globalBones.Length ? globalBones[local] : 0;
+                    int local	= skin.BoneIndices.Get<int>(v, j, 0);
+                    int global	= globalBones[local];
                     influences.Add(new ActorXInfluence(weight, pointIndex, global));
                 }
             }
+
+            if (mesh.IndexCount % 3 != 0)
+                throw new InvalidDataException("Incomplete PSK triangle.");
 
             int faceCount = mesh.FaceIndices.ElementCount / 3;
             for (int f = 0; f < faceCount; f++)
@@ -108,6 +119,7 @@ public sealed class PskWriter
         ActorXChunkHeader.Write(writer, ActorXChunkId.Weights, ActorXBinary.Version, 12, influences.Count);
         foreach (var influence in influences)
         {
+            token.ThrowIfCancellationRequested();
             writer.Write(influence.Weight);
             writer.Write(influence.PointIndex);
             writer.Write(influence.BoneIndex);
@@ -131,6 +143,8 @@ public sealed class PskWriter
             materials.Add(material);
         }
 
+        if (index > byte.MaxValue)
+            throw new InvalidDataException("PSK supports at most 256 materials.");
         return (byte)index;
     }
 
@@ -218,12 +232,12 @@ public sealed class PskWriter
     private static void WriteMaterial(BinaryWriter writer, string? name)
     {
         ActorXBinary.WriteFixedString(writer, name, 64);
-        writer.Write(0);  // TextureIndex
-        writer.Write(0u); // PolyFlags
-        writer.Write(0);  // AuxMaterial
-        writer.Write(0u); // AuxFlags
-        writer.Write(0);  // LodBias
-        writer.Write(0);  // LodStyle
+        writer.Write(0);
+        writer.Write(0u);
+        writer.Write(0);
+        writer.Write(0u);
+        writer.Write(0);
+        writer.Write(0);
     }
 
 }

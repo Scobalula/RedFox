@@ -30,6 +30,7 @@ public sealed class WiltModelTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         using BinaryReader reader = new(stream, Encoding.UTF8, true);
 
         scene.UpAxis = reader.ReadWiltHeader(MagicValue);
@@ -45,16 +46,20 @@ public sealed class WiltModelTranslator : SceneTranslator
             WiltSection	section	= (WiltSection)reader.ReadUInt32();
             uint		size	= reader.ReadUInt32();
             long		end		= reader.BaseStream.Position + size;
+            if (size > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("Wilt section exceeds the file boundary.");
+            using SubStream sectionStream = new(reader.BaseStream, reader.BaseStream.Position, size, true);
+            using BinaryReader sectionReader = new(sectionStream, Encoding.UTF8, true);
 
             switch (section)
             {
-                case WiltSection.Meta:			reader.ReadWiltMetadata(scene);							break;
-                case WiltSection.Bones:			bones = ReadBones(reader, scene, context);				break;
-                case WiltSection.Materials:		materials = ReadMaterials(reader, model);				break;
-                case WiltSection.Meshes:		ReadMeshes(reader, model, bones, materials);			break;
-                case WiltSection.Hair:			ReadHair(reader, model, materials);						break;
-                case WiltSection.IKHandles:		ReadIKHandles(reader, model, bones);					break;
-                case WiltSection.Constraints:	ReadConstraints(reader, model, bones);					break;
+                case WiltSection.Meta:			sectionReader.ReadWiltMetadata(scene);							break;
+                case WiltSection.Bones:			bones = ReadBones(sectionReader, scene, context);				break;
+                case WiltSection.Materials:		materials = ReadMaterials(sectionReader, model, context.SourceDirectoryPath);				break;
+                case WiltSection.Meshes:		ReadMeshes(sectionReader, model, bones, materials);			break;
+                case WiltSection.Hair:			ReadHair(sectionReader, model, materials);						break;
+                case WiltSection.IKHandles:		ReadIKHandles(sectionReader, model, bones);					break;
+                case WiltSection.Constraints:	ReadConstraints(sectionReader, model, bones);					break;
             }
 
             reader.BaseStream.Position = end;
@@ -64,6 +69,7 @@ public sealed class WiltModelTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         using BinaryWriter writer = new(stream, Encoding.UTF8, true);
 
         SceneTranslationSelection	selection	= context.GetSelection(scene);
@@ -79,7 +85,7 @@ public sealed class WiltModelTranslator : SceneTranslator
 
         writer.WriteWiltHeader(MagicValue, scene.UpAxis);
         writer.WriteWiltMetadata(scene.Attributes);
-        WriteBones(writer, bones);
+        WriteBones(writer, bones, boneTable);
         WriteMaterials(writer, materials, context);
         WriteMeshes(writer, meshes, boneTable, materialTable, token);
 
@@ -91,20 +97,23 @@ public sealed class WiltModelTranslator : SceneTranslator
             WriteConstraints(writer, constraints, boneTable);
     }
 
-    private static void WriteBones(BinaryWriter writer, SkeletonBone[] bones)
+    private static void WriteBones(BinaryWriter writer, SkeletonBone[] bones, IReadOnlyDictionary<SkeletonBone, int> boneTable)
     {
         long		section		= writer.BeginWiltSection(WiltSection.Bones);
         SceneNode[]	boneNodes	= bones;
 
+        Dictionary<SkeletonBone, SkeletonBone?> parents = SkeletonExportTransforms.BuildExportedParentMap(bones, boneNodes);
         writer.Write((uint)bones.Length);
 
         foreach (SkeletonBone bone in bones)
         {
             writer.WriteWiltString(bone.Name);
-            writer.Write(SceneNode.GetBestParentIndex(bone, boneNodes));
-            writer.WriteStruct(bone.GetBindLocalPosition());
-            writer.WriteStruct(bone.GetBindLocalRotation());
-            writer.WriteStruct(bone.GetBindLocalScale());
+            SkeletonBone? parent = parents[bone];
+            writer.Write(parent is null ? -1 : boneTable[parent]);
+            SkeletonExportTransforms.DecomposeMatrix(SkeletonExportTransforms.GetRelativeBindMatrix(bone, parent), out Vector3 scale, out Quaternion rotation, out Vector3 position);
+            writer.WriteStruct(position);
+            writer.WriteStruct(rotation);
+            writer.WriteStruct(scale);
         }
 
         writer.EndWiltSection(section);
@@ -113,6 +122,8 @@ public sealed class WiltModelTranslator : SceneTranslator
     private static SkeletonBone[] ReadBones(BinaryReader reader, Scene scene, SceneTranslationContext context)
     {
         int				count	= checked((int)reader.ReadUInt32());
+        if (count > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid Wilt bone count.");
         SkeletonBone[]	bones	= new SkeletonBone[count];
         int[]			parents	= new int[count];
 
@@ -124,6 +135,28 @@ public sealed class WiltModelTranslator : SceneTranslator
             bones[i].BindTransform.LocalPosition	= reader.ReadStruct<Vector3>();
             bones[i].BindTransform.LocalRotation	= reader.ReadStruct<Quaternion>();
             bones[i].BindTransform.Scale			= reader.ReadStruct<Vector3>();
+        }
+
+        byte[] states = new byte[count];
+        for (int i = 0; i < count; i++)
+        {
+            int current = i;
+            while (current != -1 && states[current] == 0)
+            {
+                states[current] = 1;
+                int parent = parents[current];
+                if (parent < -1 || parent >= count)
+                    throw new InvalidDataException("Invalid Wilt bone parent.");
+                current = parent;
+            }
+            if (current != -1 && states[current] == 1)
+                throw new InvalidDataException("Cyclic Wilt hierarchy.");
+            current = i;
+            while (current != -1 && states[current] == 1)
+            {
+                states[current]	= 2;
+                current			= parents[current];
+            }
         }
 
         if (count > 0)
@@ -168,9 +201,12 @@ public sealed class WiltModelTranslator : SceneTranslator
         writer.EndWiltSection(section);
     }
 
-    private static Material[] ReadMaterials(BinaryReader reader, MeshGroup model)
+    private static Material[] ReadMaterials(BinaryReader reader, MeshGroup model, string? sourceDirectory)
     {
-        Material[] materials = new Material[checked((int)reader.ReadUInt32())];
+        uint count = reader.ReadUInt32();
+        if (count > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid Wilt material count.");
+        Material[] materials = new Material[checked((int)count)];
 
         for (int i = 0; i < materials.Length; i++)
         {
@@ -191,6 +227,7 @@ public sealed class WiltModelTranslator : SceneTranslator
                 Texture				texture	= material.AddNode(new Texture(reader.ReadWiltString()));
                 WiltTextureUsage	usage	= (WiltTextureUsage)reader.ReadByte();
 
+                texture.ResolvedFilePath = FilePathResolver.ResolveReferencePath(texture.FilePath, sourceDirectory);
                 SetMapName(material, usage, slotKey);
                 material.Connect(slotKey, texture);
             }
@@ -216,15 +253,7 @@ public sealed class WiltModelTranslator : SceneTranslator
         {
             token?.ThrowIfCancellationRequested();
 
-            (WiltVertexSemantic Semantic, DataBuffer? Buffer)[] streams =
-            [
-                (WiltVertexSemantic.Position,	mesh.Positions),
-                (WiltVertexSemantic.Normal,		mesh.Normals),
-                (WiltVertexSemantic.Tangent,	mesh.Tangents),
-                (WiltVertexSemantic.BiTangent,	mesh.BiTangents),
-                (WiltVertexSemantic.UV,			mesh.UVLayers),
-                (WiltVertexSemantic.Color,		mesh.ColorLayers),
-            ];
+            (WiltVertexSemantic Semantic, DataBuffer? Buffer)[] streams = [(WiltVertexSemantic.Position,	mesh.Positions), (WiltVertexSemantic.Normal,		mesh.Normals), (WiltVertexSemantic.Tangent,	mesh.Tangents), (WiltVertexSemantic.BiTangent,	mesh.BiTangents), (WiltVertexSemantic.UV,			mesh.UVLayers), (WiltVertexSemantic.Color,		mesh.ColorLayers),];
 
             writer.WriteWiltString(mesh.Name);
             writer.Write((uint)mesh.VertexCount);
@@ -338,8 +367,13 @@ public sealed class WiltModelTranslator : SceneTranslator
 
             if (reader.ReadBoolean())
             {
-                SkinningMode	skinningMode	= (SkinningMode)reader.ReadByte();
-                SkeletonBone[]	palette			= [.. reader.ReadStructArray<int>(checked((int)reader.ReadUInt32())).ToArray().Select(index => bones[index])];
+                SkinningMode	skinningMode= (SkinningMode)reader.ReadByte();
+                int				paletteCount= checked((int)reader.ReadUInt32());
+                if ((long)paletteCount * sizeof(int) > reader.BaseStream.Length - reader.BaseStream.Position)
+                    throw new InvalidDataException("Invalid Wilt palette count.");
+                SkeletonBone[] palette = new SkeletonBone[paletteCount];
+                for (int p = 0; p < palette.Length; p++)
+                    palette[p] = bones[reader.ReadInt32()];
                 Matrix4x4[]?	inverseBinds	= reader.ReadBoolean() ? reader.ReadStructArray<Matrix4x4>(palette.Length).ToArray() : null;
                 DataBuffer		boneIndices		= reader.ReadWiltBuffer() ?? throw new InvalidDataException($"Wilt mesh '{mesh.Name}' skin has no bone indices.");
                 DataBuffer		boneWeights		= reader.ReadWiltBuffer() ?? throw new InvalidDataException($"Wilt mesh '{mesh.Name}' skin has no bone weights.");
@@ -519,10 +553,32 @@ public sealed class WiltModelTranslator : SceneTranslator
 
             ConstraintNode constraint = type switch
             {
-                WiltConstraintType.Point	=> new PointConstraintNode(name, constrained, source) { TranslationOffset = translationOffset, SkipX = skipX, SkipY = skipY, SkipZ = skipZ },
-                WiltConstraintType.Orient	=> new OrientConstraintNode(name, constrained, source) { RotationOffset = rotationOffset, SkipX = skipX, SkipY = skipY, SkipZ = skipZ },
-                WiltConstraintType.Scale	=> new ScaleConstraintNode(name, constrained, source) { ScaleOffset = scaleOffset, SkipX = skipX, SkipY = skipY, SkipZ = skipZ },
-                WiltConstraintType.Parent	=> new ParentConstraintNode(name, constrained, source) { TranslationOffset = translationOffset, RotationOffset = rotationOffset },
+                WiltConstraintType.Point	=> new PointConstraintNode(name, constrained, source)
+                {
+                    TranslationOffset	= translationOffset,
+                    SkipX				= skipX,
+                    SkipY				= skipY,
+                    SkipZ				= skipZ,
+                },
+                WiltConstraintType.Orient	=> new OrientConstraintNode(name, constrained, source)
+                {
+                    RotationOffset	= rotationOffset,
+                    SkipX			= skipX,
+                    SkipY			= skipY,
+                    SkipZ			= skipZ,
+                },
+                WiltConstraintType.Scale	=> new ScaleConstraintNode(name, constrained, source)
+                {
+                    ScaleOffset	= scaleOffset,
+                    SkipX		= skipX,
+                    SkipY		= skipY,
+                    SkipZ		= skipZ,
+                },
+                WiltConstraintType.Parent	=> new ParentConstraintNode(name, constrained, source)
+                {
+                    TranslationOffset	= translationOffset,
+                    RotationOffset		= rotationOffset,
+                },
                 _							=> throw new InvalidDataException($"Unsupported Wilt constraint type: {type}."),
             };
 
@@ -533,20 +589,7 @@ public sealed class WiltModelTranslator : SceneTranslator
 
     private static WiltTextureUsage GetTextureUsage(Material material, Texture texture)
     {
-        (WiltTextureUsage Usage, string? MapName)[] maps =
-        [
-            (WiltTextureUsage.Diffuse,			material.DiffuseMapName),
-            (WiltTextureUsage.Normal,			material.NormalMapName),
-            (WiltTextureUsage.Specular,			material.SpecularMapName),
-            (WiltTextureUsage.Metallic,			material.MetallicMapName),
-            (WiltTextureUsage.Gloss,			material.GlossMapName),
-            (WiltTextureUsage.Roughness,		material.RoughnessMapName),
-            (WiltTextureUsage.Emissive,			material.EmissiveMapName),
-            (WiltTextureUsage.EmissiveMask,		material.EmissiveMaskMapName),
-            (WiltTextureUsage.AmbientOcclusion,	material.AmbientOcclusionMapName),
-            (WiltTextureUsage.Cavity,			material.CavityMapName),
-            (WiltTextureUsage.Anisotropy,		material.AnisotropyMapName),
-        ];
+        (WiltTextureUsage Usage, string? MapName)[] maps = [(WiltTextureUsage.Diffuse,			material.DiffuseMapName), (WiltTextureUsage.Normal,			material.NormalMapName), (WiltTextureUsage.Specular,			material.SpecularMapName), (WiltTextureUsage.Metallic,			material.MetallicMapName), (WiltTextureUsage.Gloss,			material.GlossMapName), (WiltTextureUsage.Roughness,		material.RoughnessMapName), (WiltTextureUsage.Emissive,			material.EmissiveMapName), (WiltTextureUsage.EmissiveMask,		material.EmissiveMaskMapName), (WiltTextureUsage.AmbientOcclusion,	material.AmbientOcclusionMapName), (WiltTextureUsage.Cavity,			material.CavityMapName), (WiltTextureUsage.Anisotropy,		material.AnisotropyMapName),];
 
         foreach ((WiltTextureUsage usage, string? mapName) in maps)
         {
@@ -579,22 +622,7 @@ public sealed class WiltModelTranslator : SceneTranslator
 
     private static (string Name, object? Value)[] GetMaterialParameters(Material material)
     {
-        (string Name, object? Value)[] parameters =
-        [
-            ("diffuse_color",		material.DiffuseColor),
-            ("specular_color",		material.SpecularColor),
-            ("metallic_color",		material.MetallicColor),
-            ("gloss_color",			material.GlossColor),
-            ("roughness_color",		material.RoughnessColor),
-            ("emissive_color",		material.EmissiveColor),
-            ("ao_color",			material.AmbientOcclusionColor),
-            ("cavity_color",		material.CavityColor),
-            ("anisotropy_color",	material.AnisotropyColor),
-            ("shininess",			material.Shininess),
-            ("specular_strength",	material.SpecularStrength),
-            ("metallic",			material.Metallic),
-            ("roughness",			material.Roughness),
-        ];
+        (string Name, object? Value)[] parameters = [("diffuse_color",		material.DiffuseColor), ("specular_color",		material.SpecularColor), ("metallic_color",		material.MetallicColor), ("gloss_color",			material.GlossColor), ("roughness_color",		material.RoughnessColor), ("emissive_color",		material.EmissiveColor), ("ao_color",			material.AmbientOcclusionColor), ("cavity_color",		material.CavityColor), ("anisotropy_color",	material.AnisotropyColor), ("shininess",			material.Shininess), ("specular_strength",	material.SpecularStrength), ("metallic",			material.Metallic), ("roughness",			material.Roughness),];
 
         return [.. parameters.Where(parameter => parameter.Value is not null), .. (material.Attributes ?? []).Select(attribute => (attribute.Key, (object?)attribute.Value))];
     }
@@ -631,7 +659,7 @@ public sealed class WiltModelTranslator : SceneTranslator
         throw new InvalidDataException($"Wilt can only reference exported bones, but '{node.Name}' is not one.");
     }
 
-    private static SkeletonBone? GetBone(SkeletonBone[] bones, int index) => index < 0 ? null : bones[index];
+    private static SkeletonBone? GetBone(SkeletonBone[] bones, int index) => index == -1 ? null : bones[index];
 
     private static byte GetSkipMask(bool skipX, bool skipY, bool skipZ) => (byte)((skipX ? 1 : 0) | (skipY ? 2 : 0) | (skipZ ? 4 : 0));
 }

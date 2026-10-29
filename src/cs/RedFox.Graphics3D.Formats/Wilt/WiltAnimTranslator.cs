@@ -1,3 +1,4 @@
+using RedFox.IO;
 using System.Text;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
@@ -27,6 +28,7 @@ public sealed class WiltAnimTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         using BinaryReader reader = new(stream, Encoding.UTF8, true);
 
         scene.UpAxis = reader.ReadWiltHeader(MagicValue);
@@ -46,28 +48,37 @@ public sealed class WiltAnimTranslator : SceneTranslator
             WiltSection	section	= (WiltSection)reader.ReadUInt32();
             uint		size	= reader.ReadUInt32();
             long		end		= reader.BaseStream.Position + size;
+            if (size > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("Wilt section exceeds the file boundary.");
+            using SubStream sectionStream = new(reader.BaseStream, reader.BaseStream.Position, size, true);
+            using BinaryReader sectionReader = new(sectionStream, Encoding.UTF8, true);
 
             switch (section)
             {
                 case WiltSection.Meta:
-                    reader.ReadWiltMetadata(scene);
+                    sectionReader.ReadWiltMetadata(scene);
                     break;
                 case WiltSection.Animation:
-                    name			= reader.ReadWiltString();
-                    framerate		= reader.ReadSingle();
-                    transformType	= (TransformType)reader.ReadByte();
-                    transformSpace	= (TransformSpace)reader.ReadByte();
+                    name			= sectionReader.ReadWiltString();
+                    framerate		= sectionReader.ReadSingle();
+                    transformType	= (TransformType)sectionReader.ReadByte();
+                    transformSpace	= (TransformSpace)sectionReader.ReadByte();
                     break;
                 case WiltSection.SkeletalTracks:
-                    skeletal = new SkeletonAnimation(name) { Framerate = framerate, TransformType = transformType, TransformSpace = transformSpace };
-                    ReadSkeletalTracks(reader, skeletal);
+                    skeletal = new SkeletonAnimation(name)
+                    {
+                        Framerate		= framerate,
+                        TransformType	= transformType,
+                        TransformSpace	= transformSpace,
+                    };
+                    ReadSkeletalTracks(sectionReader, skeletal);
                     break;
                 case WiltSection.MorphTracks:
                     morph = new MorphAnimation(name) { Framerate = framerate };
-                    ReadMorphTracks(reader, morph);
+                    ReadMorphTracks(sectionReader, morph);
                     break;
                 case WiltSection.Actions:
-                    actions = ReadActions(reader);
+                    actions = ReadActions(sectionReader);
                     break;
             }
 
@@ -75,7 +86,12 @@ public sealed class WiltAnimTranslator : SceneTranslator
         }
 
         if (skeletal is null && morph is null)
-            skeletal = new SkeletonAnimation(name) { Framerate = framerate, TransformType = transformType, TransformSpace = transformSpace };
+            skeletal = new SkeletonAnimation(name)
+            {
+                Framerate		= framerate,
+                TransformType	= transformType,
+                TransformSpace	= transformSpace,
+            };
 
         if (skeletal is not null)
         {
@@ -101,6 +117,7 @@ public sealed class WiltAnimTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         using BinaryWriter writer = new(stream, Encoding.UTF8, true);
 
         SceneTranslationSelection	selection	= context.GetSelection(scene);
@@ -108,6 +125,9 @@ public sealed class WiltAnimTranslator : SceneTranslator
         MorphAnimation?				morph		= selection.TryGetFirstOfType<MorphAnimation>();
         Animation					animation	= (Animation?)skeletal ?? morph ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation or MorphAnimation.");
         AnimationAction[]			actions		= [.. skeletal?.Actions ?? [], .. morph?.Actions ?? []];
+
+        if (skeletal is not null && morph is not null && skeletal.Framerate != morph.Framerate)
+            throw new InvalidDataException("Wilt skeletal and morph animations require the same frame rate.");
 
         writer.WriteWiltHeader(MagicValue, scene.UpAxis);
         writer.WriteWiltMetadata(scene.Attributes);
@@ -209,7 +229,7 @@ public sealed class WiltAnimTranslator : SceneTranslator
         foreach (MorphAnimationTrack track in tracks)
         {
             writer.WriteWiltString(track.Name);
-            WriteCurve(writer, track.WeightCurve!);
+            WriteCurve(writer, track.WeightCurve ?? throw new InvalidDataException("Missing Wilt morph weight curve."));
         }
 
         writer.EndWiltSection(section);

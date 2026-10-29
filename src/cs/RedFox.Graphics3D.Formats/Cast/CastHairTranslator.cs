@@ -9,7 +9,7 @@ internal static class CastHairTranslator
 {
     public static void Read(MeshGroup model, HairNode hairNode, Dictionary<MaterialNode, Material> materials)
     {
-        var hair = model.AddNode<Hair>();
+        var hair = hairNode.Name is string name ? model.AddNode<Hair>(CastTranslator.GetUniqueName(model, name)) : model.AddNode<Hair>();
 
         hair.StrandSegments = hairNode.Segments?.ToArray<int>() ?? [];
         hair.Particles = hairNode.Particles is { Type: CastPropertyType.Vector3 } particles ? new DataBuffer<float>(particles.AsBytes().ToArray(), 1, 3) : null;

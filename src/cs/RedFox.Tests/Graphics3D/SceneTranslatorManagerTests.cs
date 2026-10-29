@@ -10,6 +10,59 @@ namespace RedFox.Tests.Graphics3D;
 public sealed class SceneTranslatorManagerTests
 {
     [Fact]
+    public void RegisterAndRemove_UseTheLookupNameComparison()
+    {
+        SceneTranslatorManager manager	= CreateManager();
+        StubSceneTranslator replacement	= new("STUB", ".other", true, true);
+        manager.Register(replacement);
+        Assert.Equal(2, manager.Translators.Count);
+        Assert.True(manager.Unregister("stub"));
+        Assert.False(manager.TryGetTranslator("Stub", out _));
+    }
+
+    [Fact]
+    public void Read_CancelledBeforeCommit_DoesNotChangeTarget()
+    {
+        using CancellationTokenSource cancellation = new();
+        SceneTranslatorManager manager = new();
+        manager.Register(new StubSceneTranslator("stub", ".stub", true, true)
+        {
+            AfterRead = staging =>
+            {
+                staging.Name	= "changed";
+                staging.UpAxis	= SceneUpAxis.Z;
+                cancellation.Cancel();
+            },
+        });
+        Scene scene = new("original");
+        using MemoryStream stream = new(StubSceneTranslator.Signature.ToArray());
+        Assert.Throws<OperationCanceledException>(() => manager.Read(stream, "scene.stub", scene, new SceneTranslatorOptions(), cancellation.Token));
+        Assert.Equal("original", scene.Name);
+        Assert.Equal(SceneUpAxis.Y, scene.UpAxis);
+        Assert.Empty(scene.RootNode.Children ?? []);
+    }
+
+    [Fact]
+    public void Write_PreCancelled_DoesNotTruncateFile()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"redfox_{Guid.NewGuid():N}.obj");
+        File.WriteAllText(path, "original");
+        try
+        {
+            using CancellationTokenSource cancellation = new();
+            cancellation.Cancel();
+            SceneTranslatorManager manager = new();
+            BuiltInSceneFormats.RegisterAll(manager);
+            Assert.Throws<OperationCanceledException>(() => manager.Write(path, new Scene(), new SceneTranslatorOptions(), cancellation.Token));
+            Assert.Equal("original", File.ReadAllText(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void RegisterAll_RegistersEveryBuiltInFormat()
     {
         SceneTranslatorManager manager = new();
@@ -22,8 +75,8 @@ public sealed class SceneTranslatorManagerTests
     [Fact]
     public void Register_ReplacesTranslatorWithSameName()
     {
-        SceneTranslatorManager manager = CreateManager();
-        StubSceneTranslator replacement = new("Stub", ".other", canRead: true, canWrite: true);
+        SceneTranslatorManager manager	= CreateManager();
+        StubSceneTranslator replacement	= new("Stub", ".other", canRead: true, canWrite: true);
 
         manager.Register(replacement);
 
@@ -98,16 +151,16 @@ public sealed class SceneTranslatorManagerTests
         SceneTranslatorManager manager = new();
         BuiltInSceneFormats.RegisterAll(manager);
 
-        Scene source = new("Source");
-        MeshGroup model = source.RootNode.AddNode(new MeshGroup("Model"));
-        Mesh mesh = model.AddNode(new Mesh { Name = "Mesh" });
+        Scene source	= new("Source");
+        MeshGroup model	= source.RootNode.AddNode(new MeshGroup("Model"));
+        Mesh mesh		= model.AddNode(new Mesh { Name = "Mesh" });
         mesh.Positions = new DataBuffer<float>([0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f, 0f], 1, 3);
         mesh.Normals = new DataBuffer<float>([0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f], 1, 3);
         mesh.UVLayers = new DataBuffer<float>([0f, 0f, 1f, 0f, 0f, 1f], 1, 2);
         mesh.FaceIndices = new DataBuffer<int>([0, 1, 2], 1, 1);
 
-        byte[] data = Write(manager, source, "model.semodel", new SceneTranslatorOptions());
-        Scene loaded = Read(manager, data, "model.bin", new SceneTranslatorOptions());
+        byte[] data		= Write(manager, source, "model.semodel", new SceneTranslatorOptions());
+        Scene loaded	= Read(manager, data, "model.bin", new SceneTranslatorOptions());
 
         Mesh loadedMesh = Assert.Single(loaded.GetDescendants<Mesh>());
         Assert.Equal(3, loadedMesh.VertexCount);

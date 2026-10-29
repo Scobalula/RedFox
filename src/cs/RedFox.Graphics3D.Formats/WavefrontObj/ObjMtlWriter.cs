@@ -1,11 +1,10 @@
 using System.Globalization;
+using System.Numerics;
 
 namespace RedFox.Graphics3D.Formats.WavefrontObj;
 
 /// <summary>
 /// Writes Wavefront MTL (.mtl) material library files from a collection of <see cref="Material"/> nodes.
-/// Exports texture map references including diffuse (map_Kd), specular (map_Ks),
-/// normal/bump (map_Bump), emissive (map_Ke), gloss (map_Ns), and cavity/opacity (map_d).
 /// </summary>
 public static class ObjMtlWriter
 {
@@ -30,16 +29,21 @@ public static class ObjMtlWriter
         writer.WriteLine("# Wavefront MTL exported by RedFox");
         writer.WriteLine();
 
+        HashSet<string> names = new(StringComparer.Ordinal) { "off" };
         for (int i = 0; i < materials.Count; i++)
         {
             Material mat = materials[i];
 
-            writer.WriteLine($"newmtl {mat.Name}");
+            writer.WriteLine($"newmtl {GetMaterialName(mat, names)}");
 
-            // Default illumination model and base colors
-            writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ka {0.2f:G9} {0.2f:G9} {0.2f:G9}"));
-            writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Kd {0.8f:G9} {0.8f:G9} {0.8f:G9}"));
-            writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ks {0.0f:G9} {0.0f:G9} {0.0f:G9}"));
+            Vector4 diffuse		= mat.DiffuseColor ?? new Vector4(0.8f, 0.8f, 0.8f, 1f);
+            Vector4 specular	= mat.SpecularColor ?? Vector4.Zero;
+            writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Kd {diffuse.X:G9} {diffuse.Y:G9} {diffuse.Z:G9}"));
+            writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ks {specular.X:G9} {specular.Y:G9} {specular.Z:G9}"));
+            if (mat.EmissiveColor is Vector4 emissive)
+                writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ke {emissive.X:G9} {emissive.Y:G9} {emissive.Z:G9}"));
+            if (mat.Shininess is float shininess)
+                writer.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Ns {shininess:G9}"));
             writer.WriteLine("illum 2");
 
             WriteTextureMap(writer, "map_Kd", mat, mat.DiffuseMapName, targetDirectory);
@@ -54,6 +58,14 @@ public static class ObjMtlWriter
                 writer.WriteLine();
             }
         }
+    }
+
+    internal static string GetMaterialName(Material material, HashSet<string> names)
+    {
+        string name = material.Name;
+        for (int suffix = 1; !names.Add(name); suffix++)
+            name = $"{material.Name}_{suffix}";
+        return name;
     }
 
     private static void WriteTextureMap(StreamWriter writer, string mapType, Material material, string? slotKey, string? targetDirectory)

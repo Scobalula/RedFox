@@ -25,14 +25,16 @@ public sealed class PsaTranslator : SceneTranslator
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var reader = new PsaReader(stream, context.Name);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var writer = new PsaWriter(stream);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

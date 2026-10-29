@@ -1539,8 +1539,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
         for (int i = 0; i < nodes.Count; i++)
         {
-            SceneNode node = nodes[i];
-            int parentIndex = int.CreateChecked(parentIndices[i]);
+            SceneNode node	= nodes[i];
+            int parentIndex	= int.CreateChecked(parentIndices[i]);
             LinkNode(node, (uint)parentIndex < (uint)nodes.Count && parentIndex != i ? nodes[parentIndex] : this, scene);
         }
     }
@@ -1721,8 +1721,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// <returns>The depth (0 if this is a root node).</returns>
     public int GetDepth()
     {
-        int depth = 0;
-        var current = Parent;
+        int depth	= 0;
+        var current	= Parent;
         while (current != null)
         {
             depth++;
@@ -1898,8 +1898,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (nodes.Length == 0)
             return null;
 
-        HashSet<SceneNode> candidates = [.. nodes];
-        SceneNode? current = node.Parent;
+        HashSet<SceneNode> candidates	= [.. nodes];
+        SceneNode? current				= node.Parent;
 
         while (current is not null)
         {
@@ -2005,8 +2005,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
         else
         {
             // The parent's world matrix is reused to derive a world-only local position. Deriving it separately walks the ancestors twice per level, which is exponential in hierarchy depth.
-            Matrix4x4 parentWorldMatrix = Parent.GetBindWorldMatrix();
-            Vector3 localPosition = BindTransform.LocalPosition ?? (BindTransform.WorldPosition is { } worldPosition ? GetBindLocalPosition(worldPosition, parentWorldMatrix) : Vector3.Zero);
+            Matrix4x4 parentWorldMatrix	= Parent.GetBindWorldMatrix();
+            Vector3 localPosition		= BindTransform.LocalPosition ?? (BindTransform.WorldPosition is { } worldPosition ? GetBindLocalPosition(worldPosition, parentWorldMatrix) : Vector3.Zero);
 
             _bindWorldMatrix = Matrix4x4.CreateScale(GetBindLocalScale())
                 * Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(GetBindLocalRotation()))
@@ -3158,10 +3158,10 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (LiveTransform.WorldPosition is { } worldPosition && LiveTransform.WorldRotation is { } worldRotation)
             return (worldPosition, worldRotation);
 
-        Matrix4x4 parentWorldMatrix = Parent?.GetActiveWorldMatrix() ?? Matrix4x4.Identity;
-        Quaternion parentRotation = Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
-        Vector3 position = LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentWorldMatrix);
-        Quaternion rotation = LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
+        Matrix4x4 parentWorldMatrix	= Parent?.GetActiveWorldMatrix() ?? Matrix4x4.Identity;
+        Quaternion parentRotation	= Parent?.GetActiveWorldPose().Rotation ?? Quaternion.Identity;
+        Vector3 position			= LiveTransform.WorldPosition ?? Vector3.Transform(LiveTransform.LocalPosition ?? GetBindLocalPosition(), parentWorldMatrix);
+        Quaternion rotation			= LiveTransform.WorldRotation ?? parentRotation * (LiveTransform.LocalRotation ?? GetBindLocalRotation());
 
         return (position, rotation);
     }
@@ -3253,6 +3253,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
         UserData					= reader.ReadOptionalString();
 
         int attributeCount = reader.ReadInt32();
+        if (attributeCount < 0 || attributeCount > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene attribute count.");
 
         if (attributeCount > 0)
         {
@@ -3284,8 +3286,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
 
     internal string MakeUniqueName(SceneNode targetParent, SceneNodeMatchScope scope, StringComparison nameComparison)
     {
-        string baseName = Name;
-        int index = 1;
+        string baseName	= Name;
+        int index		= 1;
         string candidate;
         do
         {
@@ -3377,10 +3379,10 @@ public abstract class SceneNode : IUpdatable, IDisposable
     /// </summary>
     private void StoreTransformsAsLocal()
     {
-        Vector3 bindPosition = GetBindLocalPosition();
-        Quaternion bindRotation = GetBindLocalRotation();
-        Vector3 livePosition = GetLiveLocalPosition();
-        Quaternion liveRotation = GetLiveLocalRotation();
+        Vector3 bindPosition	= GetBindLocalPosition();
+        Quaternion bindRotation	= GetBindLocalRotation();
+        Vector3 livePosition	= GetLiveLocalPosition();
+        Quaternion liveRotation	= GetLiveLocalRotation();
 
         if (BindTransform.WorldPosition is not null)
         {
@@ -3459,8 +3461,8 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return this;
         }
 
-        SceneNode targetRoot = targetParent.GetRoot();
-        SceneNode stagingRoot = GetRoot();
+        SceneNode targetRoot	= targetParent.GetRoot();
+        SceneNode stagingRoot	= GetRoot();
 
         switch (strategy)
         {
@@ -3532,9 +3534,9 @@ public abstract class SceneNode : IUpdatable, IDisposable
             return;
         }
 
-        SceneNode? oldParent = Parent;
-        Scene? oldScene = Scene;
-        Scene? newScene = newParent.Scene;
+        SceneNode? oldParent	= Parent;
+        Scene? oldScene			= Scene;
+        Scene? newScene			= newParent.Scene;
 
         PrepareForReparent(transformMode);
 
@@ -3639,10 +3641,10 @@ public abstract class SceneNode : IUpdatable, IDisposable
         if (BindTransform.WorldPosition is { } worldPosition && BindTransform.WorldRotation is { } worldRotation)
             return (worldPosition, worldRotation);
 
-        Matrix4x4 parentWorldMatrix = Parent?.GetBindWorldMatrix() ?? Matrix4x4.Identity;
-        Quaternion parentRotation = Parent?.GetBindWorldPose().Rotation ?? Quaternion.Identity;
-        Vector3 position = BindTransform.WorldPosition ?? Vector3.Transform(BindTransform.LocalPosition ?? Vector3.Zero, parentWorldMatrix);
-        Quaternion rotation = BindTransform.WorldRotation ?? parentRotation * (BindTransform.LocalRotation ?? Quaternion.Identity);
+        Matrix4x4 parentWorldMatrix	= Parent?.GetBindWorldMatrix() ?? Matrix4x4.Identity;
+        Quaternion parentRotation	= Parent?.GetBindWorldPose().Rotation ?? Quaternion.Identity;
+        Vector3 position			= BindTransform.WorldPosition ?? Vector3.Transform(BindTransform.LocalPosition ?? Vector3.Zero, parentWorldMatrix);
+        Quaternion rotation			= BindTransform.WorldRotation ?? parentRotation * (BindTransform.LocalRotation ?? Quaternion.Identity);
 
         return (position, rotation);
     }

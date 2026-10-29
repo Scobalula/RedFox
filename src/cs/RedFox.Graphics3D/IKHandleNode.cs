@@ -101,8 +101,8 @@ public sealed class IKHandleNode(string name, SceneNode startNode, SceneNode end
     public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
     {
         base.Read(reader, nodes);
-        StartNode			= reader.ReadNode<SceneNode>(nodes)!;
-        EndNode				= reader.ReadNode<SceneNode>(nodes)!;
+        StartNode			= reader.ReadNode<SceneNode>(nodes) ?? throw new InvalidDataException("Missing start node reference.");
+        EndNode				= reader.ReadNode<SceneNode>(nodes) ?? throw new InvalidDataException("Missing end node reference.");
         TargetNode			= reader.ReadNode<SceneNode>(nodes);
         TargetOffset		= reader.ReadValue<Vector3>();
         PoleVectorNode		= reader.ReadNode<SceneNode>(nodes);

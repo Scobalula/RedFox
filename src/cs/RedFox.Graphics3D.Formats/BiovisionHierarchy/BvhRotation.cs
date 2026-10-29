@@ -9,7 +9,6 @@ public static class BvhRotation
 {
     /// <summary>
     /// Composes a quaternion from Euler degrees using the supplied BVH channel order.
-    /// BVH rotation channels are concatenated using the format's reversed matrix application order rather than naive Euler multiplication order.
     /// </summary>
     /// <param name="eulerDegrees">The Euler angles in degrees, stored as X, Y, and Z components.</param>
     /// <param name="channels">The channel sequence that defines the rotation order.</param>
@@ -19,8 +18,8 @@ public static class BvhRotation
     {
         ArgumentNullException.ThrowIfNull(channels);
 
-        Quaternion composed = Quaternion.Identity;
-        bool hasRotationChannel = false;
+        Quaternion composed		= Quaternion.Identity;
+        bool hasRotationChannel	= false;
 
         for (int i = 0; i < channels.Count; i++)
         {
@@ -60,35 +59,37 @@ public static class BvhRotation
     {
         ArgumentNullException.ThrowIfNull(channels);
 
-        int[] usedAxes = GetUsedRotationAxes(channels);
-        if (usedAxes.Length == 0)
+        Span<int> axes		= stackalloc int[3];
+        int rotationCount	= 0;
+        for (int i = 0; i < channels.Count; i++)
         {
-            return Vector3.Zero;
+            if (!BvhFormat.IsRotationChannel(channels[i]))
+                continue;
+            if (rotationCount < axes.Length)
+                axes[rotationCount] = BvhFormat.GetAxisIndex(channels[i]);
+            rotationCount++;
         }
+        if (rotationCount == 0)
+            return Vector3.Zero;
 
         Quaternion target = Quaternion.Normalize(rotation);
-        Vector3 best = RefineEulerCandidate(initialGuess, target, channels, usedAxes);
-        float bestScore = ScoreCandidate(target, best, channels);
+        if (rotationCount == 3 && axes[0] != axes[1] && axes[0] != axes[2] && axes[1] != axes[2])
+            return ToThreeAxisEuler(target, axes[0], axes[1], axes[2], initialGuess);
+
+        int[] usedAxes	= GetUsedRotationAxes(channels);
+        Vector3 best	= RefineEulerCandidate(initialGuess, target, channels, usedAxes);
+        float bestScore	= ScoreCandidate(target, best, channels);
         if (bestScore >= 0.999999f)
         {
             return MatchContinuity(NormalizeEulerDegrees(best), initialGuess, usedAxes);
         }
 
-        ReadOnlySpan<Vector3> fallbackSeeds =
-        [
-            Vector3.Zero,
-            new Vector3(180.0f, 0.0f, 0.0f),
-            new Vector3(0.0f, 180.0f, 0.0f),
-            new Vector3(0.0f, 0.0f, 180.0f),
-            new Vector3(180.0f, 180.0f, 0.0f),
-            new Vector3(180.0f, 0.0f, 180.0f),
-            new Vector3(0.0f, 180.0f, 180.0f),
-        ];
+        ReadOnlySpan<Vector3> fallbackSeeds = [Vector3.Zero, new Vector3(180.0f, 0.0f, 0.0f), new Vector3(0.0f, 180.0f, 0.0f), new Vector3(0.0f, 0.0f, 180.0f), new Vector3(180.0f, 180.0f, 0.0f), new Vector3(180.0f, 0.0f, 180.0f), new Vector3(0.0f, 180.0f, 180.0f),];
 
         for (int i = 0; i < fallbackSeeds.Length; i++)
         {
-            Vector3 candidate = RefineEulerCandidate(fallbackSeeds[i], target, channels, usedAxes);
-            float candidateScore = ScoreCandidate(target, candidate, channels);
+            Vector3 candidate		= RefineEulerCandidate(fallbackSeeds[i], target, channels, usedAxes);
+            float candidateScore	= ScoreCandidate(target, candidate, channels);
             if (candidateScore > bestScore)
             {
                 best = candidate;
@@ -112,8 +113,8 @@ public static class BvhRotation
 
         for (int i = 0; i < usedAxes.Count; i++)
         {
-            int axis = usedAxes[i];
-            float reference = axis switch
+            int axis		= usedAxes[i];
+            float reference	= axis switch
             {
                 0 => referenceDegrees.X,
                 1 => referenceDegrees.Y,
@@ -161,9 +162,9 @@ public static class BvhRotation
     /// <returns>The refined Euler angles in degrees.</returns>
     public static Vector3 RefineEulerCandidate(Vector3 initialGuess, Quaternion target, IReadOnlyList<BvhChannelType> channels, IReadOnlyList<int> usedAxes)
     {
-        Vector3 best = NormalizeEulerDegrees(initialGuess);
-        float bestScore = ScoreCandidate(target, best, channels);
-        ReadOnlySpan<float> refinementSteps = [180.0f, 90.0f, 45.0f, 22.5f, 10.0f, 5.0f, 1.0f, 0.25f, 0.05f, 0.01f];
+        Vector3 best						= NormalizeEulerDegrees(initialGuess);
+        float bestScore						= ScoreCandidate(target, best, channels);
+        ReadOnlySpan<float> refinementSteps	= [180.0f, 90.0f, 45.0f, 22.5f, 10.0f, 5.0f, 1.0f, 0.25f, 0.05f, 0.01f];
 
         for (int stepIndex = 0; stepIndex < refinementSteps.Length; stepIndex++)
         {
@@ -176,9 +177,9 @@ public static class BvhRotation
 
                 for (int axisIndex = 0; axisIndex < usedAxes.Count; axisIndex++)
                 {
-                    int axis = usedAxes[axisIndex];
-                    Vector3 positive = OffsetAxis(best, axis, step);
-                    float positiveScore = ScoreCandidate(target, positive, channels);
+                    int axis			= usedAxes[axisIndex];
+                    Vector3 positive	= OffsetAxis(best, axis, step);
+                    float positiveScore	= ScoreCandidate(target, positive, channels);
                     if (positiveScore > bestScore)
                     {
                         best = positive;
@@ -187,8 +188,8 @@ public static class BvhRotation
                         continue;
                     }
 
-                    Vector3 negative = OffsetAxis(best, axis, -step);
-                    float negativeScore = ScoreCandidate(target, negative, channels);
+                    Vector3 negative	= OffsetAxis(best, axis, -step);
+                    float negativeScore	= ScoreCandidate(target, negative, channels);
                     if (negativeScore > bestScore)
                     {
                         best = negative;
@@ -225,11 +226,11 @@ public static class BvhRotation
     {
         ArgumentNullException.ThrowIfNull(channels);
 
-        int[] usedAxes = new int[3];
-        bool hasX = false;
-        bool hasY = false;
-        bool hasZ = false;
-        int count = 0;
+        int[] usedAxes	= new int[3];
+        bool hasX		= false;
+        bool hasY		= false;
+        bool hasZ		= false;
+        int count		= 0;
 
         for (int i = 0; i < channels.Count; i++)
         {
@@ -351,5 +352,38 @@ public static class BvhRotation
         }
 
         return wrapped;
+    }
+
+    private static Vector3 ToThreeAxisEuler(Quaternion rotation, int i, int j, int k, Vector3 reference)
+    {
+        float parity		= (j - i + 3) % 3 == 1 ? 1f : -1f;
+        Matrix4x4 matrix	= Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion(rotation));
+        float middle		= MathF.Asin(Math.Clamp(parity * matrix[i, k], -1f, 1f));
+        float first;
+        float last;
+        if (MathF.Abs(matrix[i, k]) < 0.999999f)
+        {
+            first	= MathF.Atan2(-parity * matrix[j, k], matrix[k, k]);
+            last	= MathF.Atan2(-parity * matrix[i, j], matrix[i, i]);
+        }
+        else
+        {
+            last = reference[k] * MathF.PI / 180f;
+            Quaternion adjusted = rotation * Quaternion.Inverse(CreateAxisRotation(k, reference[k]));
+            matrix	= Matrix4x4.Transpose(Matrix4x4.CreateFromQuaternion(adjusted));
+            first	= MathF.Atan2(parity * matrix[k, j], matrix[j, j]);
+        }
+
+        Vector3 result = Vector3.Zero;
+        result[i]	= first * 180f / MathF.PI;
+        result[j]	= middle * 180f / MathF.PI;
+        result[k]	= last * 180f / MathF.PI;
+        Vector3 alternate = result;
+        alternate[i] += 180f;
+        alternate[j] = 180f - alternate[j];
+        alternate[k] += 180f;
+        result		= new Vector3(UnwrapAngleDegrees(result.X, reference.X), UnwrapAngleDegrees(result.Y, reference.Y), UnwrapAngleDegrees(result.Z, reference.Z));
+        alternate	= new Vector3(UnwrapAngleDegrees(alternate.X, reference.X), UnwrapAngleDegrees(alternate.Y, reference.Y), UnwrapAngleDegrees(alternate.Z, reference.Z));
+        return Vector3.DistanceSquared(result, reference) <= Vector3.DistanceSquared(alternate, reference) ? result : alternate;
     }
 }

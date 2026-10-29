@@ -22,12 +22,19 @@ public sealed class PsaWriter
     /// Writes the first skeleton animation contained in the selection as PSA.
     /// </summary>
     /// <param name="selection">The scene selection to export.</param>
-    public void Write(SceneTranslationSelection selection)
+    public void Write(SceneTranslationSelection selection) => Write(selection, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="selection">The selected scene data to write.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(SceneTranslationSelection selection, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(selection);
 
-        var animation = selection.TryGetFirstOfType<SkeletonAnimation>()
-            ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation to write as PSA.");
+        var animation = selection.TryGetFirstOfType<SkeletonAnimation>() ?? throw new InvalidDataException("Scene does not contain a SkeletonAnimation to write as PSA.");
 
         var bones = selection.GetDescendants<SkeletonBone>();
         if (bones.Length == 0)
@@ -48,7 +55,7 @@ public sealed class PsaWriter
 
         ActorXBinary.WriteBones(writer, ActorXChunkId.BoneNames, bones, boneNodes);
         WriteSequence(writer, animation, bones.Length, frameCount);
-        WriteKeys(writer, bones, trackByName, frameCount);
+        WriteKeys(writer, bones, boneNodes, trackByName, frameCount, token);
 
         writer.Flush();
     }
@@ -61,41 +68,36 @@ public sealed class PsaWriter
 
         ActorXBinary.WriteFixedString(writer, animation.Name, 64);
         ActorXBinary.WriteFixedString(writer, "None", 64);
-        writer.Write(boneCount);   // TotalBones
-        writer.Write(0);           // RootInclude
-        writer.Write(0);           // KeyCompressionStyle
-        writer.Write(0);           // KeyQuotum
-        writer.Write(0f);          // KeyReduction
+        writer.Write(boneCount);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0);
+        writer.Write(0f);
+        writer.Write((float)frameCount);
+        writer.Write(rate);
+        writer.Write(0);
+        writer.Write(0);
         writer.Write(frameCount);
-        writer.Write(rate);        // AnimRate
-        writer.Write(0);           // StartBone
-        writer.Write(0);           // FirstRawFrame
-        writer.Write(frameCount);  // NumRawFrames
     }
 
-    private static void WriteKeys(BinaryWriter writer, SkeletonBone[] bones, Dictionary<string, SkeletonAnimationTrack> trackByName, int frameCount)
+    private static void WriteKeys(BinaryWriter writer, SkeletonBone[] bones, SceneNode[] boneNodes, Dictionary<string, SkeletonAnimationTrack> trackByName, int frameCount, CancellationToken token)
     {
-        ActorXChunkHeader.Write(writer, ActorXChunkId.AnimationKeys, ActorXBinary.Version, 32, frameCount * bones.Length);
+        ActorXChunkHeader.Write(writer, ActorXChunkId.AnimationKeys, ActorXBinary.Version, 32, checked(frameCount * bones.Length));
 
+        Dictionary<SkeletonBone, SkeletonBone?> parents = SkeletonExportTransforms.BuildExportedParentMap(bones, boneNodes);
+        Dictionary<SkeletonBone, Matrix4x4> transforms = [];
         for (int frame = 0; frame < frameCount; frame++)
         {
+            token.ThrowIfCancellationRequested();
+            transforms.Clear();
             for (int b = 0; b < bones.Length; b++)
             {
                 var bone = bones[b];
-                Vector3 position = bone.GetBindLocalPosition();
-                Quaternion rotation = bone.GetBindLocalRotation();
-
-                if (trackByName.TryGetValue(bone.Name, out var track))
-                {
-                    if (track.TranslationCurve is { KeyFrameCount: > 0 } translation)
-                        position = translation.SampleVector3(frame);
-                    if (track.RotationCurve is { KeyFrameCount: > 0 } rotationCurve)
-                        rotation = rotationCurve.SampleQuaternion(frame);
-                }
+                SkeletonExportTransforms.GetRelativeAnimatedTransform(bone, parents, trackByName, frame, transforms, out Vector3 position, out Quaternion rotation);
 
                 ActorXBinary.Write(writer, position);
                 ActorXBinary.Write(writer, ActorXBinary.ToStoredRotation(rotation, b));
-                writer.Write(1f); // Time
+                writer.Write(1f);
             }
         }
     }

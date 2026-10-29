@@ -1,8 +1,9 @@
+using System.Runtime.InteropServices;
+
 namespace RedFox.Graphics3D.Formats.GLTransmissionFormat;
 
 /// <summary>
-/// Represents a complete glTF 2.0 document in memory, containing all top-level
-/// arrays (scenes, nodes, meshes, accessors, materials, etc.) that define the asset.
+/// Represents a complete glTF 2.0 document in memory, containing all top-level arrays (scenes, nodes, meshes, accessors, materials, etc.) that define the asset.
 /// </summary>
 public sealed class GltfDocument
 {
@@ -77,156 +78,136 @@ public sealed class GltfDocument
     public List<GltfCamera> Cameras { get; set; } = [];
 
     /// <summary>
-    /// Reads the raw binary data for the specified accessor, returning the bytes as a
-    /// contiguous array regardless of buffer view stride.
+    /// Reads an accessor into tightly packed bytes.
     /// </summary>
-    /// <param name="accessorIndex">The index of the accessor to read.</param>
-    /// <returns>A byte array containing the accessor's data in tightly packed form.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when the accessor's buffer view or buffer data has not been resolved.
-    /// </exception>
     public byte[] ReadAccessorData(int accessorIndex)
     {
-        GltfAccessor accessor = Accessors[accessorIndex];
-
-        if (accessor.BufferView < 0)
-            return new byte[accessor.Count * accessor.ElementSize];
-
-        GltfBufferView view = BufferViews[accessor.BufferView];
-        GltfBuffer buffer = Buffers[view.Buffer];
-
-        if (buffer.Data is null)
-            throw new InvalidOperationException($"Buffer {view.Buffer} data has not been loaded.");
-
-        int elementSize = accessor.ElementSize;
-        int stride = view.ByteStride > 0 ? view.ByteStride : elementSize;
-        int sourceOffset = view.ByteOffset + accessor.ByteOffset;
-        int totalBytes = accessor.Count * elementSize;
-
-        byte[] result = new byte[totalBytes];
-
-        if (stride == elementSize)
+        GltfAccessor accessor	= GetAccessorSource(accessorIndex, out ReadOnlyMemory<byte> source, out int stride);
+        byte[] result			= new byte[checked(accessor.Count * accessor.ElementSize)];
+        if (stride == accessor.ElementSize)
         {
-            Buffer.BlockCopy(buffer.Data, sourceOffset, result, 0, totalBytes);
+            source.Span.CopyTo(result);
         }
-        else
+        else if (!source.IsEmpty)
         {
             for (int i = 0; i < accessor.Count; i++)
-            {
-                Buffer.BlockCopy(buffer.Data, sourceOffset + i * stride, result, i * elementSize, elementSize);
-            }
+                source.Span.Slice(i * stride, accessor.ElementSize).CopyTo(result.AsSpan(i * accessor.ElementSize));
         }
-
         return result;
     }
 
     /// <summary>
-    /// Reads the accessor data as an array of single-precision floats, converting from
-    /// the accessor's native component type as needed.
+    /// Reads and converts an accessor directly into float storage.
     /// </summary>
-    /// <param name="accessorIndex">The index of the accessor to read.</param>
-    /// <returns>An array of floats containing the accessor's element data.</returns>
     public float[] ReadAccessorAsFloats(int accessorIndex)
     {
-        GltfAccessor accessor = Accessors[accessorIndex];
-        byte[] raw = ReadAccessorData(accessorIndex);
-        int componentCount = accessor.ComponentCount;
-        int totalComponents = accessor.Count * componentCount;
-        float[] result = new float[totalComponents];
+        GltfAccessor accessor	= GetAccessorSource(accessorIndex, out ReadOnlyMemory<byte> source, out int stride);
+        float[] result			= new float[checked(accessor.Count * accessor.ComponentCount)];
+        if (source.IsEmpty)
+            return result;
 
-        switch (accessor.ComponentType)
+        int componentCount	= accessor.ComponentCount;
+        int componentSize	= accessor.ComponentSize;
+        if (accessor.ComponentType == GltfConstants.ComponentTypeFloat && BitConverter.IsLittleEndian)
         {
-            case GltfConstants.ComponentTypeFloat:
-                System.Buffer.BlockCopy(raw, 0, result, 0, totalComponents * 4);
-                break;
-
-            case GltfConstants.ComponentTypeByte:
-                for (int i = 0; i < totalComponents; i++)
-                    result[i] = accessor.Normalized ? Math.Max((sbyte)raw[i] / 127f, -1f) : (sbyte)raw[i];
-                break;
-
-            case GltfConstants.ComponentTypeUnsignedByte:
-                for (int i = 0; i < totalComponents; i++)
-                    result[i] = accessor.Normalized ? raw[i] / 255f : raw[i];
-                break;
-
-            case GltfConstants.ComponentTypeShort:
-                for (int i = 0; i < totalComponents; i++)
-                {
-                    short v = BitConverter.ToInt16(raw, i * 2);
-                    result[i] = accessor.Normalized ? Math.Max(v / 32767f, -1f) : v;
-                }
-                break;
-
-            case GltfConstants.ComponentTypeUnsignedShort:
-                for (int i = 0; i < totalComponents; i++)
-                {
-                    ushort v = BitConverter.ToUInt16(raw, i * 2);
-                    result[i] = accessor.Normalized ? v / 65535f : v;
-                }
-                break;
-
-            case GltfConstants.ComponentTypeUnsignedInt:
-                for (int i = 0; i < totalComponents; i++)
-                    result[i] = BitConverter.ToUInt32(raw, i * 4);
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported accessor component type: {accessor.ComponentType}");
+            ReadOnlySpan<float> values = MemoryMarshal.Cast<byte, float>(source.Span);
+            if (stride == accessor.ElementSize)
+            {
+                values.CopyTo(result);
+            }
+            else
+            {
+                int floatStride = stride / sizeof(float);
+                for (int i = 0; i < accessor.Count; i++)
+                    values.Slice(i * floatStride, componentCount).CopyTo(result.AsSpan(i * componentCount));
+            }
+            return result;
         }
 
+        for (int i = 0; i < accessor.Count; i++)
+        {
+            for (int c = 0; c < componentCount; c++)
+            {
+                ReadOnlySpan<byte> value = source.Span[(i * stride + c * componentSize)..];
+                result[i * componentCount + c] = accessor.ComponentType switch
+                {
+                    GltfConstants.ComponentTypeFloat		 => System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(value),
+                    GltfConstants.ComponentTypeByte			 => accessor.Normalized ? Math.Max((sbyte)value[0] / 127f, -1f) : (sbyte)value[0],
+                    GltfConstants.ComponentTypeUnsignedByte	 => accessor.Normalized ? value[0] / 255f : value[0],
+                    GltfConstants.ComponentTypeShort		 => accessor.Normalized ? Math.Max(System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(value) / 32767f, -1f) : System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(value),
+                    GltfConstants.ComponentTypeUnsignedShort => accessor.Normalized ? System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(value) / 65535f : System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(value),
+                    GltfConstants.ComponentTypeUnsignedInt	 => System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(value),
+                    _										 => throw new InvalidDataException("Unsupported accessor component type."),
+                };
+            }
+        }
         return result;
     }
 
     /// <summary>
-    /// Reads the accessor data as an array of integers, converting from the accessor's
-    /// native component type as needed. Typically used for face indices and joint indices.
+    /// Reads and converts an accessor directly into integer storage.
     /// </summary>
-    /// <param name="accessorIndex">The index of the accessor to read.</param>
-    /// <returns>An array of integers containing the accessor's element data.</returns>
     public int[] ReadAccessorAsInts(int accessorIndex)
     {
-        GltfAccessor accessor = Accessors[accessorIndex];
-        byte[] raw = ReadAccessorData(accessorIndex);
-        int totalElements = accessor.Count * accessor.ComponentCount;
-        int[] result = new int[totalElements];
+        GltfAccessor accessor	= GetAccessorSource(accessorIndex, out ReadOnlyMemory<byte> source, out int stride);
+        int componentCount		= accessor.ComponentCount;
+        int componentSize		= accessor.ComponentSize;
+        int[] result			= new int[checked(accessor.Count * accessor.ComponentCount)];
+        if (source.IsEmpty)
+            return result;
 
-        switch (accessor.ComponentType)
+        for (int i = 0; i < accessor.Count; i++)
         {
-            case GltfConstants.ComponentTypeUnsignedByte:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = raw[i];
-                break;
-
-            case GltfConstants.ComponentTypeByte:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = (sbyte)raw[i];
-                break;
-
-            case GltfConstants.ComponentTypeUnsignedShort:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = BitConverter.ToUInt16(raw, i * 2);
-                break;
-
-            case GltfConstants.ComponentTypeShort:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = BitConverter.ToInt16(raw, i * 2);
-                break;
-
-            case GltfConstants.ComponentTypeUnsignedInt:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = (int)BitConverter.ToUInt32(raw, i * 4);
-                break;
-
-            case GltfConstants.ComponentTypeFloat:
-                for (int i = 0; i < totalElements; i++)
-                    result[i] = (int)BitConverter.ToSingle(raw, i * 4);
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unsupported accessor component type: {accessor.ComponentType}");
+            for (int c = 0; c < componentCount; c++)
+            {
+                ReadOnlySpan<byte> value = source.Span[(i * stride + c * componentSize)..];
+                result[i * componentCount + c] = accessor.ComponentType switch
+                {
+                    GltfConstants.ComponentTypeByte			 => (sbyte)value[0],
+                    GltfConstants.ComponentTypeUnsignedByte	 => value[0],
+                    GltfConstants.ComponentTypeShort		 => System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(value),
+                    GltfConstants.ComponentTypeUnsignedShort => System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(value),
+                    GltfConstants.ComponentTypeUnsignedInt	 => checked((int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(value)),
+                    GltfConstants.ComponentTypeFloat		 => checked((int)System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(value)),
+                    _										 => throw new InvalidDataException("Unsupported accessor component type."),
+                };
+            }
         }
-
         return result;
+    }
+
+    private GltfAccessor GetAccessorSource(int accessorIndex, out ReadOnlyMemory<byte> source, out int stride)
+    {
+        if ((uint)accessorIndex >= (uint)Accessors.Count)
+            throw new InvalidDataException("Invalid accessor index.");
+
+        GltfAccessor accessor = Accessors[accessorIndex];
+        if (accessor.Count < 0 || accessor.ByteOffset < 0 || accessor.ComponentSize == 0 || accessor.ComponentCount == 0 || (long)accessor.Count * accessor.ElementSize > int.MaxValue)
+            throw new InvalidDataException("Invalid accessor dimensions.");
+        if ((accessor.Type is "MAT2" or "MAT3") && accessor.ComponentSize < 4)
+            throw new NotSupportedException("Packed matrix accessors are not supported.");
+
+        stride	= accessor.ElementSize;
+        source	= ReadOnlyMemory<byte>.Empty;
+        if (accessor.BufferView == -1 && accessor.ByteOffset == 0)
+            return accessor;
+        if ((uint)accessor.BufferView >= (uint)BufferViews.Count)
+            throw new InvalidDataException("Invalid accessor buffer view.");
+
+        GltfBufferView view = BufferViews[accessor.BufferView];
+        if ((uint)view.Buffer >= (uint)Buffers.Count || view.ByteOffset < 0 || view.ByteLength < 0 || view.ByteStride < 0)
+            throw new InvalidDataException("Invalid buffer view.");
+
+        GltfBuffer buffer = Buffers[view.Buffer];
+        if (buffer.Data is null || buffer.ByteLength < 0 || buffer.Data.Length < buffer.ByteLength || (long)view.ByteOffset + view.ByteLength > buffer.ByteLength)
+            throw new InvalidDataException("Buffer view exceeds its buffer.");
+
+        stride = view.ByteStride > 0 ? view.ByteStride : accessor.ElementSize;
+        long length = accessor.Count == 0 ? 0 : (long)(accessor.Count - 1) * stride + accessor.ElementSize;
+        if (stride < accessor.ElementSize || stride % accessor.ComponentSize != 0 || (view.ByteStride != 0 && (stride < 4 || stride > 252 || stride % 4 != 0)) || accessor.ByteOffset % accessor.ComponentSize != 0 || ((long)view.ByteOffset + accessor.ByteOffset) % accessor.ComponentSize != 0 || accessor.ByteOffset + length > view.ByteLength)
+            throw new InvalidDataException("Accessor exceeds its buffer view or has an invalid stride.");
+
+        source = buffer.Data.AsMemory(checked(view.ByteOffset + accessor.ByteOffset), checked((int)length));
+        return accessor;
     }
 }

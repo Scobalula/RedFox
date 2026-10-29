@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using RedFox.Graphics3D.Buffers;
 
 namespace RedFox.Graphics3D.IO.SceneFile;
@@ -85,7 +86,10 @@ public static class SceneFileBinaryExtensions
     /// </summary>
     public static T[] ReadArray<T>(this BinaryReader reader) where T : unmanaged
     {
-        T[] values = new T[reader.ReadInt32()];
+        int count = reader.ReadInt32();
+        if (count < 0 || (long)count * Unsafe.SizeOf<T>() > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene array length.");
+        T[] values = new T[count];
         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(values.AsSpan()));
         return values;
     }
@@ -106,7 +110,10 @@ public static class SceneFileBinaryExtensions
     /// </summary>
     public static string[] ReadStrings(this BinaryReader reader)
     {
-        string[] values = new string[reader.ReadInt32()];
+        int count = reader.ReadInt32();
+        if (count < 0 || count > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene string count.");
+        string[] values = new string[count];
 
         for (int i = 0; i < values.Length; i++)
             values[i] = reader.ReadString();
@@ -125,7 +132,11 @@ public static class SceneFileBinaryExtensions
     public static T? ReadNode<T>(this BinaryReader reader, IReadOnlyList<SceneNode> nodes) where T : SceneNode
     {
         int index = reader.ReadInt32();
-        return index < 0 ? null : nodes[index] as T;
+        if (index == -1)
+            return null;
+        if ((uint)index >= (uint)nodes.Count || nodes[index] is not T value)
+            throw new InvalidDataException("Invalid scene node reference.");
+        return value;
     }
 
     /// <summary>
@@ -145,10 +156,12 @@ public static class SceneFileBinaryExtensions
     public static List<T> ReadNodes<T>(this BinaryReader reader, IReadOnlyList<SceneNode> nodes) where T : SceneNode
     {
         int count = reader.ReadInt32();
+        if (count < 0 || (long)count * sizeof(int) > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene reference count.");
         List<T> values = new(count);
 
         for (int i = 0; i < count; i++)
-            values.Add(reader.ReadNode<T>(nodes)!);
+            values.Add(reader.ReadNode<T>(nodes) ?? throw new InvalidDataException("Missing scene node reference."));
 
         return values;
     }
@@ -265,7 +278,9 @@ public static class SceneFileBinaryExtensions
 
     private static DataBuffer<T> ReadBuffer<T>(BinaryReader reader, int elementCount, int valueCount, int componentCount) where T : unmanaged, INumber<T>
     {
-        T[] values = new T[elementCount * valueCount * componentCount];
+        if (elementCount < 0 || valueCount <= 0 || componentCount <= 0 || (long)elementCount * valueCount > int.MaxValue / componentCount || (long)elementCount * valueCount * componentCount > (reader.BaseStream.Length - reader.BaseStream.Position) / Unsafe.SizeOf<T>())
+            throw new InvalidDataException("Invalid scene buffer dimensions.");
+        T[] values = new T[checked(elementCount * valueCount * componentCount)];
         reader.BaseStream.ReadExactly(MemoryMarshal.AsBytes(values.AsSpan()));
         return new DataBuffer<T>(values, valueCount, componentCount);
     }

@@ -5,20 +5,6 @@ namespace RedFox.Graphics3D.Formats.IdTech;
 
 /// <summary>
 /// Provides reading and writing of id Tech 4 MD5 mesh (<c>.md5mesh</c>) scene files.
-/// <para>
-/// An MD5 mesh file contains a skeleton hierarchy with object-space bind-pose transforms
-/// and one or more skinned meshes.  Each mesh defines vertices via a weight table that
-/// binds geometry to the skeleton joints.
-/// </para>
-/// <para>
-/// On reading, the translator parses the joint hierarchy, creates <see cref="SkeletonBone"/> nodes,
-/// and adds a <see cref="MeshGroup"/> containing one <see cref="Mesh"/> per sub-mesh block. Vertex
-/// positions, normals, and tangents are computed from the weight data.
-/// </para>
-/// <para>
-/// On writing, the translator decomposes skinned vertex positions back into joint-local
-/// weight offsets and emits a valid MD5 mesh file.
-/// </para>
 /// </summary>
 public sealed class Md5MeshTranslator : SceneTranslator
 {
@@ -49,8 +35,9 @@ public sealed class Md5MeshTranslator : SceneTranslator
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var reader = new Md5MeshReader(stream, context.Name, context.Options);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <summary>
@@ -62,7 +49,8 @@ public sealed class Md5MeshTranslator : SceneTranslator
     /// <param name="token">Optional cancellation token propagated by the translator pipeline.</param>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var writer = new Md5MeshWriter(stream, context.Name, context.Options);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

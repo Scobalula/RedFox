@@ -22,9 +22,10 @@ public static class ActorXBinary
     /// <returns>The decoded string.</returns>
     public static string ReadFixedString(BinaryReader reader, int length)
     {
-        var bytes = reader.ReadBytes(length);
-        int end = Array.IndexOf(bytes, (byte)0);
-        return Encoding.UTF8.GetString(bytes, 0, end < 0 ? bytes.Length : end);
+        Span<byte> bytes = length <= 256 ? stackalloc byte[length] : new byte[length];
+        reader.BaseStream.ReadExactly(bytes);
+        int end = bytes.IndexOf((byte)0);
+        return Encoding.UTF8.GetString(end < 0 ? bytes : bytes[..end]);
     }
 
     /// <summary>
@@ -38,22 +39,20 @@ public static class ActorXBinary
         Span<byte> buffer = stackalloc byte[length];
         buffer.Clear();
 
-        if (!string.IsNullOrEmpty(value))
+        if (!string.IsNullOrEmpty(value) && !Encoding.UTF8.TryGetBytes(value.AsSpan(), buffer[..(length - 1)], out _))
         {
-            var bytes = Encoding.UTF8.GetBytes(value);
-            bytes.AsSpan(0, Math.Min(bytes.Length, length - 1)).CopyTo(buffer);
+            buffer.Clear();
+            Encoding.UTF8.GetEncoder().Convert(value.AsSpan(), buffer[..(length - 1)], true, out _, out _, out _);
         }
 
         writer.Write(buffer);
     }
 
     /// <summary>Reads a <see cref="Vector3"/> as three single-precision floats.</summary>
-    public static Vector3 ReadVector3(BinaryReader reader)
-        => new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+    public static Vector3 ReadVector3(BinaryReader reader) => new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 
     /// <summary>Reads a <see cref="Quaternion"/> as four single-precision floats in X, Y, Z, W order.</summary>
-    public static Quaternion ReadQuaternion(BinaryReader reader)
-        => new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+    public static Quaternion ReadQuaternion(BinaryReader reader) => new(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 
     /// <summary>Writes a <see cref="Vector3"/> as three single-precision floats.</summary>
     public static void Write(BinaryWriter writer, Vector3 value)
@@ -74,34 +73,31 @@ public static class ActorXBinary
 
     /// <summary>
     /// Converts a stored ActorX bone orientation into a local-space rotation.
-    /// ActorX stores the root bone unmodified and conjugates every child bone, so this applies the inverse.
     /// </summary>
     /// <param name="stored">The orientation as stored in the file.</param>
     /// <param name="boneIndex">The bone's index within the skeleton.</param>
-    public static Quaternion ToLocalRotation(Quaternion stored, int boneIndex)
-        => boneIndex == 0 ? stored : Quaternion.Conjugate(stored);
+    public static Quaternion ToLocalRotation(Quaternion stored, int boneIndex) => boneIndex == 0 ? stored : Quaternion.Conjugate(stored);
 
     /// <summary>
     /// Converts a local-space rotation into the orientation stored by ActorX, mirroring <see cref="ToLocalRotation"/>.
     /// </summary>
     /// <param name="local">The local-space rotation.</param>
     /// <param name="boneIndex">The bone's index within the skeleton.</param>
-    public static Quaternion ToStoredRotation(Quaternion local, int boneIndex)
-        => boneIndex == 0 ? local : Quaternion.Conjugate(local);
+    public static Quaternion ToStoredRotation(Quaternion local, int boneIndex) => boneIndex == 0 ? local : Quaternion.Conjugate(local);
 
     internal static List<ActorXBone> ReadBones(BinaryReader reader, int count)
     {
         var bones = new List<ActorXBone>(count);
         for (int i = 0; i < count; i++)
         {
-            string name = ReadFixedString(reader, 64);
-            uint flags = reader.ReadUInt32();
-            int childCount = reader.ReadInt32();
-            int parentIndex = reader.ReadInt32();
-            Quaternion orientation = ReadQuaternion(reader);
-            Vector3 position = ReadVector3(reader);
-            float length = reader.ReadSingle();
-            var size = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+            string name				= ReadFixedString(reader, 64);
+            uint flags				= reader.ReadUInt32();
+            int childCount			= reader.ReadInt32();
+            int parentIndex			= reader.ReadInt32();
+            Quaternion orientation	= ReadQuaternion(reader);
+            Vector3 position		= ReadVector3(reader);
+            float length			= reader.ReadSingle();
+            var size				= new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
             bones.Add(new ActorXBone(name, flags, childCount, parentIndex, orientation, position, length, size));
         }
 
@@ -110,11 +106,8 @@ public static class ActorXBinary
 
     internal static void WriteBones(BinaryWriter writer, string chunkId, SkeletonBone[] bones, SceneNode[] boneNodes)
     {
-        var parentIndices = new int[bones.Length];
-        var childCounts = new int[bones.Length];
-
-        for (int i = 0; i < bones.Length; i++)
-            parentIndices[i] = SceneNode.GetBestParentIndex(bones[i], boneNodes);
+        int[] parentIndices	= SkeletonExportTransforms.BuildExportedParentIndices(bones, boneNodes);
+        var childCounts		= new int[bones.Length];
 
         for (int i = 0; i < bones.Length; i++)
         {
@@ -132,8 +125,12 @@ public static class ActorXBinary
             writer.Write(0u);
             writer.Write(childCounts[i]);
             writer.Write(parentIndices[i] < 0 ? 0 : parentIndices[i]);
-            Write(writer, ToStoredRotation(bone.GetBindLocalRotation(), i));
-            Write(writer, bone.GetBindLocalPosition());
+            SceneNode? parent = null;
+            if (parentIndices[i] >= 0)
+                parent = boneNodes[parentIndices[i]];
+            SkeletonExportTransforms.GetRelativeBindTransform(bone, parent, out Vector3 position, out Quaternion rotation);
+            Write(writer, ToStoredRotation(rotation, i));
+            Write(writer, position);
             writer.Write(0f);
             writer.Write(0f);
             writer.Write(0f);

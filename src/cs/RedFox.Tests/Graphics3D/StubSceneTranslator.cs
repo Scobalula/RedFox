@@ -9,6 +9,8 @@ namespace RedFox.Tests.Graphics3D;
 /// </summary>
 public sealed class StubSceneTranslator(string name, string extension, bool canRead, bool canWrite) : SceneTranslator
 {
+    public Action<Scene>? AfterRead { get; init; }
+
     /// <summary>
     /// Gets the signature written by <see cref="Write"/> and required by <see cref="SceneTranslator.IsValid(string, string, SceneTranslationContext, ReadOnlySpan{byte})"/>.
     /// </summary>
@@ -30,7 +32,11 @@ public sealed class StubSceneTranslator(string name, string extension, bool canR
     public override ReadOnlySpan<byte> MagicValue => Signature;
 
     /// <inheritdoc/>
-    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token) => scene.RootNode.AddNode(new Group(Name));
+    public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
+    {
+        scene.RootNode.AddNode(new Group(Name));
+        AfterRead?.Invoke(scene);
+    }
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token) => stream.Write(Signature);

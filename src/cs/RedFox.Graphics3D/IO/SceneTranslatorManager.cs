@@ -47,7 +47,7 @@ public sealed class SceneTranslatorManager
     public SceneTranslatorManager Register(SceneTranslator translator)
     {
         ArgumentNullException.ThrowIfNull(translator);
-        _translators.RemoveAll(t => t.Name == translator.Name);
+        _translators.RemoveAll(t => t.Name.Equals(translator.Name, StringComparison.OrdinalIgnoreCase));
         _translators.Add(translator);
         return this;
     }
@@ -55,11 +55,11 @@ public sealed class SceneTranslatorManager
     /// <summary>
     /// Removes the translator with the specified name.
     /// </summary>
-    /// <param name="name">The case-sensitive name of the translator to remove.</param>
+    /// <param name="name">The case-insensitive name of the translator to remove.</param>
     /// <returns><see langword="true"/> if a translator was removed; otherwise, <see langword="false"/>.</returns>
     public bool Unregister(string name)
     {
-        return _translators.RemoveAll(t => t.Name == name) > 0;
+        return _translators.RemoveAll(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) > 0;
     }
 
     /// <summary>
@@ -158,6 +158,7 @@ public sealed class SceneTranslatorManager
     /// <param name="token">Cancellation token.</param>
     public void Read(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Cannot read scene file '{filePath}' because it does not exist.", filePath);
 
@@ -230,13 +231,14 @@ public sealed class SceneTranslatorManager
     /// <exception cref="IOException">The stream is unusable or no translator can read the file.</exception>
     public void Read(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         ValidateReadArguments(stream, scene, options);
 
-        var context = SceneTranslator.CreateReadContext(filePath, options);
-        var readStart = stream.Position;
+        var context		= SceneTranslator.CreateReadContext(filePath, options);
+        var readStart	= stream.Position;
 
-        Span<byte> header = stackalloc byte[DefaultHeaderSize];
-        var headerSize = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+        Span<byte> header	= stackalloc byte[DefaultHeaderSize];
+        var headerSize		= stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
         stream.Position = readStart;
 
         ReadStaged(GetReader(filePath, header[..headerSize], context), stream, scene, context, token);
@@ -289,6 +291,7 @@ public sealed class SceneTranslatorManager
     /// <returns>A task representing the asynchronous operation.</returns>
     public async Task ReadAsync(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         if (!File.Exists(filePath))
             throw new FileNotFoundException($"Cannot read scene file '{filePath}' because it does not exist.", filePath);
 
@@ -348,13 +351,14 @@ public sealed class SceneTranslatorManager
     /// <exception cref="IOException">The stream is unusable or no translator can read the file.</exception>
     public async Task ReadAsync(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         ValidateReadArguments(stream, scene, options);
 
-        var context = SceneTranslator.CreateReadContext(filePath, options);
-        var readStart = stream.Position;
+        var context		= SceneTranslator.CreateReadContext(filePath, options);
+        var readStart	= stream.Position;
 
-        byte[] header = new byte[DefaultHeaderSize];
-        var headerSize = await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, token).ConfigureAwait(false);
+        byte[] header	= new byte[DefaultHeaderSize];
+        var headerSize	= await stream.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false, token).ConfigureAwait(false);
         stream.Position = readStart;
 
         ReadStaged(GetReader(filePath, header.AsSpan(0, headerSize), context), stream, scene, context, token);
@@ -393,11 +397,13 @@ public sealed class SceneTranslatorManager
     /// <exception cref="IOException">No translator can write the file.</exception>
     public void Write(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var context = CreateWriteContext(filePath, scene, options);
-        var translator = GetWriter(filePath, context);
+        token.ThrowIfCancellationRequested();
+        var context		= CreateWriteContext(filePath, scene, options);
+        var translator	= GetWriter(filePath, context);
 
         using var stream = File.Create(filePath);
         translator.Write(scene, stream, context, token);
+        token.ThrowIfCancellationRequested();
     }
 
     /// <summary>
@@ -436,8 +442,14 @@ public sealed class SceneTranslatorManager
     /// <exception cref="IOException">No translator can write the file.</exception>
     public void Write(Stream stream, string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanWrite)
+            throw new IOException("The supplied stream is not writable.");
+
         var context = CreateWriteContext(filePath, scene, options);
         GetWriter(filePath, context).Write(scene, stream, context, token);
+        token.ThrowIfCancellationRequested();
     }
 
     /// <summary>
@@ -463,11 +475,13 @@ public sealed class SceneTranslatorManager
     /// <exception cref="IOException">No translator can write the file.</exception>
     public async Task WriteAsync(string filePath, Scene scene, SceneTranslatorOptions options, CancellationToken token)
     {
-        var context = CreateWriteContext(filePath, scene, options);
-        var translator = GetWriter(filePath, context);
+        token.ThrowIfCancellationRequested();
+        var context		= CreateWriteContext(filePath, scene, options);
+        var translator	= GetWriter(filePath, context);
 
-        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.Asynchronous);
+        await using var stream = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous);
         translator.Write(scene, stream, context, token);
+        token.ThrowIfCancellationRequested();
     }
 
     /// <summary>
@@ -563,8 +577,8 @@ public sealed class SceneTranslatorManager
                 : $"Cannot {operation} '{filePath}': no translator named '{name}' is registered.";
         }
 
-        string extension = Path.GetExtension(filePath);
-        List<SceneTranslator> claimants = _translators.FindAll(translator => translator.IsValid(filePath, extension, context));
+        string extension				= Path.GetExtension(filePath);
+        List<SceneTranslator> claimants	= _translators.FindAll(translator => translator.IsValid(filePath, extension, context));
 
         if (claimants.Count == 0)
             return $"Cannot {operation} '{filePath}': no registered translator handles '{extension}' files.";
@@ -592,8 +606,10 @@ public sealed class SceneTranslatorManager
 
     private static void ReadStaged(SceneTranslator translator, Stream stream, Scene scene, SceneTranslationContext context, CancellationToken token)
     {
+        token.ThrowIfCancellationRequested();
         var readContext = new SceneReadContext(scene, context.Options.Merge);
         translator.Read(readContext.Staging, stream, context, token);
+        token.ThrowIfCancellationRequested();
         readContext.Commit();
     }
 
