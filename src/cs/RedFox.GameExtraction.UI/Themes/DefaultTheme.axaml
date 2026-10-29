@@ -270,6 +270,13 @@
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
+    <Style Selector="Button.secondary-btn.compact">
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
     <Style Selector="Button.toolbar-icon-btn">
         <Setter Property="Width" Value="34"/>
         <Setter Property="Height" Value="34"/>
@@ -318,9 +325,29 @@
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
     </Style>
 
+    <Style Selector="MenuFlyoutPresenter /template/ Border#LayoutRoot">
+        <Setter Property="Padding" Value="{DynamicResource MenuFlyoutPresenterThemePadding}"/>
+    </Style>
+
     <Style Selector="MenuFlyoutPresenter MenuItem PathIcon">
         <Setter Property="Width" Value="14"/>
         <Setter Property="Height" Value="14"/>
+    </Style>
+
+    <Style Selector="MenuItem">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <Style Selector="MenuItem:checked /template/ ContentControl#PART_ToggleIconPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="MenuFlyoutPresenter Separator, MenuItem Separator">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Margin" Value="0,4"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeBorderBrush}"/>
     </Style>
 
     <Style Selector="Expander.preview-details">

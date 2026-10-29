@@ -122,7 +122,7 @@ public partial class ScenePreviewView : UserControl
             Point end				= e.GetPosition(Renderer);
             if (Math.Abs(end.X - start.X) < 4 && Math.Abs(end.Y - start.Y) < 4)
             {
-                OpenOptions();
+                OpenOptions(Renderer, true);
             }
         }
 
@@ -135,7 +135,7 @@ public partial class ScenePreviewView : UserControl
         _viewModel?.Settings.RequestSave();
     }
 
-    private void OnOptionsClick(object? sender, RoutedEventArgs e) => OpenOptions();
+    private void OnOptionsClick(object? sender, RoutedEventArgs e) => OpenOptions((Control)sender!, false);
 
     private void OnPlayPauseClick(object? sender, RoutedEventArgs e)
     {
@@ -153,39 +153,25 @@ public partial class ScenePreviewView : UserControl
         }
     }
 
-    private void OpenOptions()
+    private void OnSettingClick(object? sender, RoutedEventArgs e) => _viewModel?.Settings.RequestSave();
+
+    private void OnSkyboxMenuAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        if (_viewModel is not { } viewModel)
+        if (_viewModel is not { } viewModel || sender is not MenuItem skyboxes)
         {
             return;
         }
 
-        PreviewSettings settings	= viewModel.Settings;
-        ContextMenu menu			= new();
-        MenuItem fit				= new() { Header = "Fit scene" };
-        fit.Click += (_, _) => viewModel.FitSceneToView();
-        menu.Items.Add(fit);
-        menu.Items.Add(CreateToggle("Auto fit", settings.AutoFitScene, value => settings.AutoFitScene = value));
-        menu.Items.Add(new Separator());
-        menu.Items.Add(CreateChoices("Merge mode", settings.MergeMode, value => settings.MergeMode = value));
-        menu.Items.Add(CreateChoices("Wireframe", settings.WireframeMode, value => settings.WireframeMode = value));
-        menu.Items.Add(CreateChoices("Shading", settings.LightingMode, value => settings.LightingMode = value));
-        menu.Items.Add(CreateToggle("Grid", settings.ShowGrid, value => settings.ShowGrid = value));
-        menu.Items.Add(CreateToggle("Vertex normals", settings.ShowNormals, value => settings.ShowNormals = value));
-        menu.Items.Add(CreateToggle("Bones", settings.ShowBones, value => settings.ShowBones = value));
-        menu.Items.Add(CreateToggle("Skybox background", settings.ShowSkybox, value => settings.ShowSkybox = value));
-
-        MenuItem skyboxes = new()
-        {
-            Header		= "Skybox",
-            IsEnabled	= settings.SkyboxFiles.Count > 0,
-        };
+        PreviewSettings settings = viewModel.Settings;
+        skyboxes.Items.Clear();
+        skyboxes.IsEnabled = settings.SkyboxFiles.Count > 0;
         foreach (string path in settings.SkyboxFiles)
         {
             MenuItem item = new()
             {
                 Header		= Path.GetFileNameWithoutExtension(path),
                 ToggleType	= MenuItemToggleType.Radio,
+                GroupName	= "Skybox",
                 IsChecked	= string.Equals(path, settings.SkyboxFile, StringComparison.OrdinalIgnoreCase),
             };
             item.Click += (_, _) =>
@@ -195,50 +181,14 @@ public partial class ScenePreviewView : UserControl
             };
             skyboxes.Items.Add(item);
         }
-        menu.Items.Add(skyboxes);
-        menu.Open(Renderer);
     }
 
-    private MenuItem CreateToggle(string label, bool value, Action<bool> setValue)
+    private void OpenOptions(Control target, bool showAtPointer)
     {
-        MenuItem item = new()
+        if (_viewModel is not null)
         {
-            Header		= label,
-            ToggleType	= MenuItemToggleType.CheckBox,
-            IsChecked	= value,
-        };
-        item.Click += (_, _) =>
-        {
-            setValue(item.IsChecked);
-            _viewModel?.Settings.RequestSave();
-        };
-        return item;
-    }
-
-    private MenuItem CreateChoices<T>(string label, T selected, Action<T> setValue) where T : struct, Enum
-    {
-        MenuItem menu = new() { Header = label };
-        foreach (T value in Enum.GetValues<T>())
-        {
-            MenuItem item = new()
-            {
-                Header = value.ToString() switch
-                {
-                    "InPlace"		=> "Merge in place",
-                    "ConnectBones"	=> "Connect bones",
-                    _				=> value.ToString(),
-                },
-                ToggleType	= MenuItemToggleType.Radio,
-                IsChecked	= value.Equals(selected),
-            };
-            item.Click += (_, _) =>
-            {
-                setValue(value);
-                _viewModel?.Settings.RequestSave();
-            };
-            menu.Items.Add(item);
+            ((MenuFlyout)Resources["OptionsMenu"]!).ShowAt(target, showAtPointer);
         }
-        return menu;
     }
 
     private void OnFitClick(object? sender, RoutedEventArgs e) => _viewModel?.FitSceneToView();
