@@ -8,7 +8,7 @@ internal sealed class ExtractCommand : ICommandLineCommand
 
     public IReadOnlyList<string> Aliases => ["x", "export"];
 
-    public string Usage => "[pattern] [type:<type>]";
+    public string Usage => "[pattern] [type:<type>] [key:<value>] [!exclude]";
 
     public string Description => "Export assets using the current settings";
 

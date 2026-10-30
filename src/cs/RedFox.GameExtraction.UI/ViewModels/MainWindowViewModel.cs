@@ -1760,27 +1760,28 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         AssetRowViewModel[] allAssets = [.. _allAssets];
         string[][] nameFilters = ParseNameFilters(_assetNameFilter);
+        AssetFilter searchConstraints = ParseSearchConstraints(_assetNameFilter);
         string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         bool includeAllTypes = _isAllAssetTypesSelected;
         bool includeAllSources = _isAllAssetSourcesSelected;
         string sortBy = SortBy;
         IComparer<Asset>? comparer = sortBy == "Information" ? GetAssetInformationComparer() : null;
-        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
+        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
     }
 
-    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
         try
         {
             CancellationToken cancellationToken = cancellationSource.Token;
             AssetRowViewModel[]? visibleAssets = await Task.Run(() =>
             {
-                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, cancellationToken);
+                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources, cancellationToken);
                 IOrderedEnumerable<AssetRowViewModel> sortedAssets = sortBy switch
                 {
                     "Type" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
-                    "Information" => filteredAssets.OrderBy(asset => asset.Asset, comparer).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+                    "Information" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Asset, comparer).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
                     _ => filteredAssets.OrderBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
                 };
                 AssetRowViewModel[] results = sortedAssets.ToArray();
@@ -1830,7 +1831,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
     {
         foreach (AssetRowViewModel asset in assets)
         {
@@ -1839,28 +1840,37 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 yield break;
             }
 
-            if (IsVisibleAssetRow(asset, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources))
+            if (IsVisibleAssetRow(asset, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources))
             {
                 yield return asset;
             }
         }
     }
 
-    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
     {
         bool matchesName = MatchesNameFilter(asset.Name, nameFilters);
         bool matchesType = includeAllTypes || selectedTypes.Contains(asset.Type, StringComparer.OrdinalIgnoreCase);
         bool matchesSource = includeAllSources || selectedSources.Contains(asset.SourceName, StringComparer.OrdinalIgnoreCase);
-        return matchesName && matchesType && matchesSource;
+        return matchesName && matchesType && matchesSource && searchConstraints.Matches(asset.Asset);
     }
 
     // Comma separated searches are alternatives, so "hands, arms" lists the assets matching either. Within one, wildcard terms
     // separated by spaces must all match, and text without wildcards is matched as it is.
     private static string[][] ParseNameFilters(string text)
     {
-        string[][] filters = [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(filter => filter.Contains('*') || filter.Contains('?') ? filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [filter])];
+        string[][] filters = [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(RemoveSearchConstraints).Where(filter => filter.Length > 0).Select(filter => filter.Contains('*') || filter.Contains('?') ? filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [filter])];
         return filters.Length == 0 ? [[string.Empty]] : filters;
     }
+
+    private static AssetFilter ParseSearchConstraints(string text)
+    {
+        return AssetFilter.Parse([.. text.Split([',', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries).Where(IsSearchConstraint)]);
+    }
+
+    private static string RemoveSearchConstraints(string filter) => string.Join(' ', filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Where(term => !IsSearchConstraint(term)));
+
+    private static bool IsSearchConstraint(string term) => (term.Length > 1 && term[0] == '!') || AssetValueFilter.TryParse(term, out _);
 
     private static bool MatchesNameFilter(string name, string[][] filters) => filters.Any(terms => terms.All(term => MatchesNameTerm(name, term)));
 
@@ -1873,22 +1883,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return assetComparer;
         }
 
-        return AssetInformationComparer.Instance;
-    }
-
-    private sealed class AssetInformationComparer : IComparer<Asset>
-    {
-        public static AssetInformationComparer Instance { get; } = new();
-
-        public int Compare(Asset? left, Asset? right)
-        {
-            int leftIsEmpty = string.IsNullOrWhiteSpace(left?.Information) ? 1 : 0;
-            int rightIsEmpty = string.IsNullOrWhiteSpace(right?.Information) ? 1 : 0;
-            int emptyComparison = leftIsEmpty.CompareTo(rightIsEmpty);
-            return emptyComparison != 0
-                ? emptyComparison
-                : StringComparer.OrdinalIgnoreCase.Compare(left?.Information, right?.Information);
-        }
+        return Comparer<Asset>.Create((left, right) => left.CompareInformation(right));
     }
 
     private void NotifySelectionChanged()
