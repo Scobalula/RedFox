@@ -45,6 +45,21 @@ It also includes an OpenGL renderer that can be used in Avalonia and supports me
 
 I/O helpers and extensions including virtual file system classes, SpanReader for high-performant reading from spans, along with inter-process reader/writers, text parsers, and more.
 
+### RedFox.Avalonia.CodeEditor
+
+A native Avalonia code viewer and editor styled after VS Code, built on AvaloniaEdit. It has a tab, breadcrumbs, line numbers, indent guides, bracket pair colours, folding and search, and highlights JSON, Lua, GSC/CSC and CSV out of the box. It follows the host application's theme, or takes a `CodeEditorColors` to change any colour.
+
+```csharp
+CodeEditorControl editor = new() { FilePath = "scripts/zm/_zm_ai_ghost.gsc", Text = text };
+editor.SaveRequested += (_, _) => { File.WriteAllText(path, editor.Text); editor.MarkSaved(); };
+```
+
+Grammars from a VS Code extension can be added from its `.vsix` or installed folder, which replaces the built-in grammar for that extension's file types. Only its languages and grammars are read: the extension's code and language server are not run. An extension keeps its own licence, so check it before shipping one with an application.
+
+```csharp
+CodeLanguageRegistry.Default.Add(CodeExtension.Load("blakintosh.gscode.vsix"));
+```
+
 ### RedFox.GameExtraction
 
 A game extraction framework along with an Avalonia based UI for parsing game packages/processes in a shared method (heavy WIP).
