@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Authors>Scobalula</Authors>
+    <PackageDescription>Native .NET launcher with a splash screen that packs an application into a single compressed executable.</PackageDescription>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RedFoxAppHostTools>$(MSBuildThisFileDirectory)..\..\artifacts\apphost\packer\</RedFoxAppHostTools>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\RedFox.AppHost.targets" Pack="true" PackagePath="build\RedFox.AppHost.targets" Visible="false" />
+    <None Include="$(RedFoxAppHostTools)**" Pack="true" PackagePath="tools\" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="RequireAppHostTools" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(RedFoxAppHostTools)RedFoxAppHost.exe')" Text="Run Build-AppHost.ps1 before packing so the launcher and packer are included." />
+  </Target>
+
+</Project>
