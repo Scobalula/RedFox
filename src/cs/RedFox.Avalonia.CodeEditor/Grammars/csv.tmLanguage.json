@@ -1,0 +1,18 @@
+{
+  "scopeName": "text.csv",
+  "name": "CSV",
+  "fileTypes": [ "csv", "tsv" ],
+  "patterns": [
+    {
+      "name": "string.quoted.double.csv",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.csv", "match": "\"\"" }
+      ]
+    },
+    { "name": "constant.numeric.csv", "match": "(?<![^,\\t])-?\\d+(?:\\.\\d+)?(?=[,\\t\\r\\n]|$)" },
+    { "name": "constant.language.csv", "match": "(?<![^,\\t])(?:true|false)(?=[,\\t\\r\\n]|$)" },
+    { "name": "keyword.operator.csv", "match": "[,\\t]" }
+  ]
+}

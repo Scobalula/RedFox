@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using RedFox.Audio;
+using RedFox.Avalonia.CodeEditor;
 using RedFox.GameExtraction.UI.Controls;
 using RedFox.GameExtraction.UI.Models;
 using RedFox.GameExtraction.UI.ViewModels;
@@ -14,7 +15,7 @@ namespace RedFox.GameExtraction.UI;
 public static class AssetPreviewers
 {
     /// <summary>
-    /// Creates previewers for scenes, images, audio buffers, tables, and byte arrays.
+    /// Creates previewers for scenes, images, audio buffers, tables, text, and byte arrays.
     /// </summary>
     public static IReadOnlyList<IAssetPreviewer> CreateDefault() =>
     [
@@ -22,6 +23,7 @@ public static class AssetPreviewers
         CreateImage(),
         CreateAudio(),
         CreateTable(),
+        CreateCode(),
         CreateHex(),
     ];
 
@@ -49,9 +51,9 @@ public static class AssetPreviewers
         {
             IReadOnlyList<Scene> scenes = context.Data switch
             {
-                Scene scene => [scene],
-                IEnumerable<Scene> sceneSequence => [.. sceneSequence],
-                _ => [],
+                Scene scene							=> [scene],
+                IEnumerable<Scene> sceneSequence	=> [.. sceneSequence],
+                _									=> [],
             };
 
             if (scenes.Count == 0)
@@ -93,8 +95,14 @@ public static class AssetPreviewers
         ImagePreviewSettings settings = new();
         return new AssetPreviewer(context => context.Data switch
         {
-            RedFox.Imaging.Image image => new ImagePreviewView { DataContext = new ImagePreviewViewModel(image, settings) },
-            Texture texture => new ImagePreviewView { DataContext = new ImagePreviewViewModel(texture, context.AssetManager.GetRequiredService<ImageTranslatorService>().Manager, settings) },
+            RedFox.Imaging.Image image => new ImagePreviewView
+            {
+                DataContext = new ImagePreviewViewModel(image, settings),
+            },
+            Texture texture => new ImagePreviewView
+            {
+                DataContext = new ImagePreviewViewModel(texture, context.AssetManager.GetRequiredService<ImageTranslatorService>().Manager, settings),
+            },
             _ => null,
         });
     }
@@ -104,8 +112,14 @@ public static class AssetPreviewers
     /// </summary>
     public static IAssetPreviewer CreateAudio() => new AssetPreviewer(context => context.Data switch
     {
-        AudioClip clip => new AudioPreviewView { DataContext = new AudioPreviewViewModel(clip, context.PreviewSettings.AutoPlayAudio) },
-        IReadOnlyList<AudioClip> { Count: > 0 } clips => new AudioPreviewView { DataContext = new AudioPreviewViewModel(clips, context.PreviewSettings.AutoPlayAudio) },
+        AudioClip clip => new AudioPreviewView
+        {
+            DataContext = new AudioPreviewViewModel(clip, context.PreviewSettings.AutoPlayAudio),
+        },
+        IReadOnlyList<AudioClip> { Count: > 0 } clips => new AudioPreviewView
+        {
+            DataContext = new AudioPreviewViewModel(clips, context.PreviewSettings.AutoPlayAudio),
+        },
         _ => null,
     });
 
@@ -118,8 +132,26 @@ public static class AssetPreviewers
             : null);
 
     /// <summary>
+    /// Creates the code previewer for byte arrays that hold text. Binary data is declined, which leaves it to the hex previewer.
+    /// </summary>
+    public static IAssetPreviewer CreateCode() => new AssetPreviewer(CreateCodePreview);
+
+    /// <summary>
     /// Creates the standard hex previewer for byte array payloads.
     /// </summary>
     public static IAssetPreviewer CreateHex() => AssetPreviewer.For<byte[]>(bytes =>
         new HexBytesPreviewControl { Bytes = bytes });
+
+    private static Control? CreateCodePreview(AssetPreviewContext context)
+    {
+        if (context.Data is not byte[] bytes || !TextContent.TryDecode(bytes, out string? text))
+        {
+            return null;
+        }
+
+        CodeEditorControl editor = context.CurrentPreview as CodeEditorControl ?? new CodeEditorControl { IsReadOnly = true };
+        editor.FilePath	= context.ReadResult.Asset.Name;
+        editor.Text		= text;
+        return editor;
+    }
 }

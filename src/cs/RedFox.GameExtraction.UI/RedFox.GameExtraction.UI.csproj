@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../RedFox.Audio/RedFox.Audio.csproj" />
+    <ProjectReference Include="../RedFox.Avalonia.CodeEditor/RedFox.Avalonia.CodeEditor.csproj" />
     <ProjectReference Include="../RedFox.Audio.OpenAL/RedFox.Audio.OpenAL.csproj" />
     <ProjectReference Include="../RedFox.Compression.LZ4/RedFox.Compression.LZ4.csproj" />
     <ProjectReference Include="../RedFox.GameExtraction/RedFox.GameExtraction.csproj" />

@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\RedFox.Audio\RedFox.Audio.csproj" />
+    <ProjectReference Include="..\RedFox.Avalonia.CodeEditor\RedFox.Avalonia.CodeEditor.csproj" />
     <ProjectReference Include="..\RedFox.Audio.ADPCM\RedFox.Audio.ADPCM.csproj" />
     <ProjectReference Include="..\RedFox.Audio.Flac\RedFox.Audio.Flac.csproj" />
     <ProjectReference Include="..\RedFox.Audio.Opus\RedFox.Audio.Opus.csproj" />
