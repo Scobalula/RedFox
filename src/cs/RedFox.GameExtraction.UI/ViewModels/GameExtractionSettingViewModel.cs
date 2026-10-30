@@ -17,14 +17,15 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// </summary>
     /// <param name="setting">The setting definition.</param>
     /// <param name="settings">The persisted settings object.</param>
+    /// <param name="assetManager">The asset manager used to resolve setting options.</param>
     /// <param name="browseRequested">The browse callback.</param>
-    public GameExtractionSettingViewModel(GameExtractionSetting setting, GameExtractionSettings settings, Func<GameExtractionSettingViewModel, Task<string?>> browseRequested)
+    public GameExtractionSettingViewModel(GameExtractionSetting setting, GameExtractionSettings settings, AssetManager assetManager, Func<GameExtractionSettingViewModel, Task<string?>> browseRequested)
     {
         _setting = setting ?? throw new ArgumentNullException(nameof(setting));
         ArgumentNullException.ThrowIfNull(settings);
         _browseRequested = browseRequested ?? throw new ArgumentNullException(nameof(browseRequested));
 
-        Options = setting.Options;
+        Options = setting.OptionsSource?.GetOptions(assetManager) ?? setting.Options;
         TextValue = settings.GetSettingValue(setting) ?? string.Empty;
         BooleanValue = bool.TryParse(TextValue, out bool booleanValue) ? booleanValue : setting.DefaultValue is true;
         SliderValue = double.TryParse(TextValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) ? Math.Clamp(sliderValue, setting.Minimum, setting.Maximum) : setting.Minimum;
@@ -33,7 +34,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         if (setting.Type == GameExtractionSettingType.TextArray)
         {
             HashSet<string> values = [.. SplitValues(TextValue)];
-            OptionToggles = [.. setting.Options.Select(option => new SettingOptionViewModel(option, values.Contains(option)))];
+            OptionToggles = [.. Options.Select(option => new SettingOptionViewModel(option, values.Contains(option)))];
         }
     }
 

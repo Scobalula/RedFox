@@ -262,6 +262,21 @@ public sealed class FbxTranslatorTests
     }
 
     [Fact]
+    public void FbxTranslator_Write_UsesAsciiWhenWriteAsciiOptionIsSet()
+    {
+        SceneTranslatorManager	manager	= new();
+        SceneTranslatorOptions	options	= new();
+
+        manager.Register(new FbxTranslator());
+        options.Set(FbxTranslator.WriteAsciiOption, true);
+
+        using MemoryStream stream = new();
+        manager.Write(stream, "sample.fbx", CreateSampleScene(), options, token: null);
+
+        Assert.Equal(FbxFormat.Ascii, FbxDocumentIO.Read(stream.ToArray()).Format);
+    }
+
+    [Fact]
     public void FbxAsciiSerializer_RoundTrip_PreservesValuesQuotesAndSpecialNumbers()
     {
         FbxDocument document = CreatePropertyDocument();

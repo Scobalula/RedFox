@@ -25,6 +25,9 @@ public sealed class Md5AnimTranslator : SceneTranslator
     /// </summary>
     public override IReadOnlyList<string> Extensions => [".md5anim"];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
     /// <summary>
     /// Reads MD5 animation content from a stream and populates an existing scene instance.
     /// </summary>

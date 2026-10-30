@@ -88,12 +88,14 @@
                                                                 <ItemsControl ItemsSource="{Binding OptionToggles}" IsVisible="{Binding IsOptionList}">
                                                                     <ItemsControl.ItemsPanel>
                                                                         <ItemsPanelTemplate>
-                                                                            <WrapPanel ItemSpacing="16"/>
+                                                                            <WrapPanel ItemWidth="130"/>
                                                                         </ItemsPanelTemplate>
                                                                     </ItemsControl.ItemsPanel>
                                                                     <ItemsControl.ItemTemplate>
                                                                         <DataTemplate x:DataType="vm:SettingOptionViewModel">
-                                                                            <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" MinWidth="80"/>
+                                                                            <CheckBox IsChecked="{Binding IsSelected}">
+                                                                                <TextBlock Text="{Binding Name}"/>
+                                                                            </CheckBox>
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>

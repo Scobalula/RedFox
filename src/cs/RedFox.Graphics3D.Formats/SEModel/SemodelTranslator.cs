@@ -28,6 +28,9 @@ public class SemodelTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".semodel"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "SEModel"u8;
 
     /// <inheritdoc/>

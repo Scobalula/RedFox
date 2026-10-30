@@ -26,6 +26,9 @@ public class SeanimTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".seanim"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "SEAnim"u8;
 
     /// <inheritdoc/>

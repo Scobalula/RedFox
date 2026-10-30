@@ -266,7 +266,7 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
+        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, viewModel.AssetManager, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         await settingsWindow.ShowDialog(this);
         viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
         GameExtractionLogging.ApplySettings(viewModel.Config.Settings);

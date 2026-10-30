@@ -25,6 +25,9 @@ public sealed class BvhTranslator : SceneTranslator
     /// </summary>
     public override IReadOnlyList<string> Extensions => [BvhFormat.Extension];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
     /// <summary>
     /// Reads BVH content from a stream and populates an existing scene instance.
     /// </summary>

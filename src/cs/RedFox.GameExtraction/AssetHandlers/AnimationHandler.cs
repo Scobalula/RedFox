@@ -20,11 +20,13 @@ public abstract class AnimationHandler : IAssetHandler
 
         var manager = context.AssetManager.GetRequiredService<SceneTranslatorService>().Manager;
         var scene = result.GetData<Scene>();
+        var options = context.Configuration.CreateSceneTranslatorOptions();
+
         foreach (var format in context.Configuration.GetOption("AnimationFormats", DefaultFormats))
         {
             string outputPath = context.ResolveAssetPath(result.Asset, format);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await manager.WriteAsync(outputPath, scene, new(), cancellationToken);
+            await manager.WriteAsync(outputPath, scene, options, cancellationToken);
         }
     }
 

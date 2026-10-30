@@ -26,6 +26,9 @@ public sealed class Md5MeshTranslator : SceneTranslator
     /// </summary>
     public override IReadOnlyList<string> Extensions => [".md5mesh"];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
     /// <summary>
     /// Reads MD5 mesh content from a stream and populates an existing scene instance.
     /// </summary>

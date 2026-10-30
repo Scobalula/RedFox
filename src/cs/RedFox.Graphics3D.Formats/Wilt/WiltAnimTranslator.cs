@@ -23,6 +23,9 @@ public sealed class WiltAnimTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".wiltanim"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "WLTA"u8;
 
     /// <inheritdoc/>

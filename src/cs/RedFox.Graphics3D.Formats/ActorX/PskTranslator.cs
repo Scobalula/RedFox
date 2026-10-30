@@ -20,6 +20,9 @@ public sealed class PskTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".psk", ".pskx"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "ACTRHEAD"u8;
 
     /// <inheritdoc/>

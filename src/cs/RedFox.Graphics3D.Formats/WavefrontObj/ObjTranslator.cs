@@ -24,6 +24,9 @@ public sealed class ObjTranslator : SceneTranslator
     /// <inheritdoc/>
     public override IReadOnlyList<string> Extensions => [".obj"];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
     /// <summary>
     /// Reads scene data from the specified OBJ stream, automatically resolving any referenced MTL material libraries relative to the source directory when file system context is available.
     /// </summary>

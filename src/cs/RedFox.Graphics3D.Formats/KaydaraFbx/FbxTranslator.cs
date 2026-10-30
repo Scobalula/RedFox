@@ -7,6 +7,11 @@ namespace RedFox.Graphics3D.Formats.KaydaraFbx;
 /// </summary>
 public sealed class FbxTranslator : SceneTranslator
 {
+    /// <summary>
+    /// The <see cref="SceneTranslatorOptions"/> key that writes ASCII instead of <see cref="FbxWriteOptions.Format"/> when set to <see langword="true"/>.
+    /// </summary>
+    public const string WriteAsciiOption = "KaydaraFbx.WriteAscii";
+
     /// <inheritdoc/>
     public override string Name => "KaydaraFBX";
 
@@ -47,12 +52,15 @@ public sealed class FbxTranslator : SceneTranslator
     }
 
     /// <summary>
-    /// Resolves the encoding for a write, choosing ASCII when the target name ends with <c>.ascii.fbx</c>.
+    /// Resolves the encoding for a write, choosing ASCII when <see cref="WriteAsciiOption"/> is set or the target name ends with <c>.ascii.fbx</c>.
     /// </summary>
     /// <param name="context">The translation context of the write.</param>
     /// <returns>The encoding to write.</returns>
     public FbxFormat ResolveWriteFormat(SceneTranslationContext context)
     {
+        if (context.Options.Get<bool>(WriteAsciiOption))
+            return FbxFormat.Ascii;
+
         if (context.Name.EndsWith(".ascii", StringComparison.OrdinalIgnoreCase) || context.TargetFilePath?.EndsWith(".ascii.fbx", StringComparison.OrdinalIgnoreCase) == true)
             return FbxFormat.Ascii;
 

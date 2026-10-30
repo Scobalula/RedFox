@@ -20,6 +20,9 @@ public sealed class PsaTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".psa"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "ANIMHEAD"u8;
 
     /// <inheritdoc/>

@@ -59,6 +59,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public GameExtractionConfig Config => _config;
 
     /// <summary>
+    /// Gets the asset manager that owns the mounted sources and services.
+    /// </summary>
+    public AssetManager AssetManager => _assetManager;
+
+    /// <summary>
     /// Gets the plugin service exposed by the asset manager.
     /// </summary>
     public PluginsService Plugins { get; }

@@ -29,6 +29,9 @@ public sealed class SceneFileTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".rfscene"];
 
     /// <inheritdoc/>
+    public override bool IsInternal => true;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "RFSC"u8;
 
     /// <summary>

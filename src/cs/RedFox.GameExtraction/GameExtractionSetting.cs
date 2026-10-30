@@ -41,6 +41,11 @@ public sealed class GameExtractionSetting
     public IReadOnlyList<string> Options { get; init; } = [];
 
     /// <summary>
+    /// Gets the source that resolves the available values in place of <see cref="Options"/>.
+    /// </summary>
+    public IGameExtractionOptionsSource? OptionsSource { get; init; }
+
+    /// <summary>
     /// Gets the file picker filter string for file path settings.
     /// </summary>
     public string? FileFilter { get; init; }

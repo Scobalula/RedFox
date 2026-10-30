@@ -25,6 +25,9 @@ public sealed class WiltModelTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".wiltmodel"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "WLTM"u8;
 
     /// <inheritdoc/>

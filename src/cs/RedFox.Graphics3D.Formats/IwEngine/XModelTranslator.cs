@@ -27,6 +27,9 @@ public sealed class XModelTranslator : SceneTranslator
     /// </summary>
     public override IReadOnlyList<string> Extensions => [".xmodel_export", ".xmodel_bin"];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
     /// <summary>
     /// Reads an XModel asset from a stream into a scene.
     /// </summary>
