@@ -50,6 +50,7 @@
     <Project Path="RedFox.Imaging.Vulkan/RedFox.Imaging.Vulkan.csproj" />
     <Project Path="RedFox.Imaging/RedFox.Imaging.csproj" />
   </Folder>
+  <Project Path="RedFox.Avalonia.CodeEditor/RedFox.Avalonia.CodeEditor.csproj" />
   <Project Path="RedFox.Avalonia.Themes/RedFox.Avalonia.Themes.csproj" />
   <Project Path="RedFox.Cryptography.MurMur3/RedFox.Cryptography.MurMur3.csproj" />
   <Project Path="RedFox.IO.ProcessMemory/RedFox.IO.ProcessMemory.csproj" />
