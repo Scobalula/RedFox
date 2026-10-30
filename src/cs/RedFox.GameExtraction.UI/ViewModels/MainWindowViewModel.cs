@@ -59,6 +59,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public GameExtractionConfig Config => _config;
 
     /// <summary>
+    /// Gets the asset manager that owns the mounted sources and services.
+    /// </summary>
+    public AssetManager AssetManager => _assetManager;
+
+    /// <summary>
     /// Gets the plugin service exposed by the asset manager.
     /// </summary>
     public PluginsService Plugins { get; }
@@ -346,21 +351,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         Preview = new PreviewViewModel(_assetManager, CreateConfiguration, config.Previewers, config.PreviewSettings);
         _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
-        config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
         config.PreviewSettings.SaveRequested += SaveLayout;
 
-        if (config.SkyboxPath is not null)
+        string skyboxDirectory = config.SkyboxFolder ?? Path.Combine(AppContext.BaseDirectory, "skybox");
+        if (config.SkyboxFolder is null && config.SkyboxPath is not null)
         {
-            string cacheDirectory = Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(config.AppName))!, "skybox");
-            ImageTranslatorManager translators = new();
-            BuiltInImageFormats.RegisterAll(translators);
-
-            Texture skyboxTexture = new(config.SkyboxPath) { ImageLoader = new SkyboxImageLoader(translators, cacheDirectory) };
-
-            // Warm the loader at startup so the first preview finds the panorama ready instead of decoding it then.
-            config.PreviewSettings.SkyboxTexture = skyboxTexture;
-            _ = Task.Run(() => skyboxTexture.ImageLoader.Load(skyboxTexture, new ImageTranslatorManager(), MipType.High));
+            skyboxDirectory = Path.GetDirectoryName(Path.GetFullPath(config.SkyboxPath)) ?? skyboxDirectory;
         }
+
+        ImageTranslatorManager skyboxTranslators = new();
+        BuiltInImageFormats.RegisterAll(skyboxTranslators);
+        if (Directory.Exists(skyboxDirectory))
+        {
+            config.PreviewSettings.SkyboxFiles = [.. Directory.EnumerateFiles(skyboxDirectory).Where(path => skyboxTranslators.TryGetTranslator(path, Path.GetExtension(path), out _)).Order(StringComparer.OrdinalIgnoreCase)];
+        }
+
+        if (!File.Exists(config.PreviewSettings.SkyboxFile))
+        {
+            config.PreviewSettings.SkyboxFile = config.SkyboxPath ?? config.PreviewSettings.SkyboxFiles.FirstOrDefault() ?? string.Empty;
+        }
+        config.PreviewSettings.PropertyChanged += OnPreviewSettingsChanged;
+        _ = LoadSkyboxAsync();
         Preview.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(PreviewViewModel.Content))
@@ -538,6 +549,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <param name="source">The source row to remove.</param>
     public void RemoveSource(AssetSourceViewModel source)
     {
+        _ = Preview.RemoveModelSourceAsync(source);
         _allAssets.RemoveAll(row => ReferenceEquals(row.Source, source));
         for (int index = SelectedAssets.Count - 1; index >= 0; index--)
         {
@@ -552,7 +564,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         TotalCount = _allAssets.Count;
         RefreshAssetFilterOptions();
         ApplyFilter();
-        RefreshPreview([.. SelectedAssets]);
+        if (!Preview.HasModelGroup)
+        {
+            RefreshPreview([.. SelectedAssets]);
+        }
     }
 
     /// <summary>
@@ -616,6 +631,29 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Clears the browser selection and toggles a model asset in the preview group.
+    /// </summary>
+    /// <param name="asset">The asset clicked with the middle mouse button.</param>
+    /// <returns>A task that completes when the browser selection and preview are updated.</returns>
+    public async Task TogglePreviewModelAsync(AssetRowViewModel asset)
+    {
+        CancelScheduledPreviewRefresh();
+        SelectedAssets.Clear();
+        SelectedAsset = null;
+        NotifySelectionChanged();
+        if (asset.Category != AssetCategory.Model)
+        {
+            return;
+        }
+
+        if (!IsPreviewActive)
+        {
+            PreviewSettings.ShowPreviewPanel = true;
+        }
+        await Preview.ToggleModelAsync(asset);
+    }
+
+    /// <summary>
     /// Updates whether the preview window is open.
     /// </summary>
     /// <param name="value">Whether the preview window is open.</param>
@@ -631,13 +669,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         // Preview views cannot move between hosts, so release the current one and build a fresh view for the new host.
         CancelScheduledPreviewRefresh();
-        Preview.Clear();
+        bool hasGroup = Preview.HasModelGroup;
+        Preview.ReleaseView();
         _isPreviewWindowOpen = value;
         NotifyPreviewLayoutChanged();
 
         if (IsPreviewActive)
         {
-            _ = Preview.UpdateSelectionAsync(selection);
+            _ = hasGroup ? Preview.RebuildModelGroupAsync() : Preview.UpdateSelectionAsync(selection);
         }
     }
 
@@ -694,8 +733,45 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedAssetChanged(AssetRowViewModel? value) => UpdateThumbnailOrbit();
 
+    private async Task LoadSkyboxAsync()
+    {
+        if (!File.Exists(PreviewSettings.SkyboxFile))
+        {
+            return;
+        }
+
+        string cacheDirectory				= Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(_config.AppName)) ?? AppContext.BaseDirectory, "skybox");
+        ImageTranslatorManager translators	= new();
+        BuiltInImageFormats.RegisterAll(translators);
+        Texture texture = new(PreviewSettings.SkyboxFile)
+        {
+            ImageLoader = new SkyboxImageLoader(translators, cacheDirectory),
+        };
+        try
+        {
+            await Task.Run(() => texture.ImageLoader.Load(texture, translators, MipType.High));
+            if (!_isDisposed && string.Equals(PreviewSettings.SkyboxFile, texture.FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                PreviewSettings.SkyboxTexture = texture;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            StatusText = $"Skybox error: {exception.Message}";
+        }
+    }
+
     private void OnPreviewSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PreviewSettings.MergeMode) && Preview.HasModelGroup && !Preview.IsLoading)
+        {
+            _ = Preview.RebuildModelGroupAsync();
+        }
+        if (e.PropertyName == nameof(PreviewSettings.SkyboxFile))
+        {
+            _ = LoadSkyboxAsync();
+        }
+
         if (e.PropertyName == nameof(PreviewSettings.ShowAssetGrid))
         {
             PreviewSettings.SaveLayoutTo(_config.Settings);
@@ -719,7 +795,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             if (IsPreviewActive)
             {
-                _ = Preview.UpdateSelectionAsync([.. SelectedAssets]);
+                _ = Preview.HasModelGroup ? Preview.RebuildModelGroupAsync() : Preview.UpdateSelectionAsync([.. SelectedAssets]);
             }
             else
             {
@@ -792,6 +868,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PreviewSelected()
     {
+        if (Preview.HasModelGroup)
+        {
+            PreviewRequested?.Invoke();
+            return;
+        }
         RequestPreview([.. SelectedAssets]);
     }
 
@@ -1410,6 +1491,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             HashSet<AssetSourceViewModel> unloadedSources = new(results.Where(result => result.Unloaded).Select(result => result.Source), ReferenceEqualityComparer.Instance);
             foreach (AssetSourceViewModel source in unloadedSources)
             {
+                await Preview.RemoveModelSourceAsync(source);
                 LoadedSources.Remove(source);
             }
 
@@ -1427,7 +1509,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             TotalCount = _allAssets.Count;
             RefreshAssetFilterOptions();
             ApplyFilter();
-            RefreshPreview([.. SelectedAssets]);
+            if (!Preview.HasModelGroup)
+            {
+                RefreshPreview([.. SelectedAssets]);
+            }
 
             int failedCount = results.Count(result => result.Error is not null);
             string summary = failedCount > 0
@@ -1675,27 +1760,28 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         AssetRowViewModel[] allAssets = [.. _allAssets];
         string[][] nameFilters = ParseNameFilters(_assetNameFilter);
+        AssetFilter searchConstraints = ParseSearchConstraints(_assetNameFilter);
         string[] selectedTypes = [.. AssetTypeFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         string[] selectedSources = [.. AssetSourceFilterOptions.Where(option => option.IsSelected).Select(option => option.Name)];
         bool includeAllTypes = _isAllAssetTypesSelected;
         bool includeAllSources = _isAllAssetSourcesSelected;
         string sortBy = SortBy;
         IComparer<Asset>? comparer = sortBy == "Information" ? GetAssetInformationComparer() : null;
-        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
+        _ = UpdateFilteredAssetsAsync(generation, allAssets, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources, sortBy, comparer, cancellationSource);
     }
 
-    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
+    private async Task UpdateFilteredAssetsAsync(int generation, AssetRowViewModel[] allAssets, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, string sortBy, IComparer<Asset>? comparer, CancellationTokenSource cancellationSource)
     {
         try
         {
             CancellationToken cancellationToken = cancellationSource.Token;
             AssetRowViewModel[]? visibleAssets = await Task.Run(() =>
             {
-                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources, cancellationToken);
+                IEnumerable<AssetRowViewModel> filteredAssets = FilterVisibleAssets(allAssets, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources, cancellationToken);
                 IOrderedEnumerable<AssetRowViewModel> sortedAssets = sortBy switch
                 {
                     "Type" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
-                    "Information" => filteredAssets.OrderBy(asset => asset.Asset, comparer).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
+                    "Information" => filteredAssets.OrderBy(asset => asset.Type, StringComparer.OrdinalIgnoreCase).ThenBy(asset => asset.Asset, comparer).ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
                     _ => filteredAssets.OrderBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase),
                 };
                 AssetRowViewModel[] results = sortedAssets.ToArray();
@@ -1745,7 +1831,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
+    private static IEnumerable<AssetRowViewModel> FilterVisibleAssets(AssetRowViewModel[] assets, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources, CancellationToken cancellationToken)
     {
         foreach (AssetRowViewModel asset in assets)
         {
@@ -1754,28 +1840,37 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 yield break;
             }
 
-            if (IsVisibleAssetRow(asset, nameFilters, selectedTypes, includeAllTypes, selectedSources, includeAllSources))
+            if (IsVisibleAssetRow(asset, nameFilters, searchConstraints, selectedTypes, includeAllTypes, selectedSources, includeAllSources))
             {
                 yield return asset;
             }
         }
     }
 
-    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[][] nameFilters, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
+    private static bool IsVisibleAssetRow(AssetRowViewModel asset, string[][] nameFilters, AssetFilter searchConstraints, string[] selectedTypes, bool includeAllTypes, string[] selectedSources, bool includeAllSources)
     {
         bool matchesName = MatchesNameFilter(asset.Name, nameFilters);
         bool matchesType = includeAllTypes || selectedTypes.Contains(asset.Type, StringComparer.OrdinalIgnoreCase);
         bool matchesSource = includeAllSources || selectedSources.Contains(asset.SourceName, StringComparer.OrdinalIgnoreCase);
-        return matchesName && matchesType && matchesSource;
+        return matchesName && matchesType && matchesSource && searchConstraints.Matches(asset.Asset);
     }
 
     // Comma separated searches are alternatives, so "hands, arms" lists the assets matching either. Within one, wildcard terms
     // separated by spaces must all match, and text without wildcards is matched as it is.
     private static string[][] ParseNameFilters(string text)
     {
-        string[][] filters = [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(filter => filter.Contains('*') || filter.Contains('?') ? filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [filter])];
+        string[][] filters = [.. text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(RemoveSearchConstraints).Where(filter => filter.Length > 0).Select(filter => filter.Contains('*') || filter.Contains('?') ? filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [filter])];
         return filters.Length == 0 ? [[string.Empty]] : filters;
     }
+
+    private static AssetFilter ParseSearchConstraints(string text)
+    {
+        return AssetFilter.Parse([.. text.Split([',', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries).Where(IsSearchConstraint)]);
+    }
+
+    private static string RemoveSearchConstraints(string filter) => string.Join(' ', filter.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Where(term => !IsSearchConstraint(term)));
+
+    private static bool IsSearchConstraint(string term) => (term.Length > 1 && term[0] == '!') || AssetValueFilter.TryParse(term, out _);
 
     private static bool MatchesNameFilter(string name, string[][] filters) => filters.Any(terms => terms.All(term => MatchesNameTerm(name, term)));
 
@@ -1788,22 +1883,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return assetComparer;
         }
 
-        return AssetInformationComparer.Instance;
-    }
-
-    private sealed class AssetInformationComparer : IComparer<Asset>
-    {
-        public static AssetInformationComparer Instance { get; } = new();
-
-        public int Compare(Asset? left, Asset? right)
-        {
-            int leftIsEmpty = string.IsNullOrWhiteSpace(left?.Information) ? 1 : 0;
-            int rightIsEmpty = string.IsNullOrWhiteSpace(right?.Information) ? 1 : 0;
-            int emptyComparison = leftIsEmpty.CompareTo(rightIsEmpty);
-            return emptyComparison != 0
-                ? emptyComparison
-                : StringComparer.OrdinalIgnoreCase.Compare(left?.Information, right?.Information);
-        }
+        return Comparer<Asset>.Create((left, right) => left.CompareInformation(right));
     }
 
     private void NotifySelectionChanged()

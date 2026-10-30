@@ -31,6 +31,12 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
     private MeshGpuBufferBinding? _wireframeIndices;
     private DataBuffer? _wireframeFaceIndices;
     private int _wireframeVertexCount;
+    private MeshGpuBufferBinding? _normalPositions;
+    private MeshGpuBufferBinding? _normalDirections;
+    private DataBuffer? _normalPositionSource;
+    private DataBuffer? _normalDirectionSource;
+
+    internal bool HasPendingNormalUploads => _normalPositions?.HasPendingUpload == true || _normalDirections?.HasPendingUpload == true;
 
     internal int GeometryVersion { get; private set; }
 
@@ -292,6 +298,43 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         commandList.DrawIndexed(_wireframeIndices.TotalComponentCount, 0, 0);
     }
 
+    internal void RenderNormals(ICommandList commandList, IGpuPipelineState pipeline, float length, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    {
+        if (VertexCount <= 0 || !_isReadyToRender || Owner.Normals is not { ElementCount: > 0 } normals || Owner.Positions is not { } positions)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(_normalPositionSource, Owner.Positions))
+        {
+            _normalPositions?.Release();
+            _normalPositions		= MeshGpuBufferBinding.CreateShaderResource(CreateNormalBuffer(positions), "NormalPositionBuffer", BufferUsage.Sampled, false);
+            _normalPositionSource	= Owner.Positions;
+        }
+        if (!ReferenceEquals(_normalDirectionSource, Owner.Normals))
+        {
+            _normalDirections?.Release();
+            _normalDirections		= MeshGpuBufferBinding.CreateShaderResource(CreateNormalBuffer(normals), "NormalDirectionBuffer", BufferUsage.Sampled, false);
+            _normalDirectionSource	= Owner.Normals;
+        }
+        bool positionsReady		= _normalPositions?.Update(_graphicsDevice) == true;
+        bool directionsReady	= _normalDirections?.Update(_graphicsDevice) == true;
+        if (!positionsReady || !directionsReady)
+        {
+            return;
+        }
+
+        Matrix4x4 model			= Owner.GetBindWorldMatrix();
+        Matrix4x4 normalMatrix	= CreateNormalMatrix(model * sceneAxis);
+        commandList.SetPipelineState(pipeline);
+        BindDrawState(commandList, pipeline, model, normalMatrix, view, projection, sceneAxis, cameraPosition, 0, false);
+        commandList.SetUniformFloat("NormalLength", length);
+        commandList.SetUniformFloat("ClipDepthBias", 0.002f);
+        _normalPositions?.Bind(commandList, pipeline);
+        _normalDirections?.Bind(commandList, pipeline);
+        commandList.Draw(checked(VertexCount * 2), 0);
+    }
+
     internal bool UpdateVisibility(in ViewFrustum frustum, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
     {
         SceneBounds bounds = GetWorldBounds(sceneAxis);
@@ -338,6 +381,12 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
             _buffers.Clear();
         }
 
+        _normalPositions?.Release();
+        _normalDirections?.Release();
+        _normalPositions		= null;
+        _normalDirections		= null;
+        _normalPositionSource	= null;
+        _normalDirectionSource	= null;
         _wireframeIndices?.Release();
         _wireframeIndices = null;
         _wireframeFaceIndices = null;
@@ -439,6 +488,16 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         }
 
         return new DataBuffer<uint>(lineIndices, 1, 2);
+    }
+
+    private static DataBuffer<float> CreateNormalBuffer(DataBuffer source)
+    {
+        DataBuffer<float> buffer = new(new float[checked(source.ElementCount * 4)], 1, 4);
+        for (int index = 0; index < buffer.ElementCount; index++)
+        {
+            buffer.SetVector4(index, 0, new Vector4(source.GetVector3(index, 0), 0));
+        }
+        return buffer;
     }
 
     private static Matrix4x4 CreateNormalMatrix(in Matrix4x4 world)

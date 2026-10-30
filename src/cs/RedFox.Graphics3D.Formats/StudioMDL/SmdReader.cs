@@ -10,25 +10,12 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.StudioMDL;
 
 /// <summary>
-/// Reads Valve SMD (.smd) text files and populates a <see cref="Scene"/> with parsed
-/// skeleton, mesh, and animation data.
-/// <para>
-/// A <em>reference</em> SMD contains a <c>nodes</c>, a single-frame <c>skeleton</c>
-/// (bind pose) and a <c>triangles</c> section. The reader creates a <see cref="SkeletonBone"/>
-/// hierarchy and a <see cref="MeshGroup"/> containing one <see cref="Mesh"/> per material group.
-/// </para>
-/// <para>
-/// A <em>sequence</em> (animation) SMD contains the same <c>nodes</c> section but a
-/// multi-frame <c>skeleton</c> section and no <c>triangles</c> section.  When two or more
-/// time frames are present, the reader additionally creates a <see cref="SkeletonAnimation"/>
-/// with one <see cref="SkeletonAnimationTrack"/> per bone.
-/// </para>
+/// Reads Valve SMD (.smd) text files and populates a <see cref="Scene"/> with parsed skeleton, mesh, and animation data.
 /// </summary>
 public sealed class SmdReader
 {
-    private readonly Stream                _stream;
-    private readonly string                _name;
-    private readonly SceneTranslatorOptions _options;
+    private readonly Stream	_stream;
+    private readonly string	_name;
 
     /// <summary>
     /// Initializes a new instance of <see cref="SmdReader"/>.
@@ -44,29 +31,36 @@ public sealed class SmdReader
     /// </param>
     public SmdReader(Stream stream, string name, SceneTranslatorOptions options)
     {
-        _stream  = stream;
-        _name    = name;
-        _options = options;
+        _stream	= stream;
+        _name	= name;
     }
 
     /// <summary>
-    /// Parses the SMD stream and populates <paramref name="scene"/> with the
-    /// resulting skeleton, mesh, and/or animation data.
+    /// Parses the SMD stream and populates <paramref name="scene"/> with the resulting skeleton, mesh, and/or animation data.
     /// </summary>
     /// <param name="scene">
     /// The scene to populate.
     /// </param>
-    public void Read(Scene scene)
+    public void Read(Scene scene) => Read(scene, CancellationToken.None);
+
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Read(Scene scene, CancellationToken token)
     {
-        var boneInfos     = new List<(int Index, string Name, int ParentIndex)>();
-        var frameData     = new Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>>();
-        var triGroups     = new Dictionary<string, List<SmdVertex>>(StringComparer.OrdinalIgnoreCase);
+        token.ThrowIfCancellationRequested();
+        var	boneInfos= new List<(int Index, string Name, int ParentIndex)>();
+        var	frameData= new Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>>();
+        var	triGroups= new Dictionary<string, List<SmdVertex>>(StringComparer.OrdinalIgnoreCase);
 
         using var reader = new StreamReader(_stream, leaveOpen: true);
 
         string? line;
         while ((line = reader.ReadLine()) is not null)
         {
+            token.ThrowIfCancellationRequested();
             var span = line.AsSpan().Trim();
             if (span.IsEmpty || span.StartsWith("//") || span.StartsWith(";")) continue;
             if (span.StartsWith("version")) continue;
@@ -80,54 +74,79 @@ public sealed class SmdReader
         }
 
         if (boneInfos.Count == 0)
+        {
+            if (triGroups.Count > 0)
+                throw new InvalidDataException("SMD triangles require a bone table.");
             return;
+        }
 
-        // ---- Build bone objects ----
+        Dictionary<int, int> indices = [];
+        for (int i = 0; i < boneInfos.Count; i++)
+            if (boneInfos[i].Index < 0 || !indices.TryAdd(boneInfos[i].Index, i))
+                throw new InvalidDataException("Invalid or duplicate SMD bone ID.");
+        for (int i = 0; i < boneInfos.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            var info	= boneInfos[i];
+            int parent	= -1;
+            if (info.ParentIndex != -1 && !indices.TryGetValue(info.ParentIndex, out parent))
+                throw new InvalidDataException("Invalid SMD parent ID.");
+            boneInfos[i] = (i, info.Name, parent);
+        }
+        foreach (var frame in frameData.Values)
+        {
+            token.ThrowIfCancellationRequested();
+            HashSet<int> seen = [];
+            for (int i = 0; i < frame.Count; i++)
+            {
+                var value = frame[i];
+                if (!indices.TryGetValue(value.BoneIdx, out int index) || !seen.Add(index))
+                    throw new InvalidDataException("Invalid or duplicate SMD pose bone ID.");
+                frame[i] = (index, value.LocalPos, value.LocalRot);
+            }
+        }
+
         var bones = new SkeletonBone[boneInfos.Count];
         foreach (var (boneIndex, boneName, _) in boneInfos)
             bones[boneIndex] = new SkeletonBone(boneName);
 
-        // Apply bind-pose local transforms from frame 0
         if (frameData.TryGetValue(0, out var frame0))
         {
             foreach (var (boneIdx, localPos, localRot) in frame0)
             {
-                if ((uint)boneIdx >= (uint)bones.Length) continue;
                 bones[boneIdx].BindTransform.LocalPosition = localPos;
                 bones[boneIdx].BindTransform.LocalRotation = localRot;
             }
         }
 
-        // ---- Build skeleton hierarchy ----
         var skeleton = scene.RootNode.AddNode(new Skeleton($"{_name}_Skeleton"));
         foreach (var (boneIndex, _, parentBoneIndex) in boneInfos)
         {
+            token.ThrowIfCancellationRequested();
             if (parentBoneIndex < 0)
                 bones[boneIndex].MoveTo(skeleton, ReparentTransformMode.PreserveExisting);
-            else if ((uint)parentBoneIndex < (uint)bones.Length)
+            else
                 bones[boneIndex].MoveTo(bones[parentBoneIndex], ReparentTransformMode.PreserveExisting);
         }
 
-        // ---- Build model + meshes from triangles ----
         if (triGroups.Count > 0)
         {
-            var model         = scene.RootNode.AddNode<MeshGroup>(_name);
-            int maxInfluences = ComputeMaxInfluences(triGroups);
+            var model			= scene.RootNode.AddNode<MeshGroup>(_name);
 
             foreach (var (materialName, verts) in triGroups)
             {
-                var mesh = model.AddNode<Mesh>(materialName);
-                BuildMesh(mesh, verts, bones, maxInfluences);
+                var mesh			= model.AddNode<Mesh>(materialName);
+                int maxInfluences	= verts.Max(static vertex => Math.Max(1, vertex.Links.Length));
+                BuildMesh(mesh, verts, bones, maxInfluences, indices);
 
                 if (!string.IsNullOrWhiteSpace(materialName))
                 {
-                    var mat = model.AddNode<Material>(materialName);
+                    var mat = scene.RootNode.AddNode<Material>(materialName);
                     mesh.Materials = [mat];
                 }
             }
         }
 
-        // ---- Build animation if multiple frames are present ----
         if (frameData.Count > 1)
         {
             var anim = BuildAnimation(frameData, bones);
@@ -135,19 +154,69 @@ public sealed class SmdReader
         }
     }
 
-    // ------------------------------------------------------------------
-    // Section parsers
-    // ------------------------------------------------------------------
-
     /// <summary>
-    /// Parses the SMD nodes section into bone index, name, and parent tuples.
+    /// Parses the SMD triangles section and groups vertices by material name.
     /// </summary>
     /// <param name="reader">
-    /// The text reader positioned after the nodes header.
+    /// The text reader positioned after the triangles header.
     /// </param>
-    /// <param name="boneInfos">
-    /// The destination list of parsed node entries.
+    /// <param name="groups">
+    /// The destination material to vertex list map.
     /// </param>
+    internal static void ParseTriangles(StreamReader reader, Dictionary<string, List<SmdVertex>> groups)
+    {
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
+        {
+            ReadOnlySpan<char> material = line.AsSpan().Trim();
+            if (material.IsEmpty || material.StartsWith("//"))
+                continue;
+            if (material.SequenceEqual("end"))
+                return;
+            string name = material.ToString();
+            if (!groups.TryGetValue(name, out List<SmdVertex>? vertices))
+            {
+                vertices = [];
+                groups.Add(name, vertices);
+            }
+
+            for (int corner = 0; corner < 3; corner++)
+            {
+                line = reader.ReadLine() ?? throw new InvalidDataException("Incomplete SMD triangle.");
+                ReadOnlySpan<char> span = line.AsSpan().Trim();
+                while (span.IsEmpty || span.StartsWith("//"))
+                {
+                    line	= reader.ReadLine() ?? throw new InvalidDataException("Incomplete SMD triangle.");
+                    span	= line.AsSpan().Trim();
+                }
+                int comment = span.IndexOf("//");
+                if (comment >= 0)
+                    span = span[..comment].TrimEnd();
+                if (!TryParseInt(ref span, out int parent) || !TryParseFloat(ref span, out float x) || !TryParseFloat(ref span, out float y) || !TryParseFloat(ref span, out float z) || !TryParseFloat(ref span, out float nx) || !TryParseFloat(ref span, out float ny) || !TryParseFloat(ref span, out float nz) || !TryParseFloat(ref span, out float u) || !TryParseFloat(ref span, out float v))
+                    throw new InvalidDataException("Malformed SMD triangle vertex.");
+
+                (int BoneIndex, float Weight)[] links = [];
+                span = span.Trim();
+                if (!span.IsEmpty)
+                {
+                    if (!TryParseInt(ref span, out int count) || count < 0 || count > span.Length)
+                        throw new InvalidDataException("Invalid SMD influence count.");
+                    links = new (int, float)[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (!TryParseInt(ref span, out int bone) || !TryParseFloat(ref span, out float weight) || !float.IsFinite(weight) || weight < 0)
+                            throw new InvalidDataException("Incomplete SMD influence list.");
+                        links[i] = (bone, weight);
+                    }
+                }
+                if (!span.Trim().IsEmpty)
+                    throw new InvalidDataException("Unexpected SMD vertex fields.");
+                vertices.Add(new SmdVertex(new Vector3(x, y, z), new Vector3(nx, ny, nz), new Vector2(u, v), parent, links));
+            }
+        }
+        throw new InvalidDataException("Unterminated SMD triangles section.");
+    }
+
     private static void ParseNodes(StreamReader reader, List<(int Index, string Name, int ParentIndex)> boneInfos)
     {
         string? line;
@@ -157,26 +226,16 @@ public sealed class SmdReader
             if (span.Equals("end", StringComparison.Ordinal)) break;
             if (span.IsEmpty || span.StartsWith("//")) continue;
 
-            // Format:  index "name" parentIndex
-            if (!TryParseInt(ref span, out int boneIndex)) continue;
+            if (!TryParseInt(ref span, out int boneIndex)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseQuotedString(span, out string name, out int charsConsumed)) continue;
+            if (!TryParseQuotedString(span, out string name, out int charsConsumed)) throw new InvalidDataException("Malformed SMD record.");
             span = span[charsConsumed..].TrimStart();
-            if (!TryParseInt(ref span, out int parentBoneIndex)) continue;
+            if (!TryParseInt(ref span, out int parentBoneIndex)) throw new InvalidDataException("Malformed SMD record.");
 
             boneInfos.Add((boneIndex, name, parentBoneIndex));
         }
     }
 
-    /// <summary>
-    /// Parses the SMD skeleton section and records local transforms per frame.
-    /// </summary>
-    /// <param name="reader">
-    /// The text reader positioned after the skeleton header.
-    /// </param>
-    /// <param name="frameData">
-    /// The destination frame map.
-    /// </param>
     private static void ParseSkeleton(StreamReader reader, Dictionary<int, List<(int, Vector3, Quaternion)>> frameData)
     {
         int currentFrame = -1;
@@ -201,20 +260,19 @@ public sealed class SmdReader
 
             if (currentFrame < 0) continue;
 
-            // Format:  boneIndex  tx ty tz  rx ry rz
-            if (!TryParseInt(ref span, out int boneIdx)) continue;
+            if (!TryParseInt(ref span, out int boneIdx)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float tx)) continue;
+            if (!TryParseFloat(ref span, out float tx)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float ty)) continue;
+            if (!TryParseFloat(ref span, out float ty)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float tz)) continue;
+            if (!TryParseFloat(ref span, out float tz)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float rx)) continue;
+            if (!TryParseFloat(ref span, out float rx)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float ry)) continue;
+            if (!TryParseFloat(ref span, out float ry)) throw new InvalidDataException("Malformed SMD record.");
             SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float rz)) continue;
+            if (!TryParseFloat(ref span, out float rz)) throw new InvalidDataException("Malformed SMD record.");
 
             var localPos = new Vector3(tx, ty, tz);
             var localRot = EulerXYZToQuaternion(rx, ry, rz);
@@ -222,154 +280,18 @@ public sealed class SmdReader
         }
     }
 
-    /// <summary>
-    /// Parses the SMD triangles section and groups vertices by material name.
-    /// </summary>
-    /// <param name="reader">
-    /// The text reader positioned after the triangles header.
-    /// </param>
-    /// <param name="groups">
-    /// The destination material to vertex list map.
-    /// </param>
-    internal static void ParseTriangles(StreamReader reader, Dictionary<string, List<SmdVertex>> groups)
-    {
-        string currentMaterial = "default";
-
-        string? line;
-
-        while ((line = reader.ReadLine()) is not null)
-        {
-            var span = line.AsSpan().Trim();
-
-            if (span.Equals("end", StringComparison.Ordinal))
-                break;
-            if (span.IsEmpty || span.StartsWith("//"))
-                continue;
-
-            ReadOnlySpan<char> materialSpan = span;
-            if (!TryParseInt(ref span, out int parentBone))
-            {
-                currentMaterial = materialSpan.ToString();
-
-                if (!groups.ContainsKey(currentMaterial))
-                {
-                    groups.Add(currentMaterial, []);
-                }
-
-                continue;
-            }
-
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float vx))
-            {
-                currentMaterial = materialSpan.ToString();
-
-                if (!groups.ContainsKey(currentMaterial))
-                {
-                    groups.Add(currentMaterial, []);
-                }
-
-                continue;
-            }
-
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float vy))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float vz))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float nx))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float ny))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float nz))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float u))
-                continue;
-            SkipWhitespace(ref span);
-            if (!TryParseFloat(ref span, out float v))
-                continue;
-            SkipWhitespace(ref span);
-
-            var links = Array.Empty<(int BoneIndex, float Weight)>();
-
-            if (!span.IsEmpty && TryParseInt(ref span, out int numLinks) && numLinks > 0)
-            {
-                links = new (int BoneIndex, float Weight)[numLinks];
-                for (int i = 0; i < numLinks; i++)
-                {
-                    SkipWhitespace(ref span);
-                    if (!TryParseInt(ref span, out int bIdx)) break;
-                    SkipWhitespace(ref span);
-                    if (!TryParseFloat(ref span, out float weight)) break;
-                    links[i] = (bIdx, weight);
-                }
-            }
-
-            if (!groups.TryGetValue(currentMaterial, out var bucket))
-            {
-                bucket = [];
-                groups.Add(currentMaterial, bucket);
-            }
-
-            bucket.Add(new SmdVertex(new Vector3(vx, vy, vz), new Vector3(nx, ny, nz), new Vector2(u, v), parentBone, links));
-        }
-    }
-
-    /// <summary>
-    /// Computes the maximum skin influence count used by any parsed vertex.
-    /// </summary>
-    /// <param name="groups">
-    /// The parsed material groups.
-    /// </param>
-    /// <returns>
-    /// The highest number of bone influences needed for mesh buffers.
-    /// </returns>
-    private static int ComputeMaxInfluences(Dictionary<string, List<SmdVertex>> groups)
-    {
-        int max = 0;
-        foreach (var verts in groups.Values)
-        {
-            foreach (var vtx in verts)
-            {
-                int count = vtx.Links.Length > 0 ? vtx.Links.Length : 1;
-                if (count > max) max = count;
-            }
-        }
-        return max;
-    }
-
-    /// <summary>
-    /// Builds mesh vertex, normal, UV, face, and optional skinning buffers from parsed SMD vertices.
-    /// </summary>
-    /// <param name="mesh">
-    /// The destination mesh.
-    /// </param>
-    /// <param name="vertices">
-    /// The source parsed SMD vertices.
-    /// </param>
-    /// <param name="allBones">
-    /// The scene bone array.
-    /// </param>
-    /// <param name="maxInfluences">
-    /// The maximum number of influences per vertex.
-    /// </param>
-    private static void BuildMesh(Mesh mesh, List<SmdVertex> vertices, SkeletonBone[] allBones, int maxInfluences)
+    private static void BuildMesh(Mesh mesh, List<SmdVertex> vertices, SkeletonBone[] allBones, int maxInfluences, IReadOnlyDictionary<int, int> boneIds)
     {
         int vertCount = vertices.Count;
 
-        var positions = new DataBuffer<float>(vertCount, 1, 3);
-        var normals   = new DataBuffer<float>(vertCount, 1, 3);
-        var uvLayers  = new DataBuffer<float>(vertCount, 1, 2);
+        var	positions	= new DataBuffer<float>(vertCount, 1, 3);
+        var	normals		= new DataBuffer<float>(vertCount, 1, 3);
+        var	uvLayers	= new DataBuffer<float>(vertCount, 1, 2);
 
         bool hasSkinning = maxInfluences > 0;
 
-        DataBuffer<int>?   boneIndices = hasSkinning ? new DataBuffer<int>(vertCount,   maxInfluences, 1) : null;
-        DataBuffer<float>? boneWeights = hasSkinning ? new DataBuffer<float>(vertCount, maxInfluences, 1) : null;
+        DataBuffer<int>?	boneIndices= hasSkinning ? new DataBuffer<int>(vertCount,	maxInfluences, 1) : null;
+        DataBuffer<float>?	boneWeights= hasSkinning ? new DataBuffer<float>(vertCount, maxInfluences, 1) : null;
 
         var span = CollectionsMarshal.AsSpan(vertices);
         for (int i = 0; i < span.Length; i++)
@@ -382,23 +304,22 @@ public sealed class SmdReader
 
             if (boneIndices is null || boneWeights is null) continue;
 
-            var boneIndexElement = boneIndices.Add();
-            var boneWeightElement = boneWeights.Add();
+            var boneIndexElement	= boneIndices.Add();
+            var boneWeightElement	= boneWeights.Add();
 
             if (vtx.Links.Length > 0)
             {
                 for (int j = 0; j < maxInfluences; j++)
                 {
-                    int   boneIdx = j < vtx.Links.Length ? vtx.Links[j].BoneIndex : 0;
-                    float weight  = j < vtx.Links.Length ? vtx.Links[j].Weight : 0f;
+                    int		boneIdx	= j < vtx.Links.Length ? boneIds[vtx.Links[j].BoneIndex] : 0;
+                    float	weight	= j < vtx.Links.Length ? vtx.Links[j].Weight : 0f;
                     boneIndexElement.Add(boneIdx);
                     boneWeightElement.Add(weight);
                 }
             }
             else
             {
-                // Rigidly bound to parent bone (weight 1)
-                int parentBoneIdx = Math.Clamp(vtx.ParentBone, 0, allBones.Length - 1);
+                int parentBoneIdx = boneIds[vtx.ParentBone];
                 boneIndexElement.Add(parentBoneIdx);
                 boneWeightElement.Add(1f);
                 for (int j = 1; j < maxInfluences; j++)
@@ -409,16 +330,15 @@ public sealed class SmdReader
             }
         }
 
-        // Sequential face indices — one index per vertex position in order
-        int faceIndexCount = (vertCount / 3) * 3;
-        var faceIndices    = new DataBuffer<int>(faceIndexCount, 1, 1);
+        int	faceIndexCount	= (vertCount / 3) * 3;
+        var	faceIndices		= new DataBuffer<int>(faceIndexCount, 1, 1);
         for (int f = 0; f < faceIndexCount; f++)
             faceIndices.Add(f);
 
-        mesh.Positions  = positions;
-        mesh.Normals    = normals;
-        mesh.UVLayers   = uvLayers;
-        mesh.FaceIndices = faceIndices;
+        mesh.Positions		= positions;
+        mesh.Normals		= normals;
+        mesh.UVLayers		= uvLayers;
+        mesh.FaceIndices	= faceIndices;
 
         if (boneIndices is not null && boneWeights is not null)
             mesh.Skin = new Skin(allBones, boneIndices, boneWeights);
@@ -426,24 +346,12 @@ public sealed class SmdReader
         MeshWelder.Weld(mesh, 0f);
     }
 
-    /// <summary>
-    /// Builds a skeleton animation from parsed per-frame bone transforms.
-    /// </summary>
-    /// <param name="frameData">
-    /// The parsed frame transform data.
-    /// </param>
-    /// <param name="bones">
-    /// The skeleton bones.
-    /// </param>
-    /// <returns>
-    /// A populated skeleton animation.
-    /// </returns>
     private static SkeletonAnimation BuildAnimation(Dictionary<int, List<(int BoneIdx, Vector3 LocalPos, Quaternion LocalRot)>> frameData, SkeletonBone[] bones)
     {
         var anim = new SkeletonAnimation("Animation", bones.Length, TransformType.Absolute)
         {
-            Framerate     = 30f,
-            TransformType = TransformType.Absolute,
+            Framerate		= 30f,
+            TransformType	= TransformType.Absolute,
         };
 
         var tracks = new SkeletonAnimationTrack[bones.Length];
@@ -451,8 +359,8 @@ public sealed class SmdReader
         {
             tracks[i] = new SkeletonAnimationTrack(bones[i].Name)
             {
-                TransformType  = TransformType.Absolute,
-                TransformSpace = TransformSpace.Local,
+                TransformType	= TransformType.Absolute,
+                TransformSpace	= TransformSpace.Local,
             };
             anim.Tracks.Add(tracks[i]);
         }
@@ -470,87 +378,34 @@ public sealed class SmdReader
         return anim;
     }
 
-    /// <summary>
-    /// Trims leading whitespace from a span.
-    /// </summary>
-    /// <param name="span">The span to trim.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void SkipWhitespace(ref ReadOnlySpan<char> span)
     {
         span = span.TrimStart();
     }
 
-    /// <summary>
-    /// Tries to parse an integer token from the start of a span.
-    /// </summary>
-    /// <param name="span">The source span.</param>
-    /// <param name="value">The parsed integer value when successful.</param>
-    /// <returns><see langword="true"/> when an integer token is parsed; otherwise <see langword="false"/>.</returns>
     private static bool TryParseInt(ref ReadOnlySpan<char> span, out int value)
     {
+        span = span.TrimStart();
         int end = 0;
-        if (end < span.Length && span[end] == '-')
-        {
+        while (end < span.Length && !char.IsWhiteSpace(span[end]))
             end++;
-        }
-        while (end < span.Length && char.IsAsciiDigit(span[end]))
-        {
-            end++;
-        }
-        if (end == 0 || (end == 1 && span[0] == '-'))
-        {
-            value = 0;
-            return false;
-        }
-
-        bool ok = int.TryParse(span[..end], NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        bool parsed = int.TryParse(span[..end], NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
         span = span[end..];
-        return ok;
+        return parsed;
     }
 
-    /// <summary>
-    /// Tries to parse a floating point token from the start of a span.
-    /// </summary>
-    /// <param name="span">
-    /// The source span.
-    /// </param>
-    /// <param name="value">
-    /// The parsed float value when successful.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> when a float token is parsed; otherwise <see langword="false"/>.
-    /// </returns>
     private static bool TryParseFloat(ref ReadOnlySpan<char> span, out float value)
     {
+        span = span.TrimStart();
         int end = 0;
-        if (end < span.Length && span[end] == '-') end++;
-        while (end < span.Length && (char.IsAsciiDigit(span[end]) || span[end] == '.' || span[end] == 'e' || span[end] == 'E'))
-        {
-            if ((span[end] == 'e' || span[end] == 'E') && end + 1 < span.Length && (span[end + 1] == '+' || span[end + 1] == '-'))
-                end++; // consume sign after exponent
+        while (end < span.Length && !char.IsWhiteSpace(span[end]))
             end++;
-        }
-        if (end == 0 || (end == 1 && span[0] == '-')) { value = 0; return false; }
-        bool ok = float.TryParse(span[..end], NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        bool parsed = float.TryParse(span[..end], NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         span = span[end..];
-        return ok;
+        return parsed && float.IsFinite(value);
     }
 
-    /// <summary>
-    /// Tries to parse a quoted string token.
-    /// </summary>
-    /// <param name="span">
-    /// The source span.
-    /// </param>
-    /// <param name="name">
-    /// The parsed string value without quotes when successful.
-    /// </param>
-    /// <param name="charsConsumed">
-    /// The number of consumed characters in the source span.
-    /// </param>
-    /// <returns>
-    /// <see langword="true"/> when a quoted token is parsed; otherwise <see langword="false"/>.
-    /// </returns>
     private static bool TryParseQuotedString(ReadOnlySpan<char> span, out string name, out int charsConsumed)
     {
         if (span.IsEmpty || span[0] != '"')
@@ -568,30 +423,11 @@ public sealed class SmdReader
             return false;
         }
 
-        name = new string(span[1..(closeIdx + 1)]);
-        charsConsumed = closeIdx + 2; // opening + closing quotes
+        name			= new string(span[1..(closeIdx + 1)]);
+        charsConsumed	= closeIdx + 2;
         return true;
     }
 
-    // ------------------------------------------------------------------
-    // Rotation conversion
-    // ------------------------------------------------------------------
-
-    /// <summary>
-    /// Converts SMD Euler angles in XYZ intrinsic order into a normalized quaternion.
-    /// </summary>
-    /// <param name="rx">
-    /// Rotation around X in radians.
-    /// </param>
-    /// <param name="ry">
-    /// Rotation around Y in radians.
-    /// </param>
-    /// <param name="rz">
-    /// Rotation around Z in radians.
-    /// </param>
-    /// <returns>
-    /// The normalized quaternion equivalent to the input Euler angles.
-    /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Quaternion EulerXYZToQuaternion(float rx, float ry, float rz)
     {

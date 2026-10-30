@@ -4,24 +4,19 @@ using System.Numerics;
 namespace RedFox.Graphics3D.Formats.WavefrontObj;
 
 /// <summary>
-/// Reads Wavefront MTL (.mtl) material library files and populates <see cref="Material"/> nodes
-/// with texture paths and slot assignments.
-/// Supports common material statements: newmtl, map_Kd, map_Ks, map_Bump/bump, map_Ke, map_Ns, and map_d.
+/// Reads Wavefront MTL (.mtl) material library files and populates <see cref="Material"/> nodes with texture paths and slot assignments.
 /// </summary>
 public static class ObjMtlReader
 {
     /// <summary>
     /// Reads materials from the specified MTL stream and merges them into the provided material dictionary.
-    /// Materials are keyed by name; if a material with the same name already exists, its texture fields are updated.
     /// </summary>
     /// <param name="stream">The input stream containing MTL data.</param>
     /// <param name="materials">A dictionary of materials keyed by name. New materials are added; existing ones are updated.</param>
-    public static void Read(Stream stream, Dictionary<string, Material> materials)
-        => Read(stream, materials, baseDirectory: null);
+    public static void Read(Stream stream, Dictionary<string, Material> materials) => Read(stream, materials, baseDirectory: null);
 
     /// <summary>
-    /// Reads materials from the specified MTL stream and resolves relative texture paths
-    /// against the supplied base directory when available.
+    /// Reads materials from the specified MTL stream and resolves relative texture paths against the supplied base directory when available.
     /// </summary>
     public static void Read(Stream stream, Dictionary<string, Material> materials, string? baseDirectory)
     {
@@ -31,15 +26,22 @@ public static class ObjMtlReader
 
         while (reader.ReadLine() is { } line)
         {
-            ReadOnlySpan<char> span = line.AsSpan().Trim();
-            if (span.IsEmpty || span[0] == '#')
+            ReadOnlySpan<char> span	= line.AsSpan().Trim();
+            int comment				= span.IndexOf('#');
+            if (comment >= 0)
+                span = span[..comment].TrimEnd();
+            if (span.IsEmpty)
             {
                 continue;
             }
 
-            if (span.StartsWith("newmtl "))
+            int separator				= span.IndexOfAny(' ', '\t');
+            ReadOnlySpan<char> command	= separator < 0 ? span : span[..separator];
+            ReadOnlySpan<char> value	= separator < 0 ? [] : span[(separator + 1)..].TrimStart();
+
+            if (command.SequenceEqual("newmtl"))
             {
-                string matName = span[7..].Trim().ToString();
+                string matName = value.Trim().ToString();
                 if (!materials.TryGetValue(matName, out current))
                 {
                     current = new Material(matName);
@@ -48,59 +50,63 @@ public static class ObjMtlReader
             }
             else if (current is not null)
             {
-                if (span.StartsWith("map_Kd "))
+                if (command.SequenceEqual("Kd") && TryParseColor(value, out Vector4 diffuse))
+                    current.DiffuseColor = diffuse;
+                else if (command.SequenceEqual("Ke") && TryParseColor(value, out Vector4 emissive))
+                    current.EmissiveColor = emissive;
+                else if (command.SequenceEqual("map_Kd"))
                 {
-                    string texPath = ExtractTexturePath(span[7..]);
+                    string texPath = ExtractTexturePath(value);
                     current.DiffuseMapName = "diffuse";
                     EnsureTexture(current, texPath, "diffuse", baseDirectory);
                 }
-                else if (span.StartsWith("Ks "))
+                else if (command.SequenceEqual("Ks"))
                 {
-                    if (TryParseColor(span[3..], out Vector4 specularColor))
+                    if (TryParseColor(value, out Vector4 specularColor))
                         current.SpecularColor = specularColor;
                 }
-                else if (span.StartsWith("Ns "))
+                else if (command.SequenceEqual("Ns"))
                 {
-                    if (TryParseScalar(span[3..], out float shininess))
+                    if (TryParseScalar(value, out float shininess))
                     {
                         current.Shininess = shininess;
                         current.Roughness = ConvertPhongShininessToRoughness(shininess);
                     }
                 }
-                else if (span.StartsWith("map_Ks "))
+                else if (command.SequenceEqual("map_Ks"))
                 {
-                    string texPath = ExtractTexturePath(span[7..]);
+                    string texPath = ExtractTexturePath(value);
                     current.SpecularMapName = "specular";
                     EnsureTexture(current, texPath, "specular", baseDirectory);
                 }
-                else if (span.StartsWith("map_Bump "))
+                else if (command.SequenceEqual("map_Bump"))
                 {
-                    string texPath = ExtractTexturePath(span[9..]);
+                    string texPath = ExtractTexturePath(value);
                     current.NormalMapName = "normal";
                     EnsureTexture(current, texPath, "normal", baseDirectory);
                 }
-                else if (span.StartsWith("bump "))
+                else if (command.SequenceEqual("bump"))
                 {
-                    string texPath = ExtractTexturePath(span[5..]);
+                    string texPath = ExtractTexturePath(value);
                     current.NormalMapName = "bump_map";
                     EnsureTexture(current, texPath, "bump_map", baseDirectory);
                 }
-                else if (span.StartsWith("map_Ke "))
+                else if (command.SequenceEqual("map_Ke"))
                 {
-                    string texPath = ExtractTexturePath(span[7..]);
+                    string texPath = ExtractTexturePath(value);
                     current.EmissiveMapName = "emissive";
                     EnsureTexture(current, texPath, "emissive", baseDirectory);
                 }
-                else if (span.StartsWith("map_Ns "))
+                else if (command.SequenceEqual("map_Ns"))
                 {
-                    string texPath = ExtractTexturePath(span[7..]);
+                    string texPath = ExtractTexturePath(value);
                     current.GlossMapName = "gloss";
                     EnsureTexture(current, texPath, "gloss", baseDirectory);
                 }
-                else if (span.StartsWith("map_d "))
+                else if (command.SequenceEqual("map_d"))
                 {
-                    // Opacity map — treat as cavity since OBJ has no dedicated slot
-                    string texPath = ExtractTexturePath(span[6..]);
+
+                    string texPath = ExtractTexturePath(value);
                     current.CavityMapName = "cavity";
                     EnsureTexture(current, texPath, "cavity", baseDirectory);
                 }
@@ -108,54 +114,50 @@ public static class ObjMtlReader
         }
     }
 
-    /// <summary>
-    /// Extracts the texture file path from an MTL map statement, skipping any inline options (e.g., -bm 1.0).
-    /// </summary>
     private static string ExtractTexturePath(ReadOnlySpan<char> value)
     {
         value = value.Trim();
-
-        // Skip over inline options that start with '-' (e.g., -bm 1.0 filename.tga)
-        while (value.Length > 0 && value[0] == '-')
+        while (!value.IsEmpty && value[0] == '-')
         {
-            // Skip the option flag
-            int spaceAfterFlag = value.IndexOf(' ');
-            if (spaceAfterFlag < 0)
+            int end = value.IndexOfAny(' ', '\t');
+            if (end < 0)
+                throw new InvalidDataException("Missing MTL texture option arguments.");
+            ReadOnlySpan<char> option = value[..end];
+            value = value[(end + 1)..].TrimStart();
+            int argumentCount = option switch
             {
-                break;
-            }
-
-            value = value[(spaceAfterFlag + 1)..].TrimStart();
-
-            // Skip the option value (may be a number or filename)
-            if (value.Length > 0 && value[0] != '-')
+                "-o" or "-s" or "-t" => 3,
+                "-mm" => 2,
+                "-blendu" or "-blendv" or "-cc" or "-clamp" or "-texres" or "-bm" or "-imfchan" or "-type" => 1,
+                _ => throw new NotSupportedException($"Unsupported MTL texture option '{option}'."),
+            };
+            bool vector = option is "-o" or "-s" or "-t";
+            for (int i = 0; i < argumentCount; i++)
             {
-                // Check if this looks like a numeric option value
-                int nextSpace = value.IndexOf(' ');
-                if (nextSpace >= 0)
+                end = value.IndexOfAny(' ', '\t');
+                ReadOnlySpan<char> argument = end < 0 ? value : value[..end];
+                if (vector && !float.TryParse(argument, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
                 {
-                    ReadOnlySpan<char> potentialNumber = value[..nextSpace];
-                    if (float.TryParse(potentialNumber, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
-                    {
-                        value = value[(nextSpace + 1)..].TrimStart();
-                    }
+                    if (i == 0)
+                        throw new InvalidDataException("Missing MTL vector option argument.");
+                    break;
                 }
+                if (argument.IsEmpty || end < 0)
+                    throw new InvalidDataException("Missing MTL texture path.");
+                value = value[(end + 1)..].TrimStart();
             }
         }
-
-        return value.ToString();
+        return value.Trim('"').ToString();
     }
 
     private static bool TryParseColor(ReadOnlySpan<char> value, out Vector4 color)
     {
         color = default;
-        string[] parts = value.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        string[] parts = value.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 3)
             return false;
 
-        if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float r) ||
-            !float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float g) ||
-            !float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float b))
+        if (!float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float r) || !float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float g) || !float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float b))
         {
             return false;
         }

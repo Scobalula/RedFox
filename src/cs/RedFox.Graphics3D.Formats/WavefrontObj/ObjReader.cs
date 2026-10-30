@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.Groups;
 using RedFox.Graphics3D.IO;
@@ -8,8 +9,6 @@ namespace RedFox.Graphics3D.Formats.WavefrontObj;
 
 /// <summary>
 /// Reads Wavefront OBJ (.obj) files and populates a <see cref="Scene"/> with the parsed geometry and materials.
-/// Supports vertex positions (v), texture coordinates (vt), normals (vn), faces (f),
-/// groups (g/o), material references (usemtl), and material library declarations (mtllib).
 /// </summary>
 public sealed class ObjReader
 {
@@ -35,23 +34,33 @@ public sealed class ObjReader
     /// </summary>
     /// <param name="scene">The scene to populate with parsed geometry and materials.</param>
     /// <returns>A list of material library paths referenced by the OBJ file, or an empty list if none.</returns>
-    public IReadOnlyList<string> Read(Scene scene)
-    {
-        // Global lists: OBJ indices are 1-based and reference into these.
-        List<Vector3> globalPositions = [];
-        List<Vector2> globalTexCoords = [];
-        List<Vector3> globalNormals = [];
+    public IReadOnlyList<string> Read(Scene scene) => Read(scene, CancellationToken.None);
 
-        // Current mesh state
-        List<Vector3> meshPositions = [];
-        List<Vector2> meshTexCoords = [];
-        List<Vector3> meshNormals = [];
-        List<int> meshFaceIndices = [];
-        // Maps global vertex tuple (posIdx, texIdx, normalIdx) to local mesh vertex index.
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public IReadOnlyList<string> Read(Scene scene, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+
+        List<Vector3> globalPositions	= [];
+        List<Vector2> globalTexCoords	= [];
+        List<Vector3> globalNormals		= [];
+
+        List<Vector3> meshPositions		= [];
+        List<Vector2> meshTexCoords		= [];
+        List<Vector3> meshNormals		= [];
+        List<int> meshFaceIndices		= [];
+        List<int> faceScratch			= [];
+        List<Vector3> polygonScratch	= [];
+        List<int> triangleScratch		= [];
+
         Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap = [];
 
-        string currentGroupName = "default";
-        string? currentMaterialName = null;
+        string currentGroupName		= "default";
+        string? currentMaterialName	= null;
         Dictionary<string, Material> materialsByName = [];
         List<string> mtllibPaths = [];
 
@@ -59,81 +68,89 @@ public sealed class ObjReader
         {
             Name = _name,
         });
-        Mesh? currentMesh = null;
-        int meshIndex = 0;
+        Mesh? currentMesh			= null;
+        int meshIndex				= 0;
+        HashSet<string> meshNames	= new(StringComparer.OrdinalIgnoreCase);
 
         using StreamReader reader = new(_stream, leaveOpen: true);
 
         while (reader.ReadLine() is { } line)
         {
-            ReadOnlySpan<char> span = line.AsSpan().Trim();
-            if (span.IsEmpty || span[0] == '#')
+            token.ThrowIfCancellationRequested();
+            ReadOnlySpan<char> span	= line.AsSpan().Trim();
+            int comment				= span.IndexOf('#');
+            if (comment >= 0)
+                span = span[..comment].TrimEnd();
+            if (span.IsEmpty)
             {
                 continue;
             }
 
-            if (span.StartsWith("vt "))
+            int separator				= span.IndexOfAny(' ', '\t');
+            ReadOnlySpan<char> command	= separator < 0 ? span : span[..separator];
+            ReadOnlySpan<char> value	= separator < 0 ? [] : span[(separator + 1)..].TrimStart();
+
+            if (command.SequenceEqual("vt"))
             {
-                globalTexCoords.Add(ParseTexCoord(span[3..]));
+                globalTexCoords.Add(ParseTexCoord(value));
             }
-            else if (span.StartsWith("vn "))
+            else if (command.SequenceEqual("vn"))
             {
-                globalNormals.Add(ParseVector3(span[3..]));
+                globalNormals.Add(ParseVector3(value));
             }
-            else if (span.StartsWith("v "))
+            else if (command.SequenceEqual("v"))
             {
-                globalPositions.Add(ParseVector3(span[2..]));
+                globalPositions.Add(ParseVector3(value));
             }
-            else if (span.StartsWith("f "))
+            else if (command.SequenceEqual("f"))
             {
                 if (currentMesh is null)
                 {
-                    currentMesh = CreateMesh(model, currentGroupName, ref meshIndex);
+                    currentMesh = CreateMesh(model, currentGroupName, ref meshIndex, meshNames);
                 }
 
-                ParseFace(span[2..], globalPositions, globalTexCoords, globalNormals, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, meshVertexMap);
+                ParseFace(value, globalPositions, globalTexCoords, globalNormals, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, meshVertexMap, faceScratch, polygonScratch, triangleScratch);
             }
-            else if (span.StartsWith("g ") || span.StartsWith("o "))
+            else if (command.SequenceEqual("g") || command.SequenceEqual("o"))
             {
-                // Flush current mesh if it has any faces
+
                 if (currentMesh is not null && meshFaceIndices.Count > 0)
                 {
                     FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
                 }
 
-                currentGroupName = span[2..].Trim().ToString();
-                currentMesh = CreateMesh(model, currentGroupName, ref meshIndex);
-                meshPositions = [];
-                meshTexCoords = [];
-                meshNormals = [];
-                meshFaceIndices = [];
-                meshVertexMap = [];
+                currentGroupName	= value.Trim().ToString();
+                currentMesh			= CreateMesh(model, currentGroupName, ref meshIndex, meshNames);
+                meshPositions		= [];
+                meshTexCoords		= [];
+                meshNormals			= [];
+                meshFaceIndices		= [];
+                meshVertexMap		= [];
             }
-            else if (span.StartsWith("usemtl "))
+            else if (command.SequenceEqual("usemtl"))
             {
-                ReadOnlySpan<char> matName = span[7..].Trim();
+                ReadOnlySpan<char> matName = value.Trim();
 
                 if (currentMesh is not null && meshFaceIndices.Count > 0)
                 {
                     FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
 
-                    currentMesh = CreateMesh(model, currentGroupName, ref meshIndex);
-                    meshPositions = [];
-                    meshTexCoords = [];
-                    meshNormals = [];
-                    meshFaceIndices = [];
-                    meshVertexMap = [];
+                    currentMesh		= CreateMesh(model, currentGroupName, ref meshIndex, meshNames);
+                    meshPositions	= [];
+                    meshTexCoords	= [];
+                    meshNormals		= [];
+                    meshFaceIndices	= [];
+                    meshVertexMap	= [];
                 }
 
-                currentMaterialName = matName.ToString();
+                currentMaterialName = matName.SequenceEqual("off") ? null : matName.ToString();
             }
-            else if (span.StartsWith("mtllib "))
+            else if (command.SequenceEqual("mtllib"))
             {
-                mtllibPaths.Add(span[7..].Trim().ToString());
+                mtllibPaths.Add(value.Trim().ToString());
             }
         }
 
-        // Flush the last mesh
         if (currentMesh is not null && meshFaceIndices.Count > 0)
         {
             FinalizeMesh(currentMesh, meshPositions, meshTexCoords, meshNormals, meshFaceIndices, currentMaterialName, materialsByName);
@@ -144,23 +161,22 @@ public sealed class ObjReader
             MergeMeshesByMaterial(model);
         }
 
-        // Load and attach referenced material libraries
         var materialGroup = model.AddNode<Group>();
 
         foreach (Material mat in materialsByName.Values)
         {
+            token.ThrowIfCancellationRequested();
             materialGroup.AddNode(mat);
         }
 
         return mtllibPaths;
     }
 
-    private static Mesh CreateMesh(MeshGroup model, string groupName, ref int meshIndex)
+    private static Mesh CreateMesh(MeshGroup model, string groupName, ref int meshIndex, HashSet<string> names)
     {
         string meshName = string.IsNullOrWhiteSpace(groupName) ? $"mesh_{meshIndex}" : groupName;
 
-        // Avoid duplicate names by appending the mesh index as a suffix.
-        if (model.TryFindDescendant<Mesh>(meshName, out _))
+        while (!names.Add(meshName))
         {
             meshName = $"{meshName}_{meshIndex}";
         }
@@ -244,8 +260,8 @@ public sealed class ObjReader
 
     private static void AppendMesh(MeshMergeBucket bucket, Mesh mesh, DataBuffer positions)
     {
-        int baseVertex = bucket.Positions.Count;
-        int vertexCount = positions.ElementCount;
+        int baseVertex	= bucket.Positions.Count;
+        int vertexCount	= positions.ElementCount;
         for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++)
         {
             bucket.Positions.Add(positions.GetVector3(vertexIndex, 0));
@@ -388,8 +404,8 @@ public sealed class ObjReader
         float[] data = new float[list.Count * 3];
         for (int i = 0; i < list.Count; i++)
         {
-            Vector3 v = list[i];
-            int offset = i * 3;
+            Vector3 v	= list[i];
+            int offset	= i * 3;
             data[offset] = v.X;
             data[offset + 1] = v.Y;
             data[offset + 2] = v.Z;
@@ -403,8 +419,8 @@ public sealed class ObjReader
         float[] data = new float[list.Count * 2];
         for (int i = 0; i < list.Count; i++)
         {
-            Vector2 v = list[i];
-            int offset = i * 2;
+            Vector2 v	= list[i];
+            int offset	= i * 2;
             data[offset] = v.X;
             data[offset + 1] = v.Y;
         }
@@ -412,20 +428,19 @@ public sealed class ObjReader
         return new DataBuffer<float>(data, 1, 2);
     }
 
-    private static void ParseFace(ReadOnlySpan<char> faceData, List<Vector3> globalPositions, List<Vector2> globalTexCoords, List<Vector3> globalNormals, List<Vector3> meshPositions, List<Vector2> meshTexCoords, List<Vector3> meshNormals, List<int> meshFaceIndices, Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap)
+    private static void ParseFace(ReadOnlySpan<char> faceData, List<Vector3> globalPositions, List<Vector2> globalTexCoords, List<Vector3> globalNormals, List<Vector3> meshPositions, List<Vector2> meshTexCoords, List<Vector3> meshNormals, List<int> meshFaceIndices, Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap, List<int> faceVertexIndices, List<Vector3> polygon, List<int> triangles)
     {
-        // Parse all face vertices first, then fan-triangulate if polygon.
-        List<int> faceVertexIndices = [];
+        faceVertexIndices.Clear();
 
-        bool hasTexCoords = globalTexCoords.Count > 0;
-        bool hasNormals = globalNormals.Count > 0;
+        bool hasTexCoords	= globalTexCoords.Count > 0;
+        bool hasNormals		= globalNormals.Count > 0;
 
         ReadOnlySpan<char> remaining = faceData.Trim();
 
         while (!remaining.IsEmpty)
         {
-            int spaceIndex = remaining.IndexOf(' ');
-            ReadOnlySpan<char> vertexToken = spaceIndex >= 0 ? remaining[..spaceIndex] : remaining;
+            int spaceIndex					= remaining.IndexOfAny(' ', '\t');
+            ReadOnlySpan<char> vertexToken	= spaceIndex >= 0 ? remaining[..spaceIndex] : remaining;
             remaining = spaceIndex >= 0 ? remaining[(spaceIndex + 1)..].TrimStart() : [];
 
             if (vertexToken.IsEmpty)
@@ -438,25 +453,33 @@ public sealed class ObjReader
             faceVertexIndices.Add(localIndex);
         }
 
-        // Fan triangulation: vertex 0 is the pivot.
-        for (int i = 1; i < faceVertexIndices.Count - 1; i++)
+        if (faceVertexIndices.Count < 3)
+            throw new InvalidDataException("An OBJ face requires at least three vertices.");
+        if (faceVertexIndices.Count == 3)
         {
-            meshFaceIndices.Add(faceVertexIndices[0]);
-            meshFaceIndices.Add(faceVertexIndices[i]);
-            meshFaceIndices.Add(faceVertexIndices[i + 1]);
+            meshFaceIndices.AddRange(faceVertexIndices);
+            return;
         }
+
+        polygon.Clear();
+        foreach (int index in faceVertexIndices)
+            polygon.Add(meshPositions[index]);
+        CollectionsMarshal.SetCount(triangles, checked((polygon.Count - 2) * 3));
+        int count = MeshTriangulator.TriangulatePolygon(CollectionsMarshal.AsSpan(polygon), CollectionsMarshal.AsSpan(triangles));
+        for (int i = 0; i < count; i++)
+            meshFaceIndices.Add(faceVertexIndices[triangles[i]]);
     }
 
     private static void ParseFaceVertex(ReadOnlySpan<char> token, List<Vector3> globalPositions, List<Vector2> globalTexCoords, List<Vector3> globalNormals, List<Vector3> meshPositions, List<Vector2> meshTexCoords, List<Vector3> meshNormals, Dictionary<(int Pos, int Tex, int Normal), int> meshVertexMap, bool hasTexCoords, bool hasNormals, out int localIndex)
     {
-        int posIdx = 0;
-        int texIdx = -1;
-        int normalIdx = -1;
+        int posIdx		= 0;
+        int texIdx		= -1;
+        int normalIdx	= -1;
 
         int firstSlash = token.IndexOf('/');
         if (firstSlash < 0)
         {
-            // v only
+
             posIdx = ParseObjIndex(token, globalPositions.Count);
         }
         else
@@ -467,12 +490,12 @@ public sealed class ObjReader
             int secondSlash = afterFirst.IndexOf('/');
             if (secondSlash < 0)
             {
-                // v/vt
+
                 texIdx = ParseObjIndex(afterFirst, globalTexCoords.Count);
             }
             else
             {
-                // v/vt/vn or v//vn
+
                 if (secondSlash > 0)
                 {
                     texIdx = ParseObjIndex(afterFirst[..secondSlash], globalTexCoords.Count);
@@ -508,24 +531,24 @@ public sealed class ObjReader
         }
     }
 
-    /// <summary>
-    /// Parses a 1-based OBJ index (possibly negative for relative indexing) and returns a 0-based index.
-    /// </summary>
     private static int ParseObjIndex(ReadOnlySpan<char> span, int count)
     {
-        int value = int.Parse(span, NumberStyles.Integer, CultureInfo.InvariantCulture);
-        return value < 0 ? count + value : value - 1;
+        int value= int.Parse(span, NumberStyles.Integer, CultureInfo.InvariantCulture);
+        int index= value < 0 ? count + value : value - 1;
+        if ((uint)index >= (uint)count)
+            throw new InvalidDataException("Invalid OBJ index.");
+        return index;
     }
 
     private static Vector3 ParseVector3(ReadOnlySpan<char> span)
     {
         span = span.Trim();
 
-        int i0 = span.IndexOf(' ');
-        float x = float.Parse(span[..i0], NumberStyles.Float, CultureInfo.InvariantCulture);
+        int i0	= span.IndexOfAny(' ', '\t');
+        float x	= float.Parse(span[..i0], NumberStyles.Float, CultureInfo.InvariantCulture);
         span = span[(i0 + 1)..].TrimStart();
 
-        int i1 = span.IndexOf(' ');
+        int i1 = span.IndexOfAny(' ', '\t');
         float y;
         float z;
 
@@ -537,9 +560,9 @@ public sealed class ObjReader
         else
         {
             y = float.Parse(span[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
-            ReadOnlySpan<char> zAndOptionalColor = span[(i1 + 1)..].TrimStart();
-            int zEnd = zAndOptionalColor.IndexOf(' ');
-            ReadOnlySpan<char> zValue = zEnd < 0 ? zAndOptionalColor : zAndOptionalColor[..zEnd];
+            ReadOnlySpan<char> zAndOptionalColor	= span[(i1 + 1)..].TrimStart();
+            int zEnd								= zAndOptionalColor.IndexOfAny(' ', '\t');
+            ReadOnlySpan<char> zValue				= zEnd < 0 ? zAndOptionalColor : zAndOptionalColor[..zEnd];
             z = float.Parse(zValue, NumberStyles.Float, CultureInfo.InvariantCulture);
         }
 
@@ -550,20 +573,20 @@ public sealed class ObjReader
     {
         span = span.Trim();
 
-        int i0 = span.IndexOf(' ');
+        int i0 = span.IndexOfAny(' ', '\t');
         if (i0 < 0)
         {
             float uOnly = float.Parse(span, NumberStyles.Float, CultureInfo.InvariantCulture);
-            return new Vector2(uOnly, 0f);
+            return new Vector2(uOnly, 1f);
         }
 
         float u = float.Parse(span[..i0], NumberStyles.Float, CultureInfo.InvariantCulture);
 
-        ReadOnlySpan<char> rest = span[(i0 + 1)..].TrimStart();
-        int i1 = rest.IndexOf(' ');
-        float v = i1 < 0 ? float.Parse(rest, NumberStyles.Float, CultureInfo.InvariantCulture) : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
+        ReadOnlySpan<char> rest	= span[(i0 + 1)..].TrimStart();
+        int i1					= rest.IndexOfAny(' ', '\t');
+        float v					= i1 < 0 ? float.Parse(rest, NumberStyles.Float, CultureInfo.InvariantCulture) : float.Parse(rest[..i1], NumberStyles.Float, CultureInfo.InvariantCulture);
 
-        return new Vector2(u, v);
+        return new Vector2(u, 1f - v);
     }
 
 }

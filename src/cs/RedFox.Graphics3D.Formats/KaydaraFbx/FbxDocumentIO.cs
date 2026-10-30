@@ -1,18 +1,37 @@
 namespace RedFox.Graphics3D.Formats.KaydaraFbx;
 
 /// <summary>
-/// Provides reusable FBX document read and write operations for ASCII and binary streams.
+/// Provides FBX document read and write operations that select the binary or ASCII encoding.
 /// </summary>
 public static class FbxDocumentIO
 {
     /// <summary>
-    /// Reads an FBX document from the provided stream.
+    /// Reads an FBX document from the provided stream, detecting the encoding from its contents.
     /// </summary>
     /// <param name="stream">The source FBX stream.</param>
     /// <returns>The parsed FBX document.</returns>
     public static FbxDocument Read(Stream stream)
     {
-        return FbxDocumentSerializer.Read(stream);
+        if (stream.CanSeek)
+        {
+            byte[] data = new byte[stream.Length - stream.Position];
+            stream.ReadExactly(data);
+            return Read(data);
+        }
+
+        using MemoryStream copy = new();
+        stream.CopyTo(copy);
+        return Read(copy.ToArray());
+    }
+
+    /// <summary>
+    /// Reads an FBX document from a byte array, detecting the encoding from its contents.
+    /// </summary>
+    /// <param name="data">The complete file contents.</param>
+    /// <returns>The parsed FBX document.</returns>
+    public static FbxDocument Read(byte[] data)
+    {
+        return FbxBinarySerializer.IsBinary(data) ? FbxBinarySerializer.Read(data) : FbxAsciiSerializer.Read(data);
     }
 
     /// <summary>
@@ -23,6 +42,13 @@ public static class FbxDocumentIO
     /// <param name="format">The target FBX format.</param>
     public static void Write(Stream stream, FbxDocument document, FbxFormat format)
     {
-        FbxDocumentSerializer.Write(stream, document, format);
+        if (format == FbxFormat.Binary)
+        {
+            FbxBinarySerializer.Write(stream, document);
+        }
+        else
+        {
+            FbxAsciiSerializer.Write(stream, document);
+        }
     }
 }

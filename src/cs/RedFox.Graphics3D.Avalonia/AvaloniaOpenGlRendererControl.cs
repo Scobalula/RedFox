@@ -66,6 +66,11 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     public static readonly StyledProperty<WireframeMode> WireframeModeProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, WireframeMode>(nameof(WireframeMode));
 
     /// <summary>
+    /// Defines the <see cref="ShowNormals"/> property.
+    /// </summary>
+    public static readonly StyledProperty<bool> ShowNormalsProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, bool>(nameof(ShowNormals));
+
+    /// <summary>
     /// Defines the <see cref="SkinningMode"/> property.
     /// </summary>
     public static readonly StyledProperty<SkinningMode> SkinningModeProperty =
@@ -117,6 +122,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         ClearColorProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         UseViewBasedLightingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         UseFlatShadingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        ShowNormalsProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         WireframeModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         SkinningModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         AntiAliasingSamplesProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
@@ -214,6 +220,15 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(WireframeModeProperty);
         set => SetValue(WireframeModeProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets whether vertex normal direction lines are shown.
+    /// </summary>
+    public bool ShowNormals
+    {
+        get => GetValue(ShowNormalsProperty);
+        set => SetValue(ShowNormalsProperty, value);
     }
 
     /// <summary>
@@ -494,18 +509,19 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
             return;
         }
 
-        _renderer.ClearColor = ClearColor;
-        _renderer.UseViewBasedLighting = UseViewBasedLighting;
-        _renderer.UseFlatShading = UseFlatShading;
-        _renderer.WireframeMode = WireframeMode;
-        _renderer.SkinningMode = SkinningMode;
-        _renderer.AntiAliasingSamples = Math.Max(AntiAliasingSamples, 1);
-        _renderer.ShadowQuality = ShadowQuality;
-        _renderer.ShadowSoftness = ShadowSoftness;
-        _renderer.ShadowStrength = ShadowStrength;
-        _renderer.AmbientOcclusionQuality = AmbientOcclusionQuality;
-        _renderer.AmbientOcclusionRadius = AmbientOcclusionRadius;
-        _renderer.AmbientOcclusionIntensity = AmbientOcclusionIntensity;
+        _renderer.ClearColor				= ClearColor;
+        _renderer.UseViewBasedLighting		= UseViewBasedLighting;
+        _renderer.UseFlatShading			= UseFlatShading;
+        _renderer.WireframeMode				= WireframeMode;
+        _renderer.ShowNormals				= ShowNormals;
+        _renderer.SkinningMode				= SkinningMode;
+        _renderer.AntiAliasingSamples		= Math.Max(AntiAliasingSamples, 1);
+        _renderer.ShadowQuality				= ShadowQuality;
+        _renderer.ShadowSoftness			= ShadowSoftness;
+        _renderer.ShadowStrength			= ShadowStrength;
+        _renderer.AmbientOcclusionQuality	= AmbientOcclusionQuality;
+        _renderer.AmbientOcclusionRadius	= AmbientOcclusionRadius;
+        _renderer.AmbientOcclusionIntensity	= AmbientOcclusionIntensity;
         RequestFrame();
     }
 

@@ -10,7 +10,7 @@ internal sealed class ListCommand : ICommandLineCommand
 
     public IReadOnlyList<string> Aliases => ["ls", "find"];
 
-    public string Usage => "[pattern] [type:<type>]";
+    public string Usage => "[pattern] [type:<type>] [key:<value>] [!exclude]";
 
     public string Description => "List and search assets";
 

@@ -9,11 +9,12 @@ internal static class XAnimReader
 {
     public static void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? cancellationToken)
     {
+        cancellationToken?.ThrowIfCancellationRequested();
         using XAssetTokenStream tokens = new(stream);
         tokens.Expect("ANIMATION");
         tokens.Expect("VERSION");
-        int partCount = tokens.MoveTo("NUMPARTS").GetInt32();
-        SkeletonAnimation animation = new(context.Name, partCount, TransformType.Absolute)
+        int partCount				= tokens.MoveTo("NUMPARTS").GetInt32();
+        SkeletonAnimation animation	= new(context.Name, partCount, TransformType.Absolute)
         {
             TransformSpace = TransformSpace.World,
             TransformType = TransformType.Absolute,
@@ -25,6 +26,8 @@ internal static class XAnimReader
                 throw new InvalidDataException("Expected an XAnim part definition.");
             int partIndex = checked((int)part.IntegerValue);
             ValidateIndex(partIndex, partCount, "part");
+            if (tracks[partIndex] is not null)
+                throw new InvalidDataException("Duplicate XAnim part definition.");
             SkeletonAnimationTrack track = new(part.StringValue)
             {
                 TransformSpace = TransformSpace.World,
@@ -35,7 +38,9 @@ internal static class XAnimReader
         }
 
         animation.Framerate = tokens.MoveTo("FRAMERATE").GetSingle();
-        tokens.MoveTo("NUMFRAMES");
+        int frameCount		= tokens.MoveTo("NUMFRAMES").GetInt32();
+        int previousFrame	= -1;
+        int[] partFrames	= new int[partCount];
         while (tokens.Peek() is { } token)
         {
             cancellationToken?.ThrowIfCancellationRequested();
@@ -46,7 +51,10 @@ internal static class XAnimReader
             if (token is not TokenDataInt frameToken || frameToken.Token.Name != "FRAME")
                 continue;
 
-            float frame = frameToken.Value;
+            int frame = frameToken.Value;
+            if (frame < 0 || frame >= frameCount || frame <= previousFrame)
+                throw new InvalidDataException("Invalid or duplicate XAnim frame.");
+            previousFrame = frame;
             while (tokens.Peek() is { } partToken && partToken.Token.Name is not "FRAME" and not "NOTETRACKS")
             {
                 if (partToken.Token.Name != "PART" || partToken is not TokenDataUInt part)
@@ -58,13 +66,16 @@ internal static class XAnimReader
                 int partIndex = checked((int)part.Value);
                 tokens.Read();
                 ValidateIndex(partIndex, partCount, "animated part");
-                Vector3? offset = null;
-                Vector3? scale = null;
-                Vector3 x = Vector3.UnitX;
-                Vector3 y = Vector3.UnitY;
-                Vector3 z = Vector3.UnitZ;
-                bool hasAxes = false;
-                Quaternion? quaternion = null;
+                if (partFrames[partIndex] == frame + 1)
+                    throw new InvalidDataException("Duplicate XAnim part pose.");
+                partFrames[partIndex] = frame + 1;
+                Vector3? offset			= null;
+                Vector3? scale			= null;
+                Vector3 x				= Vector3.UnitX;
+                Vector3 y				= Vector3.UnitY;
+                Vector3 z				= Vector3.UnitZ;
+                bool hasAxes			= false;
+                Quaternion? quaternion	= null;
                 while (tokens.Peek() is { } transform && transform.Token.Name is not "PART" and not "FRAME" and not "NOTETRACKS")
                 {
                     tokens.Read();

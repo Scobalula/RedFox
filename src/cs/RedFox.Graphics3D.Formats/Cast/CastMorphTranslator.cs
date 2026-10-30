@@ -15,19 +15,20 @@ internal static class CastMorphTranslator
             if (group.Key is not MeshNode baseNode || !meshes.TryGetValue(baseNode, out var mesh) || mesh.Positions is null)
                 continue;
 
-            var targets = group.ToArray();
-            var vertexCount = mesh.Positions.ElementCount;
-            var deltas = new float[vertexCount * targets.Length * 3];
+            var targets		= group.ToArray();
+            var vertexCount	= mesh.Positions.ElementCount;
+            var deltas		= new float[vertexCount * targets.Length * 3];
 
             for (var target = 0; target < targets.Length; target++)
             {
-                var indices = targets[target].VertexIndices?.ToArray<int>() ?? [];
-                var positions = targets[target].VertexPositions is { Type: CastPropertyType.Vector3 } vertexPositions ? vertexPositions.AsSpan<Vector3>() : [];
+                var indices		= targets[target].VertexIndices?.ToArray<int>() ?? [];
+                var positions	= targets[target].VertexPositions is { Type: CastPropertyType.Vector3 } vertexPositions ? vertexPositions.AsSpan<Vector3>() : [];
 
-                for (var i = 0; i < indices.Length && i < positions.Length; i++)
+                if (indices.Length != positions.Length)
+                    throw new InvalidDataException("Inconsistent Cast morph array lengths.");
+                for (var i = 0; i < indices.Length; i++)
                 {
-                    if ((uint)indices[i] < (uint)vertexCount)
-                        (positions[i] - mesh.Positions.GetVector3(indices[i], 0)).CopyTo(deltas, (indices[i] * targets.Length + target) * 3);
+                    (positions[i] - mesh.Positions.GetVector3(indices[i], 0)).CopyTo(deltas, (indices[i] * targets.Length + target) * 3);
                 }
             }
 
@@ -42,8 +43,8 @@ internal static class CastMorphTranslator
 
         for (var target = 0; target < morph.TargetCount; target++)
         {
-            var indices = new List<int>();
-            var positions = new List<Vector3>();
+            var indices		= new List<int>();
+            var positions	= new List<Vector3>();
 
             for (var vertex = 0; vertex < deltaPositions.ElementCount; vertex++)
             {
@@ -56,7 +57,13 @@ internal static class CastMorphTranslator
                 positions.Add(mesh.Positions.GetVector3(vertex, 0) + delta);
             }
 
-            modelNode.AddNode(new BlendShapeNode { Name = morph.TargetNames[target], BaseShape = meshNode, VertexIndices = CastArrayProperty.CreateIndices<int>(CollectionsMarshal.AsSpan(indices)), VertexPositions = CastArrayProperty.Create<Vector3>(CollectionsMarshal.AsSpan(positions)) });
+            modelNode.AddNode(new BlendShapeNode
+            {
+                Name			= morph.TargetNames[target],
+                BaseShape		= meshNode,
+                VertexIndices	= CastArrayProperty.CreateIndices<int>(CollectionsMarshal.AsSpan(indices)),
+                VertexPositions	= CastArrayProperty.Create<Vector3>(CollectionsMarshal.AsSpan(positions)),
+            });
         }
     }
 }

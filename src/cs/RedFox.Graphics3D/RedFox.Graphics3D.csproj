@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RedFox.IO\RedFox.IO.csproj" />
     <ProjectReference Include="..\\RedFox.Imaging\\RedFox.Imaging.csproj" />
   </ItemGroup>
 

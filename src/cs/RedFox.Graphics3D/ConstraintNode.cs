@@ -46,8 +46,8 @@ public abstract class ConstraintNode(string name, SceneNode constrainedNode, Sce
     public override void Read(BinaryReader reader, IReadOnlyList<SceneNode> nodes)
     {
         base.Read(reader, nodes);
-        ConstrainedNode	= reader.ReadNode<SceneNode>(nodes)!;
-        SourceNode		= reader.ReadNode<SceneNode>(nodes)!;
+        ConstrainedNode	= reader.ReadNode<SceneNode>(nodes) ?? throw new InvalidDataException("Missing constrained node reference.");
+        SourceNode		= reader.ReadNode<SceneNode>(nodes) ?? throw new InvalidDataException("Missing source node reference.");
         Weight			= reader.ReadSingle();
     }
 

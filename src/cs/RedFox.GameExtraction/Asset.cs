@@ -1,11 +1,15 @@
+using System.Globalization;
+
 namespace RedFox.GameExtraction;
 
 /// <summary>
 /// Represents a single exportable or previewable asset discovered within a mounted source.
 /// </summary>
-public sealed class Asset
+public class Asset
 {
     private static readonly Dictionary<string, object?> EmptyMetadata = new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly string? _information;
 
     /// <summary>
     /// Gets the mounted source that owns the asset when available.
@@ -34,7 +38,7 @@ public sealed class Asset
     /// <summary>
     /// Gets optional secondary information describing the asset.
     /// </summary>
-    public string? Information { get; }
+    public virtual string? Information => _information;
 
     /// <summary>
     /// Gets the source-specific value used by handlers to access raw asset data.
@@ -130,11 +134,58 @@ public sealed class Asset
         Type = type;
         Category = category;
         DataSource = dataSource;
-        Information = information;
+        _information = information;
         Metadata = metadata is null
             ? EmptyMetadata
             : new Dictionary<string, object?>(metadata, StringComparer.OrdinalIgnoreCase);
         UserData = userData;
+    }
+
+    /// <summary>
+    /// Gets a numeric value used by search filters, read from <see cref="Metadata"/> by default.
+    /// </summary>
+    /// <param name="key">The lower-case search key, such as bonecount or width.</param>
+    /// <param name="value">The value when the asset exposes the key.</param>
+    /// <returns><see langword="true"/> when the asset exposes the key; otherwise, <see langword="false"/>.</returns>
+    public virtual bool TryGetSearchValue(string key, out long value)
+    {
+        if (Metadata.TryGetValue(key, out object? metadata) && metadata is bool or sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal)
+        {
+            value = Convert.ToInt64(metadata, CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        value = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// Gets a list of names used by text search filters, such as bone names.
+    /// </summary>
+    /// <param name="key">The lower-case search key, such as bonename.</param>
+    /// <param name="names">The names when the asset exposes the key.</param>
+    /// <returns><see langword="true"/> when the asset exposes the key; otherwise, <see langword="false"/>.</returns>
+    public virtual bool TryGetSearchNames(string key, out IReadOnlyList<string> names)
+    {
+        names = [];
+        return false;
+    }
+
+    /// <summary>
+    /// Compares this asset's information with another asset of the same type for sorting.
+    /// </summary>
+    /// <param name="other">The asset to compare with.</param>
+    /// <returns>A negative value when this asset sorts first, zero when equal, or a positive value when it sorts after.</returns>
+    public virtual int CompareInformation(Asset other)
+    {
+        int emptyComparison = string.IsNullOrWhiteSpace(Information).CompareTo(string.IsNullOrWhiteSpace(other.Information));
+
+        if (emptyComparison != 0)
+        {
+            return emptyComparison;
+        }
+
+        return string.Compare(Information, other.Information, CultureInfo.InvariantCulture, CompareOptions.IgnoreCase | CompareOptions.NumericOrdering);
     }
 
     internal void AttachSource(IAssetSource source)

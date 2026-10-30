@@ -1,4 +1,7 @@
 using RedFox.GameExtraction;
+using RedFox.Graphics3D.Formats.KaydaraFbx;
+using RedFox.Graphics3D.IO;
+using RedFox.Imaging.IO;
 
 namespace ToolName;
 
@@ -60,9 +63,18 @@ public static class ToolNameSettings
             Name = "ModelFormats",
             Group = GameExtractionSettingGroup.Model,
             Label = "Model export formats",
-            Description = "Comma-separated list of model extensions.",
+            Description = "Formats models are exported to.",
             Type = GameExtractionSettingType.TextArray,
             DefaultValue = ".semodel,.cast,.fbx",
+            OptionsSource = new SceneFormatOptionsSource(SceneTranslatorContent.Model),
+        },
+        new GameExtractionSetting
+        {
+            Name = FbxTranslator.WriteAsciiOption,
+            Group = GameExtractionSettingGroup.Model,
+            Label = "Write FBX as ASCII",
+            Type = GameExtractionSettingType.Boolean,
+            DefaultValue = false,
         },
         new GameExtractionSetting
         {
@@ -71,6 +83,16 @@ public static class ToolNameSettings
             Label = "Export model images",
             Type = GameExtractionSettingType.Boolean,
             DefaultValue = true,
+        },
+        new GameExtractionSetting
+        {
+            Name = "AnimationFormats",
+            Group = GameExtractionSettingGroup.Animation,
+            Label = "Animation export formats",
+            Description = "Formats animations are exported to.",
+            Type = GameExtractionSettingType.TextArray,
+            DefaultValue = ".seanim,.cast",
+            OptionsSource = new SceneFormatOptionsSource(SceneTranslatorContent.Animation),
         },
 #endif
 #if IMAGE_SUPPORT
@@ -87,9 +109,31 @@ public static class ToolNameSettings
             Name = "ImageFormats",
             Group = GameExtractionSettingGroup.Image,
             Label = "Image export formats",
-            Description = "Comma-separated list of image extensions.",
+            Description = "Formats images are exported to.",
             Type = GameExtractionSettingType.TextArray,
             DefaultValue = ".png",
+            OptionsSource = new ImageFormatOptionsSource(),
+        },
+        new GameExtractionSetting
+        {
+            Name = "ImageQuality",
+            Group = GameExtractionSettingGroup.Image,
+            Label = "Image quality",
+            Description = "Quality used by lossy formats such as JPEG.",
+            Type = GameExtractionSettingType.Slider,
+            Minimum = 1,
+            Maximum = 100,
+            DefaultValue = 90,
+        },
+        new GameExtractionSetting
+        {
+            Name = "ImageCompression",
+            Group = GameExtractionSettingGroup.Image,
+            Label = "Image compression",
+            Description = "Compression preference for formats that support it, such as PNG, TIFF and EXR.",
+            Type = GameExtractionSettingType.Choice,
+            DefaultValue = nameof(ImageCompressionPreference.Default),
+            Options = Enum.GetNames<ImageCompressionPreference>(),
         },
         new GameExtractionSetting
         {

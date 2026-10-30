@@ -163,8 +163,17 @@ namespace RedFox.Graphics3D
         /// </summary>
         /// <param name="cancellationToken">The token used to stop animation and bone binding.</param>
         /// <returns>The rebuilt animation player list.</returns>
-        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers(CancellationToken cancellationToken)
+        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers(CancellationToken cancellationToken) => CreateAnimationPlayers(new Dictionary<Animation, IReadOnlyList<SceneNode>>(), cancellationToken);
+
+        /// <summary>
+        /// Rebuilds players using explicit target roots for selected animations.
+        /// </summary>
+        /// <param name="animationTargets">Target roots for each animation; omitted animations use automatic binding.</param>
+        /// <param name="cancellationToken">The token used to cancel animation binding.</param>
+        /// <returns>The rebuilt animation player list.</returns>
+        public IReadOnlyList<AnimationPlayer> CreateAnimationPlayers(IReadOnlyDictionary<Animation, IReadOnlyList<SceneNode>> animationTargets, CancellationToken cancellationToken)
         {
+            ArgumentNullException.ThrowIfNull(animationTargets);
             cancellationToken.ThrowIfCancellationRequested();
             List<AnimationPlayer> newAnimationPlayers = [];
 
@@ -238,51 +247,48 @@ namespace RedFox.Graphics3D
             foreach (SkeletonAnimation animation in skeletalAnimations)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                SceneNode? boneRoot = ResolveSkeletonBoneRoot(animation, boneRoots, boneNamesByRoot, cancellationToken);
-                if (boneRoot is null)
+                SceneNode? defaultRoot				= ResolveSkeletonBoneRoot(animation, boneRoots, boneNamesByRoot, cancellationToken);
+                IReadOnlyList<SceneNode> targets	= animationTargets.TryGetValue(animation, out IReadOnlyList<SceneNode>? explicitTargets) ? explicitTargets : [];
+                if (!animationTargets.ContainsKey(animation) && defaultRoot is not null)
                 {
-                    continue;
+                    targets = [defaultRoot];
                 }
-
-                float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f
-                    ? animation.Framerate
-                    : DefaultAnimationFrameRate;
-
-                string playerName = string.IsNullOrWhiteSpace(animation.Name)
-                    ? $"SkeletalPlayer_{playerIndex}"
-                    : $"{animation.Name}_Player";
-                string samplerName = string.IsNullOrWhiteSpace(animation.Name)
-                    ? $"SkeletalSampler_{playerIndex}"
-                    : $"{animation.Name}_Sampler";
-
-                AnimationPlayer player = new(playerName)
+                foreach (SceneNode boneRoot in targets)
                 {
-                    FrameRate = frameRate
-                };
+                    float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f ? animation.Framerate : DefaultAnimationFrameRate;
 
-                SkeletonAnimationSampler sampler = new(samplerName, animation, boneRoot)
-                {
-                    FrameRate = frameRate
-                };
+                    string playerName	= string.IsNullOrWhiteSpace(animation.Name) ? $"SkeletalPlayer_{playerIndex}" : $"{animation.Name}_Player";
+                    string samplerName	= string.IsNullOrWhiteSpace(animation.Name) ? $"SkeletalSampler_{playerIndex}" : $"{animation.Name}_Sampler";
 
-                player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+                    AnimationPlayer player = new(playerName)
+                    {
+                        FrameRate = frameRate
+                    };
 
-                foreach ((IKHandleNode handle, HashSet<SceneNode> ancestors) in ikHandleAncestors)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (ancestors.Contains(boneRoot))
-                        player.AddSolver(handle.CreateSolver());
+                    SkeletonAnimationSampler sampler = new(samplerName, animation, boneRoot)
+                    {
+                        FrameRate = frameRate
+                    };
+
+                    player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+
+                    foreach ((IKHandleNode handle, HashSet<SceneNode> ancestors) in ikHandleAncestors)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (ancestors.Contains(boneRoot))
+                            player.AddSolver(handle.CreateSolver());
+                    }
+
+                    foreach ((ConstraintNode constraint, HashSet<SceneNode> ancestors) in constraintAncestors)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (ancestors.Contains(boneRoot))
+                            player.AddSolver(constraint.CreateSolver());
+                    }
+
+                    newAnimationPlayers.Add(player);
+                    playerIndex++;
                 }
-
-                foreach ((ConstraintNode constraint, HashSet<SceneNode> ancestors) in constraintAncestors)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (ancestors.Contains(boneRoot))
-                        player.AddSolver(constraint.CreateSolver());
-                }
-
-                newAnimationPlayers.Add(player);
-                playerIndex++;
             }
 
             foreach (MorphAnimation animation in EnumerateDescendants<MorphAnimation>())
@@ -291,15 +297,19 @@ namespace RedFox.Graphics3D
                 float frameRate = float.IsFinite(animation.Framerate) && animation.Framerate > 0.0f ? animation.Framerate : DefaultAnimationFrameRate;
                 string baseName = string.IsNullOrWhiteSpace(animation.Name) ? $"Morph_{playerIndex}" : animation.Name;
 
-                MorphAnimationSampler sampler = new($"{baseName}_Sampler", animation, RootNode) { FrameRate = frameRate };
+                IReadOnlyList<SceneNode> targets = animationTargets.TryGetValue(animation, out IReadOnlyList<SceneNode>? explicitTargets) ? explicitTargets : [RootNode];
+                foreach (SceneNode target in targets)
+                {
+                    MorphAnimationSampler sampler = new($"{baseName}_Sampler", animation, target) { FrameRate = frameRate };
 
-                if (sampler.Bindings.Count == 0)
-                    continue;
+                    if (sampler.Bindings.Count == 0)
+                        continue;
 
-                AnimationPlayer player = new($"{baseName}_Player") { FrameRate = frameRate };
-                player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
-                newAnimationPlayers.Add(player);
-                playerIndex++;
+                    AnimationPlayer player = new($"{baseName}_Player") { FrameRate = frameRate };
+                    player.WithSubLayer(sampler, AnimationBlendMode.Override, 1.0f);
+                    newAnimationPlayers.Add(player);
+                    playerIndex++;
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();

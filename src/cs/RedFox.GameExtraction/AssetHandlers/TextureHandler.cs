@@ -23,7 +23,7 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
         var skipExisting = context.Configuration.GetOption("SkipExistingImages", true);
         var imageFormats = context.Configuration.GetOption("ImageFormats", DefaultFormats);
 
-        ExportTexture(texture, imageFormats, manager, context.ResolveOutputPath(texture.Name), skipExisting);
+        ExportTexture(texture, imageFormats, manager, context.ResolveOutputPath(texture.Name), skipExisting, GetImageOptions(context.Configuration));
     }
 
     /// <inheritdoc/>
@@ -84,7 +84,24 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     /// <see cref="Texture.FilePath"/> when no formats are provided.
     /// </returns>
     /// <exception cref="InvalidOperationException">Thrown when the texture has no image loader, or its image could not be loaded.</exception>
-    public static string ExportTexture(Texture texture, IReadOnlyList<string> formats, ImageTranslatorManager manager, string path, bool skipExisting)
+    public static string ExportTexture(Texture texture, IReadOnlyList<string> formats, ImageTranslatorManager manager, string path, bool skipExisting) => ExportTexture(texture, formats, manager, path, skipExisting, new ImageTranslatorOptions());
+
+    /// <summary>
+    /// Exports the given texture to each of the specified formats using the provided image options. The image is only decoded
+    /// when at least one format has to be written, so exporting textures that already exist on disk is cheap.
+    /// </summary>
+    /// <param name="texture">The texture to export.</param>
+    /// <param name="formats">The formats to export the texture to, as file extensions.</param>
+    /// <param name="manager">The image translator manager.</param>
+    /// <param name="path">The output path of the image, its extension is replaced by each format.</param>
+    /// <param name="skipExisting">Whether to skip formats whose file already exists.</param>
+    /// <param name="options">The options passed to the image translators.</param>
+    /// <returns>
+    /// The full path of the image written for the last format, which models should reference, or the texture's current
+    /// <see cref="Texture.FilePath"/> when no formats are provided.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">Thrown when the texture has no image loader, or its image could not be loaded.</exception>
+    public static string ExportTexture(Texture texture, IReadOnlyList<string> formats, ImageTranslatorManager manager, string path, bool skipExisting, ImageTranslatorOptions options)
     {
         Image? image = null;
 
@@ -100,9 +117,27 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
             image ??= loader.Load(texture, manager, MipType.High) ?? throw new InvalidOperationException($"Texture '{texture.Name}' could not be loaded.");
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-            manager.Write(filePath, image);
+            manager.Write(filePath, image, options);
         }
 
         return formats.Count > 0 ? Path.GetFullPath(Path.ChangeExtension(path, formats[^1])) : texture.FilePath;
+    }
+
+    /// <summary>
+    /// Creates the image translator options from the <c>ImageQuality</c> and <c>ImageCompression</c> settings.
+    /// </summary>
+    /// <param name="configuration">The configuration holding the settings.</param>
+    /// <returns>The image translator options.</returns>
+    public static ImageTranslatorOptions GetImageOptions(GameExtractionConfiguration configuration)
+    {
+        ImageTranslatorOptions options = new();
+
+        if (configuration.TryGetOption("ImageQuality", out double quality))
+            options.Quality = (int)quality;
+
+        if (configuration.TryGetOption("ImageCompression", out string? compression) && Enum.TryParse(compression, true, out ImageCompressionPreference preference))
+            options.Compression = preference;
+
+        return options;
     }
 }

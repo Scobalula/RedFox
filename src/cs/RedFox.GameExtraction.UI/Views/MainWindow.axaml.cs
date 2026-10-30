@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
+        AssetListBox.AddHandler(PointerPressedEvent, OnAssetPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         AssetListBox.ContainerPrepared += OnAssetContainerPrepared;
         AssetListBox.ContainerClearing += OnAssetContainerClearing;
     }
@@ -139,6 +140,24 @@ public partial class MainWindow : Window
         browserColumn.MinWidth = isSplit ? 280 : 0;
         previewColumn.MinWidth = isSplit ? 320 : 0;
         PreviewSplitter.IsVisible = isSplit;
+    }
+
+    private async void OnAssetPointerPressed(object? sender, PointerPressedEventArgs args)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || FindRowItem<AssetRowViewModel>(args.Source) is not { } row)
+        {
+            return;
+        }
+        if (args.GetCurrentPoint(AssetListBox).Properties.IsMiddleButtonPressed)
+        {
+            args.Handled = true;
+            AssetListBox.Selection.Clear();
+            await viewModel.TogglePreviewModelAsync(row);
+        }
+        else if (args.GetCurrentPoint(AssetListBox).Properties.IsLeftButtonPressed && viewModel.Preview.HasModelGroup && AssetListBox.SelectedItems?.Contains(row) == true)
+        {
+            await viewModel.Preview.UpdateSelectionAsync([row]);
+        }
     }
 
     private void OnAssetSelectionChanged(object? sender, SelectionChangedEventArgs args)
@@ -247,7 +266,7 @@ public partial class MainWindow : Window
         }
 
         SettingsWindow settingsWindow = new();
-        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
+        settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, viewModel.AssetManager, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         await settingsWindow.ShowDialog(this);
         viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
         GameExtractionLogging.ApplySettings(viewModel.Config.Settings);

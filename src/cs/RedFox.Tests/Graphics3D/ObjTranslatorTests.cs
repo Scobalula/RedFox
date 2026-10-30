@@ -6,6 +6,7 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
+using System.Globalization;
 using System.Numerics;
 using System.Text;
 using RedFox.Graphics3D;
@@ -205,6 +206,28 @@ public sealed class ObjTranslatorTests
         Assert.Equal(70, mesh.VertexCount);
         Assert.Equal(68, mesh.FaceCount);
         AssertVector3Equal(new Vector3(69f, 0f, 0f), mesh.Positions!.GetVector3(69, 0), 1e-5f);
+    }
+
+    [Fact]
+    public void ObjTranslator_FlipsTextureCoordinatesBetweenBottomLeftAndTopLeftOrigins()
+    {
+        string objText = """
+            v 0 0 0
+            v 1 0 0
+            v 0 1 0
+            vt 0.25 0.2
+            f 1/1 2/1 3/1
+            """;
+
+        SceneTranslatorManager	manager	= CreateManagerWithObjTranslator();
+        Scene					loaded	= ReadSceneFromObj(manager, Encoding.UTF8.GetBytes(objText));
+        Mesh					mesh	= Assert.Single(loaded.GetDescendants<Mesh>());
+
+        AssertVector2Equal(new Vector2(0.25f, 0.8f), mesh.UVLayers!.GetVector2(0, 0), 1e-5f);
+
+        string[] written = Encoding.UTF8.GetString(WriteSceneToObj(manager, loaded)).Split('\n').First(static line => line.StartsWith("vt ", StringComparison.Ordinal)).Split(' ');
+
+        Assert.Equal(0.2f, float.Parse(written[2], CultureInfo.InvariantCulture), 5);
     }
 
     [Fact]

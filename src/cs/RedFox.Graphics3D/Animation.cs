@@ -28,14 +28,6 @@ public abstract class Animation : SceneNode
     public float Framerate { get; set; }
 
     /// <summary>
-    /// Computes the minimum and maximum keyframe times across all tracks
-    /// in this animation. Subclasses implement this by iterating their
-    /// concrete track storage.
-    /// </summary>
-    /// <returns>A tuple of (minFrame, maxFrame).</returns>
-    public abstract (float, float) GetAnimationFrameRange();
-
-    /// <summary>
     /// Initializes a new animation with the default scene-node name.
     /// </summary>
     public Animation() : base()
@@ -49,6 +41,14 @@ public abstract class Animation : SceneNode
     public Animation(string name) : base(name)
     {
     }
+
+    /// <summary>
+    /// Computes the minimum and maximum keyframe times across all tracks
+    /// in this animation. Subclasses implement this by iterating their
+    /// concrete track storage.
+    /// </summary>
+    /// <returns>A tuple of (minFrame, maxFrame).</returns>
+    public abstract (float, float) GetAnimationFrameRange();
 
     /// <inheritdoc/>
     public override void Write(BinaryWriter writer, IReadOnlyDictionary<SceneNode, int> nodeIndices)
@@ -85,12 +85,16 @@ public abstract class Animation : SceneNode
         if (reader.ReadBoolean())
         {
             int actionCount = reader.ReadInt32();
+            if (actionCount < 0 || actionCount > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("Invalid scene action count.");
             Actions = new(actionCount);
 
             for (int i = 0; i < actionCount; i++)
             {
                 AnimationAction	action			= new(reader.ReadString(), reader.ReadString());
                 int				keyFrameCount	= reader.ReadInt32();
+                if (keyFrameCount < 0 || keyFrameCount > reader.BaseStream.Length - reader.BaseStream.Position)
+                    throw new InvalidDataException("Invalid scene action key count.");
 
                 for (int j = 0; j < keyFrameCount; j++)
                     action.KeyFrames.Add(new(reader.ReadSingle(), reader.ReadOptionalString()));

@@ -56,6 +56,11 @@ namespace RedFox.Graphics3D
         }
 
         /// <summary>
+        /// Returns <see langword="true"/> if this track has any keyframe data at all.
+        /// </summary>
+        public bool HasKeyFrames => (TranslationCurve is not null && TranslationCurve.KeyFrameCount > 0) || (RotationCurve is not null && RotationCurve.KeyFrameCount > 0) || (ScaleCurve is not null && ScaleCurve.KeyFrameCount > 0);
+
+        /// <summary>
         /// Initializes a new <see cref="AnimationTrack"/> with the specified target name.
         /// </summary>
         /// <param name="name">Name of the scene node this track targets (e.g., bone name).</param>
@@ -96,6 +101,8 @@ namespace RedFox.Graphics3D
             ScaleCurve			= AnimationCurve.ReadOptional(reader);
 
             int customCurveCount = reader.ReadInt32();
+            if (customCurveCount < 0 || customCurveCount > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("Invalid scene custom curve count.");
 
             if (customCurveCount > 0)
             {
@@ -228,14 +235,6 @@ namespace RedFox.Graphics3D
 
             return (min, max);
         }
-
-        /// <summary>
-        /// Returns <see langword="true"/> if this track has any keyframe data at all.
-        /// </summary>
-        public bool HasKeyFrames =>
-            (TranslationCurve is not null && TranslationCurve.KeyFrameCount > 0) ||
-            (RotationCurve is not null && RotationCurve.KeyFrameCount > 0) ||
-            (ScaleCurve is not null && ScaleCurve.KeyFrameCount > 0);
 
         private static void UpdateTimeRange(AnimationCurve? curve, ref float min, ref float max)
         {

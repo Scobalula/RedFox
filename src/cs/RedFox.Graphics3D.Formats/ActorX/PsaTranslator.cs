@@ -20,19 +20,24 @@ public sealed class PsaTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".psa"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "ANIMHEAD"u8;
 
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var reader = new PsaReader(stream, context.Name);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var writer = new PsaWriter(stream);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace RedFox.Graphics3D;
 
 /// <summary>
@@ -37,6 +39,8 @@ public static class MeshTriangulator
 
             currentFaceVertexCount = 0;
         }
+
+        allTriangles &= currentFaceVertexCount == 0;
 
         if (faceCount == 0)
         {
@@ -106,6 +110,68 @@ public static class MeshTriangulator
     }
 
     /// <summary>
+    /// Triangulates a single planar or near-planar polygon, splitting quads along their shorter diagonal and ear clipping larger polygons.
+    /// </summary>
+    /// <param name="polygon">The polygon corner positions in winding order.</param>
+    /// <param name="triangles">The destination for corner indices, which must hold at least <c>(polygon.Length - 2) * 3</c> values.</param>
+    /// <returns>The number of indices written.</returns>
+    public static int TriangulatePolygon(ReadOnlySpan<Vector3> polygon, Span<int> triangles)
+    {
+        if (polygon.Length < 3)
+            return 0;
+
+        if (polygon.Length == 3)
+        {
+            triangles[0] = 0;
+            triangles[1] = 1;
+            triangles[2] = 2;
+            return 3;
+        }
+
+        if (polygon.Length == 4)
+        {
+            Vector3	quadNormal		= Vector3.Cross(polygon[2] - polygon[0], polygon[3] - polygon[1]);
+            bool	splitsAtZero	= IsQuadDiagonalInside(polygon, 0, quadNormal);
+            bool	splitsAtOne		= IsQuadDiagonalInside(polygon, 1, quadNormal);
+            bool	zeroShorter		= Vector3.DistanceSquared(polygon[0], polygon[2]) <= Vector3.DistanceSquared(polygon[1], polygon[3]);
+            int		start			= splitsAtZero && (!splitsAtOne || zeroShorter) ? 0 : 1;
+
+            triangles[0] = start;
+            triangles[1] = start + 1;
+            triangles[2] = (start + 2) % 4;
+            triangles[3] = start;
+            triangles[4] = (start + 2) % 4;
+            triangles[5] = (start + 3) % 4;
+            return 6;
+        }
+
+        Vector3 normal = Vector3.Zero;
+
+        for (int i = 0; i < polygon.Length; i++)
+        {
+            Vector3 current	= polygon[i];
+            Vector3 next	= polygon[(i + 1) % polygon.Length];
+
+            normal += new Vector3((current.Y - next.Y) * (current.Z + next.Z), (current.Z - next.Z) * (current.X + next.X), (current.X - next.X) * (current.Y + next.Y));
+        }
+
+        if (normal.LengthSquared() <= float.Epsilon)
+            return TriangulateFan(polygon.Length, triangles);
+
+        normal = Vector3.Normalize(normal);
+
+        Vector3 axisX = Vector3.Normalize(Vector3.Cross(MathF.Abs(normal.X) > MathF.Abs(normal.Z) ? Vector3.UnitZ : Vector3.UnitX, normal));
+        Vector3 axisY = Vector3.Cross(normal, axisX);
+
+        Span<Vector2> points = polygon.Length <= 64 ? stackalloc Vector2[polygon.Length] : new Vector2[polygon.Length];
+
+        for (int i = 0; i < polygon.Length; i++)
+            points[i] = new Vector2(Vector3.Dot(polygon[i], axisX), Vector3.Dot(polygon[i], axisY));
+
+        return new PolygonEarClipper(points).Triangulate(triangles);
+    }
+
+    /// <summary>
     /// Expands per-face values to per-triangle values using a triangle expansion map.
     /// </summary>
     /// <param name="perFaceValues">Values stored per source polygon face.</param>
@@ -144,5 +210,29 @@ public static class MeshTriangulator
         }
 
         return expanded;
+    }
+
+    private static bool IsQuadDiagonalInside(ReadOnlySpan<Vector3> quad, int start, Vector3 normal)
+    {
+        Vector3 a = quad[start];
+        Vector3 b = quad[start + 1];
+        Vector3 c = quad[(start + 2) % 4];
+        Vector3 d = quad[(start + 3) % 4];
+
+        return Vector3.Dot(Vector3.Cross(b - a, c - a), normal) > 0.0f && Vector3.Dot(Vector3.Cross(c - a, d - a), normal) > 0.0f;
+    }
+
+    private static int TriangulateFan(int cornerCount, Span<int> triangles)
+    {
+        int written = 0;
+
+        for (int i = 1; i < cornerCount - 1; i++)
+        {
+            triangles[written++] = 0;
+            triangles[written++] = i;
+            triangles[written++] = i + 1;
+        }
+
+        return written;
     }
 }

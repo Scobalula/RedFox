@@ -323,32 +323,42 @@
                                     <Style Selector="ListBox.asset-list">
                                         <Setter Property="ItemTemplate">
                                             <DataTemplate x:DataType="model:AssetRowViewModel">
-                                                <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                                                      ColumnSpacing="12"
-                                                      Margin="10,5,14,5"
-                                                      ToolTip.Tip="{Binding Name}">
-                                                    <Border Classes="asset-icon">
-                                                        <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
-                                                    </Border>
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
-                                                        <TextBlock Classes="asset-name"
-                                                                   Text="{Binding FileName}"
+                                                <Panel>
+                                                    <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
+                                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                                          ColumnSpacing="12"
+                                                          Margin="10,5,14,5"
+                                                          ToolTip.Tip="{Binding Name}">
+                                                        <Border Classes="asset-icon">
+                                                            <Panel>
+                                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                                                <Border Classes="asset-preview-badge" Width="14" Height="14" Padding="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False">
+                                                                    <Viewbox Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <Path Width="16" Height="16" Data="{StaticResource IconEye}" Fill="{DynamicResource AssetPreviewForegroundBrush}" Stretch="None"/>
+                                                                    </Viewbox>
+                                                                </Border>
+                                                            </Panel>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                                            <TextBlock Classes="asset-name"
+                                                                       Text="{Binding FileName}"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Classes="asset-info"
+                                                                       Text="{Binding DirectoryName}"
+                                                                       IsVisible="{Binding HasDirectoryName}"
+                                                                       TextTrimming="LeadingCharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Classes="asset-info"
+                                                                   MaxWidth="240"
+                                                                   Text="{Binding Information}"
+                                                                   IsVisible="{Binding HasInformation}"
                                                                    TextTrimming="CharacterEllipsis"/>
-                                                        <TextBlock Classes="asset-info"
-                                                                   Text="{Binding DirectoryName}"
-                                                                   IsVisible="{Binding HasDirectoryName}"
-                                                                   TextTrimming="LeadingCharacterEllipsis"/>
-                                                    </StackPanel>
-                                                    <TextBlock Grid.Column="2"
-                                                               Classes="asset-info"
-                                                               MaxWidth="240"
-                                                               Text="{Binding Information}"
-                                                               IsVisible="{Binding HasInformation}"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <Border Grid.Column="3" Classes="pill">
-                                                        <TextBlock Text="{Binding Type}"/>
-                                                    </Border>
-                                                </Grid>
+                                                        <Border Grid.Column="3" Classes="pill">
+                                                            <TextBlock Text="{Binding Type}"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Panel>
                                             </DataTemplate>
                                         </Setter>
                                     </Style>
@@ -364,26 +374,34 @@
                                         </Setter>
                                         <Setter Property="ItemTemplate">
                                             <DataTemplate DataType="{x:Null}" x:DataType="model:AssetRowViewModel">
-                                                <StackPanel Margin="8" Spacing="6" ToolTip.Tip="{Binding Name}">
-                                                    <Border Classes="asset-thumbnail">
-                                                        <Panel>
-                                                            <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
-                                                                      Width="40" Height="40"
-                                                                      IsVisible="{Binding !HasThumbnail}"/>
-                                                            <Image Source="{Binding DisplayedThumbnail}"
-                                                                   Stretch="Uniform"
-                                                                   RenderOptions.BitmapInterpolationMode="HighQuality"/>
-                                                        </Panel>
-                                                    </Border>
-                                                    <TextBlock Classes="asset-name"
-                                                               Text="{Binding FileName}"
-                                                               TextAlignment="Center"
-                                                               TextTrimming="LeadingCharacterEllipsis"/>
-                                                    <TextBlock Classes="asset-info"
-                                                               Text="{Binding Type}"
-                                                               TextAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                </StackPanel>
+                                                <Panel>
+                                                    <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
+                                                    <StackPanel Margin="8" Spacing="6" ToolTip.Tip="{Binding Name}">
+                                                        <Border Classes="asset-thumbnail">
+                                                            <Panel>
+                                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
+                                                                          Width="40" Height="40"
+                                                                          IsVisible="{Binding !HasThumbnail}"/>
+                                                                <Image Source="{Binding DisplayedThumbnail}"
+                                                                       Stretch="Uniform"
+                                                                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                                                <Border Classes="asset-preview-badge" HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False">
+                                                                    <Viewbox Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <Path Width="16" Height="16" Data="{StaticResource IconEye}" Fill="{DynamicResource AssetPreviewForegroundBrush}" Stretch="None"/>
+                                                                    </Viewbox>
+                                                                </Border>
+                                                            </Panel>
+                                                        </Border>
+                                                        <TextBlock Classes="asset-name"
+                                                                   Text="{Binding FileName}"
+                                                                   TextAlignment="Center"
+                                                                   TextTrimming="LeadingCharacterEllipsis"/>
+                                                        <TextBlock Classes="asset-info"
+                                                                   Text="{Binding Type}"
+                                                                   TextAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Panel>
                                             </DataTemplate>
                                         </Setter>
                                     </Style>

@@ -32,6 +32,7 @@ public abstract class ModelHandler : IAssetHandler
             var relativeImages = context.Configuration.GetOption("RelativeModelImages", false);
             var relativeToMaterial = context.Configuration.GetOption("RelativeToMaterialImages", false);
             var skipExistingImages = context.Configuration.GetOption("SkipExistingImages", true);
+            var imageOptions = TextureHandler.GetImageOptions(context.Configuration);
 
             // Each scene holds its own clones of shared materials and textures, so every clone must point at the
             // exported image, while each image is only written once.
@@ -50,7 +51,7 @@ public abstract class ModelHandler : IAssetHandler
 
                     if (!exportedImages.TryGetValue(texturePath, out var filePath))
                     {
-                        filePath = TextureHandler.ExportTexture(texture, imageFormats, imageManager, texturePath, skipExistingImages);
+                        filePath = TextureHandler.ExportTexture(texture, imageFormats, imageManager, texturePath, skipExistingImages, imageOptions);
                         exportedImages[texturePath] = filePath;
                     }
 
@@ -61,16 +62,19 @@ public abstract class ModelHandler : IAssetHandler
 
         var modelFormats = context.Configuration.GetOption("ModelFormats", DefaultFormats);
 
+        // WriteRawVertices will hint to the downstream translator that it should not apply skinning
+        // We are reading and writing raw vertices from game formats so it's not needed.
+        var options = context.Configuration.CreateSceneTranslatorOptions();
+        options.WriteRawVertices = true;
+
         Directory.CreateDirectory(outputDirectory);
 
         foreach (var scene in scenes)
         {
             foreach (var modelFormat in modelFormats)
             {
-                // WriteRawVertices will hint to the downstream translator that it should not apply skinning
-                // We are reading and writing raw vertices from game formats so it's not needed.
                 string outputPath = context.ResolveOutputPath(Path.Combine(relativeAssetPath, scene.Name + modelFormat));
-                await manager.WriteAsync(outputPath, scene, new() { WriteRawVertices = true }, cancellationToken);
+                await manager.WriteAsync(outputPath, scene, options, cancellationToken);
             }
         }
     }

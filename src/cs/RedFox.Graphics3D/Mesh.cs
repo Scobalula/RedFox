@@ -204,9 +204,9 @@ public class Mesh : SceneNode
     /// <returns>The resolved vertex normal.</returns>
     public Vector3 GetVertexNormal(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
     {
-        Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
-        Vector3 morphedNormal = normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
-        Vector3? skinnedNormal = ApplySkinning(morphedNormal, vertexIndex, static (value, transform) => Vector3.TransformNormal(value, Matrix4x4.Invert(transform, out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : transform), skinTransforms);
+        Vector3 normal			= GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
+        Vector3 morphedNormal	= normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
+        Vector3? skinnedNormal	= ApplySkinning(morphedNormal, vertexIndex, static (value, transform) => Vector3.TransformNormal(value, Matrix4x4.Invert(transform, out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : transform), skinTransforms);
         return NormalizeOrDefault(skinnedNormal ?? morphedNormal, normal);
     }
 
@@ -222,9 +222,9 @@ public class Mesh : SceneNode
         if (Skin is not null && (skinTransforms.Length < Skin.Bones.Count || normalTransforms.Length < Skin.Bones.Count))
             throw new ArgumentException("Skin and normal transform spans must contain one matrix per skin bone.");
 
-        Vector3 normal = GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
-        Vector3 morphedNormal = normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
-        Vector3? skinnedNormal = ApplySkinning(morphedNormal, vertexIndex, Vector3.TransformNormal, skinTransforms, normalTransforms);
+        Vector3 normal			= GetRequiredVector3(Normals, vertexIndex, nameof(Normals));
+        Vector3 morphedNormal	= normal + (Morph?.GetNormalDelta(vertexIndex) ?? Vector3.Zero);
+        Vector3? skinnedNormal	= ApplySkinning(morphedNormal, vertexIndex, Vector3.TransformNormal, skinTransforms, normalTransforms);
         return NormalizeOrDefault(skinnedNormal ?? morphedNormal, normal);
     }
 
@@ -251,9 +251,9 @@ public class Mesh : SceneNode
     /// <returns>The resolved vertex tangent. When the source tangent has four components, the W component is preserved.</returns>
     public Vector4 GetVertexTangent(int vertexIndex, ReadOnlySpan<Matrix4x4> skinTransforms)
     {
-        Vector3 tangent = GetRequiredVector3(Tangents, vertexIndex, nameof(Tangents));
-        Vector3 morphedTangent = tangent + (Morph?.GetTangentDelta(vertexIndex) ?? Vector3.Zero);
-        Vector3 skinnedTangent = NormalizeOrDefault(ApplySkinning(morphedTangent, vertexIndex, Vector3.TransformNormal, skinTransforms) ?? morphedTangent, tangent);
+        Vector3 tangent			= GetRequiredVector3(Tangents, vertexIndex, nameof(Tangents));
+        Vector3 morphedTangent	= tangent + (Morph?.GetTangentDelta(vertexIndex) ?? Vector3.Zero);
+        Vector3 skinnedTangent	= NormalizeOrDefault(ApplySkinning(morphedTangent, vertexIndex, Vector3.TransformNormal, skinTransforms) ?? morphedTangent, tangent);
         return new Vector4(skinnedTangent, GetTangentHandedness(vertexIndex));
     }
 
@@ -475,6 +475,8 @@ public class Mesh : SceneNode
         if (reader.ReadBoolean())
         {
             int rangeCount = reader.ReadInt32();
+            if (rangeCount < 0 || rangeCount > reader.BaseStream.Length - reader.BaseStream.Position)
+                throw new InvalidDataException("Invalid scene material range count.");
             MaterialIndexRanges = new(rangeCount);
 
             for (int i = 0; i < rangeCount; i++)
@@ -531,8 +533,8 @@ public class Mesh : SceneNode
 
         Matrix4x4 meshBindWorld = skinTransforms.IsEmpty ? GetBindWorldMatrix() : Matrix4x4.Identity;
 
-        Vector3 result = Vector3.Zero;
-        float totalWeight = 0f;
+        Vector3 result		= Vector3.Zero;
+        float totalWeight	= 0f;
 
         for (int influenceIndex = 0; influenceIndex < Skin.InfluenceCount; influenceIndex++)
         {

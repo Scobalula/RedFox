@@ -18,8 +18,8 @@ public sealed class WiltTranslatorTests
         Assert.Equal(SceneUpAxis.Z, loaded.UpAxis);
         Assert.Equal("Test Game", loaded.Attributes!["source_game"]);
 
-        SkeletonBone root	= loaded.FindDescendant<SkeletonBone>("root");
-        SkeletonBone child	= loaded.FindDescendant<SkeletonBone>("child");
+        SkeletonBone	root	= loaded.FindDescendant<SkeletonBone>("root");
+        SkeletonBone	child	= loaded.FindDescendant<SkeletonBone>("child");
 
         Assert.Same(root, child.Parent);
         Assert.Equal(new Vector3(0, 1, 0), child.GetBindLocalPosition());
@@ -168,7 +168,7 @@ public sealed class WiltTranslatorTests
     {
         Scene				scene		= new("source");
         SkeletonAnimation	skeletal	= scene.AddNode(new SkeletonAnimation("walk") { Framerate = 60, TransformType = TransformType.Additive });
-        MorphAnimation		morph		= scene.AddNode(new MorphAnimation("walk_Morph"));
+        MorphAnimation		morph		= scene.AddNode(new MorphAnimation("walk_Morph") { Framerate = 60 });
 
         SkeletonAnimationTrack track = new("root")
         {

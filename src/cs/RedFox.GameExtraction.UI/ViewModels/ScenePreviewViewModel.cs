@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Numerics;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RedFox.Graphics3D;
 using RedFox.Graphics3D.Rendering;
@@ -27,6 +28,8 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     private readonly Dictionary<Scene, AnimationPlayer[]> _allAnimationPlayersByScene = new(ReferenceEqualityComparer.Instance);
     private Animation? _selectedAnimation;
     private bool _updatingSelection;
+    private bool _updatingTimeline;
+    private AnimationSampler? _timelineLayer;
 
     /// <summary>
     /// Occurs when the scene was mutated in a way the renderer cannot observe and a redraw is needed.
@@ -37,6 +40,20 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// Gets the viewer preferences shared with other scene previews.
     /// </summary>
     public PreviewSettings Settings { get; }
+
+    /// <summary>
+    /// Gets or sets the command that clears the preview model selection.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasModelSelection))]
+    public partial ICommand? ClearSelectionCommand { get; set; }
+
+    /// <summary>
+    /// Gets whether the preview has a model selection to clear.
+    /// </summary>
+    public bool HasModelSelection => ClearSelectionCommand is not null;
+
+    internal SceneCombineMode? CombinationMode { get; init; }
 
     /// <summary>
     /// Gets the available scenes.
@@ -104,6 +121,28 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     /// Gets a value indicating whether the displayed scene has more than one animation.
     /// </summary>
     public bool HasMultipleAnimations => AnimationNames.Count > 2;
+
+    /// <summary>
+    /// Gets the available playback action.
+    /// </summary>
+    public string PlaybackAction => Settings.IsAnimationPaused ? "Play" : "Pause";
+
+    /// <summary>
+    /// Gets whether the scene contains animations.
+    /// </summary>
+    public bool HasAnimations => _animations.Count > 0;
+
+    /// <summary>
+    /// Gets the playback duration in seconds.
+    /// </summary>
+    [ObservableProperty]
+    public partial double AnimationDuration { get; private set; }
+
+    /// <summary>
+    /// Gets or sets the playback position in seconds.
+    /// </summary>
+    [ObservableProperty]
+    public partial double AnimationPosition { get; set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScenePreviewViewModel"/> class.
@@ -196,6 +235,59 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Updates the timeline from the active animation player.
+    /// </summary>
+    public void RefreshTimeline()
+    {
+        AnimationSampler? layer	= _timelineLayer;
+        _updatingTimeline		= true;
+        AnimationPosition		= layer is { FrameRate: > 0 } ? layer.CurrentTime / layer.FrameRate : 0;
+        _updatingTimeline		= false;
+    }
+
+    /// <summary>
+    /// Fits the preview camera to the active scene.
+    /// </summary>
+    public void FitSceneToView()
+    {
+        if (ActiveScene is { } scene)
+        {
+            FitScene(scene, true);
+            CaptureCameraState();
+            SceneInvalidated?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Saves the current orbit so it can be restored when another model is previewed.
+    /// </summary>
+    public void CaptureCameraState()
+    {
+        if (ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        OrbitCamera camera		= viewportController.Camera;
+        Settings.CameraState	= new ScenePreviewCameraState(camera.OrbitTarget, camera.YawRadians, camera.PitchRadians, camera.Distance);
+    }
+
+    partial void OnAnimationPositionChanged(double value)
+    {
+        if (_updatingTimeline || ActiveScene is not { } scene)
+        {
+            return;
+        }
+
+        Settings.IsAnimationPaused = true;
+        foreach (AnimationPlayer player in scene.AnimationPlayers)
+        {
+            player.Update((float)Math.Clamp(value, 0, AnimationDuration) * player.FrameRate, AnimationSampleType.AbsoluteFrameTime);
+        }
+        SceneInvalidated?.Invoke();
+    }
+
     partial void OnSelectedSceneIndexChanged(int value)
     {
         ShowScene(value >= 0 && value < Scenes.Count ? Scenes[value] : null);
@@ -239,6 +331,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 break;
 
             case nameof(PreviewSettings.IsAnimationPaused):
+                OnPropertyChanged(nameof(PlaybackAction));
                 scene.IsAnimationPaused = Settings.IsAnimationPaused;
                 break;
 
@@ -247,10 +340,18 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 SceneInvalidated?.Invoke();
                 break;
 
+            case nameof(PreviewSettings.SkyboxTexture):
             case nameof(PreviewSettings.ShowSkybox):
             case nameof(PreviewSettings.SkyboxBlur):
             case nameof(PreviewSettings.SkyboxRotation):
                 ConfigureSkybox(scene.Skybox);
+                if (e.PropertyName == nameof(PreviewSettings.SkyboxTexture) && _previewLightsAddedScenes.Contains(scene))
+                {
+                    foreach (Light light in scene.EnumerateDescendants<Light>().Where(light => light.Name.StartsWith("PreviewLight_", StringComparison.Ordinal)))
+                    {
+                        light.Enabled = !Settings.HasSkybox;
+                    }
+                }
                 SceneInvalidated?.Invoke();
                 break;
 
@@ -274,33 +375,6 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
                 }
                 break;
         }
-    }
-
-    /// <summary>
-    /// Fits the preview camera to the active scene.
-    /// </summary>
-    public void FitSceneToView()
-    {
-        if (ActiveScene is { } scene)
-        {
-            FitScene(scene, true);
-            CaptureCameraState();
-            SceneInvalidated?.Invoke();
-        }
-    }
-
-    /// <summary>
-    /// Saves the current orbit so it can be restored when another model is previewed.
-    /// </summary>
-    public void CaptureCameraState()
-    {
-        if (ViewportController is not { } viewportController)
-        {
-            return;
-        }
-
-        OrbitCamera camera = viewportController.Camera;
-        Settings.CameraState = new ScenePreviewCameraState(camera.OrbitTarget, camera.YawRadians, camera.PitchRadians, camera.Distance);
     }
 
     private static bool IsModel(Scene scene)
@@ -467,9 +541,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         if (scene is null)
         {
-            ViewportController = null;
-            ActiveScene = null;
-            StatsDisplay = string.Empty;
+            ViewportController	= null;
+            ActiveScene			= null;
+            StatsDisplay		= string.Empty;
+            _timelineLayer		= null;
+            AnimationDuration	= 0;
+            _updatingTimeline	= true;
+            AnimationPosition	= 0;
+            _updatingTimeline	= false;
             return;
         }
 
@@ -590,7 +669,14 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         if (rebuildPlayers || !_preparedSceneData.ContainsKey(scene))
         {
-            scene.CreateAnimationPlayers();
+            if (CombinationMode is { } mode)
+            {
+                SceneCombiner.BindAnimations(scene, mode, CancellationToken.None);
+            }
+            else
+            {
+                scene.CreateAnimationPlayers();
+            }
             _allAnimationPlayersByScene[scene] = [.. scene.AnimationPlayers];
         }
         else if (_allAnimationPlayersByScene.TryGetValue(scene, out AnimationPlayer[]? allPlayers))
@@ -612,6 +698,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         {
             scene.AnimationPlayers.RemoveAll(player => !player.Layers.Exists(layer => ReferenceEquals(layer.Animation, selected)));
         }
+
+        _timelineLayer		= scene.AnimationPlayers.SelectMany(player => player.Layers).MaxBy(layer => layer.Length);
+        AnimationDuration	= _timelineLayer?.Length ?? 0;
+        _updatingTimeline	= true;
+        AnimationPosition	= 0;
+        _updatingTimeline	= false;
 
         if (ViewportController is { } viewportController)
         {
@@ -635,6 +727,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             }
         }
 
+        OnPropertyChanged(nameof(HasAnimations));
         _updatingSelection = true;
         AnimationNames = [AllAnimationsLabel, .. _animations.Select(animation => animation.Name)];
 

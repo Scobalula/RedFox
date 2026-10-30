@@ -18,7 +18,8 @@ public partial class SettingsWindowViewModel : ObservableObject
     /// <param name="settings">The settings object to edit.</param>
     /// <param name="settingDefinitions">The settings to display.</param>
     /// <param name="appName">The application name used for persistence.</param>
-    public SettingsWindowViewModel(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName)
+    /// <param name="assetManager">The asset manager used to resolve setting options.</param>
+    public SettingsWindowViewModel(GameExtractionSettings settings, IReadOnlyList<GameExtractionSetting> settingDefinitions, string appName, AssetManager assetManager)
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(settingDefinitions);
@@ -31,7 +32,7 @@ public partial class SettingsWindowViewModel : ObservableObject
             .OrderBy(group => GetGroupOrder(group.Key))
             .Select(group => new SettingGroupViewModel(
                 group.Key,
-                [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, BrowseSettingAsync))]))];
+                [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, assetManager, BrowseSettingAsync))]))];
 
         Dictionary<string, GameExtractionSettingViewModel> settingsByName = Groups.SelectMany(group => group.Settings).ToDictionary(setting => setting.Name, StringComparer.OrdinalIgnoreCase);
         foreach (GameExtractionSettingViewModel setting in settingsByName.Values)

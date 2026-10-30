@@ -3,8 +3,7 @@ using System.Text.Json;
 namespace RedFox.Graphics3D.Formats.GLTransmissionFormat;
 
 /// <summary>
-/// Parses a glTF 2.0 JSON document into a <see cref="GltfDocument"/> using
-/// <see cref="System.Text.Json.JsonDocument"/> for zero-allocation DOM traversal.
+/// Parses a glTF 2.0 JSON document into a <see cref="GltfDocument"/> using <see cref="System.Text.Json.JsonDocument"/> for zero-allocation DOM traversal.
 /// </summary>
 public static class GltfJsonParser
 {
@@ -19,6 +18,10 @@ public static class GltfJsonParser
         using JsonDocument jsonDoc = JsonDocument.Parse(json);
         JsonElement root = jsonDoc.RootElement;
         GltfDocument doc = new();
+        if (root.TryGetProperty("asset", out JsonElement asset) && asset.TryGetProperty("version", out JsonElement version) && version.GetString() != "2.0")
+            throw new NotSupportedException("Only glTF 2.0 is supported.");
+        if (root.TryGetProperty("extensionsRequired", out JsonElement required) && required.GetArrayLength() > 0)
+            throw new NotSupportedException("Required glTF extensions are not supported.");
 
         if (root.TryGetProperty("scene", out JsonElement sceneProp))
             doc.Scene = sceneProp.GetInt32();
@@ -65,11 +68,6 @@ public static class GltfJsonParser
         return doc;
     }
 
-    /// <summary>
-    /// Parses the "scenes" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing scene definitions.</param>
-    /// <param name="doc">The document to populate with parsed scenes.</param>
     private static void ParseScenes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -83,11 +81,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "nodes" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing node definitions.</param>
-    /// <param name="doc">The document to populate with parsed nodes.</param>
     private static void ParseNodes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -117,11 +110,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "meshes" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing mesh definitions.</param>
-    /// <param name="doc">The document to populate with parsed meshes.</param>
     private static void ParseMeshes(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -173,15 +161,13 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "accessors" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing accessor definitions.</param>
-    /// <param name="doc">The document to populate with parsed accessors.</param>
     private static void ParseAccessors(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
         {
+            if (el.TryGetProperty("sparse", out _))
+                throw new NotSupportedException("Sparse glTF accessors are not supported.");
+
             GltfAccessor acc = new();
             if (el.TryGetProperty("bufferView", out JsonElement bv))
                 acc.BufferView = bv.GetInt32();
@@ -205,11 +191,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "bufferViews" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing buffer view definitions.</param>
-    /// <param name="doc">The document to populate with parsed buffer views.</param>
     private static void ParseBufferViews(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -231,11 +212,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "buffers" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing buffer definitions.</param>
-    /// <param name="doc">The document to populate with parsed buffers.</param>
     private static void ParseBuffers(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -251,11 +227,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "materials" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing material definitions.</param>
-    /// <param name="doc">The document to populate with parsed materials.</param>
     private static void ParseMaterials(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -323,11 +294,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "textures" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing texture definitions.</param>
-    /// <param name="doc">The document to populate with parsed textures.</param>
     private static void ParseTextures(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -343,11 +309,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "images" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing image definitions.</param>
-    /// <param name="doc">The document to populate with parsed images.</param>
     private static void ParseImages(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -365,11 +326,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "samplers" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing sampler definitions.</param>
-    /// <param name="doc">The document to populate with parsed samplers.</param>
     private static void ParseSamplers(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -389,11 +345,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "skins" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing skin definitions.</param>
-    /// <param name="doc">The document to populate with parsed skins.</param>
     private static void ParseSkins(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -411,11 +362,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "animations" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing animation definitions.</param>
-    /// <param name="doc">The document to populate with parsed animations.</param>
     private static void ParseAnimations(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -453,6 +399,8 @@ public static class GltfJsonParser
                         sampler.Output = output.GetInt32();
                     if (sp.TryGetProperty("interpolation", out JsonElement interp))
                         sampler.Interpolation = interp.GetString() ?? GltfConstants.InterpolationLinear;
+                    if (sampler.Interpolation != GltfConstants.InterpolationLinear)
+                        throw new NotSupportedException($"glTF interpolation '{sampler.Interpolation}' is not supported.");
                     anim.Samplers.Add(sampler);
                 }
             }
@@ -461,11 +409,6 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Parses the "cameras" array from the glTF JSON into the document.
-    /// </summary>
-    /// <param name="array">The JSON array element containing camera definitions.</param>
-    /// <param name="doc">The document to populate with parsed cameras.</param>
     private static void ParseCameras(JsonElement array, GltfDocument doc)
     {
         foreach (JsonElement el in array.EnumerateArray())
@@ -504,29 +447,19 @@ public static class GltfJsonParser
         }
     }
 
-    /// <summary>
-    /// Reads a JSON array of numbers into a float array.
-    /// </summary>
-    /// <param name="array">The JSON array element containing numeric values.</param>
-    /// <returns>A float array with the parsed values.</returns>
     private static float[] ReadFloatArray(JsonElement array)
     {
-        float[] result = new float[array.GetArrayLength()];
-        int i = 0;
+        float[] result	= new float[array.GetArrayLength()];
+        int i			= 0;
         foreach (JsonElement el in array.EnumerateArray())
             result[i++] = el.GetSingle();
         return result;
     }
 
-    /// <summary>
-    /// Reads a JSON array of integers into an int array.
-    /// </summary>
-    /// <param name="array">The JSON array element containing integer values.</param>
-    /// <returns>An int array with the parsed values.</returns>
     private static int[] ReadIntArray(JsonElement array)
     {
-        int[] result = new int[array.GetArrayLength()];
-        int i = 0;
+        int[] result	= new int[array.GetArrayLength()];
+        int i			= 0;
         foreach (JsonElement el in array.EnumerateArray())
             result[i++] = el.GetInt32();
         return result;

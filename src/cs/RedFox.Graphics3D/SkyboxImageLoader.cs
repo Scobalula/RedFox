@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using RedFox.Imaging;
@@ -69,6 +70,7 @@ public sealed class SkyboxImageLoader(ImageTranslatorManager translators, string
         while (image.Width > MaxWidth)
             image = EnvironmentPrefilter.Halve(image);
 
-        return EnvironmentPrefilter.Prefilter(image, RoughnessLevels);
+        int mipLevels = Math.Min(RoughnessLevels, BitOperations.Log2((uint)Math.Max(image.Width, image.Height)) + 1);
+        return EnvironmentPrefilter.Prefilter(image, mipLevels);
     }
 }

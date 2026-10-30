@@ -10,13 +10,14 @@ internal static class XModelReader
 {
     public static void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? cancellationToken)
     {
+        cancellationToken?.ThrowIfCancellationRequested();
         using XAssetTokenStream tokens = new(stream);
         tokens.Expect("MODEL");
         tokens.Expect("VERSION");
 
-        int boneCount = tokens.MoveTo("NUMBONES").GetInt32();
-        SkeletonBone[] bones = new SkeletonBone[boneCount];
-        int[] parentIndices = new int[boneCount];
+        int boneCount			= tokens.MoveTo("NUMBONES").GetInt32();
+        SkeletonBone[] bones	= new SkeletonBone[boneCount];
+        int[] parentIndices		= new int[boneCount];
         for (int i = 0; i < boneCount; i++)
         {
             TokenData boneData = i == 0 ? tokens.MoveTo("BONE") : tokens.Expect("BONE");
@@ -24,22 +25,30 @@ internal static class XModelReader
                 throw new InvalidDataException("Expected an XModel bone definition.");
             int boneIndex = bone.BoneIndex;
             ValidateIndex(boneIndex, boneCount, "bone");
+            if (bones[boneIndex] is not null)
+                throw new InvalidDataException("Duplicate XModel bone definition.");
             bones[boneIndex] = new SkeletonBone(bone.Name);
             parentIndices[boneIndex] = bone.BoneParentIndex;
         }
 
+        bool[] transformed	= new bool[boneCount];
+        int transformCount	= 0;
         while (tokens.Peek() is TokenDataUInt boneToken && boneToken.Token.Name == "BONE")
         {
             cancellationToken?.ThrowIfCancellationRequested();
             tokens.Read();
             int boneIndex = checked((int)boneToken.Value);
             ValidateIndex(boneIndex, boneCount, "bone transform");
-            Vector3 offset = Vector3.Zero;
-            Vector3 scale = Vector3.One;
-            Vector3 x = Vector3.UnitX;
-            Vector3 y = Vector3.UnitY;
-            Vector3 z = Vector3.UnitZ;
-            Quaternion? quaternion = null;
+            if (transformed[boneIndex])
+                throw new InvalidDataException("Duplicate XModel bone transform.");
+            transformed[boneIndex] = true;
+            transformCount++;
+            Vector3 offset			= Vector3.Zero;
+            Vector3 scale			= Vector3.One;
+            Vector3 x				= Vector3.UnitX;
+            Vector3 y				= Vector3.UnitY;
+            Vector3 z				= Vector3.UnitZ;
+            Quaternion? quaternion	= null;
             while (tokens.Peek() is { } transform && transform.Token.Name is not "BONE" and not "NUMVERTS" and not "NUMVERTS32")
             {
                 tokens.Read();
@@ -62,12 +71,17 @@ internal static class XModelReader
             bones[boneIndex].BindTransform.Scale = scale;
         }
 
+        if (transformCount != boneCount)
+            throw new InvalidDataException("Missing XModel bone transforms.");
+
         Skeleton skeleton = scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
         for (int i = 0; i < bones.Length; i++)
         {
             if (bones[i] is null)
                 throw new InvalidDataException($"XModel bone {i} was not defined.");
             int parentIndex = parentIndices[i];
+            if (parentIndex < -1)
+                throw new InvalidDataException("Invalid XModel parent bone index.");
             if (parentIndex >= 0)
             {
                 ValidateIndex(parentIndex, boneCount, "parent bone");
@@ -79,14 +93,16 @@ internal static class XModelReader
             }
         }
 
-        int vertexCount = tokens.MoveTo("NUMVERTS", "NUMVERTS32").GetInt32();
-        Vector3[] sourcePositions = new Vector3[vertexCount];
+        int vertexCount				= tokens.MoveTo("NUMVERTS", "NUMVERTS32").GetInt32();
+        Vector3[] sourcePositions	= new Vector3[vertexCount];
         List<(int BoneIndex, float Weight)>[] sourceWeights = new List<(int BoneIndex, float Weight)>[vertexCount];
         for (int i = 0; i < vertexCount; i++)
         {
             cancellationToken?.ThrowIfCancellationRequested();
             int vertexIndex = tokens.Expect("VERT", "VERT32").GetInt32();
             ValidateIndex(vertexIndex, vertexCount, "vertex");
+            if (sourceWeights[vertexIndex] is not null)
+                throw new InvalidDataException("Duplicate XModel vertex definition.");
             sourcePositions[vertexIndex] = tokens.Expect("OFFSET").GetVector3();
             int influenceCount = tokens.Expect("BONES").GetInt32();
             List<(int BoneIndex, float Weight)> influences = new(influenceCount);
@@ -128,27 +144,31 @@ internal static class XModelReader
             }
         }
 
-        int objectCount = tokens.MoveTo("NUMOBJECTS").GetInt32();
-        string[] objectNames = new string[objectCount];
+        int objectCount			= tokens.MoveTo("NUMOBJECTS").GetInt32();
+        string[] objectNames	= new string[objectCount];
         for (int i = 0; i < objectCount; i++)
         {
             if (tokens.Expect("OBJECT") is not TokenDataUIntString definition)
                 throw new InvalidDataException("Expected an XModel object definition.");
             int objectIndex = checked((int)definition.IntegerValue);
             ValidateIndex(objectIndex, objectCount, "object");
+            if (objectNames[objectIndex] is not null)
+                throw new InvalidDataException("Duplicate XModel object definition.");
             objectNames[objectIndex] = definition.StringValue;
         }
 
-        int materialCount = tokens.MoveTo("NUMMATERIALS").GetInt32();
-        Material[] materials = new Material[materialCount];
+        int materialCount		= tokens.MoveTo("NUMMATERIALS").GetInt32();
+        Material[] materials	= new Material[materialCount];
         for (int i = 0; i < materialCount; i++)
         {
             if (tokens.Expect("MATERIAL") is not TokenDataUIntStringX3 definition)
                 throw new InvalidDataException("Expected an XModel material definition.");
             int materialIndex = checked((int)definition.IntegerValue);
             ValidateIndex(materialIndex, materialCount, "material");
-            Material material = new(definition.StringValue1);
-            string textureName = definition.StringValue3;
+            if (materials[materialIndex] is not null)
+                throw new InvalidDataException("Duplicate XModel material definition.");
+            Material material	= new(definition.StringValue1);
+            string textureName	= definition.StringValue3;
             if (!string.IsNullOrWhiteSpace(textureName))
             {
                 Texture texture = material.AddNode(new Texture(textureName)
@@ -184,9 +204,9 @@ internal static class XModelReader
 
         foreach (((int objectIndex, int materialIndex), var group) in groups)
         {
-            string objectName = (uint)objectIndex < (uint)objectNames.Length && !string.IsNullOrWhiteSpace(objectNames[objectIndex]) ? objectNames[objectIndex] : $"Object_{objectIndex}";
-            string meshName = groupCounts[objectIndex] > 1 && (uint)materialIndex < (uint)materials.Length ? $"{objectName}_{materials[materialIndex].Name}" : objectName;
-            Mesh mesh = model.AddNode<Mesh>(meshName);
+            string objectName	= (uint)objectIndex < (uint)objectNames.Length && !string.IsNullOrWhiteSpace(objectNames[objectIndex]) ? objectNames[objectIndex] : $"Object_{objectIndex}";
+            string meshName		= groupCounts[objectIndex] > 1 && (uint)materialIndex < (uint)materials.Length ? $"{objectName}_{materials[materialIndex].Name}" : objectName;
+            Mesh mesh			= model.AddNode<Mesh>(meshName);
             BuildMesh(mesh, group, bones);
             if ((uint)materialIndex < (uint)materials.Length)
                 mesh.Materials = [materials[materialIndex]];
@@ -195,16 +215,16 @@ internal static class XModelReader
 
     private static void BuildMesh(Mesh mesh, (List<Vector3> Positions, List<Vector3> Normals, List<Vector4> Colors, List<Vector2[]> UVs, List<List<(int BoneIndex, float Weight)>> Weights) group, SkeletonBone[] bones)
     {
-        int vertexCount = group.Positions.Count;
-        int uvLayerCount = group.UVs.Count == 0 ? 0 : group.UVs.Max(static layers => layers.Length);
-        int influenceCount = group.Weights.Count == 0 ? 0 : group.Weights.Max(static influences => influences.Count);
-        DataBuffer<float> positions = new(vertexCount, 1, 3);
-        DataBuffer<float> normals = new(vertexCount, 1, 3);
-        DataBuffer<float> colors = new(vertexCount, 1, 4);
-        DataBuffer<float>? uvLayers = uvLayerCount > 0 ? new DataBuffer<float>(vertexCount, uvLayerCount, 2) : null;
-        DataBuffer<int>? boneIndices = influenceCount > 0 ? new DataBuffer<int>(vertexCount, influenceCount, 1) : null;
-        DataBuffer<float>? boneWeights = influenceCount > 0 ? new DataBuffer<float>(vertexCount, influenceCount, 1) : null;
-        DataBuffer<int> faceIndices = new(vertexCount, 1, 1);
+        int vertexCount					= group.Positions.Count;
+        int uvLayerCount				= group.UVs.Count == 0 ? 0 : group.UVs.Max(static layers => layers.Length);
+        int influenceCount				= group.Weights.Count == 0 ? 0 : group.Weights.Max(static influences => influences.Count);
+        DataBuffer<float> positions		= new(vertexCount, 1, 3);
+        DataBuffer<float> normals		= new(vertexCount, 1, 3);
+        DataBuffer<float> colors		= new(vertexCount, 1, 4);
+        DataBuffer<float>? uvLayers		= uvLayerCount > 0 ? new DataBuffer<float>(vertexCount, uvLayerCount, 2) : null;
+        DataBuffer<int>? boneIndices	= influenceCount > 0 ? new DataBuffer<int>(vertexCount, influenceCount, 1) : null;
+        DataBuffer<float>? boneWeights	= influenceCount > 0 ? new DataBuffer<float>(vertexCount, influenceCount, 1) : null;
+        DataBuffer<int> faceIndices		= new(vertexCount, 1, 1);
 
         for (int i = 0; i < vertexCount; i++)
         {
@@ -219,8 +239,8 @@ internal static class XModelReader
             }
             if (boneIndices is not null && boneWeights is not null)
             {
-                DataBufferElement indexElement = boneIndices.Add();
-                DataBufferElement weightElement = boneWeights.Add();
+                DataBufferElement indexElement	= boneIndices.Add();
+                DataBufferElement weightElement	= boneWeights.Add();
                 for (int influence = 0; influence < influenceCount; influence++)
                 {
                     indexElement.Add(influence < group.Weights[i].Count ? group.Weights[i][influence].BoneIndex : 0);

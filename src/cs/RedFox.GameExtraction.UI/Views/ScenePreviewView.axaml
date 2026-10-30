@@ -1,10 +1,39 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:g3d="using:RedFox.Graphics3D.Avalonia"
+             xmlns:graphics="using:RedFox.Graphics3D"
+             xmlns:rendering="using:RedFox.Graphics3D.Rendering"
              xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
              x:Class="RedFox.GameExtraction.UI.Views.ScenePreviewView"
              x:DataType="vm:ScenePreviewViewModel"
              MinHeight="240">
+
+    <UserControl.Resources>
+        <MenuFlyout x:Key="OptionsMenu">
+            <MenuItem Header="Fit scene" Click="OnFitClick"/>
+            <MenuItem Header="Auto fit" ToggleType="CheckBox" IsChecked="{Binding Settings.AutoFitScene, Mode=TwoWay}" Click="OnSettingClick"/>
+            <Separator/>
+            <MenuItem Header="Merge mode">
+                <MenuItem Header="Merge in place" ToggleType="Radio" GroupName="MergeMode" IsChecked="{Binding Settings.MergeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static graphics:SceneCombineMode.InPlace}}" Click="OnSettingClick"/>
+                <MenuItem Header="Connect bones" ToggleType="Radio" GroupName="MergeMode" IsChecked="{Binding Settings.MergeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static graphics:SceneCombineMode.ConnectBones}}" Click="OnSettingClick"/>
+            </MenuItem>
+            <MenuItem Header="Wireframe">
+                <MenuItem Header="None" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.None}}" Click="OnSettingClick"/>
+                <MenuItem Header="Overlay" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.Overlay}}" Click="OnSettingClick"/>
+                <MenuItem Header="Wire only" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.WireOnly}}" Click="OnSettingClick"/>
+            </MenuItem>
+            <MenuItem Header="Shading">
+                <MenuItem Header="Scene" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.Scene}}" Click="OnSettingClick"/>
+                <MenuItem Header="View based" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.ViewBased}}" Click="OnSettingClick"/>
+                <MenuItem Header="Flat" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.Flat}}" Click="OnSettingClick"/>
+            </MenuItem>
+            <MenuItem Header="Grid" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowGrid, Mode=TwoWay}" Click="OnSettingClick"/>
+            <MenuItem Header="Vertex normals" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowNormals, Mode=TwoWay}" Click="OnSettingClick"/>
+            <MenuItem Header="Bones" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowBones, Mode=TwoWay}" Click="OnSettingClick"/>
+            <MenuItem Header="Skybox background" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowSkybox, Mode=TwoWay}" Click="OnSettingClick"/>
+            <MenuItem Header="Skybox" AttachedToVisualTree="OnSkyboxMenuAttached"/>
+        </MenuFlyout>
+    </UserControl.Resources>
 
     <DockPanel>
         <Border DockPanel.Dock="Top" Classes="preview-toolbar">
@@ -13,19 +42,32 @@
                     <TextBlock Text="Scene"/>
                     <ComboBox Width="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
                 </StackPanel>
-                <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleAnimations}">
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasAnimations}">
                     <TextBlock Text="Animation"/>
                     <ComboBox Width="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
                 </StackPanel>
-                <CheckBox Content="Pause" IsChecked="{Binding Settings.IsAnimationPaused}"/>
-                <CheckBox Content="Grid" IsChecked="{Binding Settings.ShowGrid}"/>
-                <CheckBox Content="Bones" IsChecked="{Binding Settings.ShowBones}"/>
-                <StackPanel Classes="preview-field">
-                    <TextBlock Text="Wireframe"/>
-                    <ComboBox Width="110" ItemsSource="{Binding WireframeModes}" SelectedItem="{Binding Settings.WireframeMode}"/>
-                </StackPanel>
-                <Button Content="Fit scene" Click="OnFitClick"/>
+                <Button Classes="secondary-btn compact" Content="Clear selection" Command="{Binding ClearSelectionCommand}" IsVisible="{Binding HasModelSelection}"/>
+                <Button Classes="secondary-btn compact" Content="Fit scene" Click="OnFitClick"/>
+                <Button Classes="secondary-btn compact" Content="View options" Click="OnOptionsClick" ToolTip.Tip="Preview options are also available by right-clicking the scene."/>
             </WrapPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Classes="preview-toolbar" IsVisible="{Binding HasAnimations}">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <Button Classes="icon-btn" Click="OnPlayPauseClick" Margin="0,0,12,0" ToolTip.Tip="{Binding PlaybackAction}" AutomationProperties.Name="{Binding PlaybackAction}">
+                    <Panel>
+                        <PathIcon Data="{StaticResource IconPlay}" Width="12" Height="12" IsVisible="{Binding Settings.IsAnimationPaused}"/>
+                        <PathIcon Data="{StaticResource IconPause}" Width="12" Height="12" IsVisible="{Binding !Settings.IsAnimationPaused}"/>
+                    </Panel>
+                </Button>
+                <Button Grid.Column="1" Classes="secondary-btn compact" Content="Restart" Click="OnRestartClick" Margin="0,0,12,0"/>
+                <Slider Grid.Column="2" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationPosition, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="Scrub animation (seconds)"/>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding AnimationPosition, StringFormat={}{0:F2}}"/>
+                    <TextBlock Text=" / "/>
+                    <TextBlock Text="{Binding AnimationDuration, StringFormat={}{0:F2} s}"/>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <Panel>
@@ -35,6 +77,7 @@
                                                ViewportController="{Binding ViewportController}"
                                                UseViewBasedLighting="{Binding Settings.UseViewBasedLighting}"
                                                UseFlatShading="{Binding Settings.UseFlatShading}"
+                                               ShowNormals="{Binding Settings.ShowNormals}"
                                                WireframeMode="{Binding Settings.WireframeMode}"
                                                IsAnimationPaused="{Binding Settings.IsAnimationPaused}"
                                                SkinningMode="{Binding Settings.SkinningMode}"

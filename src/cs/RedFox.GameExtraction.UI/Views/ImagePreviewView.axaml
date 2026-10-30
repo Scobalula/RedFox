@@ -32,8 +32,8 @@
                 <CheckBox Content="Tile" IsChecked="{Binding Settings.Tile}"/>
                 <CheckBox Content="Flip Y" IsChecked="{Binding Settings.FlipY}"/>
                 <StackPanel Classes="preview-field">
-                    <Button Content="Fit" Click="OnFitClick"/>
-                    <Button Content="1:1" Click="OnActualSizeClick"/>
+                    <Button Classes="secondary-btn compact" Content="Fit" Click="OnFitClick"/>
+                    <Button Classes="secondary-btn compact" Content="1:1" Click="OnActualSizeClick"/>
                 </StackPanel>
             </WrapPanel>
         </Border>

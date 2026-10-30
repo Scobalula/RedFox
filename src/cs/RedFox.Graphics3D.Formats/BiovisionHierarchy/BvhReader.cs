@@ -48,59 +48,7 @@ public sealed class BvhReader
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="scene"/> is <see langword="null"/>.</exception>
     /// <exception cref="IOException">Thrown when the underlying stream cannot be read.</exception>
     /// <exception cref="InvalidDataException">Thrown when the BVH data is malformed or incomplete.</exception>
-    public void Read(Scene scene)
-    {
-        ArgumentNullException.ThrowIfNull(scene);
-
-        if (!Stream.CanRead)
-        {
-            throw new IOException("The supplied BVH stream is not readable.");
-        }
-
-        using StreamReader streamReader = new(Stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: true);
-        string text = streamReader.ReadToEnd();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            throw new InvalidDataException("The BVH stream is empty.");
-        }
-
-        TextTokenReader tokenReader = new(text.AsSpan());
-        RequireToken(ref tokenReader, "HIERARCHY");
-        RequireToken(ref tokenReader, "ROOT");
-
-        string rootJointName = ReadRequiredToken(ref tokenReader, "root joint name");
-        ValidateNodeName(rootJointName, "root joint");
-
-        Skeleton skeleton = scene.RootNode.AddNode(new Skeleton($"{Name}_Skeleton"));
-        HashSet<string> jointNames = new(StringComparer.OrdinalIgnoreCase);
-        List<SkeletonBone> joints = [];
-        List<BvhChannelType[]> channelsByJoint = [];
-
-        ReadJoint(ref tokenReader, rootJointName, skeleton, joints, channelsByJoint, jointNames);
-
-        RequireToken(ref tokenReader, "MOTION");
-        int frameCount = ReadFrameCount(ref tokenReader);
-        float frameTime = ReadFrameTime(ref tokenReader);
-
-        SkeletonAnimation animation = new($"{Name}_Animation", joints.Count, TransformType.Absolute) { Framerate = 1.0f / frameTime, TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
-        List<SkeletonAnimationTrack> tracks = new(joints.Count);
-
-        for (int i = 0; i < joints.Count; i++)
-        {
-            SkeletonAnimationTrack track = new(joints[i].Name) { TransformSpace = TransformSpace.Local, TransformType = TransformType.Absolute };
-            animation.Tracks.Add(track);
-            tracks.Add(track);
-        }
-
-        ReadMotionFrames(ref tokenReader, joints, channelsByJoint, tracks, frameCount);
-
-        if (TryReadToken(ref tokenReader, out string? trailingToken))
-        {
-            throw new InvalidDataException($"Unexpected trailing BVH token '{trailingToken}' after the motion section.");
-        }
-
-        scene.RootNode.AddNode(animation);
-    }
+    public void Read(Scene scene) => Read(scene, CancellationToken.None);
 
     /// <summary>
     /// Reads one BVH joint block and appends the created joint to the supplied scene hierarchy and lookup tables.
@@ -134,13 +82,13 @@ public sealed class BvhReader
             throw new InvalidDataException($"Joint '{joint.Name}' declares an invalid BVH channel count of {channelCount}.");
         }
 
-        BvhChannelType[] channels = new BvhChannelType[channelCount];
-        bool hasXPosition = false;
-        bool hasYPosition = false;
-        bool hasZPosition = false;
-        bool hasXRotation = false;
-        bool hasYRotation = false;
-        bool hasZRotation = false;
+        BvhChannelType[] channels	= new BvhChannelType[channelCount];
+        bool hasXPosition			= false;
+        bool hasYPosition			= false;
+        bool hasZPosition			= false;
+        bool hasXRotation			= false;
+        bool hasYRotation			= false;
+        bool hasZRotation			= false;
 
         for (int i = 0; i < channelCount; i++)
         {
@@ -216,74 +164,7 @@ public sealed class BvhReader
     /// <param name="channelsByJoint">The channel array for each joint.</param>
     /// <param name="tracks">The destination animation tracks.</param>
     /// <param name="frameCount">The total number of motion frames.</param>
-    public static void ReadMotionFrames(ref TextTokenReader tokenReader, IReadOnlyList<SkeletonBone> joints, IReadOnlyList<BvhChannelType[]> channelsByJoint, IReadOnlyList<SkeletonAnimationTrack> tracks, int frameCount)
-    {
-        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
-        {
-            float frameTime = frameIndex;
-
-            for (int jointIndex = 0; jointIndex < joints.Count; jointIndex++)
-            {
-                SkeletonBone joint = joints[jointIndex];
-                BvhChannelType[] channels = channelsByJoint[jointIndex];
-                SkeletonAnimationTrack track = tracks[jointIndex];
-                Vector3 offset = joint.BindTransform.LocalPosition ?? Vector3.Zero;
-                Vector3 localPosition = offset;
-                Vector3 rotationDegrees = Vector3.Zero;
-                bool hasPositionChannels = false;
-                bool hasRotationChannels = false;
-
-                for (int channelIndex = 0; channelIndex < channels.Length; channelIndex++)
-                {
-                    BvhChannelType channel = channels[channelIndex];
-                    float value = ReadMotionValue(ref tokenReader, joint.Name, frameIndex);
-
-                    switch (channel)
-                    {
-                        case BvhChannelType.Xposition:
-                            localPosition.X = offset.X + value;
-                            hasPositionChannels = true;
-                            break;
-
-                        case BvhChannelType.Yposition:
-                            localPosition.Y = offset.Y + value;
-                            hasPositionChannels = true;
-                            break;
-
-                        case BvhChannelType.Zposition:
-                            localPosition.Z = offset.Z + value;
-                            hasPositionChannels = true;
-                            break;
-
-                        case BvhChannelType.Xrotation:
-                            rotationDegrees.X = value;
-                            hasRotationChannels = true;
-                            break;
-
-                        case BvhChannelType.Yrotation:
-                            rotationDegrees.Y = value;
-                            hasRotationChannels = true;
-                            break;
-
-                        case BvhChannelType.Zrotation:
-                            rotationDegrees.Z = value;
-                            hasRotationChannels = true;
-                            break;
-                    }
-                }
-
-                if (hasPositionChannels)
-                {
-                    track.AddTranslationFrame(frameTime, localPosition);
-                }
-
-                if (hasRotationChannels)
-                {
-                    track.AddRotationFrame(frameTime, BvhRotation.ComposeDegrees(rotationDegrees, channels));
-                }
-            }
-        }
-    }
+    public static void ReadMotionFrames(ref TextTokenReader tokenReader, IReadOnlyList<SkeletonBone> joints, IReadOnlyList<BvhChannelType[]> channelsByJoint, IReadOnlyList<SkeletonAnimationTrack> tracks, int frameCount) => ReadMotionFrames(ref tokenReader, joints, channelsByJoint, tracks, frameCount, CancellationToken.None);
 
     /// <summary>
     /// Reads the BVH frame-count declaration.
@@ -375,14 +256,6 @@ public sealed class BvhReader
         {
             throw new InvalidDataException($"Expected a finite floating-point token for {description}.");
         }
-
-        return value;
-    }
-
-    private static float ReadMotionValue(ref TextTokenReader tokenReader, string jointName, int frameIndex)
-    {
-        if (!tokenReader.TryReadFloat(out float value) || !float.IsFinite(value))
-            throw new InvalidDataException($"Expected a finite motion value for joint '{jointName}' in frame {frameIndex.ToString(CultureInfo.InvariantCulture)}.");
 
         return value;
     }
@@ -523,5 +396,153 @@ public sealed class BvhReader
                 hasZRotation = true;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Reads data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to read.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Read(Scene scene, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(scene);
+
+        if (!Stream.CanRead)
+        {
+            throw new IOException("The supplied BVH stream is not readable.");
+        }
+
+        using StreamReader streamReader = new(Stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: true);
+        string text = streamReader.ReadToEnd();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new InvalidDataException("The BVH stream is empty.");
+        }
+
+        TextTokenReader tokenReader = new(text.AsSpan());
+        RequireToken(ref tokenReader, "HIERARCHY");
+        RequireToken(ref tokenReader, "ROOT");
+
+        string rootJointName = ReadRequiredToken(ref tokenReader, "root joint name");
+        ValidateNodeName(rootJointName, "root joint");
+
+        Skeleton skeleton						= scene.RootNode.AddNode(new Skeleton($"{Name}_Skeleton"));
+        HashSet<string> jointNames				= new(StringComparer.OrdinalIgnoreCase);
+        List<SkeletonBone> joints				= [];
+        List<BvhChannelType[]> channelsByJoint	= [];
+
+        ReadJoint(ref tokenReader, rootJointName, skeleton, joints, channelsByJoint, jointNames);
+
+        RequireToken(ref tokenReader, "MOTION");
+        int frameCount	= ReadFrameCount(ref tokenReader);
+        float frameTime	= ReadFrameTime(ref tokenReader);
+
+        SkeletonAnimation animation = new($"{Name}_Animation", joints.Count, TransformType.Absolute)
+        {
+            Framerate		= 1.0f / frameTime,
+            TransformSpace	= TransformSpace.Local,
+            TransformType	= TransformType.Absolute,
+        };
+        List<SkeletonAnimationTrack> tracks = new(joints.Count);
+
+        for (int i = 0; i < joints.Count; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            SkeletonAnimationTrack track = new(joints[i].Name)
+            {
+                TransformSpace	= TransformSpace.Local,
+                TransformType	= TransformType.Absolute,
+            };
+            animation.Tracks.Add(track);
+            tracks.Add(track);
+        }
+
+        ReadMotionFrames(ref tokenReader, joints, channelsByJoint, tracks, frameCount, token);
+
+        if (TryReadToken(ref tokenReader, out string? trailingToken))
+        {
+            throw new InvalidDataException($"Unexpected trailing BVH token '{trailingToken}' after the motion section.");
+        }
+
+        scene.RootNode.AddNode(animation);
+    }
+
+    private static void ReadMotionFrames(ref TextTokenReader tokenReader, IReadOnlyList<SkeletonBone> joints, IReadOnlyList<BvhChannelType[]> channelsByJoint, IReadOnlyList<SkeletonAnimationTrack> tracks, int frameCount, CancellationToken token)
+    {
+        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+        {
+            token.ThrowIfCancellationRequested();
+            float frameTime = frameIndex;
+
+            for (int jointIndex = 0; jointIndex < joints.Count; jointIndex++)
+            {
+                SkeletonBone joint				= joints[jointIndex];
+                BvhChannelType[] channels		= channelsByJoint[jointIndex];
+                SkeletonAnimationTrack track	= tracks[jointIndex];
+                Vector3 offset					= joint.BindTransform.LocalPosition ?? Vector3.Zero;
+                Vector3 localPosition			= offset;
+                Vector3 rotationDegrees			= Vector3.Zero;
+                bool hasPositionChannels		= false;
+                bool hasRotationChannels		= false;
+
+                for (int channelIndex = 0; channelIndex < channels.Length; channelIndex++)
+                {
+                    BvhChannelType channel	= channels[channelIndex];
+                    float value				= ReadMotionValue(ref tokenReader, joint.Name, frameIndex);
+
+                    switch (channel)
+                    {
+                        case BvhChannelType.Xposition:
+                            localPosition.X		= offset.X + value;
+                            hasPositionChannels	= true;
+                            break;
+
+                        case BvhChannelType.Yposition:
+                            localPosition.Y		= offset.Y + value;
+                            hasPositionChannels	= true;
+                            break;
+
+                        case BvhChannelType.Zposition:
+                            localPosition.Z		= offset.Z + value;
+                            hasPositionChannels	= true;
+                            break;
+
+                        case BvhChannelType.Xrotation:
+                            rotationDegrees.X	= value;
+                            hasRotationChannels	= true;
+                            break;
+
+                        case BvhChannelType.Yrotation:
+                            rotationDegrees.Y	= value;
+                            hasRotationChannels	= true;
+                            break;
+
+                        case BvhChannelType.Zrotation:
+                            rotationDegrees.Z	= value;
+                            hasRotationChannels	= true;
+                            break;
+                    }
+                }
+
+                if (hasPositionChannels)
+                {
+                    track.AddTranslationFrame(frameTime, localPosition);
+                }
+
+                if (hasRotationChannels)
+                {
+                    track.AddRotationFrame(frameTime, BvhRotation.ComposeDegrees(rotationDegrees, channels));
+                }
+            }
+        }
+    }
+
+    private static float ReadMotionValue(ref TextTokenReader tokenReader, string jointName, int frameIndex)
+    {
+        if (!tokenReader.TryReadFloat(out float value) || !float.IsFinite(value))
+            throw new InvalidDataException($"Expected a finite motion value for joint '{jointName}' in frame {frameIndex.ToString(CultureInfo.InvariantCulture)}.");
+
+        return value;
     }
 }

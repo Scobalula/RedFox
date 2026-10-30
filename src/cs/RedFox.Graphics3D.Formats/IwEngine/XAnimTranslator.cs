@@ -27,6 +27,9 @@ public sealed class XAnimTranslator : SceneTranslator
     /// </summary>
     public override IReadOnlyList<string> Extensions => [".xanim_export", ".xanim_bin"];
 
+    /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Animation;
+
     /// <summary>
     /// Reads an XAnim asset from a stream into a scene.
     /// </summary>

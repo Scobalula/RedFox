@@ -113,6 +113,8 @@ public class SkeletonAnimation : Animation
         TransformSpace	= (TransformSpace)reader.ReadInt32();
 
         int trackCount = reader.ReadInt32();
+        if (trackCount < 0 || trackCount > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene skeleton track count.");
         Tracks = new(trackCount);
 
         for (int i = 0; i < trackCount; i++)

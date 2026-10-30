@@ -511,6 +511,8 @@ public class Material(string name) : SceneNode(name)
         Type						= reader.ReadOptionalString();
 
         int bindingCount = reader.ReadInt32();
+        if (bindingCount < 0 || bindingCount > reader.BaseStream.Length - reader.BaseStream.Position)
+            throw new InvalidDataException("Invalid scene material binding count.");
 
         for (int i = 0; i < bindingCount; i++)
         {
@@ -785,6 +787,13 @@ public class Material(string name) : SceneNode(name)
     /// <exception cref="KeyNotFoundException">Thrown when no texture is connected at the slot key.</exception>
     public Texture GetAnisotropyMap() => GetRequiredTexture(AnisotropyMapName, nameof(AnisotropyMapName));
 
+    /// <inheritdoc/>
+    protected override void OnCloned()
+    {
+        _connections	= [.. _connections];
+        _channelSources	= new(_channelSources, StringComparer.Ordinal);
+    }
+
     private void SetMapTexture(string? slotKey, string slotKeyPropertyName, Texture? value)
     {
         if (value is null)
@@ -803,13 +812,6 @@ public class Material(string name) : SceneNode(name)
         }
 
         Connect(slotKey, value);
-    }
-
-    /// <inheritdoc/>
-    protected override void OnCloned()
-    {
-        _connections = [.. _connections];
-        _channelSources = new(_channelSources, StringComparer.Ordinal);
     }
 
     private Texture GetRequiredTexture(string? slotKey, string slotKeyPropertyName)

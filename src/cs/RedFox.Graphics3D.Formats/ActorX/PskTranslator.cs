@@ -20,19 +20,24 @@ public sealed class PskTranslator : SceneTranslator
     public override IReadOnlyList<string> Extensions => [".psk", ".pskx"];
 
     /// <inheritdoc/>
+    public override SceneTranslatorContent Content => SceneTranslatorContent.Model;
+
+    /// <inheritdoc/>
     public override ReadOnlySpan<byte> MagicValue => "ACTRHEAD"u8;
 
     /// <inheritdoc/>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var reader = new PskReader(stream, context.Name);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <inheritdoc/>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         var writer = new PskWriter(stream);
-        writer.Write(context.GetSelection(scene));
+        writer.Write(context.GetSelection(scene), token ?? CancellationToken.None);
     }
 }

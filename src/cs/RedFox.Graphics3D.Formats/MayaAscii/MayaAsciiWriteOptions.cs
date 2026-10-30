@@ -27,8 +27,7 @@ public class MayaAsciiWriteOptions
     /// <summary>
     /// Gets or sets the up axis orientation written to the Maya ASCII file header.
     /// Determines which world axis Maya treats as "up" for the entire scene.
-    /// The RedFox scene graph uses Z-up by convention (FBX import strips Y-up basis
-    /// containers), so the default is <see cref="MayaUpAxis.Z"/>.
+    /// Defaults to <see cref="MayaUpAxis.Z"/>, the convention of most extracted game assets.
     /// </summary>
     public MayaUpAxis UpAxis { get; set; } = MayaUpAxis.Z;
 

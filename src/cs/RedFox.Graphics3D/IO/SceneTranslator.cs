@@ -26,6 +26,16 @@ public abstract class SceneTranslator
     public abstract IReadOnlyList<string> Extensions { get; }
 
     /// <summary>
+    /// Gets the kinds of scene content this translator supports.
+    /// </summary>
+    public virtual SceneTranslatorContent Content => SceneTranslatorContent.Model | SceneTranslatorContent.Animation;
+
+    /// <summary>
+    /// Gets whether the format is internal to RedFox and not offered to users as an export format.
+    /// </summary>
+    public virtual bool IsInternal => false;
+
+    /// <summary>
     /// Gets the magic bytes used to identify the file format, or an empty span if not applicable.
     /// </summary>
     public virtual ReadOnlySpan<byte> MagicValue => [];

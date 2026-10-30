@@ -3,19 +3,7 @@ using RedFox.Graphics3D.IO;
 namespace RedFox.Graphics3D.Formats.GLTransmissionFormat;
 
 /// <summary>
-/// Provides reading and writing of glTF 2.0 scene files in both JSON-based (.gltf)
-/// and binary container (.glb) formats. Supports triangle meshes with positions,
-/// normals, tangents, texture coordinates, vertex colors, skinning, morph targets,
-/// PBR materials, skeletons, and skeletal animations.
-/// <para>
-/// When reading from a file path, external buffer URIs and <c>data:</c> URIs are
-/// automatically resolved relative to the glTF file's directory. When reading from
-/// a raw stream, only embedded buffers (GLB binary chunk or <c>data:</c> URIs) are
-/// available; external <c>.bin</c> files cannot be resolved without file system context.
-/// </para>
-/// <para>
-/// Writing always produces GLB binary format (single self-contained file).
-/// </para>
+/// Provides reading and writing of glTF 2.0 scene files in both JSON-based (.gltf) and binary container (.glb) formats.
 /// </summary>
 public sealed class GltfTranslator : SceneTranslator
 {
@@ -35,9 +23,7 @@ public sealed class GltfTranslator : SceneTranslator
     public override ReadOnlySpan<byte> MagicValue => "glTF"u8;
 
     /// <summary>
-    /// Reads scene data from the specified stream. For GLB streams, the binary
-    /// buffer is embedded in the container. For JSON-based streams, only
-    /// <c>data:</c> URIs can be resolved; external <c>.bin</c> files are unavailable.
+    /// Reads scene data from the specified stream.
     /// </summary>
     /// <param name="scene">The scene to populate.</param>
     /// <param name="stream">The input stream containing glTF or GLB data.</param>
@@ -45,12 +31,11 @@ public sealed class GltfTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Read(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
-        GltfDocument doc = IsGlb(stream)
-            ? GltfReader.ParseGlb(stream)
-            : GltfReader.ParseGltf(stream, context.SourceDirectoryPath);
+        token?.ThrowIfCancellationRequested();
+        GltfDocument doc = IsGlb(stream) ? GltfReader.ParseGlb(stream) : GltfReader.ParseGltf(stream, context.SourceDirectoryPath);
 
         GltfReader reader = new(doc, context.Name, context.Options, context.SourceDirectoryPath);
-        reader.Read(scene);
+        reader.Read(scene, token ?? CancellationToken.None);
     }
 
     /// <summary>
@@ -62,13 +47,13 @@ public sealed class GltfTranslator : SceneTranslator
     /// <param name="token">An optional cancellation token.</param>
     public override void Write(Scene scene, Stream stream, SceneTranslationContext context, CancellationToken? token)
     {
+        token?.ThrowIfCancellationRequested();
         GltfWriter writer = new(context.Options, context.TargetDirectoryPath);
-        writer.Write(context.GetSelection(scene), stream, context.Name);
+        writer.Write(context.GetSelection(scene), stream, context.Name, string.Equals(Path.GetExtension(context.TargetFilePath), ".gltf", StringComparison.OrdinalIgnoreCase), token ?? CancellationToken.None);
     }
 
     /// <summary>
-    /// Determines whether the specified file is valid for this translator by checking
-    /// the extension and optionally the GLB magic bytes.
+    /// Determines whether the specified file is valid for this translator by checking the extension and optionally the GLB magic bytes.
     /// </summary>
     /// <param name="filePath">The path of the file to validate.</param>
     /// <param name="extension">The file extension.</param>
@@ -80,11 +65,10 @@ public sealed class GltfTranslator : SceneTranslator
         if (IsValid(filePath, extension, context))
             return true;
 
-        // Check for GLB magic
         if (startOfFile.Length >= 4)
         {
-            uint magic = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(startOfFile);
-            return magic == GltfConstants.GlbMagic;
+            uint magic		= System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(startOfFile);
+            return magic	== GltfConstants.GlbMagic;
         }
 
         return false;
@@ -92,7 +76,6 @@ public sealed class GltfTranslator : SceneTranslator
 
     /// <summary>
     /// Checks whether the stream starts with the GLB magic number.
-    /// Resets the stream position after checking.
     /// </summary>
     /// <param name="stream">The stream to check for the GLB magic number.</param>
     /// <returns><see langword="true"/> if the stream begins with the GLB magic bytes; otherwise, <see langword="false"/>.</returns>
@@ -101,9 +84,9 @@ public sealed class GltfTranslator : SceneTranslator
         if (!stream.CanSeek || stream.Length < 4)
             return false;
 
-        long originalPosition = stream.Position;
-        Span<byte> magic = stackalloc byte[4];
-        int read = stream.Read(magic);
+        long originalPosition	= stream.Position;
+        Span<byte> magic		= stackalloc byte[4];
+        int read				= stream.ReadAtLeast(magic, magic.Length, false);
         stream.Position = originalPosition;
 
         if (read < 4)

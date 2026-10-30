@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using RedFox.Graphics3D.Buffers;
 using RedFox.Graphics3D.IO;
 using RedFox.Graphics3D.Skeletal;
@@ -7,34 +8,18 @@ using RedFox.Graphics3D.Skeletal;
 namespace RedFox.Graphics3D.Formats.GLTransmissionFormat;
 
 /// <summary>
-/// Writes a <see cref="Scene"/> to a GLB binary container by converting the scene graph
-/// into a <see cref="GltfDocument"/> and then serializing the JSON and binary payload.
-/// <para>
-/// Exports meshes with positions, normals, tangents, UVs, colors, face indices,
-/// skinning data, morph targets, materials, skeletons, and animations.
-/// </para>
+/// Writes scene data as glTF JSON or a GLB container.
 /// </summary>
 public sealed class GltfWriter
 {
-    private readonly SceneTranslatorOptions _options;
     private readonly string? _targetDirectoryPath;
-    private readonly GltfDocument _doc = new();
-    private readonly MemoryStream _binBuffer = new();
 
-    /// <summary>
-    /// Mapping from RedFox <see cref="Material"/> to glTF material index.
-    /// </summary>
-    private readonly Dictionary<Material, int> _materialIndices = [];
+    private readonly GltfDocument	_doc		= new();
+    private readonly MemoryStream	_binBuffer	= new();
 
-    /// <summary>
-    /// Mapping from RedFox <see cref="SkeletonBone"/> to glTF node index.
-    /// </summary>
-    private readonly Dictionary<SkeletonBone, int> _boneNodeIndices = [];
-
-    /// <summary>
-    /// Mapping from RedFox <see cref="SkeletonBone"/> to its index within the exported glTF skin joint array.
-    /// </summary>
-    private readonly Dictionary<SkeletonBone, int> _jointIndices = [];
+    private readonly Dictionary<Material, int>					_materialIndices	= [];
+    private readonly Dictionary<SkeletonBone, int>				_boneNodeIndices	= [];
+    private readonly Dictionary<SkeletonBone, SkeletonBone?>	_exportedParents	= [];
 
     /// <summary>
     /// Initializes a new <see cref="GltfWriter"/> with the specified translation options.
@@ -51,7 +36,7 @@ public sealed class GltfWriter
     /// <param name="targetDirectoryPath">The directory used to make external texture paths relative, if available.</param>
     public GltfWriter(SceneTranslatorOptions options, string? targetDirectoryPath)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options);
         _targetDirectoryPath = targetDirectoryPath;
     }
 
@@ -61,8 +46,16 @@ public sealed class GltfWriter
     /// <param name="scene">The scene to export.</param>
     /// <param name="stream">The output stream for the GLB data.</param>
     /// <param name="name">The scene name.</param>
-    public void Write(Scene scene, Stream stream, string name)
-        => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), stream, name);
+    public void Write(Scene scene, Stream stream, string name) => Write(scene, stream, name, CancellationToken.None);
+
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="scene">The scene to write.</param>
+    /// <param name="stream">The output stream.</param>
+    /// <param name="name">The scene name.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(Scene scene, Stream stream, string name, CancellationToken token) => Write(new SceneTranslationSelection(scene, SceneNodeFlags.None), stream, name, token);
 
     /// <summary>
     /// Writes the specified scene selection to the output stream in GLB binary format.
@@ -70,90 +63,16 @@ public sealed class GltfWriter
     /// <param name="selection">The filtered scene selection to export.</param>
     /// <param name="stream">The output stream for the GLB data.</param>
     /// <param name="name">The scene name.</param>
-    public void Write(SceneTranslationSelection selection, Stream stream, string name)
-    {
-        ArgumentNullException.ThrowIfNull(selection);
+    public void Write(SceneTranslationSelection selection, Stream stream, string name) => Write(selection, stream, name, CancellationToken.None);
 
-        _doc.Scene = 0;
-
-        // Collect scene data
-        Material[] materials = selection.GetDescendants<Material>();
-        Mesh[] meshes = selection.GetDescendants<Mesh>();
-        SkeletonAnimation[] animations = selection.GetDescendants<SkeletonAnimation>();
-        IReadOnlyList<(string Name, SkeletonBone[] Bones)> skeletons = GetSelectedSkeletons(selection);
-
-        // Write materials first
-        foreach (Material mat in materials)
-            WriteMaterial(mat);
-
-        // Write skeletons (create joint nodes)
-        Dictionary<string, int> skinIndices = new(StringComparer.OrdinalIgnoreCase);
-        foreach ((string skeletonName, SkeletonBone[] bones) in skeletons)
-        {
-            int skinIdx = WriteSkeleton(skeletonName, bones);
-            if (skinIdx >= 0)
-                skinIndices[skeletonName] = skinIdx;
-        }
-
-        // Write meshes
-        List<int> meshNodeIndices = [];
-        foreach (Mesh mesh in meshes)
-        {
-            int nodeIdx = WriteMesh(mesh, skinIndices);
-            if (nodeIdx >= 0)
-                meshNodeIndices.Add(nodeIdx);
-        }
-
-        // Write animations
-        foreach (SkeletonAnimation anim in animations)
-            WriteAnimation(anim);
-
-        // Build scene with root node references
-        List<int> sceneNodes = [.. meshNodeIndices];
-
-        // Add skeleton root nodes (joint roots that aren't children of mesh nodes)
-        foreach (GltfSkin skin in _doc.Skins)
-        {
-            if (skin.SkeletonRoot >= 0 && !sceneNodes.Contains(skin.SkeletonRoot))
-                sceneNodes.Add(skin.SkeletonRoot);
-        }
-
-        // Also add orphaned joint nodes
-        HashSet<int> childNodes = [];
-        foreach (GltfNode node in _doc.Nodes)
-        {
-            if (node.Children is not null)
-            {
-                foreach (int c in node.Children)
-                    childNodes.Add(c);
-            }
-        }
-
-        foreach (int boneNodeIdx in _boneNodeIndices.Values)
-        {
-            if (!childNodes.Contains(boneNodeIdx) && !sceneNodes.Contains(boneNodeIdx))
-                sceneNodes.Add(boneNodeIdx);
-        }
-
-        _doc.Scenes.Add(new GltfScene
-        {
-            Name = name,
-            Nodes = [.. sceneNodes],
-        });
-
-        // Set up the single buffer
-        byte[] binData = _binBuffer.ToArray();
-        if (binData.Length > 0)
-        {
-            _doc.Buffers.Add(new GltfBuffer
-            {
-                ByteLength = binData.Length,
-            });
-        }
-
-        // Serialize to GLB
-        WriteGlb(stream, binData);
-    }
+    /// <summary>
+    /// Writes data with cancellation support.
+    /// </summary>
+    /// <param name="selection">The selected scene data to write.</param>
+    /// <param name="stream">The output stream.</param>
+    /// <param name="name">The scene name.</param>
+    /// <param name="token">The cancellation token.</param>
+    public void Write(SceneTranslationSelection selection, Stream stream, string name, CancellationToken token) => Write(selection, stream, name, false, token);
 
     /// <summary>
     /// Writes a RedFox <see cref="Material"/> to the glTF document.
@@ -188,7 +107,6 @@ public sealed class GltfWriter
             gltfMat.EmissiveFactor = [ec.X, ec.Y, ec.Z];
         }
 
-        // Write texture references
         if (TryResolveTexturePath(mat, mat.DiffuseMapName, out string? diffuseTexturePath) && diffuseTexturePath is not null)
             gltfMat.BaseColorTextureIndex = WriteImageTexture(diffuseTexturePath);
 
@@ -241,7 +159,6 @@ public sealed class GltfWriter
     {
         GltfMeshPrimitive prim = new();
 
-        // Positions
         if (mesh.Positions is not null)
         {
             float[] positions = ReadBufferAsFloats(mesh.Positions, 0, 3);
@@ -249,22 +166,30 @@ public sealed class GltfWriter
             prim.Attributes["POSITION"] = WriteAccessor(positions, GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat, min, max);
         }
 
-        // Normals
         if (mesh.Normals is not null)
             prim.Attributes["NORMAL"] = WriteAccessor(ReadBufferAsFloats(mesh.Normals, 0, 3), GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
 
-        // Tangents
         if (mesh.Tangents is not null)
         {
-            int tangentComponents = mesh.Tangents.ComponentCount;
-            prim.Attributes["TANGENT"] = WriteAccessor(ReadBufferAsFloats(mesh.Tangents, 0, tangentComponents), tangentComponents == 4 ? GltfConstants.TypeVec4 : GltfConstants.TypeVec3, GltfConstants.ComponentTypeFloat);
+            float[] tangents = new float[mesh.VertexCount * 4];
+            for (int v = 0; v < mesh.VertexCount; v++)
+            {
+                Vector4 tangent = mesh.GetVertexTangent(v, true);
+                tangents[v * 4]		= tangent.X;
+                tangents[v * 4 + 1]	= tangent.Y;
+                tangents[v * 4 + 2]	= tangent.Z;
+                float handedness = tangent.W;
+                if (mesh.Tangents.ComponentCount < 4 && mesh.Normals is not null && mesh.BiTangents is not null)
+                    handedness = Vector3.Dot(Vector3.Cross(mesh.Normals.GetVector3(v, 0), new Vector3(tangent.X, tangent.Y, tangent.Z)), mesh.BiTangents.GetVector3(v, 0));
+                tangents[v * 4 + 3] = handedness < 0 ? -1f : 1f;
+            }
+            prim.Attributes["TANGENT"] = WriteAccessor(tangents, GltfConstants.TypeVec4, GltfConstants.ComponentTypeFloat);
         }
 
-        // UV Layers
         if (mesh.UVLayers is not null)
         {
-            int uvLayers = mesh.UVLayers.ValueCount;
-            int vertexCount = mesh.UVLayers.ElementCount;
+            int uvLayers	= mesh.UVLayers.ValueCount;
+            int vertexCount	= mesh.UVLayers.ElementCount;
 
             for (int layer = 0; layer < uvLayers; layer++)
             {
@@ -278,12 +203,11 @@ public sealed class GltfWriter
             }
         }
 
-        // Color Layers
         if (mesh.ColorLayers is not null)
         {
-            int colorLayers = mesh.ColorLayers.ValueCount;
-            int vertexCount = mesh.ColorLayers.ElementCount;
-            int compCount = mesh.ColorLayers.ComponentCount;
+            int colorLayers	= mesh.ColorLayers.ValueCount;
+            int vertexCount	= mesh.ColorLayers.ElementCount;
+            int compCount	= mesh.ColorLayers.ComponentCount;
 
             for (int layer = 0; layer < colorLayers; layer++)
             {
@@ -297,45 +221,13 @@ public sealed class GltfWriter
             }
         }
 
-        // Face Indices
-        if (mesh.FaceIndices is not null)
-        {
-            int indexCount = mesh.FaceIndices.ElementCount;
-            int[] indices = new int[indexCount];
-            for (int i = 0; i < indexCount; i++)
-                indices[i] = mesh.FaceIndices.Get<int>(i, 0, 0);
+        if (mesh.FaceIndices is not null && mesh.MaterialIndexRanges is not { Count: > 0 })
+            prim.Indices = WriteMeshIndices(mesh, 0, mesh.IndexCount);
 
-            // Use ushort if possible
-            bool canUseShort = true;
-            foreach (int index in indices)
-            {
-                if (index > ushort.MaxValue)
-                {
-                    canUseShort = false;
-                    break;
-                }
-            }
-
-            if (canUseShort)
-            {
-                ushort[] shortIndices = new ushort[indexCount];
-                for (int i = 0; i < indexCount; i++)
-                    shortIndices[i] = (ushort)indices[i];
-                prim.Indices = WriteAccessorShort(shortIndices, GltfConstants.TypeScalar);
-            }
-            else
-            {
-                prim.Indices = WriteAccessorInt(indices, GltfConstants.TypeScalar);
-            }
-        }
-
-        // Bone indices and weights
         WriteSkinInfluences(mesh, prim);
 
-        // Morph targets
         WriteMorphTargets(mesh, prim);
 
-        // Material reference
         if (mesh.Materials is { Count: > 0 })
         {
             Material material = mesh.Materials[0];
@@ -347,35 +239,68 @@ public sealed class GltfWriter
             prim.Material = matIdx;
         }
 
-        // Create glTF mesh
-        int gltfMeshIdx = _doc.Meshes.Count;
-        GltfMesh gltfMesh = new()
+        int gltfMeshIdx		= _doc.Meshes.Count;
+        GltfMesh gltfMesh	= new()
         {
             Name = mesh.Name,
             Weights = mesh.Morph?.Weights.ToArray(),
             TargetNames = mesh.Morph?.TargetNames.ToArray(),
         };
-        gltfMesh.Primitives.Add(prim);
+        if (mesh.MaterialIndexRanges is { Count: > 0 } ranges)
+        {
+            if (mesh.Materials is null || ranges.Count != mesh.Materials.Count)
+                throw new InvalidDataException($"Mesh '{mesh.Name}' has inconsistent material ranges.");
+            int[] rangeOrder = Enumerable.Range(0, ranges.Count).ToArray();
+            Array.Sort(rangeOrder, (a, b) => ranges[a].StartIndex.CompareTo(ranges[b].StartIndex));
+            int cursor = 0;
+            foreach (int i in rangeOrder)
+            {
+                (int start, int count) = ranges[i];
+                if (start < cursor)
+                    throw new InvalidDataException($"Mesh '{mesh.Name}' has overlapping material ranges.");
+                if (start > cursor)
+                    AddPrimitive(gltfMesh, mesh, prim, cursor, start - cursor, -1);
+                if (!_materialIndices.TryGetValue(mesh.Materials[i], out int materialIndex))
+                    throw new InvalidDataException($"Mesh '{mesh.Name}' references a filtered material.");
+                AddPrimitive(gltfMesh, mesh, prim, start, count, materialIndex);
+                cursor = checked(start + count);
+            }
+            if (cursor < mesh.IndexCount)
+                AddPrimitive(gltfMesh, mesh, prim, cursor, mesh.IndexCount - cursor, -1);
+        }
+        else
+        {
+            gltfMesh.Primitives.Add(prim);
+        }
         _doc.Meshes.Add(gltfMesh);
 
-        // Create glTF node
-        int nodeIdx = _doc.Nodes.Count;
-        GltfNode node = new()
+        int nodeIdx		= _doc.Nodes.Count;
+        GltfNode node	= new()
         {
             Name = mesh.Name,
             Mesh = gltfMeshIdx
         };
 
-        // Mesh transforms are exported without model/group containers, so write world-space bind TRS.
         WriteNodeTransform(CreateWorldBindTransform(mesh), node);
 
-        // Skinning reference
         if (mesh.Skin is { Bones.Count: > 0 } skin)
         {
-            if (skinIndices.TryGetValue(GetOwningSkeletonName(skin.Bones[0]), out int skinIndex))
-                node.Skin = skinIndex;
-            else
-                throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection.");
+            Matrix4x4 meshBindWorld	= mesh.GetBindWorldMatrix();
+            float[] matrices		= new float[checked(skin.Bones.Count * 16)];
+            int[] joints			= new int[skin.Bones.Count];
+            for (int i = 0; i < joints.Length; i++)
+            {
+                if (!_boneNodeIndices.TryGetValue(skin.Bones[i], out joints[i]))
+                    throw new InvalidDataException($"Mesh '{mesh.Name}' references a filtered joint.");
+                WriteMatrix4x4(skin.GetInverseBindMatrix(i, meshBindWorld), matrices, i * 16);
+            }
+            node.Skin = _doc.Skins.Count;
+            _doc.Skins.Add(new GltfSkin
+            {
+                Name				= skin.Name,
+                Joints				= joints,
+                InverseBindMatrices	= WriteAccessor(matrices, GltfConstants.TypeMat4, GltfConstants.ComponentTypeFloat),
+            });
         }
 
         _doc.Nodes.Add(node);
@@ -395,41 +320,35 @@ public sealed class GltfWriter
         if (skin.Bones.Count == 0)
             throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' contains skin weights but has no skinned bone table.");
 
-        int[] jointIndexTable = BuildExportJointIndexTable(mesh);
+        if (skin.Bones.Count > ushort.MaxValue + 1)
+            throw new InvalidDataException("glTF joint indices exceed 16 bits.");
 
-        int vertexCount = skin.BoneIndices.ElementCount;
-        int influenceCount = skin.BoneIndices.ValueCount;
-        int numSets = (influenceCount + 3) / 4;
+        int vertexCount		= skin.BoneIndices.ElementCount;
+        int influenceCount	= skin.BoneIndices.ValueCount;
+        int numSets			= (influenceCount + 3) / 4;
 
         for (int set = 0; set < numSets; set++)
         {
-            int startInfluence = set * 4;
-            int setSize = Math.Min(4, influenceCount - startInfluence);
+            int startInfluence	= set * 4;
+            int setSize			= Math.Min(4, influenceCount - startInfluence);
 
-            // Joints
-            int[] joints = new int[vertexCount * 4];
+            ushort[] joints = new ushort[vertexCount * 4];
             for (int v = 0; v < vertexCount; v++)
             {
                 for (int c = 0; c < setSize; c++)
                 {
                     int localBoneIndex = skin.BoneIndices.Get<int>(v, startInfluence + c, 0);
-                    if ((uint)localBoneIndex >= (uint)jointIndexTable.Length)
+                    if ((uint)localBoneIndex >= (uint)skin.Bones.Count)
                     {
                         throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' contains skin index {localBoneIndex} outside the exported skin table.");
                     }
 
-                    joints[v * 4 + c] = jointIndexTable[localBoneIndex];
+                    joints[v * 4 + c] = checked((ushort)localBoneIndex);
                 }
             }
 
-            // Use unsigned short for joints
-            ushort[] shortJoints = new ushort[vertexCount * 4];
-            for (int i = 0; i < joints.Length; i++)
-                shortJoints[i] = (ushort)joints[i];
+            prim.Attributes[$"JOINTS_{set}"] = WriteAccessorShort(joints, GltfConstants.TypeVec4);
 
-            prim.Attributes[$"JOINTS_{set}"] = WriteAccessorShort(shortJoints, GltfConstants.TypeVec4);
-
-            // Weights
             float[] weights = new float[vertexCount * 4];
             for (int v = 0; v < vertexCount; v++)
             {
@@ -490,84 +409,12 @@ public sealed class GltfWriter
     }
 
     /// <summary>
-    /// Writes a skeleton to the glTF document, creating nodes for each exported bone
-    /// and a skin definition. Returns the skin index.
+    /// Writes a skeleton to the glTF document, creating nodes for each exported bone and a skin definition.
     /// </summary>
     /// <param name="skeletonName">The skeleton name to write.</param>
     /// <param name="bones">The exported bones belonging to the skeleton.</param>
     /// <returns>The index of the glTF skin, or -1 if the skeleton has no bones.</returns>
-    public int WriteSkeleton(string skeletonName, SkeletonBone[] bones)
-    {
-        if (bones.Length == 0) return -1;
-
-        List<int> jointNodeIndices = [];
-        SceneNode[] exportedBoneNodes = Array.ConvertAll(bones, static bone => (SceneNode)bone);
-
-        // Create a node for each bone
-        for (int i = 0; i < bones.Length; i++)
-        {
-            SkeletonBone bone = bones[i];
-            int nodeIdx = _doc.Nodes.Count;
-            GltfNode node = new()
-            {
-                Name = bone.Name,
-            };
-            WriteNodeTransform(GetRelativeBindTransform(bone, exportedBoneNodes), node);
-            _doc.Nodes.Add(node);
-            _boneNodeIndices[bone] = nodeIdx;
-            _jointIndices[bone] = i;
-            jointNodeIndices.Add(nodeIdx);
-        }
-
-        // Set up parent-child relationships
-        foreach (SkeletonBone bone in bones)
-        {
-            int parentNodeIndex = _boneNodeIndices[bone];
-            GltfNode parentNode = _doc.Nodes[parentNodeIndex];
-
-            List<int> childIndices = [];
-            foreach (SkeletonBone childBone in EnumerateExportChildren(bone, bones, exportedBoneNodes))
-            {
-                if (_boneNodeIndices.TryGetValue(childBone, out int childIdx))
-                    childIndices.Add(childIdx);
-            }
-
-            if (childIndices.Count > 0)
-                parentNode.Children = [.. childIndices];
-        }
-
-        // Write inverse bind matrices
-        float[] ibmData = new float[bones.Length * 16];
-        for (int i = 0; i < bones.Length; i++)
-        {
-            Matrix4x4 inverseBindMatrix = Matrix4x4.Invert(bones[i].GetBindWorldMatrix(), out Matrix4x4 inverseBindWorld) ? inverseBindWorld : Matrix4x4.Identity;
-            WriteMatrix4x4(inverseBindMatrix, ibmData, i * 16);
-        }
-
-        int ibmAccessor = WriteAccessor(ibmData, GltfConstants.TypeMat4, GltfConstants.ComponentTypeFloat);
-
-        // Find skeleton root (first root bone node)
-        int skeletonRoot = -1;
-        foreach (SkeletonBone bone in bones)
-        {
-            if (SceneNode.GetBestParent(bone, exportedBoneNodes) is null && _boneNodeIndices.TryGetValue(bone, out int rootIdx))
-            {
-                skeletonRoot = rootIdx;
-                break;
-            }
-        }
-
-        int skinIdx = _doc.Skins.Count;
-        _doc.Skins.Add(new GltfSkin
-        {
-            Name = skeletonName,
-            Joints = [.. jointNodeIndices],
-            InverseBindMatrices = ibmAccessor,
-            SkeletonRoot = skeletonRoot
-        });
-
-        return skinIdx;
-    }
+    public int WriteSkeleton(string skeletonName, SkeletonBone[] bones) => WriteSkeleton(skeletonName, bones, true);
 
     /// <summary>
     /// Writes a <see cref="SkeletonAnimation"/> to the glTF document.
@@ -581,34 +428,37 @@ public sealed class GltfWriter
         };
         float frameRate = float.IsFinite(anim.Framerate) && anim.Framerate > 0f ? anim.Framerate : 30f;
 
+        Dictionary<string, SkeletonAnimationTrack> tracksByName = new(StringComparer.OrdinalIgnoreCase);
         foreach (SkeletonAnimationTrack track in anim.Tracks)
+            tracksByName.Add(track.Name, track);
+        HashSet<string> targetNames		= new(StringComparer.OrdinalIgnoreCase);
+        List<SkeletonBone> rebasedBones	= [];
+        foreach ((SkeletonBone bone, int targetNodeIdx) in _boneNodeIndices)
         {
-            // Find the node index for this bone
-            int targetNodeIdx = -1;
-            foreach (KeyValuePair<SkeletonBone, int> kvp in _boneNodeIndices)
+            tracksByName.TryGetValue(bone.Name, out SkeletonAnimationTrack? track);
+            if (track is not null && !targetNames.Add(bone.Name))
+                throw new InvalidDataException($"Animation '{anim.Name}' has an ambiguous target '{bone.Name}'.");
+            SkeletonBone? parent = _exportedParents[bone];
+            if (!ReferenceEquals(parent, bone.Parent))
             {
-                if (kvp.Key.Name.Equals(track.Name, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetNodeIdx = kvp.Value;
-                    break;
-                }
-            }
-
-            if (targetNodeIdx < 0)
+                bool animated = track is not null;
+                for (SceneNode? ancestor = bone.Parent; ancestor is not null && !ReferenceEquals(ancestor, parent); ancestor = ancestor.Parent)
+                    animated |= ancestor is SkeletonBone && tracksByName.ContainsKey(ancestor.Name);
+                if (animated)
+                    rebasedBones.Add(bone);
                 continue;
-
-            // Translation
+            }
+            if (track is null)
+                continue;
             if (track.TranslationCurve is { KeyFrameCount: > 0 })
                 WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathTranslation, track.TranslationCurve, 3, frameRate);
-
-            // Rotation
             if (track.RotationCurve is { KeyFrameCount: > 0 })
                 WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathRotation, track.RotationCurve, 4, frameRate);
-
-            // Scale
             if (track.ScaleCurve is { KeyFrameCount: > 0 })
                 WriteAnimationChannel(gltfAnim, targetNodeIdx, GltfConstants.PathScale, track.ScaleCurve, 3, frameRate);
         }
+        if (rebasedBones.Count > 0)
+            WriteRebasedAnimation(gltfAnim, rebasedBones, tracksByName, frameRate);
 
         if (gltfAnim.Channels.Count > 0)
             _doc.Animations.Add(gltfAnim);
@@ -650,15 +500,13 @@ public sealed class GltfWriter
     /// <returns>The index of the newly created glTF accessor.</returns>
     public int WriteAccessor(float[] data, string type, int componentType, float[]? min, float[]? max)
     {
-        int componentCount = GltfConstants.GetComponentCount(type);
-        int elementCount = data.Length / componentCount;
+        int componentCount	= GltfConstants.GetComponentCount(type);
+        int elementCount	= data.Length / componentCount;
 
-        // Align to 4 bytes
         AlignBinBuffer(4);
 
-        int byteOffset = (int)_binBuffer.Position;
-        byte[] bytes = new byte[data.Length * 4];
-        System.Buffer.BlockCopy(data, 0, bytes, 0, bytes.Length);
+        int byteOffset				= (int)_binBuffer.Position;
+        ReadOnlySpan<byte> bytes	= MemoryMarshal.AsBytes(data.AsSpan());
         _binBuffer.Write(bytes);
 
         int viewIdx = _doc.BufferViews.Count;
@@ -691,15 +539,13 @@ public sealed class GltfWriter
     /// <returns>The index of the newly created glTF accessor.</returns>
     public int WriteAccessorShort(ushort[] data, string type)
     {
-        int componentCount = GltfConstants.GetComponentCount(type);
-        int elementCount = data.Length / componentCount;
+        int componentCount	= GltfConstants.GetComponentCount(type);
+        int elementCount	= data.Length / componentCount;
 
-        // Align to 4 bytes
         AlignBinBuffer(4);
 
-        int byteOffset = (int)_binBuffer.Position;
-        byte[] bytes = new byte[data.Length * 2];
-        System.Buffer.BlockCopy(data, 0, bytes, 0, bytes.Length);
+        int byteOffset				= (int)_binBuffer.Position;
+        ReadOnlySpan<byte> bytes	= MemoryMarshal.AsBytes(data.AsSpan());
         _binBuffer.Write(bytes);
 
         int viewIdx = _doc.BufferViews.Count;
@@ -730,14 +576,13 @@ public sealed class GltfWriter
     /// <returns>The index of the newly created glTF accessor.</returns>
     public int WriteAccessorInt(int[] data, string type)
     {
-        int componentCount = GltfConstants.GetComponentCount(type);
-        int elementCount = data.Length / componentCount;
+        int componentCount	= GltfConstants.GetComponentCount(type);
+        int elementCount	= data.Length / componentCount;
 
         AlignBinBuffer(4);
 
-        int byteOffset = (int)_binBuffer.Position;
-        byte[] bytes = new byte[data.Length * 4];
-        System.Buffer.BlockCopy(data, 0, bytes, 0, bytes.Length);
+        int byteOffset				= (int)_binBuffer.Position;
+        ReadOnlySpan<byte> bytes	= MemoryMarshal.AsBytes(data.AsSpan());
         _binBuffer.Write(bytes);
 
         int viewIdx = _doc.BufferViews.Count;
@@ -784,8 +629,14 @@ public sealed class GltfWriter
     /// <returns>A float array containing the extracted buffer data.</returns>
     public static float[] ReadBufferAsFloats(DataBuffer buffer, int valueIndex, int componentCount)
     {
-        int elementCount = buffer.ElementCount;
-        float[] result = new float[elementCount * componentCount];
+        int elementCount	= buffer.ElementCount;
+        float[] result		= new float[elementCount * componentCount];
+
+        if (valueIndex == 0 && buffer.ValueCount == 1 && componentCount == buffer.ComponentCount && buffer.TryGetReadOnlySpan<float>(out ReadOnlySpan<float> values))
+        {
+            values.CopyTo(result);
+            return result;
+        }
 
         for (int e = 0; e < elementCount; e++)
         {
@@ -860,23 +711,22 @@ public sealed class GltfWriter
     /// <param name="offset">The starting offset in the array.</param>
     public static void WriteMatrix4x4(Matrix4x4 matrix, float[] data, int offset)
     {
-        // .NET Matrix4x4 is row-major; glTF expects column-major
-        data[offset + 0] = matrix.M11;
-        data[offset + 1] = matrix.M21;
-        data[offset + 2] = matrix.M31;
-        data[offset + 3] = matrix.M41;
-        data[offset + 4] = matrix.M12;
-        data[offset + 5] = matrix.M22;
-        data[offset + 6] = matrix.M32;
-        data[offset + 7] = matrix.M42;
-        data[offset + 8] = matrix.M13;
-        data[offset + 9] = matrix.M23;
-        data[offset + 10] = matrix.M33;
-        data[offset + 11] = matrix.M43;
-        data[offset + 12] = matrix.M14;
-        data[offset + 13] = matrix.M24;
-        data[offset + 14] = matrix.M34;
-        data[offset + 15] = matrix.M44;
+        data[offset + 0]	= matrix.M11;
+        data[offset + 1]	= matrix.M12;
+        data[offset + 2]	= matrix.M13;
+        data[offset + 3]	= matrix.M14;
+        data[offset + 4]	= matrix.M21;
+        data[offset + 5]	= matrix.M22;
+        data[offset + 6]	= matrix.M23;
+        data[offset + 7]	= matrix.M24;
+        data[offset + 8]	= matrix.M31;
+        data[offset + 9]	= matrix.M32;
+        data[offset + 10]	= matrix.M33;
+        data[offset + 11]	= matrix.M34;
+        data[offset + 12]	= matrix.M41;
+        data[offset + 13]	= matrix.M42;
+        data[offset + 14]	= matrix.M43;
+        data[offset + 15]	= matrix.M44;
     }
 
     /// <summary>
@@ -884,17 +734,169 @@ public sealed class GltfWriter
     /// </summary>
     /// <param name="stream">The output stream to write the GLB data to.</param>
     /// <param name="binData">The binary payload to include in the GLB container.</param>
-    public void WriteGlb(Stream stream, byte[] binData)
+    public void WriteGlb(Stream stream, byte[] binData) => WriteGlb(stream, binData.AsSpan());
+
+    internal void Write(SceneTranslationSelection selection, Stream stream, string name, bool json, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+        token.ThrowIfCancellationRequested();
+
+        _doc.Scene = 0;
+
+        Material[] materials			= selection.GetDescendants<Material>();
+        Mesh[] meshes					= selection.GetDescendants<Mesh>();
+        SkeletonAnimation[] animations	= selection.GetDescendants<SkeletonAnimation>();
+        IReadOnlyList<(string Name, SkeletonBone[] Bones)> skeletons = GetSelectedSkeletons(selection);
+
+        foreach (Material mat in materials)
+            WriteMaterial(mat);
+
+        Dictionary<string, int> skinIndices = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string skeletonName, SkeletonBone[] bones) in skeletons)
+        {
+            WriteSkeleton(skeletonName, bones, false);
+        }
+
+        List<int> meshNodeIndices = [];
+        foreach (Mesh mesh in meshes)
+        {
+            token.ThrowIfCancellationRequested();
+            int nodeIdx = WriteMesh(mesh, skinIndices);
+            if (nodeIdx >= 0)
+                meshNodeIndices.Add(nodeIdx);
+        }
+
+        foreach (SkeletonAnimation anim in animations)
+            WriteAnimation(anim);
+
+        List<int> sceneNodes = [.. meshNodeIndices];
+
+        foreach (GltfSkin skin in _doc.Skins)
+        {
+            if (skin.SkeletonRoot >= 0 && !sceneNodes.Contains(skin.SkeletonRoot))
+                sceneNodes.Add(skin.SkeletonRoot);
+        }
+
+        HashSet<int> childNodes = [];
+        foreach (GltfNode node in _doc.Nodes)
+        {
+            if (node.Children is not null)
+            {
+                foreach (int c in node.Children)
+                    childNodes.Add(c);
+            }
+        }
+
+        foreach (int boneNodeIdx in _boneNodeIndices.Values)
+        {
+            if (!childNodes.Contains(boneNodeIdx) && !sceneNodes.Contains(boneNodeIdx))
+                sceneNodes.Add(boneNodeIdx);
+        }
+
+        _doc.Scenes.Add(new GltfScene
+        {
+            Name	= name,
+            Nodes	= [.. sceneNodes],
+        });
+
+        ReadOnlySpan<byte> binData = _binBuffer.GetBuffer().AsSpan(0, checked((int)_binBuffer.Length));
+        if (binData.Length > 0)
+        {
+            _doc.Buffers.Add(new GltfBuffer
+            {
+                ByteLength = binData.Length,
+            });
+        }
+
+        token.ThrowIfCancellationRequested();
+        if (json)
+        {
+            if (_doc.Buffers.Count > 0)
+                _doc.Buffers[0].Uri = "data:application/octet-stream;base64," + Convert.ToBase64String(binData);
+            stream.Write(GltfJsonWriter.Write(_doc));
+        }
+        else
+        {
+            WriteGlb(stream, binData);
+        }
+    }
+
+    private int WriteSkeleton(string skeletonName, SkeletonBone[] bones, bool writeSkin)
+    {
+        if (bones.Length == 0) return -1;
+
+        List<int> jointNodeIndices		= [];
+        SceneNode[] exportedBoneNodes	= Array.ConvertAll(bones, static bone => (SceneNode)bone);
+
+        Dictionary<SkeletonBone, SkeletonBone?> parents = SkeletonExportTransforms.BuildExportedParentMap(bones, exportedBoneNodes);
+
+        for (int i = 0; i < bones.Length; i++)
+        {
+            SkeletonBone bone	= bones[i];
+            int nodeIdx			= _doc.Nodes.Count;
+            GltfNode node		= new()
+            {
+                Name = bone.Name,
+            };
+            WriteNodeTransform(SkeletonExportTransforms.DecomposeMatrix(SkeletonExportTransforms.GetRelativeBindMatrix(bone, parents[bone])), node);
+            _doc.Nodes.Add(node);
+            _boneNodeIndices[bone]	= nodeIdx;
+            _exportedParents[bone]	= parents[bone];
+            jointNodeIndices.Add(nodeIdx);
+        }
+
+        Dictionary<SkeletonBone, List<int>> children = bones.ToDictionary(static bone => bone, static _ => new List<int>());
+        foreach (SkeletonBone bone in bones)
+            if (parents[bone] is { } parent)
+                children[parent].Add(_boneNodeIndices[bone]);
+        foreach (SkeletonBone bone in bones)
+            if (children[bone].Count > 0)
+                _doc.Nodes[_boneNodeIndices[bone]].Children = [.. children[bone]];
+
+        if (!writeSkin)
+            return -1;
+
+        float[] ibmData = new float[bones.Length * 16];
+        for (int i = 0; i < bones.Length; i++)
+        {
+            if (!Matrix4x4.Invert(bones[i].GetBindWorldMatrix(), out Matrix4x4 inverseBindMatrix))
+                throw new InvalidDataException("Singular joint bind matrix.");
+            WriteMatrix4x4(inverseBindMatrix, ibmData, i * 16);
+        }
+
+        int ibmAccessor = WriteAccessor(ibmData, GltfConstants.TypeMat4, GltfConstants.ComponentTypeFloat);
+
+        int skeletonRoot = -1;
+        foreach (SkeletonBone bone in bones)
+        {
+            if (parents[bone] is null && _boneNodeIndices.TryGetValue(bone, out int rootIdx))
+            {
+                skeletonRoot = rootIdx;
+                break;
+            }
+        }
+
+        int skinIdx = _doc.Skins.Count;
+        _doc.Skins.Add(new GltfSkin
+        {
+            Name				= skeletonName,
+            Joints				= [.. jointNodeIndices],
+            InverseBindMatrices	= ibmAccessor,
+            SkeletonRoot		= skeletonRoot
+        });
+
+        return skinIdx;
+    }
+
+    private void WriteGlb(Stream stream, ReadOnlySpan<byte> binData)
     {
         byte[] jsonBytes = GltfJsonWriter.Write(_doc);
 
-        // Pad JSON to 4-byte alignment with spaces
-        int jsonPadding = (4 - jsonBytes.Length % 4) % 4;
-        int paddedJsonLength = jsonBytes.Length + jsonPadding;
+        int jsonPadding			= (4 - jsonBytes.Length % 4) % 4;
+        int paddedJsonLength	= jsonBytes.Length + jsonPadding;
 
-        // Pad BIN to 4-byte alignment with zeros
-        int binPadding = binData.Length > 0 ? (4 - binData.Length % 4) % 4 : 0;
-        int paddedBinLength = binData.Length + binPadding;
+        int binPadding		= binData.Length > 0 ? (4 - binData.Length % 4) % 4 : 0;
+        int paddedBinLength	= binData.Length + binPadding;
 
         int totalLength = GltfConstants.GlbHeaderSize;
         totalLength += GltfConstants.GlbChunkHeaderSize + paddedJsonLength;
@@ -907,16 +909,14 @@ public sealed class GltfWriter
         BinaryPrimitives.WriteUInt32LittleEndian(header[8..], (uint)totalLength);
         stream.Write(header);
 
-        // JSON chunk
         Span<byte> chunkHeader = stackalloc byte[GltfConstants.GlbChunkHeaderSize];
         BinaryPrimitives.WriteUInt32LittleEndian(chunkHeader, (uint)paddedJsonLength);
         BinaryPrimitives.WriteUInt32LittleEndian(chunkHeader[4..], GltfConstants.ChunkTypeJson);
         stream.Write(chunkHeader);
         stream.Write(jsonBytes);
         for (int i = 0; i < jsonPadding; i++)
-            stream.WriteByte(0x20); // space
+            stream.WriteByte(0x20);
 
-        // BIN chunk
         if (binData.Length > 0)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(chunkHeader, (uint)paddedBinLength);
@@ -986,100 +986,129 @@ public sealed class GltfWriter
         return root;
     }
 
-    private static string GetOwningSkeletonName(SkeletonBone bone) => GetSkeletonRoot(bone).Name;
+    private static Transform CreateWorldBindTransform(SceneNode node) => SkeletonExportTransforms.DecomposeMatrix(node.GetBindWorldMatrix());
 
-    private int[] BuildExportJointIndexTable(Mesh mesh)
+    private void WriteRebasedAnimation(GltfAnimation animation, List<SkeletonBone> bones, Dictionary<string, SkeletonAnimationTrack> tracks, float frameRate)
     {
-        if (mesh.Skin is null || mesh.Skin.Bones.Count == 0)
-            return [];
-
-        List<string> missingBones = [];
-        int[] jointIndexTable = new int[mesh.Skin.Bones.Count];
-        for (int i = 0; i < mesh.Skin.Bones.Count; i++)
+        SortedSet<float> times = [];
+        foreach (SkeletonAnimationTrack track in tracks.Values)
+            foreach (AnimationCurve? curve in new[] { track.TranslationCurve, track.RotationCurve, track.ScaleCurve })
+                if (curve is not null)
+                    for (int i = 0; i < curve.KeyFrameCount; i++)
+                        times.Add(curve.GetKeyTime(i));
+        if (times.Count == 0)
+            return;
+        if (!float.IsFinite(times.Min) || !float.IsFinite(times.Max) || times.Max >= int.MaxValue)
+            throw new InvalidDataException("Invalid glTF animation frame range.");
+        for (int frame = checked((int)MathF.Ceiling(times.Min)); frame < times.Max; frame++)
+            times.Add(frame);
+        float[] frames			= [.. times];
+        DataBuffer<float> keys	= new(frames, 1, 1);
+        float[][] positions		= new float[bones.Count][];
+        float[][] rotations		= new float[bones.Count][];
+        float[][] scales		= new float[bones.Count][];
+        for (int b = 0; b < bones.Count; b++)
         {
-            SkeletonBone bone = mesh.Skin.Bones[i];
-            if (!_jointIndices.TryGetValue(bone, out int jointIndex))
+            positions[b]	= new float[checked(frames.Length * 3)];
+            rotations[b]	= new float[checked(frames.Length * 4)];
+            scales[b]		= new float[checked(frames.Length * 3)];
+        }
+        Dictionary<SkeletonBone, Matrix4x4> transforms = [];
+        for (int f = 0; f < frames.Length; f++)
+        {
+            transforms.Clear();
+            for (int b = 0; b < bones.Count; b++)
             {
-                missingBones.Add(bone.Name);
-                continue;
+                SkeletonBone bone	= bones[b];
+                Matrix4x4 matrix	= SkeletonExportTransforms.GetRelativeAnimatedMatrix(bone, _exportedParents[bone], tracks, frames[f], transforms);
+                SkeletonExportTransforms.DecomposeMatrix(matrix, out Vector3 scale, out Quaternion rotation, out Vector3 position);
+                position.CopyTo(positions[b], f * 3);
+                new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W).CopyTo(rotations[b], f * 4);
+                scale.CopyTo(scales[b], f * 3);
             }
-
-            jointIndexTable[i] = jointIndex;
         }
-
-        if (missingBones.Count > 0)
+        for (int b = 0; b < bones.Count; b++)
         {
-            throw new InvalidDataException($"Cannot write glTF: mesh '{mesh.Name}' references skinned bones that are not included in the export selection: {string.Join(", ", missingBones)}.");
-        }
-
-        return jointIndexTable;
-    }
-
-    private static Transform GetRelativeBindTransform(SkeletonBone bone, SceneNode[] exportedBoneNodes)
-    {
-        SceneNode? exportedParent = SceneNode.GetBestParent(bone, exportedBoneNodes);
-        Vector3 worldPosition = bone.GetBindWorldPosition();
-        Quaternion worldRotation = Quaternion.Normalize(bone.GetBindWorldRotation());
-        Vector3 localScale = bone.GetBindLocalScale();
-
-        if (exportedParent is not null)
-        {
-            Vector3 parentWorldPosition = exportedParent.GetBindWorldPosition();
-            Quaternion parentWorldRotation = Quaternion.Normalize(exportedParent.GetBindWorldRotation());
-            return new Transform
+            int target = _boneNodeIndices[bones[b]];
+            WriteAnimationChannel(animation, target, GltfConstants.PathTranslation, new AnimationCurve
             {
-                LocalPosition = Vector3.Transform(worldPosition - parentWorldPosition, Quaternion.Conjugate(parentWorldRotation)),
-                LocalRotation = Quaternion.Normalize(Quaternion.Conjugate(parentWorldRotation) * worldRotation),
-                Scale = localScale,
-            };
+                Keys	= keys,
+                Values	= new DataBuffer<float>(positions[b], 1, 3),
+            }, 3, frameRate);
+            WriteAnimationChannel(animation, target, GltfConstants.PathRotation, new AnimationCurve
+            {
+                Keys	= keys,
+                Values	= new DataBuffer<float>(rotations[b], 1, 4),
+            }, 4, frameRate);
+            WriteAnimationChannel(animation, target, GltfConstants.PathScale, new AnimationCurve
+            {
+                Keys	= keys,
+                Values	= new DataBuffer<float>(scales[b], 1, 3),
+            }, 3, frameRate);
         }
-
-        return new Transform
-        {
-            LocalPosition = worldPosition,
-            LocalRotation = worldRotation,
-            Scale = localScale,
-        };
     }
 
-    private static Transform CreateWorldBindTransform(SceneNode node)
+    private void AddPrimitive(GltfMesh output, Mesh mesh, GltfMeshPrimitive attributes, int start, int count, int materialIndex)
     {
-        return new Transform
+        int indices = WriteMeshIndices(mesh, start, count);
+        if (count == 0)
+            return;
+        output.Primitives.Add(new GltfMeshPrimitive
         {
-            LocalPosition = node.GetBindWorldPosition(),
-            LocalRotation = Quaternion.Normalize(node.GetBindWorldRotation()),
-            Scale = node.GetBindLocalScale(),
-        };
+            Attributes	= attributes.Attributes,
+            Targets		= attributes.Targets,
+            Indices		= indices,
+            Material	= materialIndex,
+        });
     }
 
-    private static IEnumerable<SkeletonBone> EnumerateExportChildren(SkeletonBone parentBone, IReadOnlyList<SkeletonBone> bones, SceneNode[] exportedBoneNodes)
+    private int WriteMeshIndices(Mesh mesh, int start, int count)
     {
-        for (int i = 0; i < bones.Count; i++)
+        if (mesh.FaceIndices is null || start < 0 || count < 0 || start % 3 != 0 || count % 3 != 0 || (long)start + count > mesh.IndexCount)
+            throw new InvalidDataException($"Mesh '{mesh.Name}' has an invalid triangle range.");
+        int vertexCount	= mesh.VertexCount;
+        int[] indices	= new int[count];
+        bool useShort	= true;
+        for (int i = 0; i < count; i++)
         {
-            if (ReferenceEquals(SceneNode.GetBestParent(bones[i], exportedBoneNodes), parentBone))
-                yield return bones[i];
+            int index = mesh.FaceIndices.Get<int>(start + i, 0, 0);
+            if ((uint)index >= (uint)vertexCount)
+                throw new InvalidDataException($"Mesh '{mesh.Name}' has an invalid vertex index.");
+            indices[i] = index;
+            useShort &= index < ushort.MaxValue;
         }
+        return useShort ? WriteAccessorShort(Array.ConvertAll(indices, static index => (ushort)index), GltfConstants.TypeScalar) : WriteAccessorInt(indices, GltfConstants.TypeScalar);
     }
 
     private void WriteAnimationChannel(GltfAnimation anim, int targetNode, string path, AnimationCurve curve, int componentCount, float frameRate)
     {
-        int frameCount = curve.KeyFrameCount;
+        DataBuffer keys			= curve.Keys ?? throw new InvalidDataException("Missing glTF animation keys.");
+        DataBuffer valuesBuffer	= curve.Values ?? throw new InvalidDataException("Missing glTF animation values.");
+        int frameCount			= keys.ElementCount;
+        if (keys.ValueCount != 1 || keys.ComponentCount != 1 || valuesBuffer.ElementCount != frameCount || valuesBuffer.ValueCount != 1 || valuesBuffer.ComponentCount != componentCount)
+            throw new InvalidDataException("Invalid glTF animation curve dimensions.");
 
-        // Write times
-        float[] times = new float[frameCount];
+        if (frameCount == 0)
+            throw new InvalidDataException("An animated glTF channel requires keys.");
+        float[] times		= new float[frameCount];
+        float minimumTime	= float.PositiveInfinity;
+        float maximumTime	= float.NegativeInfinity;
         for (int i = 0; i < frameCount; i++)
-            times[i] = curve.GetKeyTime(i) / frameRate;
+        {
+            float time = curve.GetKeyTime(i) / frameRate;
+            times[i]	= time;
+            minimumTime	= MathF.Min(minimumTime, time);
+            maximumTime	= MathF.Max(maximumTime, time);
+        }
+        float[] minTime		= [minimumTime];
+        float[] maxTime		= [maximumTime];
+        int inputAccessor	= WriteAccessor(times, GltfConstants.TypeScalar, GltfConstants.ComponentTypeFloat, minTime, maxTime);
 
-        float[] minTime = [times.Min()];
-        float[] maxTime = [times.Max()];
-        int inputAccessor = WriteAccessor(times, GltfConstants.TypeScalar, GltfConstants.ComponentTypeFloat, minTime, maxTime);
-
-        // Write values
         float[] values = new float[frameCount * componentCount];
         for (int i = 0; i < frameCount; i++)
         {
             for (int c = 0; c < componentCount; c++)
-                values[i * componentCount + c] = curve.Values!.Get<float>(i, 0, c);
+                values[i * componentCount + c] = valuesBuffer.Get<float>(i, 0, c);
         }
 
         string accessorType = componentCount switch

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using RedFox.Graphics3D.IO;
 
 namespace RedFox.GameExtraction;
 
@@ -65,6 +66,20 @@ public sealed class GameExtractionConfiguration
             }
         }
 
+    }
+
+    /// <summary>
+    /// Creates scene translator options holding every setting and option, so translators can read format specific settings by name.
+    /// </summary>
+    /// <returns>The scene translator options.</returns>
+    public SceneTranslatorOptions CreateSceneTranslatorOptions()
+    {
+        SceneTranslatorOptions options = new();
+
+        foreach ((string key, object? value) in Options)
+            options.Set(key, value);
+
+        return options;
     }
 
     /// <summary>
