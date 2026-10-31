@@ -288,7 +288,7 @@
                                             Classes.active="{Binding PreviewSettings.ShowAssetGrid}"
                                             ToolTip.Tip="Grid view"
                                             Command="{Binding ShowAssetGridCommand}">
-                                        <PathIcon Data="{StaticResource IconOther}" Width="14" Height="14"/>
+                                        <PathIcon Data="{StaticResource IconGrid}" Width="14" Height="14"/>
                                     </Button>
                                     <Button Classes="icon-btn"
                                             Classes.active="{Binding !PreviewSettings.ShowAssetGrid}"
