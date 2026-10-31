@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <OutputType Condition="'$(SampleConsole)' == 'true'">Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Product>RedFox AppHost Sample</Product>
+    <IsPackable>false</IsPackable>
+    <RedFoxAppHostPacker>$(MSBuildThisFileDirectory)..\RedFox.AppHost.Packer\bin\$(Configuration)\net10.0\RedFox.AppHost.Packer.exe</RedFoxAppHostPacker>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.AppHost\RedFox.AppHost.csproj" />
+    <ProjectReference Include="..\RedFox.AppHost.Packer\RedFox.AppHost.Packer.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <Import Project="..\RedFox.AppHost\RedFox.AppHost.targets" />
+
+</Project>

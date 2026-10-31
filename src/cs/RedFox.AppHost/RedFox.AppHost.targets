@@ -1,0 +1,37 @@
+<Project>
+
+  <PropertyGroup>
+    <RedFoxAppHostMode Condition="'$(RedFoxAppHostMode)' == ''">packed</RedFoxAppHostMode>
+    <RedFoxAppHostPacker Condition="'$(RedFoxAppHostPacker)' == ''">$(MSBuildThisFileDirectory)..\tools\RedFox.AppHost.Packer.exe</RedFoxAppHostPacker>
+    <RedFoxAppHostName Condition="'$(RedFoxAppHostName)' == ''">$(Product)</RedFoxAppHostName>
+  </PropertyGroup>
+
+  <Target Name="RedFoxAppHostCollectInputs">
+    <PropertyGroup>
+      <_RedFoxAppHostOutput>$(RedFoxAppHostOutput)</_RedFoxAppHostOutput>
+      <_RedFoxAppHostOutput Condition="'$(_RedFoxAppHostOutput)' == '' And '$(RedFoxAppHostMode)' == 'splash'">$(PublishDir)$(TargetName).exe</_RedFoxAppHostOutput>
+      <_RedFoxAppHostOutput Condition="'$(_RedFoxAppHostOutput)' == ''">$(PublishDir)..\packed\$(RedFoxAppHostName).exe</_RedFoxAppHostOutput>
+    </PropertyGroup>
+    <ItemGroup>
+      <_RedFoxAppHostInput Include="$(PublishDir)**" Exclude="$(PublishDir)$(TargetName).exe" />
+      <_RedFoxAppHostInput Include="$(MSBuildProjectFullPath);$(RedFoxAppHostPacker);$(RedFoxAppHostSplash)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RedFoxAppHostPack" AfterTargets="Publish" DependsOnTargets="RedFoxAppHostCollectInputs" Inputs="@(_RedFoxAppHostInput)" Outputs="$(_RedFoxAppHostOutput)" Condition="'$(RedFoxAppHost)' == 'true'">
+    <PropertyGroup>
+      <_RedFoxAppHostArguments>--publish "$(PublishDir)." --entry "$(TargetFileName)" --name "$(RedFoxAppHostName)" --version "$(Version)" --mode "$(RedFoxAppHostMode)" --output "$(_RedFoxAppHostOutput)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostQuality)' != ''">$(_RedFoxAppHostArguments) --quality "$(RedFoxAppHostQuality)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostSplash)' != ''">$(_RedFoxAppHostArguments) --splash "$(RedFoxAppHostSplash)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostFont)' != ''">$(_RedFoxAppHostArguments) --font "$(RedFoxAppHostFont)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostBackground)' != ''">$(_RedFoxAppHostArguments) --background "$(RedFoxAppHostBackground)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostForeground)' != ''">$(_RedFoxAppHostArguments) --foreground "$(RedFoxAppHostForeground)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostSecondaryText)' != ''">$(_RedFoxAppHostArguments) --secondary "$(RedFoxAppHostSecondaryText)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostAccent)' != ''">$(_RedFoxAppHostArguments) --accent "$(RedFoxAppHostAccent)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostBorder)' != ''">$(_RedFoxAppHostArguments) --border "$(RedFoxAppHostBorder)"</_RedFoxAppHostArguments>
+      <_RedFoxAppHostArguments Condition="'$(RedFoxAppHostCornerRadius)' != ''">$(_RedFoxAppHostArguments) --corner-radius "$(RedFoxAppHostCornerRadius)"</_RedFoxAppHostArguments>
+    </PropertyGroup>
+    <Exec Command="&quot;$(RedFoxAppHostPacker)&quot; $(_RedFoxAppHostArguments)" />
+  </Target>
+
+</Project>

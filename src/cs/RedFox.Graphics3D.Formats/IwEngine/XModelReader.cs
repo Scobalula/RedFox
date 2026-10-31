@@ -202,11 +202,10 @@ internal static class XModelReader
         foreach (var key in groups.Keys)
             groupCounts[key.ObjectIndex] = groupCounts.GetValueOrDefault(key.ObjectIndex) + 1;
 
+        var meshIndex = 0; // can't trust inputs - bo3 doesn't even care about these object names
         foreach (((int objectIndex, int materialIndex), var group) in groups)
         {
-            string objectName	= (uint)objectIndex < (uint)objectNames.Length && !string.IsNullOrWhiteSpace(objectNames[objectIndex]) ? objectNames[objectIndex] : $"Object_{objectIndex}";
-            string meshName		= groupCounts[objectIndex] > 1 && (uint)materialIndex < (uint)materials.Length ? $"{objectName}_{materials[materialIndex].Name}" : objectName;
-            Mesh mesh			= model.AddNode<Mesh>(meshName);
+            Mesh mesh			= model.AddNode<Mesh>($"Mesh_{meshIndex++}");
             BuildMesh(mesh, group, bones);
             if ((uint)materialIndex < (uint)materials.Length)
                 mesh.Materials = [materials[materialIndex]];
