@@ -4,6 +4,11 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
+  <Folder Name="/AppHost/">
+    <Project Path="RedFox.AppHost.Packer/RedFox.AppHost.Packer.csproj" />
+    <Project Path="RedFox.AppHost.Sample/RedFox.AppHost.Sample.csproj" />
+    <Project Path="RedFox.AppHost/RedFox.AppHost.csproj" />
+  </Folder>
   <Folder Name="/Audio/">
     <Project Path="RedFox.Audio.ADPCM/RedFox.Audio.ADPCM.csproj" />
     <Project Path="RedFox.Audio.Flac/RedFox.Audio.Flac.csproj" />

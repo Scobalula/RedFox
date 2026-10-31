@@ -9,13 +9,15 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Product>RedFox AppHost Sample</Product>
-    <RedFoxAppHostPacker>$(MSBuildThisFileDirectory)..\..\artifacts\apphost\packer\RedFox.AppHost.Packer.exe</RedFoxAppHostPacker>
+    <IsPackable>false</IsPackable>
+    <RedFoxAppHostPacker>$(MSBuildThisFileDirectory)..\RedFox.AppHost.Packer\bin\$(Configuration)\net10.0\RedFox.AppHost.Packer.exe</RedFoxAppHostPacker>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\RedFox.AppHost\RedFox.AppHost.csproj" />
+    <ProjectReference Include="..\RedFox.AppHost.Packer\RedFox.AppHost.Packer.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
 
-  <Import Project="..\RedFox.AppHost.targets" />
+  <Import Project="..\RedFox.AppHost\RedFox.AppHost.targets" />
 
 </Project>

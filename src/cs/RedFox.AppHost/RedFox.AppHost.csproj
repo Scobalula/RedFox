@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageDescription>Native .NET launcher with a splash screen that packs an application into a single compressed executable.</PackageDescription>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackRuntimeFilesTargets>false</PackRuntimeFilesTargets>
+    <PackerOutput>..\RedFox.AppHost.Packer\bin\$(Configuration)\net10.0\</PackerOutput>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackAppHostPacker</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RedFox.AppHost.Packer\RedFox.AppHost.Packer.csproj" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="RedFox.AppHost.targets" Pack="true" PackagePath="build\RedFox.AppHost.targets" />
+    <None Include="..\..\..\licenses\Brotli-LICENSE" Pack="true" PackagePath="licenses" Visible="false" />
+  </ItemGroup>
+
+  <Target Name="PackAppHostPacker">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(PackerOutput)*.exe;$(PackerOutput)*.dll;$(PackerOutput)*.json" PackagePath="tools" />
+    </ItemGroup>
+  </Target>
+
+</Project>

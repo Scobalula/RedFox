@@ -49,6 +49,10 @@ I/O helpers and extensions including virtual file system classes, SpanReader for
 
 A game extraction framework along with an Avalonia based UI for parsing game packages/processes in a shared method (heavy WIP).
 
+### RedFox.AppHost
+
+A .NET launcher with a splash screen that can pack an app into a single compressed exe, see [its README](src/cs/RedFox.AppHost/README.md).
+
 ### RedFox.Zenith
 
 Software licensing with hardware-bound verification, including GumRoad and TPM 2.0-based license verifiers.
@@ -81,6 +85,7 @@ Please keep in mind some of these libraries aren't directly used in the project,
 | [libzstd](https://github.com/facebook/zstd) | ZStandard compression (native) | BSD 3-Clause |
 | [libFLAC](https://github.com/xiph/flac) | FLAC audio codec (native) | BSD 3-Clause |
 | [Opus](https://github.com/xiph/opus) | Opus audio codec (native) | BSD 3-Clause |
+| [Brotli](https://github.com/google/brotli) | AppHost payload decompression (native, statically linked) | MIT |
 | [GDeflate](https://github.com/microsoft/DirectStorage) | GDeflate decompression (native, built on libdeflate) | MIT |
 | [libdeflate](https://github.com/ebiggers/libdeflate) | Deflate implementation underlying GDeflate | MIT |
 | [Cast.NET](https://github.com/Scobalula/Cast.NET) | Cast container format reader/writer | MIT |

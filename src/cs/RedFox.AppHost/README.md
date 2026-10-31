@@ -44,4 +44,4 @@ Calling these is optional. Without the launcher they do nothing.
 
 ## Building
 
-`.\Build-AppHost.ps1 -FeedPath <feed>`
+`scripts\Build-AppHost.ps1` rebuilds `RedFoxAppHost.exe` into `RedFox.AppHost.Packer`. It's packed with the other RedFox packages.
