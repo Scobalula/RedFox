@@ -10,7 +10,7 @@ namespace RedFox.Graphics3D.Avalonia;
 
 /// <summary>
 /// Shows a camera's orientation as a labelled cube. Clicking a face, edge or corner asks for that view and dragging orbits. Buttons
-/// around the cube turn it a quarter at a time, reset the view, fit the model and change the up axis.
+/// around the cube turn it a quarter at a time, reset the view, fit the model, change the up axis and switch projection.
 /// </summary>
 public sealed class ViewCubeControl : Control
 {
@@ -33,6 +33,11 @@ public sealed class ViewCubeControl : Control
     /// Defines the <see cref="UpAxis"/> property.
     /// </summary>
     public static readonly StyledProperty<SceneUpAxis> UpAxisProperty = AvaloniaProperty.Register<ViewCubeControl, SceneUpAxis>(nameof(UpAxis));
+
+    /// <summary>
+    /// Defines the <see cref="Projection"/> property
+    /// </summary>
+    public static readonly StyledProperty<CameraProjection> ProjectionProperty = AvaloniaProperty.Register<ViewCubeControl, CameraProjection>(nameof(Projection), CameraProjection.Perspective);
 
     /// <summary>
     /// Defines the <see cref="FaceBrush"/> property.
@@ -89,7 +94,7 @@ public sealed class ViewCubeControl : Control
 
     static ViewCubeControl()
     {
-        AffectsRender<ViewCubeControl>(YawRadiansProperty, PitchRadiansProperty, FrontYawRadiansProperty, UpAxisProperty);
+        AffectsRender<ViewCubeControl>(YawRadiansProperty, PitchRadiansProperty, FrontYawRadiansProperty, UpAxisProperty, ProjectionProperty);
         AffectsRender<ViewCubeControl>(FaceBrushProperty, LineBrushProperty, LabelBrushProperty, HoverBrushProperty, HoverLabelBrushProperty, ButtonLineBrushProperty);
     }
 
@@ -117,6 +122,11 @@ public sealed class ViewCubeControl : Control
     /// Occurs when the up axis button is clicked.
     /// </summary>
     public event EventHandler? UpAxisRequested;
+
+    /// <summary>
+    /// Occurs when the projection button is clicked
+    /// </summary>
+    public event EventHandler? ProjectionRequested;
 
     /// <summary>
     /// Gets or sets the camera yaw.
@@ -152,6 +162,15 @@ public sealed class ViewCubeControl : Control
     {
         get => GetValue(UpAxisProperty);
         set => SetValue(UpAxisProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the camera projection shown on the projection button
+    /// </summary>
+    public CameraProjection Projection
+    {
+        get => GetValue(ProjectionProperty);
+        set => SetValue(ProjectionProperty, value);
     }
 
     /// <summary>
@@ -218,6 +237,8 @@ public sealed class ViewCubeControl : Control
 
     private Rect FitBounds => new(Bounds.Width - ButtonSize, 0.0, ButtonSize, ButtonSize);
 
+    private Rect ProjectionBounds => new(0.0, Bounds.Height - ButtonSize, ButtonSize, ButtonSize);
+
     private Rect UpAxisBounds => new(Bounds.Width - ButtonSize, Bounds.Height - ButtonSize, ButtonSize, ButtonSize);
 
     private Quaternion CubeToView => ViewCubeGeometry.GetCubeToView(new ViewCubeOrbit(YawRadians, PitchRadians), FrontYawRadians);
@@ -246,6 +267,7 @@ public sealed class ViewCubeControl : Control
 
         DrawButton(context, ViewCubeButton.Reset, ResetBounds);
         DrawButton(context, ViewCubeButton.Fit, FitBounds);
+        DrawButton(context, ViewCubeButton.Projection, ProjectionBounds);
         DrawButton(context, ViewCubeButton.UpAxis, UpAxisBounds);
 
         using (context.PushTransform(Matrix.CreateTranslation(ResetBounds.X + IconInset, ResetBounds.Y + IconInset)))
@@ -260,6 +282,10 @@ public sealed class ViewCubeControl : Control
 
         FormattedText upAxis = new(UpAxis.ToString(), CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelFace, ButtonLabelFontSize, GetLabelBrush(ViewCubeButton.UpAxis));
         context.DrawText(upAxis, new Point(UpAxisBounds.Center.X - (upAxis.Width * 0.5), UpAxisBounds.Center.Y - (upAxis.Height * 0.5)));
+
+        string projectionLabel		= Projection == CameraProjection.Perspective ? "P" : "O";
+        FormattedText projection	= new(projectionLabel, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelFace, ButtonLabelFontSize, GetLabelBrush(ViewCubeButton.Projection));
+        context.DrawText(projection, new Point(ProjectionBounds.Center.X - (projection.Width * 0.5), ProjectionBounds.Center.Y - (projection.Height * 0.5)));
     }
 
     /// <inheritdoc/>
@@ -350,6 +376,10 @@ public sealed class ViewCubeControl : Control
                 UpAxisRequested?.Invoke(this, EventArgs.Empty);
                 break;
 
+            case ViewCubeButton.Projection:
+                ProjectionRequested?.Invoke(this, EventArgs.Empty);
+                break;
+
             case ViewCubeButton.TurnTop:
                 RequestTurn(0, -1);
                 break;
@@ -420,6 +450,7 @@ public sealed class ViewCubeControl : Control
         {
             ViewCubeButton.Reset		=> "Reset view",
             ViewCubeButton.Fit			=> "Fit to model",
+            ViewCubeButton.Projection	=> Projection == CameraProjection.Perspective ? "Perspective (click for orthographic)" : "Orthographic (click for perspective)",
             ViewCubeButton.UpAxis		=> $"Up axis: {UpAxis} (click to change)",
             ViewCubeButton.TurnTop		=> "Turn to the top",
             ViewCubeButton.TurnBottom	=> "Turn to the bottom",
@@ -439,6 +470,11 @@ public sealed class ViewCubeControl : Control
         if (FitBounds.Contains(position))
         {
             return ViewCubeButton.Fit;
+        }
+
+        if (ProjectionBounds.Contains(position))
+        {
+            return ViewCubeButton.Projection;
         }
 
         if (UpAxisBounds.Contains(position))

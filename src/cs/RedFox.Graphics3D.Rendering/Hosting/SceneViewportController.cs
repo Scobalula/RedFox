@@ -199,6 +199,11 @@ public sealed class SceneViewportController
         float aspect = camera.AspectRatio > 0.0f ? camera.AspectRatio : (16.0f / 9.0f);
         float fitDistance = ComputeBoundsFitDistance(adjustedBounds, preferredForward, camera.FieldOfView, aspect) * CameraFitPadding;
         camera.Distance = Math.Clamp(fitDistance, camera.MinDistance, camera.MaxDistance);
+        if (camera.Projection == CameraProjection.Orthographic)
+        {
+            camera.OrthographicSize = camera.Distance * 2.0f * MathF.Tan(float.DegreesToRadians(camera.FieldOfView) * 0.5f);
+        }
+
         camera.ApplyOrbit();
         UpdateDynamicClipPlanes(adjustedBounds, camera);
     }

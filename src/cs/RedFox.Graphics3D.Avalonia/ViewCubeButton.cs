@@ -26,6 +26,11 @@ public enum ViewCubeButton
     UpAxis,
 
     /// <summary>
+    /// Asks to switch the camera projection
+    /// </summary>
+    Projection,
+
+    /// <summary>
     /// Turns the top of the cube to the front.
     /// </summary>
     TurnTop,

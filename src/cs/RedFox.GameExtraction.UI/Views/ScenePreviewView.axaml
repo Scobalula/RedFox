@@ -111,7 +111,8 @@
                                  OrbitRequested="OnViewCubeOrbitRequested"
                                  ResetRequested="OnViewCubeResetRequested"
                                  FitRequested="OnViewCubeFitRequested"
-                                 UpAxisRequested="OnViewCubeUpAxisRequested"/>
+                                 UpAxisRequested="OnViewCubeUpAxisRequested"
+                                 ProjectionRequested="OnViewCubeProjectionRequested"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Bottom">

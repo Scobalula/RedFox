@@ -299,7 +299,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
         }
 
         OrbitCamera camera		= viewportController.Camera;
-        Settings.CameraState	= new ScenePreviewCameraState(camera.OrbitTarget, camera.YawRadians, camera.PitchRadians, camera.Distance);
+        Settings.CameraState	= new ScenePreviewCameraState(camera.OrbitTarget, camera.YawRadians, camera.PitchRadians, camera.Distance, camera.Projection, camera.OrthographicSize);
     }
 
     partial void OnAnimationPositionChanged(double value)
@@ -452,10 +452,12 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
 
         if (cameraState is { } state)
         {
-            camera.OrbitTarget = state.OrbitTarget;
-            camera.YawRadians = state.YawRadians;
-            camera.PitchRadians = state.PitchRadians;
-            camera.Distance = state.Distance;
+            camera.OrbitTarget		= state.OrbitTarget;
+            camera.YawRadians		= state.YawRadians;
+            camera.PitchRadians		= state.PitchRadians;
+            camera.Distance			= state.Distance;
+            camera.Projection		= state.Projection;
+            camera.OrthographicSize	= state.OrthographicSize;
         }
 
         camera.ApplyOrbit();

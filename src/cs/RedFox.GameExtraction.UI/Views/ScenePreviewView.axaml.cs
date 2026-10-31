@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using RedFox.GameExtraction.UI.ViewModels;
+using RedFox.Graphics3D;
 using RedFox.Graphics3D.Avalonia;
 
 namespace RedFox.GameExtraction.UI.Views;
@@ -97,6 +98,8 @@ public partial class ScenePreviewView : UserControl
             return;
         }
 
+        ViewCube.Projection = viewportController.Camera.Projection;
+
         ViewCubeOrbit orbit = new(viewportController.Camera.YawRadians, viewportController.Camera.PitchRadians);
         if (orbit == _shownOrbit)
         {
@@ -150,6 +153,34 @@ public partial class ScenePreviewView : UserControl
     {
         _viewAnimationTimer.Stop();
         _viewModel?.CycleUpAxis();
+    }
+
+    private void OnViewCubeProjectionRequested(object? sender, EventArgs e)
+    {
+        if (_viewModel?.ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        _viewAnimationTimer.Stop();
+
+        OrbitCamera camera		= viewportController.Camera;
+        float viewScale			= 2.0f * MathF.Tan(float.DegreesToRadians(camera.FieldOfView) * 0.5f);
+        if (camera.Projection == CameraProjection.Perspective)
+        {
+            camera.OrthographicSize	= camera.Distance * viewScale;
+            camera.Projection		= CameraProjection.Orthographic;
+        }
+        else
+        {
+            camera.Distance			= camera.OrthographicSize / viewScale;
+            camera.Projection		= CameraProjection.Perspective;
+            camera.ApplyOrbit();
+        }
+
+        ViewCube.Projection = camera.Projection;
+        Renderer.InvalidateScene();
+        _viewModel.CaptureCameraState();
     }
 
     private void OnViewAnimationTick(object? sender, EventArgs e)

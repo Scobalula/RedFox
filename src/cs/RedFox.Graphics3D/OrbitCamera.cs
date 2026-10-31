@@ -148,9 +148,8 @@ public class OrbitCamera : Camera
 
     /// <summary>
     /// Applies a multiplicative zoom step. Positive <paramref name="zoomDelta"/>
-    /// zooms in (decreases distance), negative zooms out. Distance is clamped to
-    /// <see cref="MinDistance"/>/<see cref="MaxDistance"/>; the orbit pivot is
-    /// never moved, so zoom always stays consistent.
+    /// zooms in and negative zooms out. The camera limits are respected and the
+    /// orbit pivot is never moved
     /// </summary>
     /// <param name="zoomDelta">The zoom amount (e.g. scroll wheel ticks).</param>
     public void AddZoom(float zoomDelta)
@@ -163,6 +162,15 @@ public class OrbitCamera : Camera
         // Multiplicative dolly: distance *= exp(-delta * sensitivity).
         // Exponent clamp keeps a single oversized event from teleporting the camera.
         float exponent = Math.Clamp(-zoomDelta * ZoomSensitivity, -4.0f, 4.0f);
+        if (Projection == CameraProjection.Orthographic)
+        {
+            float viewScale = 2.0f * MathF.Tan(float.DegreesToRadians(FieldOfView) * 0.5f);
+            OrthographicSize	= Math.Clamp(OrthographicSize * MathF.Exp(exponent), MinDistance * viewScale, MaxDistance * viewScale);
+            _distance			= OrthographicSize / viewScale;
+            ApplyOrbit();
+            return;
+        }
+
         float proposed = _distance * MathF.Exp(exponent);
         _distance = Math.Clamp(proposed, MinDistance, MaxDistance);
         ApplyOrbit();
