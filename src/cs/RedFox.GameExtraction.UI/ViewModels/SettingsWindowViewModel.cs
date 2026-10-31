@@ -176,17 +176,24 @@ public partial class SettingsWindowViewModel : ObservableObject
 
     private static int GetGroupOrder(GameExtractionSettingGroup group) => group switch
     {
-        GameExtractionSettingGroup.General => 0,
-        GameExtractionSettingGroup.Export => 1,
-        GameExtractionSettingGroup.Model => 2,
-        GameExtractionSettingGroup.Animation => 3,
-        GameExtractionSettingGroup.Image => 4,
-        GameExtractionSettingGroup.Sound => 5,
-        GameExtractionSettingGroup.Archive => 6,
-        GameExtractionSettingGroup.Document => 7,
-        GameExtractionSettingGroup.Preview => 8,
-        GameExtractionSettingGroup.Other => 9,
-        _ => int.MaxValue,
+        GameExtractionSettingGroup.General		=> 0,
+        GameExtractionSettingGroup.Export		=> 1,
+        GameExtractionSettingGroup.Model		=> 2,
+        GameExtractionSettingGroup.Animation	=> 3,
+        GameExtractionSettingGroup.Image		=> 4,
+        GameExtractionSettingGroup.Sound		=> 5,
+        GameExtractionSettingGroup.Archive		=> 6,
+        GameExtractionSettingGroup.Document		=> 7,
+        GameExtractionSettingGroup.Script		=> 8,
+        GameExtractionSettingGroup.Table		=> 9,
+        GameExtractionSettingGroup.Binary		=> 10,
+        GameExtractionSettingGroup.Map			=> 11,
+        GameExtractionSettingGroup.Shader		=> 12,
+        GameExtractionSettingGroup.Effect		=> 13,
+        GameExtractionSettingGroup.Cutscene		=> 14,
+        GameExtractionSettingGroup.Preview		=> 15,
+        GameExtractionSettingGroup.Other		=> 16,
+        _										=> int.MaxValue,
     };
 
 }

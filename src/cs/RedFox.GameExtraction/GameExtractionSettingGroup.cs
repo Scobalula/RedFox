@@ -54,4 +54,39 @@ public enum GameExtractionSettingGroup
     /// Settings for preview controls.
     /// </summary>
     Preview,
+
+    /// <summary>
+    /// Settings for script assets.
+    /// </summary>
+    Script,
+
+    /// <summary>
+    /// Settings for table assets.
+    /// </summary>
+    Table,
+
+    /// <summary>
+    /// Settings for binary files.
+    /// </summary>
+    Binary,
+
+    /// <summary>
+    /// Settings for map and level assets.
+    /// </summary>
+    Map,
+
+    /// <summary>
+    /// Settings for shader assets.
+    /// </summary>
+    Shader,
+
+    /// <summary>
+    /// Settings for effects assets.
+    /// </summary>
+    Effect,
+
+    /// <summary>
+    /// Settings for cutscene assets.
+    /// </summary>
+    Cutscene,
 }

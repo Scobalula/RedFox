@@ -44,4 +44,39 @@ public enum AssetCategory
     /// The asset does not fit another broad category.
     /// </summary>
     Other,
+
+    /// <summary>
+    /// The asset contains script code.
+    /// </summary>
+    Script,
+
+    /// <summary>
+    /// The asset contains tabular data.
+    /// </summary>
+    Table,
+
+    /// <summary>
+    /// The asset contains binary data.
+    /// </summary>
+    Binary,
+
+    /// <summary>
+    /// The asset contains a map or level.
+    /// </summary>
+    Map,
+
+    /// <summary>
+    /// The asset contains shader data.
+    /// </summary>
+    Shader,
+
+    /// <summary>
+    /// The asset contains effects data.
+    /// </summary>
+    Effect,
+
+    /// <summary>
+    /// The asset contains a cutscene.
+    /// </summary>
+    Cutscene,
 }
