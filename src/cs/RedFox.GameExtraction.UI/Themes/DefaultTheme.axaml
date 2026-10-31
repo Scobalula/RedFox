@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:search="using:AvaloniaEdit.Search">
 
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
@@ -663,6 +664,71 @@
 
     <Style Selector="ScrollBar:pointerover /template/ Thumb">
         <Setter Property="Background" Value="#99A1A1A1"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel TextBox">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel Button">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel ToggleButton">
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+        <Setter Property="Padding" Value="4"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel ToggleButton:pointerover">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel ToggleButton:checked">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
 </Styles>
