@@ -53,13 +53,13 @@ public sealed class CodeEditorControl : UserControl, IDisposable
     private const string DefaultCodeFont = "Consolas, Cascadia Mono, Menlo, monospace";
     private const double GutterInset = 10.0;
     private const double GutterLineGap = 12.0;
-    private const double TopInset = 20.0;
+    private const double TopInset = 10.0;
 
     private static readonly TimeSpan AnalysisDelay = TimeSpan.FromMilliseconds(200);
     private static readonly Uri EditorStyles = new("avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml");
 
     private readonly TextEditor _editor = new();
-    private readonly Border _surface = new() { Padding = new Thickness(0, TopInset, 0, 0) };
+    private readonly LineWidthGenerator _lineWidth = new();
     private readonly IndentGuideRenderer _indentGuides;
     private readonly BracketMatchRenderer _bracketMatch;
     private readonly Border _gutterLine = new() { Width = 1.0, Margin = new Thickness(GutterLineGap, 0, 0, 0) };
@@ -185,6 +185,8 @@ public sealed class CodeEditorControl : UserControl, IDisposable
         _editor.TextArea.LeftMargins.Add(new Control { Width = GutterInset });
         _editor.TextArea.LeftMargins.Add(_lineNumbers);
         _editor.TextArea.LeftMargins.Add(_gutterLine);
+        _editor.TextArea.TextView.ElementGenerators.Add(_lineWidth);
+        _editor.TextArea.TextView.ScrollOffsetChanged += (_, _) => ApplyTopGap();
 
         _textMate = _editor.InstallTextMate(languages);
         _textMate.SetTheme(languages.GetDefaultTheme());
@@ -206,8 +208,7 @@ public sealed class CodeEditorControl : UserControl, IDisposable
         });
 
 
-        _surface.Child	= _editor;
-        Content			= _surface;
+        Content = _editor;
 
         ActualThemeVariantChanged += (_, _) => ApplyColors();
     }
@@ -328,6 +329,19 @@ public sealed class CodeEditorControl : UserControl, IDisposable
         e.Handled = true;
     }
 
+    private void ApplyTopGap()
+    {
+        Thickness margin = new(0, Math.Max(TopInset - _editor.TextArea.TextView.ScrollOffset.Y, 0), 0, 0);
+
+        _editor.TextArea.TextView.Margin	= margin;
+        _lineNumbers.Margin					= margin;
+
+        foreach (FoldingMargin foldingMargin in _editor.TextArea.LeftMargins.OfType<FoldingMargin>())
+        {
+            foldingMargin.Margin = margin;
+        }
+    }
+
     private void OnCaretOrSelectionChanged()
     {
         _lineNumbers.ActiveLine = _editor.TextArea.Caret.Line;
@@ -345,7 +359,6 @@ public sealed class CodeEditorControl : UserControl, IDisposable
     {
         CodeEditorColors colors = Colors ?? CodeEditorColors.FromResources(this);
 
-        _surface.Background								= new SolidColorBrush(colors.Background);
         _editor.Background								= new SolidColorBrush(colors.Background);
         _editor.Foreground								= new SolidColorBrush(colors.Foreground);
         _lineNumbers.LineForeground						= new SolidColorBrush(colors.LineNumber);
@@ -388,6 +401,8 @@ public sealed class CodeEditorControl : UserControl, IDisposable
         _brackets.Update(brackets, [.. colors.Brackets.Select(color => new SolidColorBrush(color))]);
         _bracketMatch.Pairs = BracketPairs.Build(brackets);
         _folding.UpdateFoldings(CreateFoldings(brackets), -1);
+        _lineWidth.Columns = _editor.Document.Lines.Select(line => IndentGuides.GetColumnCount(_editor.Document.GetText(line.Offset, line.Length), _lineWidth.TabSize)).DefaultIfEmpty().Max();
+        ApplyTopGap();
         _editor.TextArea.TextView.Redraw();
     }
 
