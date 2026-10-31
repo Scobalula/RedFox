@@ -1,0 +1,23 @@
+{
+  "scopeName": "source.cfg",
+  "name": "Config",
+  "fileTypes": [ "cfg" ],
+  "patterns": [
+    { "name": "comment.line.double-slash.cfg", "match": "//.*$" },
+    {
+      "name": "string.quoted.double.cfg",
+      "begin": "\"",
+      "end": "\"|$",
+      "patterns": [
+        { "name": "constant.character.escape.cfg", "match": "\\\\." }
+      ]
+    },
+    {
+      "match": "^\\s*([A-Za-z_]\\w*)",
+      "captures": {
+        "1": { "name": "keyword.other.cfg" }
+      }
+    },
+    { "name": "constant.numeric.cfg", "match": "(?<![\\w.])-?\\d+(?:\\.\\d+)?(?![\\w.])" }
+  ]
+}
