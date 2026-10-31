@@ -511,6 +511,11 @@ public sealed partial class PreviewSettings : ObservableObject
 
     internal static Vector3 OrientToModelFront(Vector3 viewDirection, SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront)
     {
+        return Vector3.TransformNormal(viewDirection, Matrix4x4.CreateRotationY(GetFrontYaw(upAxis, modelFront)));
+    }
+
+    internal static float GetFrontYaw(SceneUpAxis upAxis, ScenePreviewFrontAxis modelFront)
+    {
         Vector3 front = modelFront switch
         {
             ScenePreviewFrontAxis.PositiveX	=> Vector3.UnitX,
@@ -529,12 +534,7 @@ public sealed partial class PreviewSettings : ObservableObject
         };
 
         Vector3 displayFront = Vector3.TransformNormal(front, sceneAxis);
-        if (MathF.Abs(displayFront.Y) > 0.5f)
-        {
-            return viewDirection;
-        }
-
-        return Vector3.TransformNormal(viewDirection, Matrix4x4.CreateRotationY(MathF.Atan2(displayFront.X, displayFront.Z)));
+        return MathF.Abs(displayFront.Y) > 0.5f ? 0.0f : MathF.Atan2(displayFront.X, displayFront.Z);
     }
 
     private static TEnum GetEnumValue<TEnum>(GameExtractionSettings settings, GameExtractionSetting setting, TEnum fallback) where TEnum : struct, Enum

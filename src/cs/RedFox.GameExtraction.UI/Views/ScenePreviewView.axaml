@@ -89,10 +89,29 @@
                                                AmbientOcclusionRadius="{Binding Settings.AmbientOcclusionRadius}"
                                                AmbientOcclusionIntensity="{Binding Settings.AmbientOcclusionIntensity}"/>
             <Border Classes="preview-overlay"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Top">
                 <TextBlock x:Name="FpsText" Classes="preview-stats" Text="FPS: -"/>
             </Border>
+            <g3d:ViewCubeControl x:Name="ViewCube"
+                                 Width="104"
+                                 Height="104"
+                                 Margin="10"
+                                 HorizontalAlignment="Right"
+                                 VerticalAlignment="Top"
+                                 UpAxis="{Binding Settings.UpAxis}"
+                                 FrontYawRadians="{Binding ViewCubeFrontYaw}"
+                                 FaceBrush="{DynamicResource ThemeSecondaryBrush}"
+                                 LineBrush="{DynamicResource ThemeRingBrush}"
+                                 LabelBrush="{DynamicResource ThemeMutedForegroundBrush}"
+                                 HoverBrush="{DynamicResource AccentBrush}"
+                                 HoverLabelBrush="{DynamicResource ThemeForegroundBrush}"
+                                 ButtonLineBrush="{DynamicResource ThemeInputBrush}"
+                                 ViewRequested="OnViewCubeViewRequested"
+                                 OrbitRequested="OnViewCubeOrbitRequested"
+                                 ResetRequested="OnViewCubeResetRequested"
+                                 FitRequested="OnViewCubeFitRequested"
+                                 UpAxisRequested="OnViewCubeUpAxisRequested"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Bottom">

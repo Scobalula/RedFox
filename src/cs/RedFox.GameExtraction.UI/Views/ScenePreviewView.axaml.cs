@@ -15,12 +15,20 @@ namespace RedFox.GameExtraction.UI.Views;
 public partial class ScenePreviewView : UserControl
 {
     private const float SkyboxDegreesPerPixel = 0.5f;
+    private const double ViewAnimationSeconds = 0.25;
 
+    private static readonly TimeSpan ViewAnimationStep = TimeSpan.FromMilliseconds(16.0);
+
+    private readonly DispatcherTimer _viewAnimationTimer = new() { Interval = ViewAnimationStep };
     private ScenePreviewViewModel? _viewModel;
     private Point? _skyboxDragPosition;
     private Point? _contextMenuPosition;
     private double _fpsSampleDuration;
     private int _fpsSampleFrameCount;
+    private ViewCubeOrbit _viewAnimationStart;
+    private ViewCubeOrbit _viewAnimationEnd;
+    private DateTime _viewAnimationStartTime;
+    private ViewCubeOrbit _shownOrbit;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScenePreviewView"/> class.
@@ -33,6 +41,7 @@ public partial class ScenePreviewView : UserControl
         Renderer.AddHandler(PointerMovedEvent, OnRendererPointerMoved, RoutingStrategies.Bubble, handledEventsToo: true);
         Renderer.AddHandler(PointerReleasedEvent, OnRendererPointerReleased, RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += OnDataContextChanged;
+        _viewAnimationTimer.Tick += OnViewAnimationTick;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -42,6 +51,7 @@ public partial class ScenePreviewView : UserControl
             _viewModel.SceneInvalidated -= Renderer.InvalidateScene;
         }
 
+        _viewAnimationTimer.Stop();
         _viewModel = DataContext as ScenePreviewViewModel;
         _fpsSampleFrameCount = 0;
         _fpsSampleDuration = 0.0;
@@ -55,6 +65,8 @@ public partial class ScenePreviewView : UserControl
 
     private void OnRenderFrame(object? sender, AvaloniaRenderFrameEventArgs args)
     {
+        Dispatcher.UIThread.Post(UpdateViewCube);
+
         if (_viewModel?.HasAnimations == true)
         {
             Dispatcher.UIThread.Post(() => _viewModel?.RefreshTimeline());
@@ -76,6 +88,96 @@ public partial class ScenePreviewView : UserControl
         _fpsSampleFrameCount = 0;
         _fpsSampleDuration = 0.0;
         Dispatcher.UIThread.Post(() => FpsText.Text = $"FPS: {framesPerSecond.ToString("N1", CultureInfo.InvariantCulture)}");
+    }
+
+    private void UpdateViewCube()
+    {
+        if (_viewModel?.ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        ViewCubeOrbit orbit = new(viewportController.Camera.YawRadians, viewportController.Camera.PitchRadians);
+        if (orbit == _shownOrbit)
+        {
+            return;
+        }
+
+        _shownOrbit				= orbit;
+        ViewCube.YawRadians		= orbit.YawRadians;
+        ViewCube.PitchRadians	= orbit.PitchRadians;
+    }
+
+    private void OnViewCubeViewRequested(object? sender, ViewCubeOrbitEventArgs e)
+    {
+        if (_viewModel?.ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        _viewAnimationStart		= new ViewCubeOrbit(viewportController.Camera.YawRadians, WrapPitch(viewportController.Camera.PitchRadians));
+        _viewAnimationEnd		= e.Orbit;
+        _viewAnimationStartTime	= DateTime.UtcNow;
+        _viewAnimationTimer.Start();
+    }
+
+    private void OnViewCubeOrbitRequested(object? sender, ViewCubeOrbitEventArgs e)
+    {
+        if (_viewModel?.ViewportController is not { } viewportController)
+        {
+            return;
+        }
+
+        _viewAnimationTimer.Stop();
+        viewportController.Camera.AddOrbit(e.Orbit.YawRadians, e.Orbit.PitchRadians);
+        Renderer.InvalidateScene();
+        _viewModel.CaptureCameraState();
+    }
+
+    private void OnViewCubeResetRequested(object? sender, EventArgs e)
+    {
+        _viewAnimationTimer.Stop();
+        _viewModel?.FitSceneToView();
+    }
+
+    private void OnViewCubeFitRequested(object? sender, EventArgs e)
+    {
+        _viewAnimationTimer.Stop();
+        _viewModel?.FrameSceneInView();
+    }
+
+    private void OnViewCubeUpAxisRequested(object? sender, EventArgs e)
+    {
+        _viewAnimationTimer.Stop();
+        _viewModel?.CycleUpAxis();
+    }
+
+    private void OnViewAnimationTick(object? sender, EventArgs e)
+    {
+        if (_viewModel?.ViewportController is not { } viewportController)
+        {
+            _viewAnimationTimer.Stop();
+            return;
+        }
+
+        float progress	= (float)Math.Min((DateTime.UtcNow - _viewAnimationStartTime).TotalSeconds / ViewAnimationSeconds, 1.0);
+        float eased		= progress * progress * (3.0f - (2.0f * progress));
+
+        viewportController.Camera.YawRadians	= float.Lerp(_viewAnimationStart.YawRadians, _viewAnimationEnd.YawRadians, eased);
+        viewportController.Camera.PitchRadians	= float.Lerp(_viewAnimationStart.PitchRadians, _viewAnimationEnd.PitchRadians, eased);
+        viewportController.Camera.ApplyOrbit();
+        Renderer.InvalidateScene();
+
+        if (progress >= 1.0f)
+        {
+            _viewAnimationTimer.Stop();
+            _viewModel.CaptureCameraState();
+        }
+    }
+
+    private static float WrapPitch(float pitch)
+    {
+        return MathF.IEEERemainder(pitch, MathF.Tau);
     }
 
     private void OnRendererPointerPressed(object? sender, PointerPressedEventArgs e)

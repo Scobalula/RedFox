@@ -247,6 +247,35 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Gets the yaw of the view cube's front face, which follows the model front setting.
+    /// </summary>
+    public float ViewCubeFrontYaw => PreviewSettings.GetFrontYaw(Settings.UpAxis, Settings.ModelFront);
+
+    /// <summary>
+    /// Fits the preview camera to the active scene and keeps the angle it looks from.
+    /// </summary>
+    public void FrameSceneInView()
+    {
+        ViewportController?.FrameCameraToScene();
+        CaptureCameraState();
+        SceneInvalidated?.Invoke();
+    }
+
+    /// <summary>
+    /// Moves to the next up axis.
+    /// </summary>
+    public void CycleUpAxis()
+    {
+        Settings.UpAxis = Settings.UpAxis switch
+        {
+            SceneUpAxis.X	=> SceneUpAxis.Y,
+            SceneUpAxis.Y	=> SceneUpAxis.Z,
+            _				=> SceneUpAxis.X,
+        };
+        Settings.RequestSave();
+    }
+
+    /// <summary>
     /// Fits the preview camera to the active scene.
     /// </summary>
     public void FitSceneToView()
@@ -327,6 +356,7 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
             case nameof(PreviewSettings.ModelFront):
                 scene.UpAxis = Settings.UpAxis;
                 FitScene(scene, Settings.AutoFitScene);
+                OnPropertyChanged(nameof(ViewCubeFrontYaw));
                 SceneInvalidated?.Invoke();
                 break;
 
@@ -441,9 +471,9 @@ public partial class ScenePreviewViewModel : ObservableObject, IDisposable
     {
         Matrix4x4 sceneAxisMatrix = upAxis switch
         {
-            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
-            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
-            _ => Matrix4x4.Identity,
+            SceneUpAxis.X	=> Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
+            SceneUpAxis.Z	=> Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
+            _				=> Matrix4x4.Identity,
         };
 
         if (sceneAxisMatrix == Matrix4x4.Identity)
