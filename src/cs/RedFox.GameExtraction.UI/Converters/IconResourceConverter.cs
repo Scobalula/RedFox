@@ -23,7 +23,7 @@ public sealed class IconResourceConverter : IValueConverter
         string resourceKey = value switch
         {
             AssetCategory.Model						=> "IconModel",
-            AssetCategory.Animation					=> "IconAnimation",
+            AssetCategory.Animation					=> "IconPlay",
             AssetCategory.Image						=> "IconImage",
             AssetCategory.Material					=> "IconMaterial",
             AssetCategory.Sound						=> "IconSound",
@@ -39,7 +39,7 @@ public sealed class IconResourceConverter : IValueConverter
             AssetCategory.Cutscene					=> "IconCutscene",
             GameExtractionSettingGroup.Export		=> "IconExport",
             GameExtractionSettingGroup.Model		=> "IconModel",
-            GameExtractionSettingGroup.Animation	=> "IconAnimation",
+            GameExtractionSettingGroup.Animation	=> "IconPlay",
             GameExtractionSettingGroup.Image		=> "IconImage",
             GameExtractionSettingGroup.Sound		=> "IconSound",
             GameExtractionSettingGroup.Archive		=> "IconArchive",
