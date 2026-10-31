@@ -129,6 +129,28 @@ public sealed class SceneViewportController
     }
 
     /// <summary>
+    /// Fits the camera to the scene bounds without changing the angle it looks from.
+    /// </summary>
+    /// <returns><see langword="true"/> when bounds were available and the camera was updated; otherwise <see langword="false"/>.</returns>
+    public bool FrameCameraToScene()
+    {
+        if (!HasBounds)
+        {
+            return false;
+        }
+
+        float yaw	= _camera.YawRadians;
+        float pitch	= _camera.PitchRadians;
+
+        ApplyBoundsToCamera(Bounds, _camera, _scene.UpAxis, Vector3.Normalize(_camera.Target - _camera.Position));
+
+        _camera.YawRadians		= yaw;
+        _camera.PitchRadians	= pitch;
+        _camera.ApplyOrbit();
+        return true;
+    }
+
+    /// <summary>
     /// Updates the controlled scene and renders it using the supplied renderer and input source.
     /// </summary>
     /// <param name="renderer">The scene renderer used for drawing.</param>
@@ -267,9 +289,9 @@ public sealed class SceneViewportController
     {
         return upAxis switch
         {
-            SceneUpAxis.X => Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
-            SceneUpAxis.Z => Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
-            _ => Matrix4x4.Identity,
+            SceneUpAxis.X	=> Matrix4x4.CreateRotationZ(MathF.PI * 0.5f),
+            SceneUpAxis.Z	=> Matrix4x4.CreateRotationX(-MathF.PI * 0.5f),
+            _				=> Matrix4x4.Identity,
         };
     }
 
