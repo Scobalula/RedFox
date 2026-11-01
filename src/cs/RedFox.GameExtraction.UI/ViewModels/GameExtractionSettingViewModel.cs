@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -35,6 +36,11 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         {
             HashSet<string> values = [.. SplitValues(TextValue)];
             OptionToggles = [.. Options.Select(option => new SettingOptionViewModel(option, values.Contains(option)))];
+        }
+
+        if (IsTextList)
+        {
+            TextEntries = [.. SplitValues(TextValue).Select(value => new SettingTextEntryViewModel(value))];
         }
     }
 
@@ -86,7 +92,17 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// <summary>
     /// Gets a value indicating whether the setting holds a text value.
     /// </summary>
-    public bool IsText => Type == GameExtractionSettingType.Text || (Type == GameExtractionSettingType.TextArray && OptionToggles.Count == 0);
+    public bool IsText => Type == GameExtractionSettingType.Text;
+
+    /// <summary>
+    /// Gets a value indicating whether the setting holds an editable list of text values.
+    /// </summary>
+    public bool IsTextList => Type == GameExtractionSettingType.TextArray && OptionToggles.Count == 0;
+
+    /// <summary>
+    /// Gets the editable entries of a text list setting.
+    /// </summary>
+    public ObservableCollection<SettingTextEntryViewModel> TextEntries { get; } = [];
 
     public bool IsOptionList => OptionToggles.Count > 0;
 
@@ -146,6 +162,18 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     public partial double SliderValue { get; set; }
 
     /// <summary>
+    /// Gets or sets the selected entry of a text list setting.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RemoveTextEntryCommand))]
+    public partial SettingTextEntryViewModel? SelectedTextEntry { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether a text list entry is selected.
+    /// </summary>
+    public bool HasSelectedTextEntry => SelectedTextEntry is not null;
+
+    /// <summary>
     /// Saves this value into the settings object.
     /// </summary>
     /// <param name="settings">The settings object to update.</param>
@@ -170,6 +198,35 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Adds an empty entry to a text list setting and selects it for editing.
+    /// </summary>
+    [RelayCommand]
+    public void AddTextEntry()
+    {
+        if (SelectedTextEntry is not null && string.IsNullOrWhiteSpace(SelectedTextEntry.Value))
+        {
+            TextEntries.Remove(SelectedTextEntry);
+        }
+
+        SettingTextEntryViewModel entry = new(string.Empty);
+
+        TextEntries.Add(entry);
+        SelectedTextEntry = entry;
+    }
+
+    /// <summary>
+    /// Removes the selected entry from a text list setting.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedTextEntry))]
+    public void RemoveTextEntry()
+    {
+        if (SelectedTextEntry is not null)
+        {
+            TextEntries.Remove(SelectedTextEntry);
+        }
+    }
+
     private string? ResolveSelectedOption(string value)
     {
         if (!string.IsNullOrWhiteSpace(value) && Options.Contains(value))
@@ -188,6 +245,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
             GameExtractionSettingType.Choice => SelectedOption,
             GameExtractionSettingType.Slider => SliderValue.ToString(CultureInfo.InvariantCulture),
             GameExtractionSettingType.TextArray when IsOptionList => GetOptionListValue(),
+            GameExtractionSettingType.TextArray => string.Join(",", TextEntries.Select(entry => entry.Value.Trim()).Where(value => value.Length > 0)),
             _ => TextValue,
         };
     }

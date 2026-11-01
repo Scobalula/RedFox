@@ -99,6 +99,24 @@
                                                                         </DataTemplate>
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
+                                                                <StackPanel IsVisible="{Binding IsTextList}" Spacing="8">
+                                                                    <Border BorderThickness="1" BorderBrush="{DynamicResource ThemeInputBrush}" Background="{DynamicResource ThemeCardBrush}" ClipToBounds="True">
+                                                                        <ListBox Classes="asset-list" Height="140" ItemsSource="{Binding TextEntries}" SelectedItem="{Binding SelectedTextEntry}" SelectionChanged="OnTextEntrySelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                                                            <ListBox.ItemTemplate>
+                                                                                <DataTemplate x:DataType="vm:SettingTextEntryViewModel">
+                                                                                    <Panel MinHeight="28">
+                                                                                        <TextBlock Text="{Binding Value}" Margin="10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding !$parent[ListBoxItem].IsSelected}"/>
+                                                                                        <TextBox Text="{Binding Value}" Background="Transparent" BorderThickness="0" Padding="10,0" MinHeight="28" VerticalContentAlignment="Center" IsVisible="{Binding $parent[ListBoxItem].IsSelected}"/>
+                                                                                    </Panel>
+                                                                                </DataTemplate>
+                                                                            </ListBox.ItemTemplate>
+                                                                        </ListBox>
+                                                                    </Border>
+                                                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                        <Button Classes="secondary-btn" Content="Add" Command="{Binding AddTextEntryCommand}"/>
+                                                                        <Button Classes="secondary-btn" Content="Remove" Command="{Binding RemoveTextEntryCommand}"/>
+                                                                    </StackPanel>
+                                                                </StackPanel>
                                                                 <DockPanel IsVisible="{Binding IsPathSetting}">
                                                                     <Button DockPanel.Dock="Right" Classes="secondary-btn" Content="Browse" Margin="8,0,0,0" Command="{Binding BrowseCommand}"/>
                                                                     <TextBox Classes="search-box" Text="{Binding TextValue}"/>

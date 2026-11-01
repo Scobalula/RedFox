@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using RedFox.GameExtraction.UI.ViewModels;
 
 namespace RedFox.GameExtraction.UI.Views;
@@ -37,6 +39,25 @@ public partial class SettingsWindow : Window
         viewModel.ClearThumbnailCacheRequested += clearThumbnailCache;
         if (openPlugins is not null)
             viewModel.OpenPluginsRequested += openPlugins;
+    }
+
+    private void OnTextEntrySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ListBox { DataContext: GameExtractionSettingViewModel setting } listBox)
+        {
+            return;
+        }
+
+        foreach (SettingTextEntryViewModel removed in e.RemovedItems.OfType<SettingTextEntryViewModel>().Where(removed => string.IsNullOrWhiteSpace(removed.Value)))
+        {
+            Dispatcher.UIThread.Post(() => setting.TextEntries.Remove(removed));
+        }
+
+        if (listBox.SelectedItem is SettingTextEntryViewModel entry)
+        {
+            listBox.ScrollIntoView(entry);
+            Dispatcher.UIThread.Post(() => listBox.ContainerFromItem(entry)?.FindDescendantOfType<TextBox>()?.Focus(), DispatcherPriority.Loaded);
+        }
     }
 
     private async Task<string?> OnBrowseSettingRequested(GameExtractionSettingViewModel setting)
