@@ -12,6 +12,7 @@ internal static class SettingValueParser
         GameExtractionSettingType.Boolean => ParseBoolean(setting, input),
         GameExtractionSettingType.Choice => ParseChoice(setting, input),
         GameExtractionSettingType.Slider => ParseSlider(setting, input),
+        GameExtractionSettingType.Number => ParseNumber(setting, input),
         GameExtractionSettingType.FilePath or GameExtractionSettingType.DirectoryPath => Path.GetFullPath(input),
         _ => input,
     };
@@ -51,6 +52,16 @@ internal static class SettingValueParser
         if (!double.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out double value) || value < setting.Minimum || value > setting.Maximum)
         {
             throw new ArgumentException($"{setting.Name} expects a number from {setting.Minimum.ToString(CultureInfo.InvariantCulture)} to {setting.Maximum.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ParseNumber(GameExtractionSetting setting, string input)
+    {
+        if (!long.TryParse(input, NumberStyles.Integer, CultureInfo.InvariantCulture, out long value) || value < setting.Minimum || value > setting.Maximum)
+        {
+            throw new ArgumentException($"{setting.Name} expects a whole number from {setting.Minimum.ToString(CultureInfo.InvariantCulture)} to {setting.Maximum.ToString(CultureInfo.InvariantCulture)}");
         }
 
         return value.ToString(CultureInfo.InvariantCulture);

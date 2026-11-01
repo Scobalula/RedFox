@@ -1,7 +1,11 @@
 param(
     [string] $FeedPath = 'G:\Nuget',
 
-    [string] $SourceName = 'LocalNuGet'
+    [string] $SourceName = 'LocalNuGet',
+
+    [string] $Path,
+
+    [switch] $Build
 )
 
 $ErrorActionPreference = 'Stop'
@@ -70,4 +74,9 @@ Ensure-NuGetSource -Name $SourceName -Source $FeedPath
 
 Write-Host "Registered '$SourceName' in $userConfigPath"
 Write-Host "Local RedFox package version: $version"
-Write-Host "Use this version with scripts\Update-RedFoxPackages.ps1 -Path <consumer-project> -Version `"$version`"."
+if ($Path) {
+    & (Join-Path $PSScriptRoot 'Update-RedFoxPackages.ps1') -Path $Path -Version $version -Build:$Build
+}
+else {
+    Write-Host "Use this version with scripts\Update-RedFoxPackages.ps1 -Path <consumer-project> -Version `"$version`"."
+}

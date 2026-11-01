@@ -23,7 +23,7 @@ public static class GameExtractionCommandLineApp
     /// Runs the shell. Leading path arguments are mounted before the prompt opens. When the arguments
     /// contain slash commands, they are run in order and the application exits without prompting.
     /// The <c>--verbose</c> (<c>-v</c>) flag enables debug-level console and file logging, while
-    /// <c>--quiet</c> (<c>-q</c>) limits logging to warnings and errors.
+    /// <c>--quiet</c> (<c>-q</c>) limits logging to warnings and errors. <c>--profile &lt;name&gt;</c> uses that settings profile for this run.
     /// </summary>
     /// <param name="config">The application configuration.</param>
     /// <param name="args">The command line arguments.</param>
@@ -34,7 +34,23 @@ public static class GameExtractionCommandLineApp
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(args);
 
-        config.Settings.LoadFrom(GameExtractionSettings.GetDefaultSettingsPath(config.AppName));
+        int profileIndex	= Array.IndexOf(args, "--profile");
+        string profile		= GameExtractionSettings.GetActiveProfile(config.AppName);
+
+        if (profileIndex >= 0)
+        {
+            if (profileIndex + 1 >= args.Length || !GameExtractionSettings.IsValidProfileName(args[profileIndex + 1]))
+            {
+                await Console.Error.WriteLineAsync("--profile expects a valid profile name").ConfigureAwait(false);
+                return 1;
+            }
+
+            profile	= args[profileIndex + 1];
+            args	= [.. args[..profileIndex], .. args[(profileIndex + 2)..]];
+        }
+
+        string settingsPath = GameExtractionSettings.GetProfileSettingsPath(config.AppName, profile);
+        config.Settings.LoadFrom(settingsPath);
 
         GameExtractionLogOptions logOptions = new();
         string[] effectiveArgs = GameExtractionLogging.ApplyArguments(args, logOptions);
@@ -57,7 +73,10 @@ public static class GameExtractionCommandLineApp
 
         Console.OutputEncoding = Encoding.UTF8;
 
-        CommandLineSession session = new(config, config.AssetManagerFactory(), AnsiConsole.Console, CreateCommands(config));
+        CommandLineSession session = new(config, config.AssetManagerFactory(), AnsiConsole.Console, CreateCommands(config))
+        {
+            SettingsPath = settingsPath,
+        };
 
         return await new CommandLineShell(session).RunAsync(effectiveArgs).ConfigureAwait(false);
     }

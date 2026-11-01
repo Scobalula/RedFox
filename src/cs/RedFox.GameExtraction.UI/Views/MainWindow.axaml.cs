@@ -269,6 +269,7 @@ public partial class MainWindow : Window
         settingsWindow.Initialize(viewModel.Config.Settings, viewModel.Config.SettingDefinitions, viewModel.Config.AppName, viewModel.AssetManager, () => ClearThumbnailCache(viewModel), openPlugins: () => OpenPluginsWindow(settingsWindow, viewModel));
         await settingsWindow.ShowDialog(this);
         viewModel.Config.PreviewSettings.LoadFrom(viewModel.Config.Settings);
+        viewModel.ApplyThumbnailCacheSize();
         GameExtractionLogging.ApplySettings(viewModel.Config.Settings);
     }
 

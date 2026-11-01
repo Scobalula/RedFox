@@ -37,6 +37,7 @@ public partial class SettingsWindow : Window
         viewModel.SaveRequested += () => Close();
         viewModel.CancelRequested += () => Close();
         viewModel.ClearThumbnailCacheRequested += clearThumbnailCache;
+        viewModel.ConfirmRequested += request => ConfirmWindow.ShowAsync(this, request);
         if (openPlugins is not null)
             viewModel.OpenPluginsRequested += openPlugins;
     }

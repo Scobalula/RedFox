@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
@@ -13,6 +14,7 @@ public static class GameExtractionLogging
     private const string LogDirectoryName = "logs";
     private static ILoggerFactory _factory = NullLoggerFactory.Instance;
     private static LogFileProvider? _fileProvider;
+    private static GameExtractionLogOptions? _options;
     private static bool _ownsFactory;
     private static LogLevel _baseMinimumLevel = LogLevel.Information;
     private static LogLevel _minimumLevel = LogLevel.Information;
@@ -35,6 +37,43 @@ public static class GameExtractionLogging
         Type = GameExtractionSettingType.Boolean,
         DefaultValue = false,
     };
+
+    /// <summary>
+    /// Gets the standard setting that controls how many log files are kept on disk.
+    /// </summary>
+    public static GameExtractionSetting RetainedFileCountSetting { get; } = new()
+    {
+        Name			= "LogRetainedFileCount",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Logging",
+        Label			= "Log files to keep",
+        Description		= "Older log files are deleted once this many exist.",
+        Type			= GameExtractionSettingType.Number,
+        Minimum			= 1,
+        Maximum			= 365,
+        DefaultValue	= 7,
+    };
+
+    /// <summary>
+    /// Gets the standard setting that controls the size in megabytes a log file reaches before rolling over.
+    /// </summary>
+    public static GameExtractionSetting FileSizeLimitSetting { get; } = new()
+    {
+        Name			= "LogFileSizeLimit",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Logging",
+        Label			= "Log file size limit (MB)",
+        Description		= "A new log file is started once the current one reaches this size.",
+        Type			= GameExtractionSettingType.Number,
+        Minimum			= 1,
+        Maximum			= 1024,
+        DefaultValue	= 16,
+    };
+
+    /// <summary>
+    /// Gets the standard logging settings applied by <see cref="ApplySettings"/>.
+    /// </summary>
+    public static IReadOnlyList<GameExtractionSetting> SettingDefinitions { get; } = [VerboseSetting, RetainedFileCountSetting, FileSizeLimitSetting];
 
     /// <summary>
     /// Gets or sets the logger factory used by GameExtraction components. Assigning <see langword="null"/> restores the no-op factory.
@@ -98,6 +137,7 @@ public static class GameExtractionLogging
         _baseMinimumLevel = options.MinimumLevel;
         _minimumLevel = options.MinimumLevel;
         _fileProvider = new LogFileProvider(options);
+        _options = options;
 
         ILoggerFactory factory = LoggerFactory.Create(builder =>
         {
@@ -125,8 +165,8 @@ public static class GameExtractionLogging
     }
 
     /// <summary>
-    /// Applies the <see cref="VerboseSetting"/> from the supplied settings to the active logger factory, changing the level
-    /// without a restart. Verbose enables debug-level logging, and disabling it restores the level configured at startup.
+    /// Applies the <see cref="SettingDefinitions"/> from the supplied settings to the active logger factory without a restart.
+    /// Verbose enables debug-level logging, and disabling it restores the level configured at startup.
     /// </summary>
     /// <param name="settings">The settings to apply.</param>
     public static void ApplySettings(GameExtractionSettings settings)
@@ -134,6 +174,38 @@ public static class GameExtractionLogging
         ArgumentNullException.ThrowIfNull(settings);
 
         _minimumLevel = IsVerboseEnabled(settings) ? LogLevel.Debug : _baseMinimumLevel;
+
+        if (_options is null)
+            return;
+
+        if (int.TryParse(settings.GetSettingValue(RetainedFileCountSetting), CultureInfo.InvariantCulture, out int retainedFileCount))
+            _options.RetainedFileCount = retainedFileCount;
+
+        if (long.TryParse(settings.GetSettingValue(FileSizeLimitSetting), CultureInfo.InvariantCulture, out long fileSizeLimit))
+            _options.FileSizeLimitBytes = fileSizeLimit * 1024 * 1024;
+    }
+
+    /// <summary>
+    /// Deletes the log files of an application name that are not currently being written to.
+    /// </summary>
+    /// <param name="appName">The application name.</param>
+    public static void ClearLogs(string appName)
+    {
+        string directory = GetLogDirectory(appName);
+
+        if (!Directory.Exists(directory))
+            return;
+
+        foreach (string file in Directory.GetFiles(directory, "*.log"))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException)
+            {
+            }
+        }
     }
 
     /// <summary>
@@ -189,10 +261,7 @@ public static class GameExtractionLogging
     /// <returns>The log directory path.</returns>
     public static string GetLogDirectory(string appName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
-
-        string root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(root, appName, LogDirectoryName);
+        return Path.Combine(GameExtractionSettings.GetDataDirectory(appName), LogDirectoryName);
     }
 
     private static void DisposeOwnedFactory()
@@ -204,6 +273,7 @@ public static class GameExtractionLogging
         }
 
         _fileProvider = null;
+        _options = null;
         _ownsFactory = false;
     }
 }

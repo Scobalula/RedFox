@@ -230,6 +230,19 @@ public sealed partial class PreviewSettings : ObservableObject
         DefaultValue = false,
     };
 
+    private static readonly GameExtractionSetting ThumbnailCacheSizeSetting = new()
+    {
+        Name			= "ThumbnailCacheSize",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Storage",
+        Label			= "Thumbnail cache size (MB)",
+        Description		= "Once the cache is past this size, older thumbnails are discarded when the cache is opened or this limit is changed.",
+        Type			= GameExtractionSettingType.Number,
+        Minimum			= 64,
+        Maximum			= 65536,
+        DefaultValue	= 512,
+    };
+
     private static readonly GameExtractionSetting SkyboxSetting = new()
     {
         Name = "PreviewSkybox",
@@ -311,6 +324,7 @@ public sealed partial class PreviewSettings : ObservableObject
         AutoFitSetting,
         AutoPlayAudioSetting,
         AssetGridSetting,
+        ThumbnailCacheSizeSetting,
         SkyboxSetting,
         SkyboxBlurSetting,
         SkyboxRotationSetting,
@@ -453,6 +467,8 @@ public sealed partial class PreviewSettings : ObservableObject
 
     internal double PreviewPanelRatio { get; set; } = 0.4;
 
+    internal long ThumbnailCacheSize { get; set; } = 512L * 1024 * 1024;
+
     internal void LoadFrom(GameExtractionSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -487,6 +503,7 @@ public sealed partial class PreviewSettings : ObservableObject
         SkyboxRotation = float.TryParse(settings.GetSettingValue(SkyboxRotationSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float skyboxRotation) ? Math.Clamp(skyboxRotation, 0.0f, 360.0f) : 0.0f;
         ShowPreviewPanel = bool.TryParse(settings.GetSettingValue(PreviewPanelSetting), out bool showPreviewPanel) ? showPreviewPanel : true;
         PreviewPanelRatio = double.TryParse(settings.GetSettingValue(PreviewPanelRatioSetting), CultureInfo.InvariantCulture, out double ratio) ? Math.Clamp(ratio, 0.1, 0.9) : 0.4;
+        ThumbnailCacheSize = long.TryParse(settings.GetSettingValue(ThumbnailCacheSizeSetting), CultureInfo.InvariantCulture, out long cacheSize) ? cacheSize * 1024 * 1024 : 512L * 1024 * 1024;
     }
 
     internal void SaveLayoutTo(GameExtractionSettings settings)

@@ -33,6 +33,8 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
 
     public AvaloniaOpenGlThumbnailRenderer? Renderer { get; set; }
 
+    public ThumbnailCache Cache { get; set; } = cache;
+
     public void Request(AssetRowViewModel row)
     {
         if (Renderer is null || !SupportsThumbnail(row.Category) || _failed.Contains(row) || ReferenceEquals(row, _loading) || _pending.Contains(row))
@@ -192,7 +194,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
         if (cacheKey is { } key && bitmaps is { Length: > 0 })
         {
             ThumbnailCacheImage image = CopyPixels(bitmaps);
-            _ = Task.Run(() => cache.Store(key, image));
+            _ = Task.Run(() => Cache.Store(key, image));
         }
     }
 
@@ -365,7 +367,7 @@ internal sealed class AssetThumbnailLoader(AssetManager assetManager, Func<GameE
     {
         try
         {
-            if (cacheKey is { } key && cache.TryGet(key, out ThumbnailCacheImage image))
+            if (cacheKey is { } key && Cache.TryGet(key, out ThumbnailCacheImage image))
             {
                 return CreateBitmaps(image);
             }

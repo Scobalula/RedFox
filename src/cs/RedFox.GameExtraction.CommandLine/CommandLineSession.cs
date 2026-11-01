@@ -63,7 +63,7 @@ public sealed class CommandLineSession(GameExtractionCommandLineConfig config, A
     /// <summary>
     /// Gets the path the settings are persisted to.
     /// </summary>
-    public string SettingsPath { get; } = GameExtractionSettings.GetDefaultSettingsPath(config.AppName);
+    public string SettingsPath { get; init; } = GameExtractionSettings.GetDefaultSettingsPath(config.AppName);
 
     /// <summary>
     /// Gets a value indicating whether the shell is reading commands from the user rather than running a script.

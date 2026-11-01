@@ -25,7 +25,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
-    private readonly ThumbnailCache _thumbnailCache;
+    private ThumbnailCache _thumbnailCache;
+    private long _thumbnailCacheSize;
     private readonly List<AssetRowViewModel> _allAssets = [];
     private readonly RangeObservableCollection<AssetRowViewModel> _assetsView = [];
     private readonly SynchronizationContext? _uiSynchronizationContext;
@@ -349,7 +350,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _config = config;
         _assetManager = config.AssetManagerFactory();
         Preview = new PreviewViewModel(_assetManager, CreateConfiguration, config.Previewers, config.PreviewSettings);
-        _thumbnailCache = new ThumbnailCache(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "thumbnails"));
+        _thumbnailCacheSize	= config.PreviewSettings.ThumbnailCacheSize;
+        _thumbnailCache		= new ThumbnailCache(GetThumbnailCacheDirectory(), _thumbnailCacheSize);
         Thumbnails = new AssetThumbnailLoader(_assetManager, CreateConfiguration, config.PreviewSettings, _thumbnailCache);
         config.PreviewSettings.SaveRequested += SaveLayout;
 
@@ -385,7 +387,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         if (!_assetManager.TryGetService(out PluginsService? plugins))
         {
-            string pluginsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), config.AppName, "plugins");
+            string pluginsDirectory = Path.Combine(GameExtractionSettings.GetDataDirectory(config.AppName), "plugins");
             plugins = new PluginsService(pluginsDirectory);
             PythonPluginHost? pythonHost = null;
             try
@@ -605,6 +607,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
+    /// Reopens the thumbnail cache when its size limit has changed, discarding older thumbnails past the new limit.
+    /// </summary>
+    public void ApplyThumbnailCacheSize()
+    {
+        if (PreviewSettings.ThumbnailCacheSize == _thumbnailCacheSize)
+        {
+            return;
+        }
+
+        _thumbnailCacheSize = PreviewSettings.ThumbnailCacheSize;
+        _thumbnailCache.Dispose();
+        _thumbnailCache		= new ThumbnailCache(GetThumbnailCacheDirectory(), _thumbnailCacheSize);
+        Thumbnails.Cache	= _thumbnailCache;
+    }
+
+    /// <summary>
     /// Clears all loaded assets and selection state.
     /// </summary>
     public void ClearAssets()
@@ -740,7 +758,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
-        string cacheDirectory				= Path.Combine(Path.GetDirectoryName(GameExtractionSettings.GetDefaultSettingsPath(_config.AppName)) ?? AppContext.BaseDirectory, "skybox");
+        string cacheDirectory				= Path.Combine(GameExtractionSettings.GetDataDirectory(_config.AppName), "skybox");
         ImageTranslatorManager translators	= new();
         BuiltInImageFormats.RegisterAll(translators);
         Texture texture = new(PreviewSettings.SkyboxFile)
@@ -759,6 +777,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             StatusText = $"Skybox error: {exception.Message}";
         }
+    }
+
+    private string GetThumbnailCacheDirectory()
+    {
+        return Path.Combine(GameExtractionSettings.GetDataDirectory(_config.AppName), "thumbnails");
     }
 
     private void OnPreviewSettingsChanged(object? sender, PropertyChangedEventArgs e)

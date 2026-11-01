@@ -27,6 +27,23 @@
             </DockPanel>
         </Border>
 
+        <Border DockPanel.Dock="Top"
+                Classes="panel"
+                Padding="12,10"
+                Margin="0,0,0,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <TextBox Classes="search-box" Width="200" Text="{Binding NewProfileName}" Watermark="New profile name"/>
+                    <Button Classes="secondary-btn" Content="Add Profile" Command="{Binding AddProfileCommand}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="setting-label" Text="Profile" VerticalAlignment="Center"/>
+                    <ComboBox ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Width="200"/>
+                    <Button Classes="secondary-btn" Content="Delete" Command="{Binding DeleteProfileCommand}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
         <Border DockPanel.Dock="Left"
                 Classes="panel"
                 Width="220"
@@ -127,6 +144,7 @@
                                                                     <TextBlock DockPanel.Dock="Right" Width="56" Margin="8,0,0,0" VerticalAlignment="Center" Text="{Binding SliderValue, StringFormat={}{0:0.00}}"/>
                                                                     <Slider Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" Value="{Binding SliderValue}"/>
                                                                 </DockPanel>
+                                                                <TextBox Classes="search-box" Text="{Binding NumberText}" IsVisible="{Binding IsNumber}"/>
                                                                 <TextBlock Classes="setting-desc" Classes.checkbox-desc="{Binding IsBoolean}" Text="{Binding Description}" IsVisible="{Binding HasDescription}"/>
                                                             </StackPanel>
                                                         </DataTemplate>

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,8 +10,11 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// </summary>
 public partial class SettingsWindowViewModel : ObservableObject
 {
-    private readonly string _appName;
-    private readonly GameExtractionSettings _settings;
+    private readonly string								_appName;
+    private readonly GameExtractionSettings					_settings;
+    private readonly IReadOnlyList<GameExtractionSetting>	_settingDefinitions;
+    private readonly AssetManager							_assetManager;
+    private bool											_removingProfile;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsWindowViewModel"/> class.
@@ -24,35 +28,43 @@ public partial class SettingsWindowViewModel : ObservableObject
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         ArgumentNullException.ThrowIfNull(settingDefinitions);
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
-        _appName = appName;
+        _appName			= appName;
+        _settingDefinitions	= settingDefinitions;
+        _assetManager		= assetManager;
 
-        Groups = [.. settingDefinitions
-            .DistinctBy(setting => setting.Name, StringComparer.OrdinalIgnoreCase)
-            .GroupBy(setting => setting.Group)
-            .OrderBy(group => GetGroupOrder(group.Key))
-            .Select(group => new SettingGroupViewModel(
-                group.Key,
-                [.. group.Select(setting => new GameExtractionSettingViewModel(setting, settings, assetManager, BrowseSettingAsync))]))];
-
-        Dictionary<string, GameExtractionSettingViewModel> settingsByName = Groups.SelectMany(group => group.Settings).ToDictionary(setting => setting.Name, StringComparer.OrdinalIgnoreCase);
-        foreach (GameExtractionSettingViewModel setting in settingsByName.Values)
-        {
-            if (setting.DependsOn is not null && settingsByName.TryGetValue(setting.DependsOn, out GameExtractionSettingViewModel? parent))
-            {
-                setting.Parent = parent;
-            }
-        }
-
-        SelectedGroup = Groups.FirstOrDefault();
+        Profiles		= [.. GameExtractionSettings.GetProfileNames(appName)];
+        SelectedProfile	= GameExtractionSettings.GetActiveProfile(appName);
+        Groups			= CreateGroups();
+        SelectedGroup	= Groups.FirstOrDefault();
     }
 
     /// <summary>
     /// Gets the setting groups displayed in the window.
     /// </summary>
-    public IReadOnlyList<SettingGroupViewModel> Groups { get; }
+    [ObservableProperty]
+    public partial IReadOnlyList<SettingGroupViewModel> Groups { get; set; }
 
     [ObservableProperty]
     public partial SettingGroupViewModel? SelectedGroup { get; set; }
+
+    /// <summary>
+    /// Gets the names of the settings profiles.
+    /// </summary>
+    public ObservableCollection<string> Profiles { get; }
+
+    /// <summary>
+    /// Gets or sets the active settings profile. Changing it saves the current edits and loads the selected profile.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
+    public partial string? SelectedProfile { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name entered for a new profile.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddProfileCommand))]
+    public partial string NewProfileName { get; set; } = string.Empty;
 
     /// <summary>
     /// Raised when the view model should be saved and closed.
@@ -77,6 +89,11 @@ public partial class SettingsWindowViewModel : ObservableObject
     public event Action? ClearThumbnailCacheRequested;
 
     /// <summary>
+    /// Raised when the view should ask the user to confirm an action.
+    /// </summary>
+    public event Func<ConfirmRequest, Task<bool?>>? ConfirmRequested;
+
+    /// <summary>
     /// Opens the plugins management window.
     /// </summary>
     [RelayCommand]
@@ -91,17 +108,47 @@ public partial class SettingsWindowViewModel : ObservableObject
     [RelayCommand]
     public void Save()
     {
-        foreach (SettingGroupViewModel group in Groups)
+        SaveGroups();
+        _settings.Save(GameExtractionSettings.GetDefaultSettingsPath(_appName));
+        SaveRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// Creates a profile from the current edits and switches to it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAddProfile))]
+    public void AddProfile()
+    {
+        string profile = NewProfileName;
+
+        SaveGroups();
+        _settings.Save(GameExtractionSettings.GetProfileSettingsPath(_appName, profile));
+        Profiles.Add(profile);
+        NewProfileName	= string.Empty;
+        SelectedProfile	= profile;
+    }
+
+    /// <summary>
+    /// Deletes the active profile after confirmation and switches to the default profile.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanDeleteProfile))]
+    public async Task DeleteProfileAsync()
+    {
+        string profile = SelectedProfile!;
+
+        if (await ConfirmAsync(new ConfirmRequest("Delete Profile", $"Delete the profile \"{profile}\"? Its settings are removed and the default profile becomes active.", "Delete", null)).ConfigureAwait(true) != true)
         {
-            foreach (GameExtractionSettingViewModel setting in group.Settings)
-            {
-                setting.SaveTo(_settings);
-            }
+            return;
         }
 
-        string path = GameExtractionSettings.GetDefaultSettingsPath(_appName);
-        _settings.Save(path);
-        SaveRequested?.Invoke();
+        GameExtractionSettings.DeleteProfile(_appName, profile);
+        GameExtractionSettings.SetActiveProfile(_appName, GameExtractionSettings.DefaultProfileName);
+        LoadActiveProfile();
+
+        _removingProfile	= true;
+        SelectedProfile		= GameExtractionSettings.DefaultProfileName;
+        Profiles.Remove(profile);
+        _removingProfile	= false;
     }
 
     /// <summary>
@@ -139,29 +186,87 @@ public partial class SettingsWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ClearThumbnailCache()
+    public async Task ClearThumbnailCacheAsync()
     {
-        ClearThumbnailCacheRequested?.Invoke();
+        if (await ConfirmAsync(new ConfirmRequest("Clear Thumbnail Cache", "Delete all cached thumbnails? They will be rendered again when next shown.", "Clear", null)).ConfigureAwait(true) == true)
+        {
+            ClearThumbnailCacheRequested?.Invoke();
+        }
     }
 
     [RelayCommand]
-    public void ClearLogs()
+    public async Task ClearLogsAsync()
     {
-        string logsDirectory = GameExtractionLogging.GetLogDirectory(_appName);
-
-        if (!Directory.Exists(logsDirectory))
-            return;
-
-        foreach (string file in Directory.GetFiles(logsDirectory, "*.log"))
+        if (await ConfirmAsync(new ConfirmRequest("Clear Logs", "Delete all log files? The log currently being written is kept.", "Clear", null)).ConfigureAwait(true) == true)
         {
-            try
+            GameExtractionLogging.ClearLogs(_appName);
+        }
+    }
+
+    partial void OnSelectedProfileChanged(string? oldValue, string? newValue)
+    {
+        if (_removingProfile || oldValue is null || newValue is null)
+        {
+            return;
+        }
+
+        SaveGroups();
+        _settings.Save(GameExtractionSettings.GetProfileSettingsPath(_appName, oldValue));
+        GameExtractionSettings.SetActiveProfile(_appName, newValue);
+        LoadActiveProfile();
+    }
+
+    private bool CanAddProfile()
+    {
+        return GameExtractionSettings.IsValidProfileName(NewProfileName) && !Profiles.Contains(NewProfileName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private bool CanDeleteProfile()
+    {
+        return SelectedProfile is not null && !SelectedProfile.Equals(GameExtractionSettings.DefaultProfileName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void LoadActiveProfile()
+    {
+        GameExtractionSettingGroup? selectedKind = SelectedGroup?.Kind;
+
+        _settings.Values = new(StringComparer.OrdinalIgnoreCase);
+        _settings.LoadFrom(GameExtractionSettings.GetDefaultSettingsPath(_appName));
+        Groups			= CreateGroups();
+        SelectedGroup	= Groups.FirstOrDefault(group => group.Kind == selectedKind) ?? Groups.FirstOrDefault();
+    }
+
+    private void SaveGroups()
+    {
+        foreach (SettingGroupViewModel group in Groups)
+        {
+            foreach (GameExtractionSettingViewModel setting in group.Settings)
             {
-                File.Delete(file);
-            }
-            catch (IOException)
-            {
+                setting.SaveTo(_settings);
             }
         }
+    }
+
+    private List<SettingGroupViewModel> CreateGroups()
+    {
+        List<SettingGroupViewModel> groups = [.. _settingDefinitions
+            .DistinctBy(setting => setting.Name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(setting => setting.Group)
+            .OrderBy(group => GetGroupOrder(group.Key))
+            .Select(group => new SettingGroupViewModel(
+                group.Key,
+                [.. group.Select(setting => new GameExtractionSettingViewModel(setting, _settings, _assetManager, BrowseSettingAsync))]))];
+
+        Dictionary<string, GameExtractionSettingViewModel> settingsByName = groups.SelectMany(group => group.Settings).ToDictionary(setting => setting.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (GameExtractionSettingViewModel setting in settingsByName.Values)
+        {
+            if (setting.DependsOn is not null && settingsByName.TryGetValue(setting.DependsOn, out GameExtractionSettingViewModel? parent))
+            {
+                setting.Parent = parent;
+            }
+        }
+
+        return groups;
     }
 
     private async Task<string?> BrowseSettingAsync(GameExtractionSettingViewModel setting)
@@ -172,6 +277,16 @@ public partial class SettingsWindowViewModel : ObservableObject
         }
 
         return await BrowseSettingRequested.Invoke(setting).ConfigureAwait(true);
+    }
+
+    private Task<bool?> ConfirmAsync(ConfirmRequest request)
+    {
+        if (ConfirmRequested is null)
+        {
+            return Task.FromResult<bool?>(true);
+        }
+
+        return ConfirmRequested.Invoke(request);
     }
 
     private static int GetGroupOrder(GameExtractionSettingGroup group) => group switch

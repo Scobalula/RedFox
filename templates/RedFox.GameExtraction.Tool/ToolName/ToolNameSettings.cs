@@ -48,7 +48,7 @@ public static class ToolNameSettings
             Description = "Read assets as-is from the source. This setting also affects the previewer.",
             DefaultValue = true,
         },
-        GameExtractionLogging.VerboseSetting,
+        .. GameExtractionLogging.SettingDefinitions,
 #if MODEL_SUPPORT
         new GameExtractionSetting
         {

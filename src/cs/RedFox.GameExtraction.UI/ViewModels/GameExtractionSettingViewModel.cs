@@ -30,6 +30,7 @@ public partial class GameExtractionSettingViewModel : ObservableObject
         TextValue = settings.GetSettingValue(setting) ?? string.Empty;
         BooleanValue = bool.TryParse(TextValue, out bool booleanValue) ? booleanValue : setting.DefaultValue is true;
         SliderValue = double.TryParse(TextValue, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) ? Math.Clamp(sliderValue, setting.Minimum, setting.Maximum) : setting.Minimum;
+        NumberText = GetNumberValue(TextValue).ToString(CultureInfo.InvariantCulture);
         SelectedOption = ResolveSelectedOption(TextValue);
 
         if (setting.Type == GameExtractionSettingType.TextArray)
@@ -136,6 +137,11 @@ public partial class GameExtractionSettingViewModel : ObservableObject
 
     public bool IsSlider => Type == GameExtractionSettingType.Slider;
 
+    /// <summary>
+    /// Gets a value indicating whether the setting holds a whole number.
+    /// </summary>
+    public bool IsNumber => Type == GameExtractionSettingType.Number;
+
     public double Minimum => _setting.Minimum;
 
     public double Maximum => _setting.Maximum;
@@ -160,6 +166,12 @@ public partial class GameExtractionSettingViewModel : ObservableObject
 
     [ObservableProperty]
     public partial double SliderValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets the text of a whole number setting, limited to digits.
+    /// </summary>
+    [ObservableProperty]
+    public partial string NumberText { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the selected entry of a text list setting.
@@ -244,10 +256,34 @@ public partial class GameExtractionSettingViewModel : ObservableObject
             GameExtractionSettingType.Boolean => BooleanValue.ToString(),
             GameExtractionSettingType.Choice => SelectedOption,
             GameExtractionSettingType.Slider => SliderValue.ToString(CultureInfo.InvariantCulture),
+            GameExtractionSettingType.Number => GetNumberValue(NumberText).ToString(CultureInfo.InvariantCulture),
             GameExtractionSettingType.TextArray when IsOptionList => GetOptionListValue(),
             GameExtractionSettingType.TextArray => string.Join(",", TextEntries.Select(entry => entry.Value.Trim()).Where(value => value.Length > 0)),
             _ => TextValue,
         };
+    }
+
+    partial void OnNumberTextChanged(string value)
+    {
+        string digits = new([.. value.Where(char.IsAsciiDigit)]);
+
+        if (digits != value)
+        {
+            NumberText = digits;
+        }
+    }
+
+    private long GetNumberValue(string text)
+    {
+        long minimum = (long)_setting.Minimum;
+        long maximum = (long)_setting.Maximum;
+
+        if (text.Length == 0)
+        {
+            return minimum;
+        }
+
+        return long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out long value) ? Math.Clamp(value, minimum, maximum) : maximum;
     }
 
     private string GetOptionListValue()

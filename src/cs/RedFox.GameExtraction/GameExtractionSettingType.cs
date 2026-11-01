@@ -36,4 +36,9 @@ public enum GameExtractionSettingType
     Boolean,
 
     Slider,
+
+    /// <summary>
+    /// A whole number between the setting minimum and maximum.
+    /// </summary>
+    Number,
 }

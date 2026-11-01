@@ -52,6 +52,7 @@ public sealed class GameExtractionConfiguration
             {
                 GameExtractionSettingType.Boolean when bool.TryParse(value, out bool booleanValue) => booleanValue,
                 GameExtractionSettingType.Slider when double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double sliderValue) => sliderValue,
+                GameExtractionSettingType.Number when long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long numberValue) => numberValue,
                 GameExtractionSettingType.TextArray => value.Split([',', ';', ' ', '\t', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
                 _ => value,
             };

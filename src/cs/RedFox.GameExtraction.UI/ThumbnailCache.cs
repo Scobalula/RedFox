@@ -12,7 +12,6 @@ internal sealed class ThumbnailCache : IDisposable
 {
     private const int FormatVersion		= 1;
     private const int HeaderSize		= 16;
-    private const long MaxDataLength	= 512L * 1024 * 1024;
 
     private static readonly int RecordSize		= Unsafe.SizeOf<ThumbnailCacheRecord>();
     private static readonly ulong IndexMagic	= BinaryPrimitives.ReadUInt64LittleEndian("RFTHUMBI"u8);
@@ -28,7 +27,7 @@ internal sealed class ThumbnailCache : IDisposable
     private long					_indexLength	= HeaderSize;
     private bool					_disposed;
 
-    public ThumbnailCache(string directory)
+    public ThumbnailCache(string directory, long maxDataLength)
     {
         string fullDirectory	= Path.GetFullPath(directory);
         string indexPath		= Path.Combine(fullDirectory, "thumbnails.rfti");
@@ -40,7 +39,7 @@ internal sealed class ThumbnailCache : IDisposable
 
         try
         {
-            CompactIfAlone(indexPath, dataPath);
+            CompactIfAlone(indexPath, dataPath, maxDataLength);
             _index	= OpenShared(indexPath);
             _data	= OpenShared(dataPath);
 
@@ -188,9 +187,9 @@ internal sealed class ThumbnailCache : IDisposable
         return read == records.Length * RecordSize ? records : records[..(read / RecordSize)];
     }
 
-    private static void CompactIfAlone(string indexPath, string dataPath)
+    private static void CompactIfAlone(string indexPath, string dataPath, long maxDataLength)
     {
-        if (!File.Exists(indexPath) || !File.Exists(dataPath) || new FileInfo(dataPath).Length <= MaxDataLength)
+        if (!File.Exists(indexPath) || !File.Exists(dataPath) || new FileInfo(dataPath).Length <= maxDataLength)
         {
             return;
         }
@@ -213,7 +212,7 @@ internal sealed class ThumbnailCache : IDisposable
             HashSet<UInt128> keys			= [];
             long keptLength					= 0;
 
-            for (int i = records.Length - 1; i >= 0 && keptLength < MaxDataLength / 2; i--)
+            for (int i = records.Length - 1; i >= 0 && keptLength < maxDataLength / 2; i--)
             {
                 if (keys.Add(records[i].Key))
                 {

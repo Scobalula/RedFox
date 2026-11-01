@@ -58,7 +58,7 @@ internal sealed class CommandLineShell(CommandLineSession session)
 
     private async Task<int> RunPromptAsync()
     {
-        string historyPath = Path.Combine(Path.GetDirectoryName(session.SettingsPath)!, "history.txt");
+        string historyPath = Path.Combine(GameExtractionSettings.GetDataDirectory(session.Config.AppName), "history.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(historyPath)!);
 
         await using Prompt prompt = new(historyPath, new CommandLinePromptCallbacks(session), null, PromptTheme.CreateConfiguration(session.Theme));
