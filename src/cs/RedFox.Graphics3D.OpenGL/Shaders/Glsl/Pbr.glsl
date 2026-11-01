@@ -3,19 +3,10 @@ in vec3 WorldNormal;
 in vec4 WorldTangent;
 in vec2 TextureCoordinate;
 
-#define MAX_LIGHTS 4
-#define PI 3.14159265
 
 uniform int LightCount;
 uniform vec4 LightDirectionsAndIntensity[MAX_LIGHTS];
 uniform vec3 LightColors[MAX_LIGHTS];
-uniform int EnvironmentLightCount;
-uniform vec4 EnvironmentLightDirections[MAX_LIGHTS];
-uniform vec3 EnvironmentLightPowers[MAX_LIGHTS];
-uniform int HasEnvironmentMap;
-uniform sampler2D EnvironmentMap;
-uniform float EnvironmentMipLevels;
-uniform float EnvironmentIntensity;
 uniform vec3 CameraPosition;
 uniform int UseViewBasedLighting;
 uniform int UseFlatShading;
@@ -115,7 +106,6 @@ uniform vec4 IrisNormalMapBias;
 
 out vec4 FragColor;
 
-const vec3 StudioKeyDirection = vec3(0.48, 0.78, 0.40);
 const float ShadowFloor = 0.15;
 const float MinimumRoughness = 0.04;
 const float MaximumSpecularAntiAliasing = 0.18;
@@ -319,31 +309,6 @@ Lighting EvaluateLight(Surface surface, vec3 lightDirection, vec3 viewDirection)
     return lighting;
 }
 
-vec3 StudioEnvironment(vec3 direction, float roughness)
-{
-    vec3 ground = vec3(0.035, 0.035, 0.038);
-    vec3 horizon = vec3(0.22, 0.22, 0.23);
-    vec3 sky = vec3(0.50, 0.52, 0.56);
-    float up = direction.y;
-    vec3 color = up >= 0.0 ? mix(horizon, sky, pow(up, 0.55)) : mix(horizon, ground, pow(-up, 0.35));
-    float spread = mix(0.02, 0.9, roughness);
-    float box = smoothstep(1.0 - spread, 1.0, dot(direction, normalize(StudioKeyDirection)));
-
-    return color + vec3(1.6, 1.55, 1.45) * box * mix(1.0, 0.25, roughness);
-}
-
-vec3 SampleEnvironment(vec3 direction, float roughness)
-{
-    if (HasEnvironmentMap == 0)
-    {
-        return StudioEnvironment(direction, roughness);
-    }
-
-    vec2 uv = vec2(atan(direction.z, direction.x) / (2.0 * PI) + 0.5, acos(clamp(direction.y, -1.0, 1.0)) / PI);
-    float lod = roughness * max(EnvironmentMipLevels - 1.0, 0.0);
-    return textureLod(EnvironmentMap, uv, lod).rgb * EnvironmentIntensity;
-}
-
 float DiscLightCosine(float nDotL, float radius)
 {
     float sinRadius = sin(radius);
@@ -536,9 +501,27 @@ Lighting ShadeSurface(Surface surface)
     }
 
     vec3 luminanceWeights = vec3(0.2126, 0.7152, 0.0722);
-    vec3 shadowedDiffuse = max(unshadowedDiffuse - blockedDiffuse, unshadowedDiffuse * ShadowFloor);
+    float shadowFloor = ShadowFloor;
+    if (HasIrradianceProbes != 0 || ProbeCapture != 0)
+    {
+        vec3 directDiffuse = vec3(0.0);
+        for (int i = 0; i < environmentLightCount; i++)
+        {
+            directDiffuse += EnvironmentLightPowers[i] / PI * max(DiscLightCosine(dot(surface.diffuseNormal, EnvironmentLightDirections[i].xyz), EnvironmentLightDirections[i].w), 0.0);
+        }
+
+        vec3 skyDiffuse = max(unshadowedDiffuse - directDiffuse, 0.0);
+        vec3 probeDiffuse = HasIrradianceProbes != 0 ? SampleProbeIrradiance(WorldPosition, surface.diffuseNormal, skyDiffuse) : vec3(0.0);
+        float skyVisibility = clamp(dot(probeDiffuse, luminanceWeights) / max(dot(skyDiffuse, luminanceWeights), 0.0001), 0.0, 1.0);
+
+        unshadowedDiffuse = probeDiffuse + directDiffuse;
+        unshadowedSpecular *= skyVisibility;
+        shadowFloor = 0.0;
+    }
+
+    vec3 shadowedDiffuse = max(unshadowedDiffuse - blockedDiffuse, unshadowedDiffuse * shadowFloor);
     float diffuseVisibility = dot(shadowedDiffuse, luminanceWeights) / max(dot(unshadowedDiffuse, luminanceWeights), 0.0001);
-    vec3 environmentSpecular = max(unshadowedSpecular - blockedSpecular, unshadowedSpecular * ShadowFloor);
+    vec3 environmentSpecular = max(unshadowedSpecular - blockedSpecular, unshadowedSpecular * shadowFloor);
     vec3 scatterBleed = clamp(surface.subsurface * SubsurfaceColor * 0.3, 0.0, 1.0);
     vec3 environmentDiffuse = mix(unshadowedDiffuse * MultiBounce(diffuseVisibility, surface.albedo), unshadowedDiffuse, scatterBleed);
 
@@ -596,12 +579,26 @@ void main()
 
     vec3 emission = HasMap(HasEmissiveMap) ? max(SampleColorMap(EmissiveMap, EmissiveMapTransform, EmissiveMapBias, EmissiveMapDecodeSrgb, uv).rgb * EmissiveColor.rgb, 0.0) : vec3(0.0);
 
+    float captureDistance = (gl_FrontFacing ? 1.0 : -1.0) * max(length(WorldPosition - CameraPosition) / ProbeDistanceScale, 0.001);
+
 #if defined(PBR_UNLIT)
+    if (ProbeCapture != 0)
+    {
+        FragColor = vec4(albedo + emission, captureDistance);
+        return;
+    }
+
     vec3 unlitColor = EncodeDisplayColor(albedo + emission);
     WriteColor(unlitColor, unlitColor, opacity);
 #else
     Surface surface = ReadSurface(uv, albedo, emission);
     Lighting lighting = ShadeSurface(surface);
+    if (ProbeCapture != 0)
+    {
+        FragColor = vec4(max(lighting.diffuse + surface.emission, 0.0), captureDistance);
+        return;
+    }
+
     WriteColor(EncodeDisplayColor(lighting.diffuse + surface.emission), EncodeDisplayColor(lighting.diffuse + surface.emission + lighting.specular), opacity);
 #endif
 }

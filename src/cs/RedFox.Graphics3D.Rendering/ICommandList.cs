@@ -26,6 +26,15 @@ public interface ICommandList
     void SetViewport(int width, int height);
 
     /// <summary>
+    /// Sets the active viewport rectangle in pixels.
+    /// </summary>
+    /// <param name="x">The left edge of the viewport in pixels.</param>
+    /// <param name="y">The vertical offset of the viewport from the framebuffer origin in pixels.</param>
+    /// <param name="width">The viewport width in pixels.</param>
+    /// <param name="height">The viewport height in pixels.</param>
+    void SetViewport(int x, int y, int width, int height);
+
+    /// <summary>
     /// Sets the active render target.
     /// </summary>
     /// <param name="renderTarget">The render target to bind, or <see langword="null"/> for the default target.</param>
@@ -87,6 +96,19 @@ public interface ICommandList
     void SetEnvironmentMap(IGpuTexture? texture, int mipLevels, float intensity);
 
     void SetGlobalTexture(string name, IGpuTexture? texture);
+
+    /// <summary>
+    /// Sets the baked irradiance probe atlas and the grid it covers.
+    /// </summary>
+    /// <param name="atlas">The probe atlas, or <see langword="null"/> to shade without probes.</param>
+    /// <param name="grid">The probe grid layout.</param>
+    void SetIrradianceProbes(IGpuTexture? atlas, IrradianceProbeGrid grid);
+
+    /// <summary>
+    /// Sets whether surfaces output linear radiance and hit distance for probe capture.
+    /// </summary>
+    /// <param name="enabled">Whether probe capture is enabled.</param>
+    void SetProbeCapture(bool enabled);
 
     /// <summary>
     /// Sets the active skinning mode used by compute skinning for the current frame.

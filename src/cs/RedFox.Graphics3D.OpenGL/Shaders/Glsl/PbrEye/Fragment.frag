@@ -9,4 +9,6 @@ precision highp sampler2D;
 #include "Shadows.glsl"
 #include "AmbientOcclusion.glsl"
 #include "ColorSpace.glsl"
+#include "Environment.glsl"
+#include "ProbeLighting.glsl"
 #include "Pbr.glsl"

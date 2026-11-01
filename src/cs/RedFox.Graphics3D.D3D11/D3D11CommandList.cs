@@ -100,14 +100,20 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     /// <inheritdoc/>
     public void SetViewport(int width, int height)
     {
+        SetViewport(0, 0, width, height);
+    }
+
+    /// <inheritdoc/>
+    public void SetViewport(int x, int y, int width, int height)
+    {
         ThrowIfDisposed();
         int safeWidth = Math.Max(1, width);
         int safeHeight = Math.Max(1, height);
         SetUniformVector2("ViewportSize", new Vector2(safeWidth, safeHeight));
         Viewport viewport = new()
         {
-            TopLeftX = 0.0f,
-            TopLeftY = 0.0f,
+            TopLeftX = x,
+            TopLeftY = y,
             Width = safeWidth,
             Height = safeHeight,
             MinDepth = 0.0f,
@@ -330,6 +336,18 @@ public sealed unsafe class D3D11CommandList : ICommandList, IDisposable
     }
 
     public void SetGlobalTexture(string name, IGpuTexture? texture)
+    {
+        ThrowIfDisposed();
+    }
+
+    /// <inheritdoc/>
+    public void SetIrradianceProbes(IGpuTexture? atlas, IrradianceProbeGrid grid)
+    {
+        ThrowIfDisposed();
+    }
+
+    /// <inheritdoc/>
+    public void SetProbeCapture(bool enabled)
     {
         ThrowIfDisposed();
     }

@@ -200,6 +200,18 @@ public sealed partial class PreviewSettings : ObservableObject
         Maximum = 4.0,
     };
 
+    private static readonly GameExtractionSetting ProbeLightingQualitySetting = new()
+    {
+        Name = "PreviewProbeLightingQuality",
+        Group = GameExtractionSettingGroup.Preview,
+        Section = "Global illumination",
+        Label = "Probe lighting quality",
+        Description = "Bakes bounced light for static scenes. Scenes with animations are not baked.",
+        Type = GameExtractionSettingType.Choice,
+        Options = [.. Enum.GetNames<ProbeLightingQuality>()],
+        DefaultValue = ProbeLightingQuality.Medium,
+    };
+
     private static readonly GameExtractionSetting AutoFitSetting = new()
     {
         Name = "PreviewAutoFitScene",
@@ -321,6 +333,7 @@ public sealed partial class PreviewSettings : ObservableObject
         AmbientOcclusionQualitySetting,
         AmbientOcclusionRadiusSetting,
         AmbientOcclusionIntensitySetting,
+        ProbeLightingQualitySetting,
         AutoFitSetting,
         AutoPlayAudioSetting,
         AssetGridSetting,
@@ -390,6 +403,9 @@ public sealed partial class PreviewSettings : ObservableObject
 
     [ObservableProperty]
     public partial float AmbientOcclusionIntensity { get; set; } = 1.5f;
+
+    [ObservableProperty]
+    public partial ProbeLightingQuality ProbeLightingQuality { get; set; } = ProbeLightingQuality.Medium;
 
     /// <summary>
     /// Gets or sets a value indicating whether animation playback is paused.
@@ -495,6 +511,7 @@ public sealed partial class PreviewSettings : ObservableObject
         AmbientOcclusionQuality = GetEnumValue(settings, AmbientOcclusionQualitySetting, AmbientOcclusionQuality.High);
         AmbientOcclusionRadius = float.TryParse(settings.GetSettingValue(AmbientOcclusionRadiusSetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float ambientOcclusionRadius) ? Math.Clamp(ambientOcclusionRadius, 0.01f, 0.5f) : 0.08f;
         AmbientOcclusionIntensity = float.TryParse(settings.GetSettingValue(AmbientOcclusionIntensitySetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float ambientOcclusionIntensity) ? Math.Clamp(ambientOcclusionIntensity, 0.0f, 4.0f) : 1.5f;
+        ProbeLightingQuality = GetEnumValue(settings, ProbeLightingQualitySetting, ProbeLightingQuality.Medium);
         AutoFitScene = bool.TryParse(settings.GetSettingValue(AutoFitSetting), out bool autoFit) ? autoFit : true;
         AutoPlayAudio = bool.TryParse(settings.GetSettingValue(AutoPlayAudioSetting), out bool autoPlay) && autoPlay;
         ShowAssetGrid = bool.TryParse(settings.GetSettingValue(AssetGridSetting), out bool showAssetGrid) && showAssetGrid;

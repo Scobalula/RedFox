@@ -41,6 +41,7 @@ public sealed class SceneRenderer : IDisposable
     private readonly ClearAndStateResetPass _clearAndStateResetPass;
     private readonly DepthPrepass _depthPrepass;
     private readonly AmbientOcclusionPass _ambientOcclusionPass;
+    private readonly IrradianceProbeBake _probeBake;
     private readonly ICommandList _commandList;
     private readonly BackgroundTextureLoader _textureLoader = new();
     private readonly IGraphicsDevice _graphicsDevice;
@@ -50,6 +51,7 @@ public sealed class SceneRenderer : IDisposable
     private readonly List<MeshRenderHandle> _transparentMeshes = [];
     private readonly List<MeshRenderHandle> _visibleMeshes = [];
     private readonly List<IRenderHandle> _otherHandles = [];
+    private readonly List<MeshRenderHandle> _probeMeshes = [];
     private readonly Dictionary<string, IGpuPipelineState> _preparedPipelines = [];
     private RenderFrameContext? _frameContext;
     private IGpuPipelineState? _wireframePipeline;
@@ -80,6 +82,9 @@ public sealed class SceneRenderer : IDisposable
     private int _nextShadowIndex;
     private int _shadowMapSize;
     private float _shadowSoftness;
+    private Scene? _animationScene;
+    private long _animationVersion = -1;
+    private bool _sceneHasAnimations;
 
     /// <summary>
     /// Gets the graphics device used by the renderer.
@@ -158,6 +163,11 @@ public sealed class SceneRenderer : IDisposable
         get => _ambientOcclusionPass.Intensity;
         set => _ambientOcclusionPass.Intensity = value;
     }
+
+    /// <summary>
+    /// Gets or sets how densely baked irradiance probes light static scenes. Scenes with animations are never baked.
+    /// </summary>
+    public ProbeLightingQuality ProbeLightingQuality { get; set; }
 
     /// <summary>
     /// Gets or sets the skinning mode used during rendering. Meshes whose <see cref="Skin.SkinningMode"/> is
@@ -254,6 +264,7 @@ public sealed class SceneRenderer : IDisposable
         _clearAndStateResetPass = new ClearAndStateResetPass(clearColor);
         _depthPrepass = new DepthPrepass(graphicsDevice, _opaqueMeshes);
         _ambientOcclusionPass = new AmbientOcclusionPass(graphicsDevice);
+        _probeBake = new IrradianceProbeBake(graphicsDevice);
         AmbientColor = ambientColor;
         FallbackLightDirection = fallbackLightDirection;
         FallbackLightColor = fallbackLightColor;
@@ -374,6 +385,7 @@ public sealed class SceneRenderer : IDisposable
         if (shadesSurfaces)
         {
             RenderShadowMaps(scene.Skybox, sceneAxis, view.Position, viewportSize);
+            UpdateProbeLighting(scene, sceneTraversalNodes, sceneAxis);
         }
 
         if (shadesSurfaces && AmbientOcclusionQuality != AmbientOcclusionQuality.Off && _graphicsDevice.SupportsFormat(ImageFormat.D32Float, TextureUsage.DepthStencil | TextureUsage.Sampled))
@@ -413,7 +425,7 @@ public sealed class SceneRenderer : IDisposable
         }
 
         _graphicsDevice.Submit(_commandList);
-        HasPendingWork = HasPendingSceneWork(sceneTraversalNodes, scene.Skybox);
+        HasPendingWork = HasPendingSceneWork(sceneTraversalNodes, scene.Skybox) || shadesSurfaces && _probeBake.IsBaking;
     }
 
     /// <summary>
@@ -468,6 +480,7 @@ public sealed class SceneRenderer : IDisposable
         _clearAndStateResetPass.Dispose();
         _depthPrepass.Dispose();
         _ambientOcclusionPass.Dispose();
+        _probeBake.Dispose();
         SceneRenderResources.ReleaseAll(_graphicsDevice);
         ReleasePreparedPipelines();
         _initialized = false;
@@ -809,6 +822,60 @@ public sealed class SceneRenderer : IDisposable
 
         SceneTraversal.Render(_sceneTraversalHandles, _commandList, RenderFlags.Shadow, view, projection, sceneAxis, cameraPosition, viewportSize);
         return true;
+    }
+
+    private void UpdateProbeLighting(Scene scene, IReadOnlyList<SceneNode> nodes, in Matrix4x4 sceneAxis)
+    {
+        if (!ReferenceEquals(_animationScene, scene) || _animationVersion != scene.Version)
+        {
+            _sceneHasAnimations	= nodes.Any(node => node is Animation or AnimationPlayer);
+            _animationScene		= scene;
+            _animationVersion	= scene.Version;
+        }
+
+        if (ProbeLightingQuality == ProbeLightingQuality.Off || UseViewBasedLighting || _sceneHasAnimations || !_graphicsDevice.SupportsFormat(ImageFormat.R16G16B16A16Float, TextureUsage.RenderTarget | TextureUsage.Sampled))
+        {
+            _probeBake.Clear();
+            return;
+        }
+
+        HashCode keyBuilder = new();
+        _probeMeshes.Clear();
+
+        foreach ((SceneNode node, IRenderHandle handle) in _sceneTraversalHandles)
+        {
+            if (handle is MeshRenderHandle { HasOpaqueMaterials: true, VertexCount: > 0 } meshHandle)
+            {
+                _probeMeshes.Add(meshHandle);
+                keyBuilder.Add(meshHandle);
+                keyBuilder.Add(meshHandle.GeometryVersion);
+                keyBuilder.Add(meshHandle.Owner.GetBindWorldMatrix());
+            }
+            else if (node is Light light)
+            {
+                keyBuilder.Add(light.Enabled);
+                keyBuilder.Add(light.Color);
+                keyBuilder.Add(light.Intensity);
+                keyBuilder.Add(light.GetActiveWorldPosition());
+            }
+        }
+
+        Skybox skybox = scene.Skybox;
+        IRenderHandle? skyboxHandle = SceneRenderResources.Get(_graphicsDevice, skybox);
+
+        keyBuilder.Add(skybox.Enabled);
+        keyBuilder.Add(skybox.Intensity);
+        keyBuilder.Add((skyboxHandle as SkyboxRenderHandle)?.EnvironmentTexture);
+        keyBuilder.Add((skyboxHandle as SkyboxRenderHandle)?.Lights);
+        keyBuilder.Add(sceneAxis);
+        keyBuilder.Add(ProbeLightingQuality);
+        keyBuilder.Add(ShadowQuality);
+        keyBuilder.Add(FallbackLightDirection);
+        keyBuilder.Add(FallbackLightColor);
+        keyBuilder.Add(FallbackLightIntensity);
+
+        bool ready = !_hasPendingUploads && !_textureLoader.HasPendingLoads && skyboxHandle?.HasPendingUploads != true;
+        _probeBake.Update(_commandList, _probeMeshes, keyBuilder.ToHashCode(), ready, sceneAxis, ProbeLightingQuality);
     }
 
     private void RenderWireframes(in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)

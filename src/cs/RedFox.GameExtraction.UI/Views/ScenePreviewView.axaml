@@ -87,7 +87,8 @@
                                                ShadowStrength="{Binding Settings.ShadowStrength}"
                                                AmbientOcclusionQuality="{Binding Settings.AmbientOcclusionQuality}"
                                                AmbientOcclusionRadius="{Binding Settings.AmbientOcclusionRadius}"
-                                               AmbientOcclusionIntensity="{Binding Settings.AmbientOcclusionIntensity}"/>
+                                               AmbientOcclusionIntensity="{Binding Settings.AmbientOcclusionIntensity}"
+                                               ProbeLightingQuality="{Binding Settings.ProbeLightingQuality}"/>
             <Border Classes="preview-overlay"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top">

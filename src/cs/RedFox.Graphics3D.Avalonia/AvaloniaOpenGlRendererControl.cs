@@ -94,6 +94,8 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
 
     public static readonly StyledProperty<float> AmbientOcclusionIntensityProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, float>(nameof(AmbientOcclusionIntensity), 1.5f);
 
+    public static readonly StyledProperty<ProbeLightingQuality> ProbeLightingQualityProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, ProbeLightingQuality>(nameof(ProbeLightingQuality), ProbeLightingQuality.Off);
+
     /// <summary>
     /// Defines the <see cref="IsAnimationPaused"/> property.
     /// </summary>
@@ -132,6 +134,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         AmbientOcclusionQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         AmbientOcclusionRadiusProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         AmbientOcclusionIntensityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        ProbeLightingQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         IsAnimationPausedProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.RequestFrame());
     }
 
@@ -280,6 +283,12 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(AmbientOcclusionIntensityProperty);
         set => SetValue(AmbientOcclusionIntensityProperty, value);
+    }
+
+    public ProbeLightingQuality ProbeLightingQuality
+    {
+        get => GetValue(ProbeLightingQualityProperty);
+        set => SetValue(ProbeLightingQualityProperty, value);
     }
 
     /// <summary>
@@ -522,6 +531,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer.AmbientOcclusionQuality	= AmbientOcclusionQuality;
         _renderer.AmbientOcclusionRadius	= AmbientOcclusionRadius;
         _renderer.AmbientOcclusionIntensity	= AmbientOcclusionIntensity;
+        _renderer.ProbeLightingQuality		= ProbeLightingQuality;
         RequestFrame();
     }
 

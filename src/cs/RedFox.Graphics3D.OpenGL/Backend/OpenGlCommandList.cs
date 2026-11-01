@@ -19,6 +19,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private const int GlobalTextureSlot = 29;
     private const int MaxGlobalTextures = 4;
     private const int MaxVertexInputs = 16;
+    private const string IrradianceProbesName = "IrradianceProbes";
     private static readonly string[] LightColorUniformNames = CreateIndexedUniformNames("LightColors", MaxLights);
     private static readonly string[] LightDirectionUniformNames = CreateIndexedUniformNames("LightDirectionsAndIntensity", MaxLights);
     private static readonly string[] EnvironmentLightDirectionUniformNames = CreateIndexedUniformNames("EnvironmentLightDirections", MaxLights);
@@ -51,6 +52,8 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     private FaceWinding _frontFaceWinding = FaceWinding.Clockwise;
     private OpenGlBuffer? _indexBuffer;
     private int _lightCount;
+    private IrradianceProbeGrid _probeGrid;
+    private bool _probeCapture;
     private Matrix4x4 _sceneAxis = Matrix4x4.Identity;
     private int _shadowCount;
     private int _shadowFilterTaps;
@@ -96,6 +99,7 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         _skinningMode = SkinningMode.Linear;
         _useViewBasedLighting = false;
         _useFlatShading = false;
+        _probeCapture = false;
         _environmentMap = null;
         _context.Gl.DepthMask(true);
 
@@ -110,6 +114,13 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
     {
         ThrowIfDisposed();
         _context.SetViewport(width, height);
+    }
+
+    /// <inheritdoc/>
+    public void SetViewport(int x, int y, int width, int height)
+    {
+        ThrowIfDisposed();
+        _context.Gl.Viewport(x, y, (uint)Math.Max(1, width), (uint)Math.Max(1, height));
     }
 
     /// <inheritdoc/>
@@ -259,6 +270,22 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
             _context.Gl.BindTexture(TextureTarget.Texture2D, 0);
         }
 
+        ApplySceneStateToCurrentProgram();
+    }
+
+    /// <inheritdoc/>
+    public void SetIrradianceProbes(IGpuTexture? atlas, IrradianceProbeGrid grid)
+    {
+        ThrowIfDisposed();
+        _probeGrid = grid;
+        SetGlobalTexture(IrradianceProbesName, atlas);
+    }
+
+    /// <inheritdoc/>
+    public void SetProbeCapture(bool enabled)
+    {
+        ThrowIfDisposed();
+        _probeCapture = enabled;
         ApplySceneStateToCurrentProgram();
     }
 
@@ -728,6 +755,11 @@ internal sealed class OpenGlCommandList : ICommandList, IDisposable
         }
 
         graphicsProgram.SetInt("EnvironmentLightCount", _environmentLightCount);
+        graphicsProgram.SetInt("ProbeCapture", _probeCapture ? 1 : 0);
+        graphicsProgram.SetVector3("ProbeGridOrigin", _probeGrid.Origin);
+        graphicsProgram.SetVector3("ProbeGridSpacing", _probeGrid.Spacing);
+        graphicsProgram.SetVector3("ProbeGridCounts", new Vector3(_probeGrid.CountX, _probeGrid.CountY, _probeGrid.CountZ));
+        graphicsProgram.SetFloat("ProbeDistanceScale", _probeGrid.DistanceScale);
 
         bool shadowPass = _shadowPassIndex >= 0;
         graphicsProgram.SetInt("ShadowMap", ShadowMapSlot);
