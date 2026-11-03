@@ -124,6 +124,32 @@ public abstract class TextureHandler : IAssetHandler, ITextureLoader
     }
 
     /// <summary>
+    /// Writes an already loaded image in each of the provided formats.
+    /// </summary>
+    /// <param name="image">The image to write.</param>
+    /// <param name="formats">The image formats, as file extensions, to write.</param>
+    /// <param name="manager">The image translator manager.</param>
+    /// <param name="path">The output path of the image, its extension is replaced by each format.</param>
+    /// <param name="skipExisting">Whether to skip formats whose file already exists.</param>
+    /// <param name="options">The options passed to the image translators.</param>
+    /// <returns>The full path of the image written for the last format, or <paramref name="path"/> when no formats are provided.</returns>
+    public static string ExportImage(Image image, IReadOnlyList<string> formats, ImageTranslatorManager manager, string path, bool skipExisting, ImageTranslatorOptions options)
+    {
+        foreach (var format in formats)
+        {
+            var filePath = Path.GetFullPath(Path.ChangeExtension(path, format));
+
+            if (skipExisting && File.Exists(filePath))
+                continue;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+            manager.Write(filePath, image, options);
+        }
+
+        return formats.Count > 0 ? Path.GetFullPath(Path.ChangeExtension(path, formats[^1])) : path;
+    }
+
+    /// <summary>
     /// Creates the image translator options from the <c>ImageQuality</c> and <c>ImageCompression</c> settings.
     /// </summary>
     /// <param name="configuration">The configuration holding the settings.</param>

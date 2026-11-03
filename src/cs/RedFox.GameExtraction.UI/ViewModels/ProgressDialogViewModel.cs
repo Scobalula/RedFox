@@ -26,6 +26,18 @@ public partial class ProgressDialogViewModel(string title) : ObservableObject
     public partial double ProgressValue { get; set; }
 
     /// <summary>
+    /// Gets or sets the load progress of the current source.
+    /// </summary>
+    [ObservableProperty]
+    public partial double SourceProgressValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the current source reports its load progress.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool HasSourceProgress { get; set; }
+
+    /// <summary>
     /// Gets or sets the current completed item count.
     /// </summary>
     [ObservableProperty]

@@ -119,6 +119,70 @@ public static unsafe class VulkanBcDescriptorSetManager
     }
 
     /// <summary>
+    /// Updates an image shader descriptor set with the source image view, constant buffer, and output buffers.
+    /// </summary>
+    /// <param name="context">The Vulkan BC context whose device is used.</param>
+    /// <param name="descriptorSet">The descriptor set to update.</param>
+    /// <param name="imageView">The sampled image view for the source.</param>
+    /// <param name="constantBuffer">The uniform buffer containing the shader constants.</param>
+    /// <param name="outputBuffers">The storage buffers that receive each output image, bound from binding 2.</param>
+    public static void UpdateImageShaderDescriptorSet(VulkanBcContext context, DescriptorSet descriptorSet, ImageView imageView, VulkanBcBuffer constantBuffer, ReadOnlySpan<VulkanBcBuffer> outputBuffers)
+    {
+        int count = outputBuffers.Length + 2;
+
+        DescriptorImageInfo imageInfo = new()
+        {
+            ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+            ImageView = imageView,
+        };
+
+        DescriptorBufferInfo* bufferInfos = stackalloc DescriptorBufferInfo[count - 1];
+        WriteDescriptorSet* writes = stackalloc WriteDescriptorSet[count];
+
+        bufferInfos[0] = new DescriptorBufferInfo
+        {
+            Buffer = constantBuffer.Handle,
+            Offset = 0,
+            Range = constantBuffer.Size,
+        };
+
+        for (int i = 0; i < outputBuffers.Length; i++)
+        {
+            bufferInfos[i + 1] = new DescriptorBufferInfo
+            {
+                Buffer = outputBuffers[i].Handle,
+                Offset = 0,
+                Range = outputBuffers[i].Size,
+            };
+        }
+
+        writes[0] = new WriteDescriptorSet
+        {
+            SType = StructureType.WriteDescriptorSet,
+            DstSet = descriptorSet,
+            DstBinding = 0,
+            DescriptorCount = 1,
+            DescriptorType = DescriptorType.SampledImage,
+            PImageInfo = &imageInfo,
+        };
+
+        for (int i = 1; i < count; i++)
+        {
+            writes[i] = new WriteDescriptorSet
+            {
+                SType = StructureType.WriteDescriptorSet,
+                DstSet = descriptorSet,
+                DstBinding = (uint)i,
+                DescriptorCount = 1,
+                DescriptorType = i == 1 ? DescriptorType.UniformBuffer : DescriptorType.StorageBuffer,
+                PBufferInfo = &bufferInfos[i - 1],
+            };
+        }
+
+        context.Vk.UpdateDescriptorSets(context.Device, (uint)count, writes, 0, null);
+    }
+
+    /// <summary>
     /// Updates an encode descriptor set with the source image view, input and output storage buffers, and constant buffer.
     /// </summary>
     /// <param name="context">The Vulkan BC context whose device is used.</param>

@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
         xmlns:g3d="using:RedFox.Graphics3D.Avalonia"
+        xmlns:gx="using:RedFox.GameExtraction"
         xmlns:model="using:RedFox.GameExtraction.UI.Models"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.MainWindow"
@@ -562,6 +563,47 @@
             </Grid>
         </DockPanel>
 
+        <ItemsControl ItemsSource="{Binding Notifications}"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,0,48">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Spacing="8"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StatusNotificationViewModel">
+                    <Border Classes="notification"
+                            Classes.closing="{Binding IsClosing}"
+                            Classes.success="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Success}}"
+                            Classes.warning="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Warning}}"
+                            Classes.error="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Error}}">
+                        <Border.RenderTransform>
+                            <TranslateTransform/>
+                        </Border.RenderTransform>
+                        <DockPanel>
+                            <PathIcon DockPanel.Dock="Left"
+                                      Classes="notification-icon"
+                                      Classes.success="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Success}}"
+                                      Classes.warning="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Warning}}"
+                                      Classes.error="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Error}}"
+                                      Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}"/>
+                            <Button DockPanel.Dock="Right"
+                                    Classes="notification-close"
+                                    Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).CloseNotificationCommand}"
+                                    CommandParameter="{Binding}">
+                                <PathIcon Data="{StaticResource IconClose}"/>
+                            </Button>
+                            <TextBlock Text="{Binding Message}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <Border Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">
             <Border Classes="progress-card"
                     HorizontalAlignment="Center"
@@ -575,6 +617,10 @@
                     <ProgressBar Classes="themed"
                                  Value="{Binding ProgressValue}"
                                  IsIndeterminate="{Binding IsIndeterminate}"
+                                 Maximum="100"/>
+                    <ProgressBar Classes="themed"
+                                 Value="{Binding SourceProgressValue}"
+                                 IsVisible="{Binding HasSourceProgress}"
                                  Maximum="100"/>
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right"

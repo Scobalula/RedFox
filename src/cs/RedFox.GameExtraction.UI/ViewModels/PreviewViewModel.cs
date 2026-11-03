@@ -244,8 +244,8 @@ public partial class PreviewViewModel(AssetManager assetManager, Func<GameExtrac
                 if (!HasLoadedModel())
                     SetContent(null);
 
-                ErrorMessage = exception.Message;
-                StatusText = $"Preview failed: {exception.Message}";
+                ErrorMessage	= exception.Message;
+                StatusText		= "Preview failed";
             }
         }
         finally

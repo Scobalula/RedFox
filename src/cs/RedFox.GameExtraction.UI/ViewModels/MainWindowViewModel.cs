@@ -23,6 +23,9 @@ namespace RedFox.GameExtraction.UI.ViewModels;
 /// </summary>
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private const int MaxNotifications = 4;
+    private static readonly TimeSpan NotificationDuration = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan NotificationCloseDuration = TimeSpan.FromMilliseconds(300);
     private readonly AssetManager _assetManager;
     private readonly GameExtractionConfig _config;
     private ThumbnailCache _thumbnailCache;
@@ -40,6 +43,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private ProgressDialogViewModel? _queuedProgressDialog;
     private string? _queuedProgressStatus;
     private int _queuedCompletedOperations;
+    private AssetSourceLoadProgress? _queuedSourceProgress;
     private int _filterGeneration;
     private int _filterOptionsGeneration;
     private bool _progressUpdatePosted;
@@ -99,6 +103,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets the mounted source rows.
     /// </summary>
     public ObservableCollection<AssetSourceViewModel> LoadedSources { get; } = [];
+
+    /// <summary>
+    /// Gets the status notifications currently shown to the user.
+    /// </summary>
+    public ObservableCollection<StatusNotificationViewModel> Notifications { get; } = [];
 
     /// <summary>
     /// Gets all loaded asset rows before search filtering.
@@ -380,8 +389,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 OnPropertyChanged(nameof(DockedPreviewContent));
             }
+            else if (e.PropertyName == nameof(PreviewViewModel.ErrorMessage) && Preview.ErrorMessage is not null)
+            {
+                _assetManager.Notify(StatusNotificationKind.Error, $"{Preview.Asset?.Name}: {Preview.ErrorMessage}");
+            }
         };
-        _assetManager.OperationFailed += OnOperationFailed;
+        _assetManager.StatusNotificationRaised += OnStatusNotificationRaised;
         _assetManager.AssetExportCompleted += OnAssetExportCompleted;
         _assetManager.AssetExportFailed += OnAssetExportFailed;
 
@@ -523,7 +536,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = $"Unload error: {exception.Message}";
+            StatusText = "Ready";
+            _assetManager.Notify(StatusNotificationKind.Error, $"Failed to unload {source.DisplayName}: {exception.Message}");
         }
         finally
         {
@@ -719,7 +733,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         _filterGeneration++;
         _filterOptionsGeneration++;
-        _assetManager.OperationFailed -= OnOperationFailed;
+        _assetManager.StatusNotificationRaised -= OnStatusNotificationRaised;
         _assetManager.AssetExportCompleted -= OnAssetExportCompleted;
         _assetManager.AssetExportFailed -= OnAssetExportFailed;
         _config.PreviewSettings.PropertyChanged -= OnPreviewSettingsChanged;
@@ -775,7 +789,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
-            StatusText = $"Skybox error: {exception.Message}";
+            _assetManager.Notify(StatusNotificationKind.Error, $"Failed to load skybox: {exception.Message}");
         }
     }
 
@@ -1058,7 +1072,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
+            SourceLoadProgress progress	= new(message => QueueProgressUpdate(progressVm, message), load => QueueSourceProgressUpdate(progressVm, load));
+            List<string> failures		= [];
 
             foreach (string filePath in filePaths)
             {
@@ -1070,7 +1085,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 }
                 else
                 {
-                    progressVm.StatusText = $"Loading {Path.GetFileName(fullPath)}...";
+                    progressVm.StatusText			= $"Loading {Path.GetFileName(fullPath)}...";
+                    progressVm.HasSourceProgress	= false;
                     try
                     {
                         IAssetSource source = await Task.Run(() => _assetManager.MountFileAsync(fullPath, _config.SourceOptions, progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
@@ -1083,12 +1099,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                     }
                     catch (Exception exception)
                     {
-                        StatusText = $"Load error: {exception.Message}";
+                        StatusText = "Ready";
+                        failures.Add($"{Path.GetFileName(fullPath)}: {exception.Message}");
                     }
                 }
 
                 progressVm.Current++;
                 progressVm.ProgressValue = progressVm.Current / (double)progressVm.Total * 100;
+            }
+
+            if (failures.Count == 1)
+            {
+                _assetManager.Notify(StatusNotificationKind.Error, $"Failed to load {failures[0]}");
+            }
+            else if (failures.Count > 1)
+            {
+                _assetManager.Notify(StatusNotificationKind.Error, $"Failed to load {failures.Count:N0} of {filePaths.Count:N0} sources");
             }
         }
         catch (OperationCanceledException)
@@ -1222,7 +1248,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = $"Process scan error: {exception.Message}";
+            StatusText = "Ready";
+            _assetManager.Notify(StatusNotificationKind.Error, $"Failed to scan processes: {exception.Message}");
             return [];
         }
         finally
@@ -1293,7 +1320,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         try
         {
-            IProgress<string> progress = new CallbackProgress<string>(message => QueueProgressUpdate(progressVm, message));
+            SourceLoadProgress progress = new(message => QueueProgressUpdate(progressVm, message), load => QueueSourceProgressUpdate(progressVm, load));
 
             IAssetSource source = await Task.Run(() => mountSourceAsync(progress, cancellationSource.Token), cancellationSource.Token).ConfigureAwait(true);
 
@@ -1306,7 +1333,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = $"Load error: {exception.Message}";
+            StatusText = "Ready";
+            _assetManager.Notify(StatusNotificationKind.Error, $"{title.TrimEnd('.')} failed: {exception.Message}");
         }
         finally
         {
@@ -1363,7 +1391,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         string outputDirectory = CreateConfiguration().GetOption("OutputDirectory", GameExtractionSettings.GetDefaultOutputDirectory());
         if (!TryOpenFolder(outputDirectory, out string? error))
         {
-            StatusText = error;
+            _assetManager.Notify(StatusNotificationKind.Error, error);
         }
     }
 
@@ -1434,6 +1462,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             });
             StatusText = summary;
             completed = true;
+
+            if (failureCount > 0)
+            {
+                _assetManager.Notify(StatusNotificationKind.Error, summary);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -1441,7 +1474,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = $"Export error: {exception.Message}";
+            StatusText = "Ready";
+            _assetManager.Notify(StatusNotificationKind.Error, $"Export failed: {exception.Message}");
         }
         finally
         {
@@ -1544,6 +1578,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             StatusText = cancellationSource.IsCancellationRequested && unloadedSources.Count < sources.Length
                 ? $"Unloading cancelled; {summary}"
                 : summary;
+
+            if (failedCount > 0)
+            {
+                _assetManager.Notify(StatusNotificationKind.Error, summary);
+            }
         }
         finally
         {
@@ -1604,12 +1643,35 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnOperationFailed(object? sender, AssetOperationFailedEventArgs args)
+    private void OnStatusNotificationRaised(object? sender, StatusNotificationEventArgs args)
     {
-        PostToUiThread(() =>
+        PostToUiThread(() => _ = ShowNotificationAsync(new StatusNotificationViewModel(args.Kind, args.Message)));
+    }
+
+    private async Task ShowNotificationAsync(StatusNotificationViewModel notification)
+    {
+        Notifications.Add(notification);
+
+        if (Notifications.Count > MaxNotifications)
         {
-            StatusText = $"{args.Operation} error: {args.Exception.Message}";
-        });
+            Notifications.RemoveAt(0);
+        }
+
+        await Task.Delay(NotificationDuration).ConfigureAwait(true);
+        await CloseNotificationAsync(notification).ConfigureAwait(true);
+    }
+
+    [RelayCommand]
+    private async Task CloseNotificationAsync(StatusNotificationViewModel notification)
+    {
+        if (notification.IsClosing)
+        {
+            return;
+        }
+
+        notification.IsClosing = true;
+        await Task.Delay(NotificationCloseDuration).ConfigureAwait(true);
+        Notifications.Remove(notification);
     }
 
     private void OnAssetExportCompleted(object? sender, AssetExportCompletedEventArgs args)
@@ -1648,9 +1710,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (!ReferenceEquals(_queuedProgressDialog, progressVm))
             {
-                _queuedProgressDialog = progressVm;
-                _queuedProgressStatus = null;
-                _queuedCompletedOperations = 0;
+                _queuedProgressDialog		= progressVm;
+                _queuedProgressStatus		= null;
+                _queuedCompletedOperations	= 0;
+                _queuedSourceProgress		= null;
             }
 
             _queuedProgressStatus = status;
@@ -1674,15 +1737,18 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ProgressDialogViewModel? progressVm;
         string? status;
         int completedCount;
+        AssetSourceLoadProgress? sourceProgress;
         lock (_progressUpdateLock)
         {
-            progressVm = _queuedProgressDialog;
-            status = _queuedProgressStatus;
-            completedCount = _queuedCompletedOperations;
-            _queuedProgressDialog = null;
-            _queuedProgressStatus = null;
-            _queuedCompletedOperations = 0;
-            _progressUpdatePosted = false;
+            progressVm					= _queuedProgressDialog;
+            status						= _queuedProgressStatus;
+            completedCount				= _queuedCompletedOperations;
+            sourceProgress				= _queuedSourceProgress;
+            _queuedProgressDialog		= null;
+            _queuedProgressStatus		= null;
+            _queuedCompletedOperations	= 0;
+            _queuedSourceProgress		= null;
+            _progressUpdatePosted		= false;
         }
 
         if (progressVm is null || !ReferenceEquals(ProgressDialog, progressVm) || progressVm.IsCompleted)
@@ -1701,6 +1767,41 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             progressVm.Current += completedCount;
             progressVm.Total = Math.Max(progressVm.Total, progressVm.Current);
             progressVm.ProgressValue = progressVm.Total > 0 ? Math.Min(100, progressVm.Current / (double)progressVm.Total * 100) : 0;
+        }
+
+        if (sourceProgress is { Total: > 0 } load)
+        {
+            progressVm.HasSourceProgress	= true;
+            progressVm.SourceProgressValue	= Math.Min(100, load.Current / (double)load.Total * 100);
+        }
+    }
+
+    private void QueueSourceProgressUpdate(ProgressDialogViewModel progressVm, AssetSourceLoadProgress load)
+    {
+        if (!ReferenceEquals(ProgressDialog, progressVm))
+        {
+            return;
+        }
+
+        bool postUpdate;
+        lock (_progressUpdateLock)
+        {
+            if (!ReferenceEquals(_queuedProgressDialog, progressVm))
+            {
+                _queuedProgressDialog		= progressVm;
+                _queuedProgressStatus		= null;
+                _queuedCompletedOperations	= 0;
+            }
+
+            _queuedSourceProgress = load;
+
+            postUpdate				= !_progressUpdatePosted;
+            _progressUpdatePosted	= true;
+        }
+
+        if (postUpdate)
+        {
+            PostToUiThread(FlushProgressUpdate);
         }
     }
 
@@ -1836,7 +1937,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 if (generation == _filterGeneration)
                 {
-                    StatusText = $"Asset filter error: {exception.Message}";
+                    _assetManager.Notify(StatusNotificationKind.Error, $"Failed to filter assets: {exception.Message}");
                 }
             });
         }

@@ -107,6 +107,11 @@ public sealed class AssetManager
     public event EventHandler<AssetOperationFailedEventArgs>? OperationFailed;
 
     /// <summary>
+    /// Occurs when a status notification is raised for the user.
+    /// </summary>
+    public event EventHandler<StatusNotificationEventArgs>? StatusNotificationRaised;
+
+    /// <summary>
     /// Gets the registered source readers in evaluation order.
     /// </summary>
     public IReadOnlyList<IAssetSourceReader> SourceReaders
@@ -152,6 +157,16 @@ public sealed class AssetManager
             lock (_sourceLock)
                 return _assets.ToArray();
         }
+    }
+
+    /// <summary>
+    /// Raises a status notification for the user.
+    /// </summary>
+    /// <param name="kind">The kind of notification.</param>
+    /// <param name="message">The notification message.</param>
+    public void Notify(StatusNotificationKind kind, string message)
+    {
+        StatusNotificationRaised?.Invoke(this, new StatusNotificationEventArgs(kind, message));
     }
 
     /// <summary>

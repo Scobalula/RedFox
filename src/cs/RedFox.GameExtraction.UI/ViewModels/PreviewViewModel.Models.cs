@@ -261,7 +261,7 @@ public partial class PreviewViewModel
             if (version == _loadVersion)
             {
                 ErrorMessage				= exception.Message;
-                StatusText					= $"Merge failed: {exception.Message}";
+                StatusText					= "Merge failed";
                 _previewSettings.MergeMode	= previousMode;
                 _previewSettings.RequestSave();
             }

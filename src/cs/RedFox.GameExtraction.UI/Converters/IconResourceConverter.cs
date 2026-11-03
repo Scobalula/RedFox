@@ -54,6 +54,10 @@ public sealed class IconResourceConverter : IValueConverter
             GameExtractionSettingGroup.Shader		=> "IconShader",
             GameExtractionSettingGroup.Effect		=> "IconEffect",
             GameExtractionSettingGroup.Cutscene		=> "IconCutscene",
+            StatusNotificationKind.Information		=> "IconInfo",
+            StatusNotificationKind.Success			=> "IconSuccess",
+            StatusNotificationKind.Warning			=> "IconWarning",
+            StatusNotificationKind.Error			=> "IconError",
             _										=> "IconFile",
         };
 

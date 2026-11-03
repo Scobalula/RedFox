@@ -29,6 +29,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
     private Queue _queue;
     private uint _queueFamilyIndex;
     private ulong _nonCoherentAtomSize;
+    private bool _supportsBcSampling;
     private CommandPool _commandPool;
     private VulkanBcBuffer _dummyStorageBuffer;
     private VulkanBcComputePipeline _decodeRgba8Pipeline;
@@ -76,6 +77,11 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
     /// Gets the non-coherent atom size from the physical device limits.
     /// </summary>
     public ulong NonCoherentAtomSize => _nonCoherentAtomSize;
+
+    /// <summary>
+    /// Gets whether the device was created with BC texture sampling enabled.
+    /// </summary>
+    public bool SupportsBcSampling => _supportsBcSampling;
 
     /// <summary>
     /// Creates a fully initialized Vulkan BC context when a suitable compute device is available.
@@ -290,7 +296,12 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
             QueueCount = 1,
             PQueuePriorities = &priority
         };
-        PhysicalDeviceFeatures features = default;
+        _vk.GetPhysicalDeviceFeatures(_physicalDevice, out PhysicalDeviceFeatures supported);
+
+        PhysicalDeviceFeatures features = new()
+        {
+            TextureCompressionBC = supported.TextureCompressionBC
+        };
         DeviceCreateInfo deviceInfo = new()
         {
             SType = StructureType.DeviceCreateInfo,
@@ -302,6 +313,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         if (_vk.CreateDevice(_physicalDevice, in deviceInfo, null, out _device) != Result.Success)
             return false;
         _vk.GetDeviceQueue(_device, _queueFamilyIndex, 0, out _queue);
+        _supportsBcSampling = supported.TextureCompressionBC;
         return true;
     }
 
@@ -331,7 +343,9 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         return TryCreateComputePipeline("BcDecodeRgba8.spv", "DecodeMain", decodeBindings, out _decodeRgba8Pipeline) && TryCreateComputePipeline("BcDecodeRgba16.spv", "DecodeMain", decodeBindings, out _decodeRgba16Pipeline) && TryCreateComputePipeline("BcDecodeRgba32.spv", "DecodeMain", decodeBindings, out _decodeRgba32Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeG10CS.spv", "TryModeG10CS", encodeBindings, out _bc6hTryModeG10Pipeline) && TryCreateComputePipeline("BC6HEncode_TryModeLE10CS.spv", "TryModeLE10CS", encodeBindings, out _bc6hTryModeLE10Pipeline) && TryCreateComputePipeline("BC6HEncode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc6hEncodeBlockPipeline) && TryCreateComputePipeline("BC7Encode_TryMode456CS.spv", "TryMode456CS", encodeBindings, out _bc7TryMode456Pipeline) && TryCreateComputePipeline("BC7Encode_TryMode137CS.spv", "TryMode137CS", encodeBindings, out _bc7TryMode137Pipeline) && TryCreateComputePipeline("BC7Encode_EncodeBlockCS.spv", "EncodeBlockCS", encodeBindings, out _bc7EncodeBlockPipeline);
     }
 
-    private bool TryCreateComputePipeline(string shaderFileName, string entryPoint, ReadOnlySpan<DescriptorSetLayoutBinding> bindings, out VulkanBcComputePipeline pipeline)
+    private bool TryCreateComputePipeline(string shaderFileName, string entryPoint, ReadOnlySpan<DescriptorSetLayoutBinding> bindings, out VulkanBcComputePipeline pipeline) => TryCreateComputePipeline(LoadEmbeddedShader(shaderFileName), entryPoint, bindings, out pipeline);
+
+    internal bool TryCreateComputePipeline(byte[] shaderBytes, string entryPoint, ReadOnlySpan<DescriptorSetLayoutBinding> bindings, out VulkanBcComputePipeline pipeline)
     {
         pipeline = default;
         if (!TryCreateDescriptorSetLayout(bindings, out DescriptorSetLayout layout))
@@ -347,7 +361,6 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         bool transferred = false;
         try
         {
-            byte[] shaderBytes = LoadEmbeddedShader(shaderFileName);
             fixed (byte* ptr = shaderBytes)
             {
                 ShaderModuleCreateInfo modInfo = new()
@@ -726,13 +739,13 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         };
     }
 
-    private bool SupportsSampledImage(Format format)
+    internal bool SupportsSampledImage(Format format)
     {
         _vk.GetPhysicalDeviceFormatProperties(_physicalDevice, format, out FormatProperties props);
         return (props.OptimalTilingFeatures & FormatFeatureFlags.SampledImageBit) != 0;
     }
 
-    private bool TryAllocateCommandBuffer(out CommandBuffer commandBuffer)
+    internal bool TryAllocateCommandBuffer(out CommandBuffer commandBuffer)
     {
         CommandBufferAllocateInfo info = new()
         {
@@ -745,7 +758,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         return _vk.AllocateCommandBuffers(_device, in info, out commandBuffer) == Result.Success;
     }
 
-    private bool TryCreateFence(out Fence fence)
+    internal bool TryCreateFence(out Fence fence)
     {
         FenceCreateInfo info = new()
         {
@@ -755,7 +768,7 @@ public sealed unsafe class VulkanBcContext(Vk vk) : IDisposable
         return _vk.CreateFence(_device, in info, null, out fence) == Result.Success;
     }
 
-    private bool TrySubmitAndWait(CommandBuffer commandBuffer, Fence fence)
+    internal bool TrySubmitAndWait(CommandBuffer commandBuffer, Fence fence)
     {
         SubmitInfo info = new()
         {

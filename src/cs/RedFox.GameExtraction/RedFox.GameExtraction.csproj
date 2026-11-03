@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <PackageDescription>Asset management, handlers, and export pipeline for building game extraction tools.</PackageDescription>
@@ -29,5 +29,6 @@
     <ProjectReference Include="..\RedFox.IO.ProcessMemory\RedFox.IO.ProcessMemory.csproj" />
     <ProjectReference Include="..\RedFox.Graphics3D.Formats\RedFox.Graphics3D.Formats.csproj" />
     <ProjectReference Include="..\RedFox.Imaging.Formats\RedFox.Imaging.Formats.csproj" />
+    <ProjectReference Include="..\RedFox.Imaging.Vulkan\RedFox.Imaging.Vulkan.csproj" />
   </ItemGroup>
 </Project>
