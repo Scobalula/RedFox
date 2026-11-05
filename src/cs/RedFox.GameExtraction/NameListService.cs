@@ -3,9 +3,9 @@ using RedFox.GameExtraction.Hashing;
 namespace RedFox.GameExtraction;
 
 /// <summary>
-/// Loads and aggregates name list files into a single <see cref="NameList"/>.
+/// Loads and manages name list files.
 /// </summary>
-public sealed class NameListService
+public sealed class NameListService : IDisposable
 {
     /// <summary>
     /// Gets the collection of names associated with this instance.
@@ -33,4 +33,34 @@ public sealed class NameListService
 
         return nameListService;
     }
+
+    /// <summary>
+    /// Opens the mapped name tables in a directory.
+    /// </summary>
+    public static NameListService CreateMappedFromDirectory(string directory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        var service = new NameListService();
+
+        try
+        {
+            if (Directory.Exists(directory))
+            {
+                foreach (var file in Directory.EnumerateFiles(directory).Where(static file => string.Equals(Path.GetExtension(file), ".namemap", StringComparison.OrdinalIgnoreCase)))
+                    service.Manager.OpenMapped(file);
+            }
+
+            return service;
+        }
+        catch
+        {
+            service.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Closes the mapped name tables owned by this service.
+    /// </summary>
+    public void Dispose() => Manager.Dispose();
 }

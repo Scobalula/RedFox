@@ -2,6 +2,7 @@
 // Please see LICENSE.md for license information.
 // This library is also bound by 3rd party licenses.
 // --------------------------------------------------------------------------------------
+using System.Buffers;
 using System.IO.Compression;
 
 namespace RedFox.GameExtraction.Hashing;
@@ -40,8 +41,11 @@ public static class NameFileCompressor
     /// <returns>The number of bytes written to the destination span.</returns>
     public static int Decompress(ReadOnlySpan<byte> source, Span<byte> destination)
     {
-        if (!BrotliDecoder.TryDecompress(source, destination, out var written))
-            throw new InvalidOperationException("Failed to decompress name file data.");
+        using var decoder = new BrotliDecoder();
+        var status = decoder.Decompress(source, destination, out var consumed, out var written);
+
+        if (status != OperationStatus.Done || consumed != source.Length || written != destination.Length)
+            throw new InvalidDataException("The compressed name file block is invalid.");
 
         return written;
     }

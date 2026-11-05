@@ -146,8 +146,8 @@ public static class NameFile
         var compressed = flags.HasFlag(NameFileFlags.Compressed) ? new byte[NameFileCompressor.GetMaxCompressedSize(BlockSize)] : [];
         using var checksum = flags.HasFlag(NameFileFlags.Checksum) ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
 
-        ReadSection(reader, table.KeyData, compressed, checksum);
-        ReadSection(reader, table.NameData, compressed, checksum);
+        ReadSection(reader, table.KeyBuffer, compressed, checksum);
+        ReadSection(reader, table.NameBuffer, compressed, checksum);
 
         if (checksum is not null)
         {
@@ -163,6 +163,39 @@ public static class NameFile
 
         table.BuildIndex();
         return table;
+    }
+
+    /// <summary>
+    /// Opens an indexed name table without copying its entries into memory.
+    /// </summary>
+    public static NameTable OpenMapped(string filePath) => new(MappedNameTableStorage.Open(filePath));
+
+    /// <summary>
+    /// Writes a compact indexed name table for read-only mapped access.
+    /// </summary>
+    public static void SaveMapped(string filePath, NameTable nameTable)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentNullException.ThrowIfNull(nameTable);
+
+        var destination	= Path.GetFullPath(filePath);
+        var temporary	= destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+            {
+                WriteMapped(writer, nameTable);
+                stream.Flush(true);
+            }
+
+            File.Move(temporary, destination, true);
+        }
+        finally
+        {
+            File.Delete(temporary);
+        }
     }
 
     /// <summary>
@@ -189,6 +222,12 @@ public static class NameFile
 
         switch (extension)
         {
+            case ".namemap":
+                if (flags != NameFileFlags.None)
+                    throw new ArgumentException("Mapped name tables do not support compression or checksum flags.", nameof(flags));
+
+                SaveMapped(filePath, nameTable);
+                break;
             case ".namefile":
                 SaveBinary(filePath, nameTable, flags);
                 break;
@@ -302,7 +341,7 @@ public static class NameFile
             {
                 nameOffset = nextNameOffset;
                 nextNameOffset += record.Length;
-                previous = record;
+                previous	= record;
             }
 
             nameTable.GetKey(entry, out var valuePosition);
@@ -337,6 +376,8 @@ public static class NameFile
             checksum.GetHashAndReset(hash);
             writer.Write(hash);
         }
+
+        GC.KeepAlive(nameTable);
     }
 
     /// <summary>
@@ -403,6 +444,91 @@ public static class NameFile
             return name[(open + 1)..close].Trim();
 
         return "Unknown";
+    }
+
+    private static void WriteMapped(BinaryWriter writer, NameTable table)
+    {
+        var entries		= table.GetSortedEntries();
+        var capacity	= entries.Length == 0 ? 0 : 16;
+
+        while (entries.Length > capacity - capacity / 4)
+            capacity = checked(capacity * 2);
+
+        var buckets		= new int[capacity];
+        var nameSize	= table.GetPackedNameSize(entries);
+
+        writer.Write(MappedNameTableStorage.Magic);
+        writer.Write(MappedNameTableStorage.Version);
+        writer.Write(table.Count);
+        writer.Write(capacity);
+        writer.Write(table.KeyData.Length);
+        writer.Write(nameSize);
+        writer.Write(0L);
+        writer.Write(0L);
+        writer.Write(0L);
+        writer.Write(table.Name);
+        writer.Write(table.Metadata.Count);
+
+        foreach (var (key, value) in table.Metadata)
+        {
+            writer.Write(key);
+            writer.Write(value);
+        }
+
+        var keyOffset		= writer.BaseStream.Position;
+        var nameOffset		= keyOffset + table.KeyData.Length;
+        var bucketOffset	= nameOffset + nameSize;
+
+        writer.BaseStream.Position = 28;
+        writer.Write(keyOffset);
+        writer.Write(nameOffset);
+        writer.Write(bucketOffset);
+        writer.BaseStream.Position = keyOffset;
+
+        ReadOnlySpan<byte> previous = [];
+
+        int position = 0, offset = 0, nextOffset = 0;
+
+        foreach (var entry in entries)
+        {
+            var record = table.GetNameRecord(entry);
+
+            if (!record.SequenceEqual(previous))
+            {
+                offset		= nextOffset;
+                nextOffset	= checked(nextOffset + record.Length);
+                previous	= record;
+            }
+
+            var key		= table.GetKey(entry, out var valuePosition);
+            var bucket	= (int)((uint)NameKey.ComputeHashCode(key) & (uint)(capacity - 1));
+
+            while (buckets[bucket] != 0)
+                bucket = (bucket + 1) & (capacity - 1);
+
+            buckets[bucket] = position + 1;
+            writer.Write(table.KeyData[entry..valuePosition]);
+            writer.Write(offset);
+            position += valuePosition - entry + sizeof(int);
+        }
+
+        previous = [];
+
+        foreach (var entry in entries)
+        {
+            var record = table.GetNameRecord(entry);
+
+            if (record.SequenceEqual(previous))
+                continue;
+
+            writer.Write(record);
+            previous = record;
+        }
+
+        foreach (var bucket in buckets)
+            writer.Write(bucket);
+
+        GC.KeepAlive(table);
     }
 
     private static void ReadSection(BinaryReader reader, Span<byte> destination, byte[] compressed, IncrementalHash? checksum)

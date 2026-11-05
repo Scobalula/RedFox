@@ -10,9 +10,10 @@ namespace RedFox.GameExtraction.Hashing;
 /// <summary>
 /// Manages multiple name tables and hash algorithm registrations, providing centralized lookup and persistence.
 /// </summary>
-public sealed class NameTableManager
+public sealed class NameTableManager : IDisposable
 {
     private readonly List<NameTable> _tables = [];
+    private readonly HashSet<NameTable> _ownedMappings = [];
     private readonly Dictionary<string, Func<ReadOnlySpan<char>, NameKey>> _hashers = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -107,6 +108,17 @@ public sealed class NameTableManager
     }
 
     /// <summary>
+    /// Opens and owns a mapped table until removal, clearing, or disposal.
+    /// </summary>
+    public NameTable OpenMapped(string filePath)
+    {
+        var table = NameFile.OpenMapped(filePath);
+        _tables.Add(table);
+        _ownedMappings.Add(table);
+        return table;
+    }
+
+    /// <summary>
     /// Adds an existing name table to the manager.
     /// </summary>
     /// <param name="table">The name table to add.</param>
@@ -124,7 +136,11 @@ public sealed class NameTableManager
     /// <returns><see langword="true"/> if the table was removed; otherwise, <see langword="false"/>.</returns>
     public bool Remove(NameTable table)
     {
-        return _tables.Remove(table);
+        if (!_tables.Remove(table))
+            return false;
+
+        _ownedMappings.Remove(table);
+        return true;
     }
 
     /// <summary>
@@ -132,6 +148,10 @@ public sealed class NameTableManager
     /// </summary>
     public void Clear()
     {
+        foreach (var table in _ownedMappings)
+            table.Dispose();
+
+        _ownedMappings.Clear();
         _tables.Clear();
     }
 
@@ -174,6 +194,11 @@ public sealed class NameTableManager
         value = null;
         return false;
     }
+
+    /// <summary>
+    /// Closes owned mappings and removes all tables.
+    /// </summary>
+    public void Dispose() => Clear();
 
     /// <summary>Creates and registers a name table.</summary>
     /// <param name="name">The name assigned to the table.</param>

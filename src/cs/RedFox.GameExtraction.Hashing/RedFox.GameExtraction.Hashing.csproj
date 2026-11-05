@@ -5,6 +5,7 @@
         <PackageDescription>Name tables and hash lookup files for RedFox GameExtraction.</PackageDescription>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
 </Project>

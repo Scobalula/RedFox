@@ -14,16 +14,25 @@ namespace RedFox.GameExtraction.Hashing;
 /// Represents a name table that maps <see cref="NameKey"/> values to their corresponding string names.
 /// </summary>
 /// <param name="hashAlgorithm">The name of the hash algorithm used to generate the keys in this table.</param>
-public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<NameKey, string>>
+public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<NameKey, string>>, IDisposable
 {
+    private readonly MappedNameTableStorage? _mapped;
+
     private byte[]	_keys		= [];
     private byte[]	_names		= [];
     private int[]	_buckets	= [];
     private int		_keyLength;
     private int		_nameLength;
 
-    internal Span<byte> KeyData => _keys.AsSpan(0, _keyLength);
-    internal Span<byte> NameData => _names.AsSpan(0, _nameLength);
+    internal ReadOnlySpan<byte> KeyData => _mapped is null ? _keys.AsSpan(0, _keyLength) : _mapped.Keys;
+    internal ReadOnlySpan<byte> NameData => _mapped is null ? _names.AsSpan(0, _nameLength) : _mapped.Names;
+    internal Span<byte> KeyBuffer => _keys.AsSpan(0, _keyLength);
+    internal Span<byte> NameBuffer => _names.AsSpan(0, _nameLength);
+
+    /// <summary>
+    /// Gets whether the entries are backed by a read-only mapped file.
+    /// </summary>
+    public bool IsReadOnly => _mapped is not null;
 
     /// <summary>
     /// Gets or sets the name of the hash algorithm used to generate the keys in this table.
@@ -48,6 +57,19 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
         _nameLength	= nameLength;
 
         Count = count;
+    }
+
+    /// <summary>
+    /// Creates a read-only name table that owns the supplied mapped storage.
+    /// </summary>
+    public NameTable(MappedNameTableStorage storage) : this(storage?.Name ?? throw new ArgumentNullException(nameof(storage)))
+    {
+        _mapped		= storage;
+        _keyLength	= storage.Keys.Length;
+        _nameLength	= storage.Names.Length;
+
+        Count		= storage.Count;
+        Metadata	= storage.Metadata;
     }
 
     /// <summary>
@@ -97,18 +119,22 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     /// <returns><see langword="true"/> if the key was found; otherwise, <see langword="false"/>.</returns>
     public bool TryGetValue(ReadOnlySpan<byte> key, [NotNullWhen(true)] out string? value)
     {
-        if (_buckets.Length != 0)
+        _mapped?.ThrowIfDisposed();
+
+        if (GetBucketCount() != 0)
         {
-            var entry = _buckets[FindBucket(key)] - 1;
+            var entry = GetBucket(FindBucket(key)) - 1;
 
             if (entry >= 0)
             {
                 value = Encoding.UTF8.GetString(GetName(entry));
+                GC.KeepAlive(this);
                 return true;
             }
         }
 
         value = null;
+        GC.KeepAlive(this);
         return false;
     }
 
@@ -117,6 +143,11 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     /// </summary>
     public void Clear()
     {
+        _mapped?.ThrowIfDisposed();
+
+        if (IsReadOnly)
+            throw new NotSupportedException("Mapped name tables are read-only.");
+
         _keys		= [];
         _names		= [];
         _buckets	= [];
@@ -131,6 +162,11 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     /// </summary>
     public void TrimExcess()
     {
+        _mapped?.ThrowIfDisposed();
+
+        if (IsReadOnly)
+            return;
+
         var entries = GetSortedEntries();
         var names = new byte[GetPackedNameSize(entries)];
         ReadOnlySpan<byte> previous = [];
@@ -162,6 +198,8 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     /// </summary>
     public IEnumerator<KeyValuePair<NameKey, string>> GetEnumerator()
     {
+        _mapped?.ThrowIfDisposed();
+
         var position = 0;
 
         while (position < _keyLength)
@@ -169,9 +207,16 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
             var entry = position;
             var key = new NameKey(GetKey(entry, out var valuePosition));
             position = valuePosition + sizeof(int);
-            yield return new KeyValuePair<NameKey, string>(key, Encoding.UTF8.GetString(GetName(entry)));
+            var name = Encoding.UTF8.GetString(GetName(entry));
+            GC.KeepAlive(this);
+            yield return new KeyValuePair<NameKey, string>(key, name);
         }
     }
+
+    /// <summary>
+    /// Releases the mapped file after all readers have finished.
+    /// </summary>
+    public void Dispose() => _mapped?.Dispose();
 
     /// <inheritdoc/>
     IEnumerator<KeyValuePair<NameKey, string>> IEnumerable<KeyValuePair<NameKey, string>>.GetEnumerator() => GetEnumerator();
@@ -238,6 +283,7 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
         }
 
         Array.Sort(entries, (left, right) => GetName(left).SequenceCompareTo(GetName(right)));
+        GC.KeepAlive(this);
         return entries;
     }
 
@@ -257,6 +303,7 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
             previous = record;
         }
 
+        GC.KeepAlive(this);
         return size;
     }
 
@@ -265,26 +312,37 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
         var position = entry;
         var length = ReadLength(KeyData, ref position);
 
-        if (length > _keyLength - position)
+        if (length > _keyLength - position - sizeof(int))
             throw new InvalidDataException("The name file key length is invalid.");
 
         valuePosition = position + length;
-        return _keys.AsSpan(position, length);
+        return KeyData.Slice(position, length);
     }
 
     internal ReadOnlySpan<byte> GetNameRecord(int entry)
     {
         GetKey(entry, out var valuePosition);
 
-        var offset = BinaryPrimitives.ReadInt32LittleEndian(_keys.AsSpan(valuePosition, sizeof(int)));
-        var position = offset;
-        var length = ReadLength(NameData, ref position);
+        var offset		= BinaryPrimitives.ReadInt32LittleEndian(KeyData.Slice(valuePosition, sizeof(int)));
+        var position	= offset;
+        var length		= ReadLength(NameData, ref position);
 
-        return _names.AsSpan(offset, position - offset + length);
+        if (length == 0 || length > _nameLength - position)
+            throw new InvalidDataException("The name file name length is invalid.");
+
+        if (IsReadOnly && !Utf8.IsValid(NameData.Slice(position, length)))
+            throw new InvalidDataException("The name file name data is invalid.");
+
+        return NameData.Slice(offset, position - offset + length);
     }
 
     private void Add(ReadOnlySpan<byte> key, string value)
     {
+        _mapped?.ThrowIfDisposed();
+
+        if (IsReadOnly)
+            throw new NotSupportedException("Mapped name tables are read-only.");
+
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         var bucket		= _buckets.Length == 0 ? -1 : FindBucket(key);
         var entry		= bucket < 0 ? -1 : _buckets[bucket] - 1;
@@ -326,24 +384,40 @@ public sealed class NameTable(string hashAlgorithm) : IEnumerable<KeyValuePair<N
     private ReadOnlySpan<byte> GetName(int entry)
     {
         GetKey(entry, out var valuePosition);
-        var position = BinaryPrimitives.ReadInt32LittleEndian(_keys.AsSpan(valuePosition, sizeof(int)));
-        var length = ReadLength(NameData, ref position);
-        return _names.AsSpan(position, length);
+        var position	= BinaryPrimitives.ReadInt32LittleEndian(KeyData.Slice(valuePosition, sizeof(int)));
+        var length		= ReadLength(NameData, ref position);
+
+        if (length == 0 || length > _nameLength - position)
+            throw new InvalidDataException("The name file name length is invalid.");
+
+        var name = NameData.Slice(position, length);
+
+        if (IsReadOnly && !Utf8.IsValid(name))
+            throw new InvalidDataException("The name file name data is invalid.");
+
+        return name;
     }
+
+    private int GetBucketCount() => _mapped is null ? _buckets.Length : _mapped.BucketCount;
+
+    private int GetBucket(int bucket) => _mapped is null ? _buckets[bucket] : _mapped.ReadBucket(bucket);
 
     private int FindBucket(ReadOnlySpan<byte> key)
     {
-        var bucket = (int)((uint)NameKey.ComputeHashCode(key) & (uint)(_buckets.Length - 1));
+        var capacity	= GetBucketCount();
+        var bucket		= (int)((uint)NameKey.ComputeHashCode(key) & (uint)(capacity - 1));
 
-        while (_buckets[bucket] != 0)
+        for (var probe = 0; probe < capacity; probe++)
         {
-            if (GetKey(_buckets[bucket] - 1, out _).SequenceEqual(key))
-                break;
+            var offset = GetBucket(bucket);
 
-            bucket = (bucket + 1) & (_buckets.Length - 1);
+            if (offset == 0 || GetKey(offset - 1, out _).SequenceEqual(key))
+                return bucket;
+
+            bucket = (bucket + 1) & (capacity - 1);
         }
 
-        return bucket;
+        throw new InvalidDataException("The name table index is full.");
     }
 
     private void ResizeIndex(int count)

@@ -10,7 +10,7 @@ if (args.Length < 1)
 {
     errorConsole.WriteLine("Usage: HashBuilder <input> [output] [--algorithm <name>] [--compress] [--metadata key=value]...");
     errorConsole.WriteLine();
-    errorConsole.WriteLine("  Formats: .namefile, .csv, .txt (auto-detected by extension)");
+    errorConsole.WriteLine("  Formats: .namefile, .namemap, .csv, .txt (auto-detected by extension)");
     errorConsole.WriteLine("  --algorithm   Required for .txt input files");
     errorConsole.WriteLine("  --compress    Compress .namefile output (Brotli)");
     errorConsole.WriteLine("  --metadata    Add arbitrary metadata (repeatable, key=value format)");
@@ -21,6 +21,7 @@ if (args.Length < 1)
     errorConsole.WriteLine("    HashBuilder names.txt names.namefile --algorithm Fnv1a64");
     errorConsole.WriteLine("    HashBuilder hashes.csv hashes.namefile --compress");
     errorConsole.WriteLine("    HashBuilder data.namefile dump.csv");
+    errorConsole.WriteLine("    HashBuilder data.namefile data.namemap");
     errorConsole.WriteLine("    HashBuilder names.txt out.namefile --algorithm Fnv1a64 --metadata Game=Bo2 --metadata Author=Me");
     return 1;
 }
@@ -57,7 +58,17 @@ AnsiConsole.WriteLine($"Loading: {inputPath}");
 
 NameTable nameTable;
 
-if (inputExt == ".namefile")
+if (string.Equals(Path.GetExtension(outputPath), ".namemap", StringComparison.OrdinalIgnoreCase) && compress)
+{
+    errorConsole.WriteLine("Mapped output does not support --compress.", errorStyle);
+    return 1;
+}
+
+if (inputExt == ".namemap")
+{
+    nameTable = NameFile.OpenMapped(inputPath);
+}
+else if (inputExt == ".namefile")
 {
     nameTable = NameFile.Load(inputPath);
 }
@@ -86,6 +97,8 @@ else
     errorConsole.WriteLine($"Unsupported input format: '{inputExt}'", errorStyle);
     return 1;
 }
+
+using var tableLifetime = nameTable;
 
 AnsiConsole.WriteLine($"Algorithm: {nameTable.Name}");
 AnsiConsole.WriteLine($"Entries:   {nameTable.Count:N0}");
@@ -121,7 +134,10 @@ if (compress)
 if (checksum)
     flags |= NameFileFlags.Checksum;
 
-NameFile.Save(outputPath, nameTable, flags);
+if (string.Equals(Path.GetExtension(outputPath), ".namemap", StringComparison.OrdinalIgnoreCase))
+    NameFile.SaveMapped(outputPath, nameTable);
+else
+    NameFile.Save(outputPath, nameTable, flags);
 
 AnsiConsole.MarkupLine("[green]Done.[/]");
 return 0;
