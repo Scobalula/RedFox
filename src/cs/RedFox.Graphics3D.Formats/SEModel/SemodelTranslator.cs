@@ -42,19 +42,27 @@ public class SemodelTranslator : SceneTranslator
         var magic = ReadPayload(reader, MagicValue.Length);
 
         if (!magic.AsSpan().SequenceEqual(MagicValue))
+        {
             throw new InvalidDataException("Invalid SEModel file: incorrect magic number.");
+        }
 
         var	version		= reader.ReadUInt16();
         var	headerSize	= reader.ReadUInt16();
 
         if (version != 1)
+        {
             throw new InvalidDataException($"Unsupported SEModel version: {version}.");
+        }
         if (headerSize < 20)
+        {
             throw new InvalidDataException($"Invalid SEModel header size: {headerSize}.");
+        }
 
         long headerStart = stream.Position;
         if (headerSize > stream.Length - headerStart)
+        {
             throw new InvalidDataException("Truncated SEModel header.");
+        }
 
         var	dataPresence		= reader.ReadByte();
         var	boneDataPresence	= reader.ReadByte();
@@ -64,17 +72,13 @@ public class SemodelTranslator : SceneTranslator
         var	meshCount	= reader.ReadInt32();
         var	matCount	= reader.ReadInt32();
 
-        reader.ReadByte();
-        reader.ReadByte();
-        reader.ReadByte();
-
-        if (boneCount < 0 || meshCount < 0 || matCount < 0 || (long)boneCount + meshCount + matCount > stream.Length - stream.Position)
-            throw new InvalidDataException("Invalid SEModel counts.");
         stream.Position = headerStart + headerSize - 2;
 
         var boneNames = new string[boneCount];
         for (int i = 0; i < boneCount; i++)
+        {
             boneNames[i] = reader.ReadUTF8NullTerminatedString();
+        }
 
         bool hasWorldTransforms = (boneDataPresence & (1 << 0)) != 0;
         bool hasLocalTransforms = (boneDataPresence & (1 << 1)) != 0;
@@ -86,8 +90,11 @@ public class SemodelTranslator : SceneTranslator
         for (int i = 0; i < boneCount; i++)
         {
             token?.ThrowIfCancellationRequested();
+
             if (reader.ReadByte() != 0)
+            {
                 throw new InvalidDataException("Invalid SEModel file: expected bone flag to be 0.");
+            }
 
             boneParents[i] = reader.ReadInt32();
 
@@ -113,41 +120,43 @@ public class SemodelTranslator : SceneTranslator
             bones[i] = bone;
         }
 
-        var skeleton	= scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
-        byte[] states	= new byte[boneParents.Length];
-        for (int i = 0; i < boneParents.Length; i++)
+        var skeleton = scene.RootNode.AddNode(new Skeleton($"{context.Name}_Skeleton"));
+
+        for (int i = 0; i < boneCount; i++)
         {
-            int current = i;
-            while (current != -1 && states[current] == 0)
+            int current = boneParents[i];
+
+            for (int depth = 0; current != -1; depth++)
             {
-                states[current] = 1;
-                int parent = boneParents[current];
-                if (parent < -1 || parent >= boneParents.Length)
+                if ((uint)current >= (uint)boneCount)
+                {
                     throw new InvalidDataException("Invalid SEModel parent index.");
-                current = parent;
-            }
-            if (current != -1 && states[current] == 1)
-                throw new InvalidDataException("Cyclic SEModel hierarchy.");
-            current = i;
-            while (current != -1 && states[current] == 1)
-            {
-                states[current]	= 2;
-                current			= boneParents[current];
+                }
+
+                if (depth >= boneCount)
+                {
+                    throw new InvalidDataException("Cyclic SEModel hierarchy.");
+                }
+
+                current = boneParents[current];
             }
         }
+
         skeleton.LinkHierarchyUnsafe(bones, boneParents);
 
-        bool	hasUVs		= (meshDataPresence & (1 << 0)) != 0;
-        bool	hasNormals	= (meshDataPresence & (1 << 1)) != 0;
-        bool	hasColours	= (meshDataPresence & (1 << 2)) != 0;
-        bool	hasWeights	= (meshDataPresence & (1 << 3)) != 0;
+        bool hasUVs		= (meshDataPresence & (1 << 0)) != 0;
+        bool hasNormals	= (meshDataPresence & (1 << 1)) != 0;
+        bool hasColours	= (meshDataPresence & (1 << 2)) != 0;
+        bool hasWeights	= (meshDataPresence & (1 << 3)) != 0;
 
         var model			= scene.RootNode.AddNode<MeshGroup>(context.Name);
+        var meshes			= new List<Mesh>(meshCount);
         var materialIndices	= new List<int[]>(meshCount);
 
         for (int i = 0; i < meshCount; i++)
         {
             token?.ThrowIfCancellationRequested();
+
             if (reader.ReadByte() != 0)
             {
                 throw new InvalidDataException("Invalid SEModel file: expected mesh flag to be 0.");
@@ -159,11 +168,16 @@ public class SemodelTranslator : SceneTranslator
             int	faceCount	= reader.ReadInt32();
 
             if (vertexCount < 0 || faceCount < 0)
+            {
                 throw new InvalidDataException("Invalid SEModel mesh dimensions.");
+            }
+
             var mesh = model.AddNode<Mesh>();
+            meshes.Add(mesh);
 
             mesh.Positions = new DataBuffer<float>(ReadPayload(reader, checked(12 * vertexCount)), 1, 3);
 
+            // TODO: we could avoid a copy here in the databuffer constructor?
             if (hasUVs)
             {
                 mesh.UVLayers = new DataBuffer<float>(ReadPayload(reader, checked(8 * vertexCount * layerCount)), layerCount, 2);
@@ -179,13 +193,7 @@ public class SemodelTranslator : SceneTranslator
 
             if (hasWeights && influences > 0)
             {
-                int indexSize;
-                if (boneCount <= byte.MaxValue)
-                    indexSize = 1;
-                else if (boneCount <= ushort.MaxValue)
-                    indexSize = 2;
-                else
-                    indexSize = 4;
+                int	indexSize		= GetIndexSize(boneCount);
                 int	influenceStride	= indexSize + sizeof(float);
                 int	vertexStride	= influences * influenceStride;
 
@@ -193,10 +201,11 @@ public class SemodelTranslator : SceneTranslator
 
                 DataBuffer boneIndices = indexSize switch
                 {
-                    1 => DataBufferPacking.CreateStrided<byte>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
-                    2 => DataBufferPacking.CreateStrided<ushort>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
-                    _ => DataBufferPacking.CreateStrided<int>(weightData, vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    1 => DataBufferPacking.CreateStrided<byte>(weightData,      vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    2 => DataBufferPacking.CreateStrided<ushort>(weightData,    vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
+                    _ => DataBufferPacking.CreateStrided<int>(weightData,       vertexCount, byteOffset: 0, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride),
                 };
+
                 DataBuffer boneWeights = DataBufferPacking.CreateStrided<float>(weightData, vertexCount, byteOffset: indexSize, byteStride: vertexStride, valueCount: influences, componentCount: 1, byteValueStride: influenceStride);
 
                 mesh.Skin = new Skin(bones, boneIndices, boneWeights);
@@ -209,7 +218,6 @@ public class SemodelTranslator : SceneTranslator
             else if (vertexCount <= ushort.MaxValue)
             {
                 mesh.FaceIndices = new DataBuffer<ushort>(ReadPayload(reader, checked(2 * faceCount * 3)), 1, 1);
-
             }
             else
             {
@@ -221,45 +229,39 @@ public class SemodelTranslator : SceneTranslator
             for (int m = 0; m < layerCount; m++)
             {
                 perMeshMaterialIndices[m] = reader.ReadInt32();
+
                 if (perMeshMaterialIndices[m] < -1 || perMeshMaterialIndices[m] >= matCount)
+                {
                     throw new InvalidDataException("Invalid SEModel material index.");
+                }
             }
+
             materialIndices.Add(perMeshMaterialIndices);
         }
+
+        var materials = new List<Material>(matCount);
 
         for (int m = 0; m < matCount; m++)
         {
             token?.ThrowIfCancellationRequested();
             var material = model.AddNode<Material>(reader.ReadUTF8NullTerminatedString());
+            materials.Add(material);
 
             if (reader.ReadBoolean())
             {
                 material.DiffuseMapName		= AssignMaterialTexture(material, "diffuse",	reader.ReadUTF8NullTerminatedString(), context.SourceDirectoryPath);
-                material.NormalMapName		= AssignMaterialTexture(material, "normal",	reader.ReadUTF8NullTerminatedString(), context.SourceDirectoryPath);
+                material.NormalMapName		= AssignMaterialTexture(material, "normal",	    reader.ReadUTF8NullTerminatedString(), context.SourceDirectoryPath);
                 material.SpecularMapName	= AssignMaterialTexture(material, "specular",	reader.ReadUTF8NullTerminatedString(), context.SourceDirectoryPath);
             }
         }
 
-        Material[] allMaterials	= model.GetDescendants<Material>();
-        Mesh[] allMeshes		= model.GetDescendants<Mesh>();
-
-        for (int i = 0; i < allMeshes.Length && i < materialIndices.Count; i++)
+        for (int i = 0; i < meshes.Count; i++)
         {
-            token?.ThrowIfCancellationRequested();
-            int[] matIndices				= materialIndices[i];
-            List<Material> meshMaterials	= new(matIndices.Length);
-
-            foreach (int matIndex in matIndices)
-            {
-                if (matIndex >= 0 && matIndex < allMaterials.Length)
-                {
-                    meshMaterials.Add(allMaterials[matIndex]);
-                }
-            }
+            var meshMaterials = materialIndices[i].Where(index => index >= 0).Select(index => materials[index]).ToList();
 
             if (meshMaterials.Count > 0)
             {
-                allMeshes[i].Materials = meshMaterials;
+                meshes[i].Materials = meshMaterials;
             }
         }
     }
@@ -281,14 +283,24 @@ public class SemodelTranslator : SceneTranslator
         SceneNode[] exportedBoneNodes		= Array.ConvertAll(bones, static bone => (SceneNode)bone);
         Dictionary<SkeletonBone, SkeletonBone?> parents = SkeletonExportTransforms.BuildExportedParentMap(bones, exportedBoneNodes);
 
-        bool	hasBones	= bones.Length > 0;
-        bool	hasMeshes	= meshes.Length > 0;
-        bool	hasMats		= materials.Length > 0;
+        bool hasBones	= bones.Length > 0;
+        bool hasMeshes	= meshes.Length > 0;
+        bool hasMats		= materials.Length > 0;
 
         byte dataPresence = 0;
-        if (hasBones)	dataPresence |= 1;
-        if (hasMeshes) dataPresence |= 2;
-        if (hasMats)	dataPresence |= 4;
+
+        if (hasBones)
+        {
+            dataPresence |= 1;
+        }
+        if (hasMeshes)
+        {
+            dataPresence |= 2;
+        }
+        if (hasMats)
+        {
+            dataPresence |= 4;
+        }
 
         var meshDataPresence = ComputeMeshDataPresence(meshes);
 
@@ -324,56 +336,72 @@ public class SemodelTranslator : SceneTranslator
 
             writer.WriteStruct(bone.GetActiveWorldPosition());
             writer.WriteStruct(bone.GetActiveWorldRotation());
-            SceneNode? parent	= exportedParent;
-            Matrix4x4 matrix	= bone.GetActiveWorldMatrix();
-            if (parent is not null)
+            Matrix4x4 matrix = bone.GetActiveWorldMatrix();
+
+            if (exportedParent is not null)
             {
-                if (!Matrix4x4.Invert(parent.GetActiveWorldMatrix(), out Matrix4x4 inverse))
+                if (!Matrix4x4.Invert(exportedParent.GetActiveWorldMatrix(), out Matrix4x4 inverse))
+                {
                     throw new InvalidDataException("Singular SEModel parent transform.");
+                }
+
                 matrix *= inverse;
             }
+
             SkeletonExportTransforms.DecomposeMatrix(matrix, out Vector3 scale, out Quaternion rotation, out Vector3 position);
             writer.WriteStruct(position);
             writer.WriteStruct(rotation);
             writer.WriteStruct(scale);
-
         }
 
         for (int i = 0; i < materials.Length; i++)
+        {
             materialTable[materials[i]] = i;
+        }
 
-        bool	hasUVs		= (meshDataPresence & (1 << 0)) != 0;
-        bool	hasNormals	= (meshDataPresence & (1 << 1)) != 0;
-        bool	hasColours	= (meshDataPresence & (1 << 2)) != 0;
-        bool	hasWeights	= (meshDataPresence & (1 << 3)) != 0;
+        bool hasUVs		= (meshDataPresence & (1 << 0)) != 0;
+        bool hasNormals	= (meshDataPresence & (1 << 1)) != 0;
+        bool hasColours	= (meshDataPresence & (1 << 2)) != 0;
+        bool hasWeights	= (meshDataPresence & (1 << 3)) != 0;
 
         foreach (var mesh in meshes)
         {
             token?.ThrowIfCancellationRequested();
-            if (mesh.Positions is null)
-                throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' has no position data.");
-            if (mesh.FaceIndices is null)
-                throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' has no face index data.");
 
-            int		vertexCount	= mesh.Positions.ElementCount;
-            int		faceCount	= mesh.FaceIndices.ElementCount / 3;
-            int		layerCount	= Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1);
-            Skin?	skin		= mesh.Skin;
-            int		influences	= skin?.BoneIndices.ValueCount ?? 0;
+            if (mesh.Positions is null)
+            {
+                throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' has no position data.");
+            }
+            if (mesh.FaceIndices is null)
+            {
+                throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' has no face index data.");
+            }
+
+            int vertexCount	= mesh.Positions.ElementCount;
+            int faceCount	= mesh.FaceIndices.ElementCount / 3;
+            int layerCount	= Math.Max(mesh.UVLayers?.ValueCount ?? 0, 1);
+            Skin? skin		= mesh.Skin;
+            int influences	= skin?.BoneIndices.ValueCount ?? 0;
 
             if (layerCount > byte.MaxValue || influences > byte.MaxValue || mesh.IndexCount % 3 != 0)
+            {
                 throw new InvalidDataException("SEModel layer, influence, or triangle count is out of range.");
+            }
 
             int[] globalBoneIndexTable			= skin is not null ? GetExportBoneIndices(mesh, skin, boneTable) : [];
             Matrix4x4[] skinTransforms			= [];
             Matrix4x4[] skinNormalTransforms	= [];
+
             if (!options.WriteRawVertices && skin is not null)
             {
                 skinTransforms = new Matrix4x4[skin.Bones.Count];
                 mesh.CopySkinTransforms(skinTransforms);
                 skinNormalTransforms = new Matrix4x4[skinTransforms.Length];
+
                 for (int i = 0; i < skinTransforms.Length; i++)
+                {
                     skinNormalTransforms[i] = Matrix4x4.Invert(skinTransforms[i], out Matrix4x4 inverse) ? Matrix4x4.Transpose(inverse) : skinTransforms[i];
+                }
             }
 
             writer.Write((byte)0);
@@ -383,7 +411,9 @@ public class SemodelTranslator : SceneTranslator
             writer.Write(faceCount);
 
             for (int v = 0; v < vertexCount; v++)
+            {
                 writer.WriteStruct(options.WriteRawVertices ? mesh.GetVertexPosition(v, raw: true) : mesh.GetVertexPosition(v, skinTransforms));
+            }
 
             if (mesh.UVLayers is not null)
             {
@@ -399,7 +429,6 @@ public class SemodelTranslator : SceneTranslator
             }
             else if (hasUVs)
             {
-
                 for (int v = 0; v < vertexCount; v++)
                 {
                     for (int l = 0; l < layerCount; l++)
@@ -413,13 +442,16 @@ public class SemodelTranslator : SceneTranslator
             if (mesh.Normals is not null)
             {
                 for (int v = 0; v < vertexCount; v++)
+                {
                     writer.WriteStruct(options.WriteRawVertices ? mesh.GetVertexNormal(v, raw: true) : mesh.GetVertexNormal(v, skinTransforms, skinNormalTransforms));
+                }
             }
             else if (hasNormals)
             {
-
                 for (int v = 0; v < vertexCount; v++)
+                {
                     writer.WriteStruct(Vector3.Zero);
+                }
             }
 
             if (mesh.ColorLayers is not null)
@@ -436,7 +468,6 @@ public class SemodelTranslator : SceneTranslator
             }
             else if (hasColours)
             {
-
                 for (int v = 0; v < vertexCount; v++)
                 {
                     writer.Write((byte)255);
@@ -452,15 +483,7 @@ public class SemodelTranslator : SceneTranslator
                 {
                     for (int j = 0; j < influences; j++)
                     {
-                        int boneIdx = skin.GetBoneIndex(v, j);
-
-                        if (bones.Length <= byte.MaxValue)
-                            writer.Write((byte)globalBoneIndexTable[boneIdx]);
-                        else if (bones.Length <= ushort.MaxValue)
-                            writer.Write((ushort)globalBoneIndexTable[boneIdx]);
-                        else
-                            writer.Write(globalBoneIndexTable[boneIdx]);
-
+                        WriteIndex(writer, globalBoneIndexTable[skin.GetBoneIndex(v, j)], bones.Length);
                         writer.Write(skin.BoneWeights.Get<float>(v, j, 0));
                     }
                 }
@@ -468,20 +491,20 @@ public class SemodelTranslator : SceneTranslator
 
             for (int f = 0; f < mesh.FaceIndices.ElementCount; f++)
             {
-                if ((uint)mesh.FaceIndices.Get<int>(f, 0, 0) >= (uint)vertexCount)
+                int faceIndex = mesh.FaceIndices.Get<int>(f, 0, 0);
+
+                if ((uint)faceIndex >= (uint)vertexCount)
+                {
                     throw new InvalidDataException("Invalid SEModel face index.");
-                if (vertexCount <= byte.MaxValue)
-                    writer.Write(mesh.FaceIndices.Get<byte>(f, 0, 0));
-                else if (vertexCount <= ushort.MaxValue)
-                    writer.Write(mesh.FaceIndices.Get<ushort>(f, 0, 0));
-                else
-                    writer.Write(mesh.FaceIndices.Get<int>(f, 0, 0));
+                }
+
+                WriteIndex(writer, faceIndex, vertexCount);
             }
 
-            int[] meshMaterialIndices = GetExportMaterialIndices(mesh, layerCount, materialTable);
-
             for (int l = 0; l < layerCount; l++)
-                writer.Write(meshMaterialIndices[l]);
+            {
+                writer.Write(ResolveExportMaterialIndex(mesh, l, materialTable));
+            }
         }
 
         foreach (var material in materials)
@@ -491,7 +514,7 @@ public class SemodelTranslator : SceneTranslator
 
             string?	diffuseMapName	= ResolveMaterialTextureName(material, material.DiffuseMapName,		targetDirectoryPath);
             string?	normalMapName	= ResolveMaterialTextureName(material, material.NormalMapName,		targetDirectoryPath);
-            string?	specularMapName	= ResolveMaterialTextureName(material, material.SpecularMapName, targetDirectoryPath);
+            string?	specularMapName	= ResolveMaterialTextureName(material, material.SpecularMapName,    targetDirectoryPath);
 
             bool hasImages = diffuseMapName is not null || normalMapName is not null || specularMapName is not null;
 
@@ -509,30 +532,80 @@ public class SemodelTranslator : SceneTranslator
     private static byte[] ReadPayload(BinaryReader reader, int size)
     {
         if (size < 0 || size > reader.BaseStream.Length - reader.BaseStream.Position)
+        {
             throw new InvalidDataException("Truncated SEModel payload.");
+        }
+
         byte[] data = new byte[size];
         reader.BaseStream.ReadExactly(data);
+
         return data;
+    }
+
+    private static int GetIndexSize(int count)
+    {
+        if (count <= byte.MaxValue)
+        {
+            return sizeof(byte);
+        }
+
+        if (count <= ushort.MaxValue)
+        {
+            return sizeof(ushort);
+        }
+
+        return sizeof(int);
+    }
+
+    private static void WriteIndex(BinaryWriter writer, int value, int count)
+    {
+        switch (GetIndexSize(count))
+        {
+            case sizeof(byte):
+                writer.Write((byte)value);
+                break;
+            case sizeof(ushort):
+                writer.Write((ushort)value);
+                break;
+            default:
+                writer.Write(value);
+                break;
+        }
     }
 
     private static byte ComputeMeshDataPresence(Mesh[] meshes)
     {
         byte flags = 0;
+
         foreach (var mesh in meshes)
         {
-            if (mesh.UVLayers is not null)		flags |= 1;
-            if (mesh.Normals is not null)		flags |= 2;
-            if (mesh.ColorLayers is not null) flags |= 4;
-            if (mesh.Skin is not null)			flags |= 8;
+            if (mesh.UVLayers is not null)
+            {
+                flags |= 1;
+            }
+            if (mesh.Normals is not null)
+            {
+                flags |= 2;
+            }
+            if (mesh.ColorLayers is not null)
+            {
+                flags |= 4;
+            }
+            if (mesh.Skin is not null)
+            {
+                flags |= 8;
+            }
         }
+
         return flags;
     }
 
     private static string? AssignMaterialTexture(Material material, string slot, string? textureReference, string? sourceDirectoryPath)
     {
         if (string.IsNullOrWhiteSpace(textureReference))
+        {
             return null;
-
+        }
         string? resolvedPath = FilePathResolver.ResolveReferencePath(textureReference, sourceDirectoryPath);
 
         if (material.TryGetTexture(slot, out Texture? existing))
@@ -553,10 +626,13 @@ public class SemodelTranslator : SceneTranslator
     private static string? ResolveMaterialTextureName(Material material, string? slotKey, string? targetDirectoryPath)
     {
         if (slotKey is null)
+        {
             return null;
-
+        }
         if (material.TryGetTexture(slotKey, out Texture? texture))
+        {
             return texture.GetPortableFilePath(targetDirectoryPath);
+        }
 
         return null;
     }
@@ -567,7 +643,9 @@ public class SemodelTranslator : SceneTranslator
         foreach (SkeletonBone skinnedBone in skin.Bones)
         {
             if (!boneTable.ContainsKey(skinnedBone))
+            {
                 missingBones.Add(skinnedBone.Name);
+            }
         }
 
         if (missingBones.Count > 0)
@@ -578,29 +656,21 @@ public class SemodelTranslator : SceneTranslator
         return skin.GetBoneTableIndices(boneTable);
     }
 
-    private static int[] GetExportMaterialIndices(Mesh mesh, int layerCount, IReadOnlyDictionary<Material, int> materialTable)
-    {
-        if (layerCount <= 0)
-            return [];
-
-        int[] indices = new int[layerCount];
-
-        for (int layerIndex = 0; layerIndex < layerCount; layerIndex++)
-            indices[layerIndex] = ResolveExportMaterialIndex(mesh, layerIndex, materialTable);
-
-        return indices;
-    }
-
     private static int ResolveExportMaterialIndex(Mesh mesh, int layerIndex, IReadOnlyDictionary<Material, int> materialTable)
     {
         if (mesh.Materials is null || mesh.Materials.Count == 0)
+        {
             return -1;
+        }
 
         if (layerIndex < mesh.Materials.Count)
         {
             Material exactMaterial = mesh.Materials[layerIndex];
+
             if (materialTable.TryGetValue(exactMaterial, out int exactIndex))
+            {
                 return exactIndex;
+            }
 
             throw new InvalidDataException($"Cannot write SEModel: mesh '{mesh.Name}' references material '{exactMaterial.Name}' for layer {layerIndex} that is not included in the export selection.");
         }
@@ -608,7 +678,9 @@ public class SemodelTranslator : SceneTranslator
         foreach (Material material in mesh.Materials)
         {
             if (materialTable.TryGetValue(material, out int fallbackIndex))
+            {
                 return fallbackIndex;
+            }
         }
 
         return -1;

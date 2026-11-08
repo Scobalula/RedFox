@@ -26,6 +26,17 @@ public sealed class SeanimTranslatorTests
         AssertSkeletonAnimationStructurallyEqual(firstAnimation, secondAnimation);
     }
 
+    [Fact]
+    public void SeanimTranslator_RelativeBone_ReadsRotationsAsAbsolute()
+    {
+        SceneTranslatorManager manager		= CreateManagerWithSeanimTranslator();
+        byte[] data							= WriteSceneWithManager(manager, CreateSeanimSampleScene(), "sample.seanim");
+        SkeletonAnimationTrack rootTrack	= ReadSceneWithManager(manager, data, "sample.seanim").FirstOfType<SkeletonAnimation>().Tracks[0];
+
+        Assert.Equal(TransformType.Relative, rootTrack.TranslationCurve!.TransformType);
+        Assert.Equal(TransformType.Absolute, rootTrack.RotationCurve!.TransformType);
+    }
+
     [CorpusFact]
     public void SeanimSamples_RoundTripViaManager_DeterministicRewriteAndStructuralMatch()
     {
