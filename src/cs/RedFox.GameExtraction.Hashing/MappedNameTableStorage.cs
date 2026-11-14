@@ -20,9 +20,9 @@ public sealed unsafe class MappedNameTableStorage : IDisposable
     private byte* _pointer;
     private bool _disposed;
 
-    internal const ulong	Magic		= 0x004D454D414E4652;
-    internal const int	Version		= 1;
-    internal const int	HeaderSize	= 52;
+    internal const ulong Magic		= 0x50414D454D414E;
+    internal const int Version		= 1;
+    internal const int HeaderSize	= 52;
 
     /// <summary>
     /// Gets the hash algorithm name.
