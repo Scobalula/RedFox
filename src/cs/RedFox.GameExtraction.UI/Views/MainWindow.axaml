@@ -66,7 +66,7 @@
                             ToolTip.Tip="Load folder"
                             Command="{Binding LoadDirectoryCommand}"
                             IsVisible="{Binding CanLoadDirectories}">
-                        <PathIcon Data="{StaticResource IconFolder}"/>
+                        <PathIcon Classes="open-icon" Data="{StaticResource IconFolder}"/>
                     </Button>
                     <Separator Classes="toolbar-sep" IsVisible="{Binding CanLoadAnySource}"/>
                     <Button Classes="icon-btn toolbar-icon-btn"
@@ -95,18 +95,18 @@
                             ToolTip.Tip="Export selected assets"
                             ToolTip.ShowOnDisabled="True"
                             Command="{Binding ExportSelectedCommand}">
-                        <PathIcon Data="{StaticResource IconExport}"/>
+                        <PathIcon Classes="export-icon" Data="{StaticResource IconExport}"/>
                     </Button>
                     <Button Classes="icon-btn toolbar-icon-btn"
                             ToolTip.Tip="Export all listed assets"
                             ToolTip.ShowOnDisabled="True"
                             Command="{Binding ExportAllCommand}">
-                        <PathIcon Data="{StaticResource IconExportAll}"/>
+                        <PathIcon Classes="export-icon" Data="{StaticResource IconExportAll}"/>
                     </Button>
                     <Button Classes="icon-btn toolbar-icon-btn"
                             ToolTip.Tip="Open export folder"
                             Command="{Binding OpenExportFolderCommand}">
-                        <PathIcon Data="{StaticResource IconFolderOpen}"/>
+                        <PathIcon Classes="open-icon" Data="{StaticResource IconFolderOpen}"/>
                     </Button>
                 </StackPanel>
                 <TextBox Grid.Column="2"
@@ -221,7 +221,7 @@
                                 <MenuItem Header="Preview Focused" Command="{Binding ShowPreviewLayoutCommand}"/>
                                 <MenuItem Header="Open Preview Window" Command="{Binding PreviewSelectedCommand}">
                                     <MenuItem.Icon>
-                                        <PathIcon Data="{StaticResource IconExternalLink}"/>
+                                        <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}"/>
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator/>
@@ -467,11 +467,11 @@
                                                Text="{Binding Preview.AssetTypeDisplay}"
                                                IsVisible="{Binding Preview.HasAsset}"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                     <Button Classes="icon-btn"
                                             ToolTip.Tip="Open in preview window"
                                             Command="{Binding PreviewSelectedCommand}">
-                                        <PathIcon Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
+                                        <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
                                     </Button>
                                     <Button Classes="icon-btn"
                                             Classes.active="{Binding IsPreviewExpanded}"

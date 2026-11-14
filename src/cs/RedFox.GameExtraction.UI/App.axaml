@@ -27,11 +27,29 @@
         <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
         <SolidColorBrush x:Key="ComboBoxItemBackground" Color="Transparent"/>
-        <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#27272A"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#262626"/>
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#737373"/>
+        <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#737373"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#171717"/>
+        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundUnfocused" Color="Transparent"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundBorderBrushFocused" Color="#A1A1A1"/>
+        <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#A1A1A1"/>
+        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#171717"/>
+        <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#FAFAFA"/>
+        <Thickness x:Key="TextControlBorderThemeThicknessFocused">1</Thickness>
+        <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+        <CornerRadius x:Key="OverlayCornerRadius">6</CornerRadius>
         <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#171717"/>
         <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="MenuFlyoutPresenterBorderThemeThickness">1</Thickness>
-        <Thickness x:Key="MenuFlyoutPresenterThemePadding">0,4</Thickness>
+        <Thickness x:Key="MenuFlyoutPresenterThemePadding">4</Thickness>
+        <Thickness x:Key="MenuFlyoutScrollerMargin">0</Thickness>
         <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="#FAFAFA"/>
@@ -44,11 +62,14 @@
         <SolidColorBrush x:Key="SliderTrackFill" Color="#262626"/>
         <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#27272A"/>
         <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#27272A"/>
-        <CornerRadius x:Key="SliderThumbCornerRadius">0</CornerRadius>
+        <CornerRadius x:Key="SliderThumbCornerRadius">4</CornerRadius>
         <SolidColorBrush x:Key="ThemeDestructiveBrush" Color="#FF6467"/>
         <SolidColorBrush x:Key="HeartBrush" Color="#E53935"/>
         <SolidColorBrush x:Key="SecondaryActionBrush" Color="#222222"/>
         <SolidColorBrush x:Key="SecondaryActionHoverBrush" Color="#292929"/>
+        <SolidColorBrush x:Key="SecondaryActionPressedBrush" Color="#1C1C1C"/>
+        <SolidColorBrush x:Key="IconOpenBrush" Color="#E8C17A"/>
+        <SolidColorBrush x:Key="IconExportBrush" Color="#8FD6A3"/>
 
         <StreamGeometry x:Key="IconFolder">F1 M2,5 L2,4 C2,3.45 2.45,3 3,3 L6.5,3 L8,5 L13,5 C13.55,5 14,5.45 14,6 L14,13 C14,13.55 13.55,14 13,14 L3,14 C2.45,14 2,13.55 2,13 Z</StreamGeometry>
         <StreamGeometry x:Key="IconFolderOpen">F1 M1.5,4 C1.5,3.45 1.95,3 2.5,3 L6,3 L7.5,4.5 L12.5,4.5 C13.05,4.5 13.5,4.95 13.5,5.5 L13.5,7 L4.2,7 L1.5,13 Z M4.8,8 L15,8 L12.3,14 L2,14 Z</StreamGeometry>

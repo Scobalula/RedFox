@@ -163,7 +163,7 @@
     </Style>
 
     <Style Selector="Button.sidebar-btn, Button.accent-btn">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="10,8"/>
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
@@ -178,8 +178,28 @@
         <Setter Property="Height" Value="15"/>
     </Style>
 
-    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon, Border.asset-icon PathIcon, Border.asset-thumbnail PathIcon">
+    <Style Selector="Border.asset-icon PathIcon, Border.asset-thumbnail PathIcon">
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.icon-btn:pointerover PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.open-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconOpenBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.export-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconExportBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.preview-icon">
+        <Setter Property="Foreground" Value="{DynamicResource AssetPreviewForegroundBrush}"/>
     </Style>
 
     <Style Selector="PathIcon.heart-icon">
@@ -237,7 +257,7 @@
     </Style>
 
     <Style Selector="Button.secondary-btn, Button.icon-btn">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
@@ -254,8 +274,8 @@
     </Style>
 
     <Style Selector="Button.icon-btn">
-        <Setter Property="Width" Value="30"/>
-        <Setter Property="Height" Value="30"/>
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -268,12 +288,12 @@
     </Style>
 
     <Style Selector="Button.secondary-btn:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
     </Style>
 
     <Style Selector="Button.secondary-btn.compact">
         <Setter Property="MinWidth" Value="0"/>
-        <Setter Property="MinHeight" Value="30"/>
+        <Setter Property="MinHeight" Value="34"/>
         <Setter Property="Padding" Value="10,0"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
@@ -316,12 +336,48 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
     </Style>
 
-    <Style Selector="Button:disabled">
+    <Style Selector="Button.icon-btn.active:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentPressedBrush}"/>
+    </Style>
+
+    <Style Selector="Button.secondary-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, search|SearchPanel Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.accent-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn.active:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="#FFFBEB"/>
+    </Style>
+
+    <Style Selector="Button.sidebar-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.filter-select-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button:disabled, TextBox:disabled, ComboBox:disabled, Slider:disabled">
         <Setter Property="Opacity" Value="0.4"/>
     </Style>
 
+    <Style Selector=":is(Button)">
+        <Setter Property="FocusAdorner">
+            <FocusAdornerTemplate>
+                <Border BorderThickness="1" BorderBrush="{DynamicResource ThemeForegroundBrush}" CornerRadius="{DynamicResource ControlCornerRadius}"/>
+            </FocusAdornerTemplate>
+        </Setter>
+    </Style>
+
     <Style Selector="MenuFlyoutPresenter">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
     </Style>
@@ -336,7 +392,7 @@
     </Style>
 
     <Style Selector="MenuItem">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="10,6"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
@@ -367,7 +423,7 @@
     </Style>
 
     <Style Selector="TextBox.search-box">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="10,7"/>
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
@@ -383,14 +439,14 @@
 
     <Style Selector="TextBox.search-box:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="Border.notification">
         <Setter Property="Width" Value="380"/>
         <Setter Property="Padding" Value="12,10"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
     </Style>
 
@@ -462,6 +518,15 @@
         <Setter Property="Padding" Value="4"/>
         <Setter Property="Margin" Value="10,0,0,0"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector="Button.notification-close:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.notification-close:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
     <Style Selector="Button.notification-close PathIcon">
@@ -590,7 +655,7 @@
     <Style Selector="CheckBox">
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="MinHeight" Value="28"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="Padding" Value="8,0,0,0"/>
         <Setter Property="FocusAdorner" Value="{x:Null}"/>
@@ -600,7 +665,16 @@
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
+    </Style>
+
+    <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
@@ -613,7 +687,7 @@
     </Style>
 
     <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:checked /template/ Border#NormalRectangle,
@@ -646,20 +720,16 @@
 
     <Style Selector="ComboBox">
         <Setter Property="MinHeight" Value="34"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
     </Style>
 
-    <Style Selector="ComboBox:pointerover">
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
-    </Style>
-
     <Style Selector="Button.filter-select-btn">
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="Height" Value="34"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
@@ -669,18 +739,14 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="Button.filter-select-btn:pointerover">
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
-    </Style>
-
     <Style Selector="Button.filter-select-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.filter-select-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
     <Style Selector="FlyoutPresenter.asset-filter-presenter">
@@ -691,7 +757,7 @@
     </Style>
 
     <Style Selector="Border.asset-filter-flyout">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Padding" Value="6"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
@@ -704,7 +770,7 @@
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
     </Style>
 
-    <Style Selector="CheckBox.asset-filter-option:pointerover">
+    <Style Selector="CheckBox.asset-filter-option:pointerover /template/ Border#PART_Border">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
     </Style>
 
@@ -723,7 +789,8 @@
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
+        <Setter Property="ClipToBounds" Value="True"/>
     </Style>
 
     <Style Selector="ComboBoxItem /template/ ContentPresenter">
@@ -750,13 +817,12 @@
     </Style>
 
     <Style Selector="search|SearchPanel">
-        <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel TextBox">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="MinHeight" Value="30"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
@@ -772,11 +838,11 @@
 
     <Style Selector="search|SearchPanel TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel Button">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
@@ -793,11 +859,11 @@
     </Style>
 
     <Style Selector="search|SearchPanel Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel ToggleButton">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
@@ -805,13 +871,19 @@
     </Style>
 
     <Style Selector="search|SearchPanel ToggleButton:pointerover">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
+    <Style Selector="search|SearchPanel ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+    </Style>
+
     <Style Selector="search|SearchPanel ToggleButton:checked">
-        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Foreground" Value="#FFFBEB"/>
+    </Style>
+
+    <Style Selector="search|SearchPanel ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
 </Styles>
