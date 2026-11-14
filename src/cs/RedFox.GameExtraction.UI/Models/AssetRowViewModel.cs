@@ -48,6 +48,27 @@ public sealed partial class AssetRowViewModel : ObservableObject
 
     internal string FileName => Name[(Name.LastIndexOfAny(PathSeparators) + 1)..];
 
+    internal string CardName
+    {
+        get
+        {
+            string cardName = FileName;
+            int versionStart = cardName.LastIndexOf('.');
+
+            if (versionStart > 0 && versionStart < cardName.Length - 1 && cardName.AsSpan(versionStart + 1).IndexOfAnyExceptInRange('0', '9') < 0)
+            {
+                cardName = cardName[..versionStart];
+            }
+
+            if (cardName.Length > Type.Length + 1 && cardName.EndsWith($".{Type}", StringComparison.OrdinalIgnoreCase))
+            {
+                return cardName[..^(Type.Length + 1)];
+            }
+
+            return FileName;
+        }
+    }
+
     internal string DirectoryName => Name[..Math.Max(Name.LastIndexOfAny(PathSeparators), 0)];
 
     internal bool HasDirectoryName => Name.LastIndexOfAny(PathSeparators) > 0;

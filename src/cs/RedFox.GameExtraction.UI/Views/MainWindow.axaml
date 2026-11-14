@@ -154,8 +154,8 @@
                                    TextTrimming="CharacterEllipsis"/>
                         <PathIcon Grid.Column="1"
                                   Data="{StaticResource IconChevronDown}"
-                                  Width="10"
-                                  Height="10"
+                                  Width="12"
+                                  Height="12"
                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Button>
@@ -192,8 +192,8 @@
                                    TextTrimming="CharacterEllipsis"/>
                         <PathIcon Grid.Column="1"
                                   Data="{StaticResource IconChevronDown}"
-                                  Width="10"
-                                  Height="10"
+                                  Width="12"
+                                  Height="12"
                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Button>
@@ -201,18 +201,18 @@
                             Orientation="Horizontal"
                             Spacing="4"
                             VerticalAlignment="Center">
-                    <Button Classes="icon-btn toolbar-icon-btn ghost"
+                    <Button Classes="icon-btn toolbar-icon-btn"
                             Classes.active="{Binding IsPreviewPanelVisible}"
                             ToolTip.Tip="Toggle preview panel"
                             Command="{Binding TogglePreviewPanelCommand}">
                         <PathIcon Data="{StaticResource IconPanelRight}"/>
                     </Button>
-                    <Button Classes="icon-btn toolbar-icon-btn ghost"
+                    <Button Classes="icon-btn toolbar-icon-btn"
                             ToolTip.Tip="Settings"
                             Command="{Binding OpenSettingsCommand}">
                         <PathIcon Data="{StaticResource IconSettings}"/>
                     </Button>
-                    <Button Classes="icon-btn toolbar-icon-btn ghost"
+                    <Button Classes="icon-btn toolbar-icon-btn"
                             ToolTip.Tip="More">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -332,7 +332,7 @@
                                                           ToolTip.Tip="{Binding Name}">
                                                         <Border Classes="asset-icon">
                                                             <Panel>
-                                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                                                <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}" Foreground="{Binding Category, Converter={StaticResource IconBrushConverter}}" Width="16" Height="16"/>
                                                                 <Border Classes="asset-preview-badge" Width="14" Height="14" Padding="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False">
                                                                     <Viewbox Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                         <Path Width="16" Height="16" Data="{StaticResource IconEye}" Fill="{DynamicResource AssetPreviewForegroundBrush}" Stretch="None"/>
@@ -381,6 +381,7 @@
                                                         <Border Classes="asset-thumbnail">
                                                             <Panel>
                                                                 <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
+                                                                          Foreground="{Binding Category, Converter={StaticResource IconBrushConverter}}"
                                                                           Width="40" Height="40"
                                                                           IsVisible="{Binding !HasThumbnail}"/>
                                                                 <Image Source="{Binding DisplayedThumbnail}"
@@ -394,7 +395,7 @@
                                                             </Panel>
                                                         </Border>
                                                         <TextBlock Classes="asset-name"
-                                                                   Text="{Binding FileName}"
+                                                                   Text="{Binding CardName}"
                                                                    TextTrimming="LeadingCharacterEllipsis"/>
                                                         <TextBlock Classes="asset-info"
                                                                    Text="{Binding Type}"
@@ -454,7 +455,7 @@
                                 Classes="preview-toolbar">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" MinHeight="34">
                                 <Border Classes="asset-icon" IsVisible="{Binding Preview.HasAsset}">
-                                    <PathIcon Data="{Binding Preview.Asset.Category, Converter={StaticResource IconResourceConverter}, FallbackValue={x:Null}}" Width="16" Height="16"/>
+                                    <PathIcon Data="{Binding Preview.Asset.Category, Converter={StaticResource IconResourceConverter}, FallbackValue={x:Null}}" Foreground="{Binding Preview.Asset.Category, Converter={StaticResource IconBrushConverter}}" Width="16" Height="16"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                     <TextBlock Classes="asset-name"
@@ -466,18 +467,18 @@
                                                IsVisible="{Binding Preview.HasAsset}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <Button Classes="icon-btn ghost"
+                                    <Button Classes="icon-btn"
                                             ToolTip.Tip="Open in preview window"
                                             Command="{Binding PreviewSelectedCommand}">
                                         <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
                                     </Button>
-                                    <Button Classes="icon-btn ghost"
+                                    <Button Classes="icon-btn"
                                             Classes.active="{Binding IsPreviewExpanded}"
                                             ToolTip.Tip="Expand preview"
                                             Command="{Binding ToggleExpandPreviewCommand}">
                                         <PathIcon Data="{StaticResource IconExpand}" Width="14" Height="14"/>
                                     </Button>
-                                    <Button Classes="icon-btn ghost"
+                                    <Button Classes="icon-btn"
                                             ToolTip.Tip="Hide preview panel"
                                             Command="{Binding TogglePreviewPanelCommand}">
                                         <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12"/>

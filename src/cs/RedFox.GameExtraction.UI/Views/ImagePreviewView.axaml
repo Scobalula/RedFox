@@ -9,11 +9,11 @@
     <DockPanel>
         <Border DockPanel.Dock="Top" Classes="preview-toolbar">
             <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
-                <StackPanel Classes="preview-field" IsEnabled="{Binding HasMultipleMips}">
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleMips}">
                     <TextBlock Text="Mip"/>
                     <ComboBox Width="150" ItemsSource="{Binding MipNames}" SelectedIndex="{Binding SelectedMipIndex}"/>
                 </StackPanel>
-                <StackPanel Classes="preview-field" IsEnabled="{Binding HasMultipleLayers}">
+                <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleLayers}">
                     <TextBlock Text="Slice"/>
                     <ComboBox Width="130" ItemsSource="{Binding LayerNames}" SelectedIndex="{Binding SelectedLayerIndex}"/>
                 </StackPanel>

@@ -142,6 +142,11 @@ public partial class GameExtractionSettingViewModel : ObservableObject
     /// </summary>
     public bool IsNumber => Type == GameExtractionSettingType.Number;
 
+    /// <summary>
+    /// Gets a value indicating whether the setting is a text value whose default is numeric.
+    /// </summary>
+    public bool IsNumericText => IsText && double.TryParse(Convert.ToString(_setting.DefaultValue, CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture, out _);
+
     public double Minimum => _setting.Minimum;
 
     public double Maximum => _setting.Maximum;
