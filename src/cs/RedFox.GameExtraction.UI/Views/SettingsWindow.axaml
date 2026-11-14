@@ -58,7 +58,6 @@
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                 <TextBlock Classes="asset-name" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Classes="asset-info" Text="{Binding Description}" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Grid>
                     </DataTemplate>

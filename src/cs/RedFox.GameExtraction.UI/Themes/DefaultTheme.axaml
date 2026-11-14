@@ -143,9 +143,9 @@
     </Style>
 
     <Style Selector="TextBlock.setting-category">
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
@@ -640,6 +640,10 @@
 
     <Style Selector="ListBoxItem TextBlock.asset-name">
         <Setter Property="FontWeight" Value="Medium"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list.grid TextBlock.asset-name">
+        <Setter Property="FontSize" Value="12"/>
     </Style>
 
     <Style Selector="ListBox.asset-list.grid ListBoxItem">

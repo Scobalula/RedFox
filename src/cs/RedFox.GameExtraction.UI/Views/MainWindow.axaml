@@ -370,14 +370,14 @@
                                     <Style Selector="ListBox.asset-list.grid">
                                         <Setter Property="ItemsPanel">
                                             <ItemsPanelTemplate>
-                                                <controls:VirtualizingTilePanel ItemWidth="160" ItemHeight="204" Margin="6"/>
+                                                <controls:VirtualizingTilePanel ItemWidth="156" ItemHeight="196" Margin="6"/>
                                             </ItemsPanelTemplate>
                                         </Setter>
                                         <Setter Property="ItemTemplate">
                                             <DataTemplate DataType="{x:Null}" x:DataType="model:AssetRowViewModel">
                                                 <Panel>
                                                     <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
-                                                    <StackPanel Margin="8" Spacing="6" ToolTip.Tip="{Binding Name}">
+                                                    <StackPanel Margin="6" Spacing="4" ToolTip.Tip="{Binding Name}">
                                                         <Border Classes="asset-thumbnail">
                                                             <Panel>
                                                                 <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
@@ -395,11 +395,9 @@
                                                         </Border>
                                                         <TextBlock Classes="asset-name"
                                                                    Text="{Binding FileName}"
-                                                                   TextAlignment="Center"
                                                                    TextTrimming="LeadingCharacterEllipsis"/>
                                                         <TextBlock Classes="asset-info"
                                                                    Text="{Binding Type}"
-                                                                   TextAlignment="Center"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                     </StackPanel>
                                                 </Panel>
