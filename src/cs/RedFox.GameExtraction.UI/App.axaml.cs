@@ -34,22 +34,24 @@ public class App : Application
         Color hover = Shift(accent, 24);
         Color pressed = Shift(accent, -24);
 
-        Resources["AccentBrush"]				= new SolidColorBrush(accent);
-        Resources["AccentHoverBrush"]			= new SolidColorBrush(hover);
-        Resources["AccentPressedBrush"]			= new SolidColorBrush(pressed);
-        Resources["AssetSelectionBrush"]		= new SolidColorBrush(accent, 0.16);
-        Resources["AssetSelectionBorderBrush"]	= new SolidColorBrush(accent, 0.6);
-        Resources["SystemAccentColor"]			= accent;
-        Resources["SystemAccentColorLight1"]	= hover;
-        Resources["SystemAccentColorLight2"]	= Shift(accent, 48);
-        Resources["SystemAccentColorLight3"]	= Shift(accent, 72);
-        Resources["SystemAccentColorDark1"]		= pressed;
-        Resources["SystemAccentColorDark2"]		= Shift(accent, -48);
-        Resources["SystemAccentColorDark3"]		= Shift(accent, -72);
+        Resources["AccentBrush"]							= new SolidColorBrush(accent);
+        Resources["AccentHoverBrush"]						= new SolidColorBrush(hover);
+        Resources["AccentPressedBrush"]						= new SolidColorBrush(pressed);
+        Resources["AssetSelectionBrush"]					= new SolidColorBrush(accent, 0.16);
+        Resources["AssetSelectionBorderBrush"]				= new SolidColorBrush(accent, 0.6);
+        Resources["TextControlBorderBrushFocused"]			= Resources["AssetSelectionBorderBrush"];
+        Resources["ComboBoxBackgroundBorderBrushFocused"]	= Resources["AssetSelectionBorderBrush"];
+        Resources["SystemAccentColor"]						= accent;
+        Resources["SystemAccentColorLight1"]				= hover;
+        Resources["SystemAccentColorLight2"]				= Shift(accent, 48);
+        Resources["SystemAccentColorLight3"]				= Shift(accent, 72);
+        Resources["SystemAccentColorDark1"]					= pressed;
+        Resources["SystemAccentColorDark2"]					= Shift(accent, -48);
+        Resources["SystemAccentColorDark3"]					= Shift(accent, -72);
 
         if (!string.IsNullOrEmpty(CurrentConfig.FontFamily))
         {
-            Resources["InterFont"] = new FontFamily(CurrentConfig.FontFamily);
+            Resources["AppFont"] = new FontFamily(CurrentConfig.FontFamily);
         }
     }
 

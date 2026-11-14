@@ -377,12 +377,12 @@
                                             <DataTemplate DataType="{x:Null}" x:DataType="model:AssetRowViewModel">
                                                 <Panel>
                                                     <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
-                                                    <StackPanel Margin="6" Spacing="4" ToolTip.Tip="{Binding Name}">
+                                                    <Grid RowDefinitions="*,Auto,Auto" Margin="6" RowSpacing="4" ToolTip.Tip="{Binding Name}">
                                                         <Border Classes="asset-thumbnail">
                                                             <Panel>
                                                                 <PathIcon Data="{Binding Category, Converter={StaticResource IconResourceConverter}}"
                                                                           Foreground="{Binding Category, Converter={StaticResource IconBrushConverter}}"
-                                                                          Width="40" Height="40"
+                                                                          Width="32" Height="32"
                                                                           IsVisible="{Binding !HasThumbnail}"/>
                                                                 <Image Source="{Binding DisplayedThumbnail}"
                                                                        Stretch="Uniform"
@@ -394,13 +394,15 @@
                                                                 </Border>
                                                             </Panel>
                                                         </Border>
-                                                        <TextBlock Classes="asset-name"
+                                                        <TextBlock Grid.Row="1"
+                                                                   Classes="asset-name"
                                                                    Text="{Binding CardName}"
                                                                    TextTrimming="LeadingCharacterEllipsis"/>
-                                                        <TextBlock Classes="asset-info"
+                                                        <TextBlock Grid.Row="2"
+                                                                   Classes="asset-info"
                                                                    Text="{Binding Type}"
                                                                    TextTrimming="CharacterEllipsis"/>
-                                                    </StackPanel>
+                                                    </Grid>
                                                 </Panel>
                                             </DataTemplate>
                                         </Setter>

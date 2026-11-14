@@ -5,7 +5,7 @@
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
-        <Setter Property="FontFamily" Value="{StaticResource InterFont}"/>
+        <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
@@ -98,8 +98,6 @@
     </Style>
 
     <Style Selector="Border.asset-thumbnail">
-        <Setter Property="Width" Value="136"/>
-        <Setter Property="Height" Value="136"/>
         <Setter Property="Padding" Value="4"/>
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
@@ -365,6 +363,14 @@
         <Setter Property="Opacity" Value="0.4"/>
     </Style>
 
+    <Style Selector=":is(Button) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.08"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
     <Style Selector=":is(Button)">
         <Setter Property="FocusAdorner">
             <FocusAdornerTemplate>
@@ -451,7 +457,7 @@
 
     <Style Selector="TextBox.search-box:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
     <Style Selector="Border.notification">
@@ -732,7 +738,7 @@
     </Style>
 
     <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:checked /template/ Border#NormalRectangle,
@@ -803,7 +809,7 @@
 
     <Style Selector="Border.asset-filter-flyout">
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
-        <Setter Property="Padding" Value="6"/>
+        <Setter Property="Padding" Value="8,4"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
@@ -811,8 +817,12 @@
 
     <Style Selector="CheckBox.asset-filter-option">
         <Setter Property="MinHeight" Value="28"/>
-        <Setter Property="Padding" Value="4,3"/>
+        <Setter Property="Padding" Value="8,0"/>
         <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style Selector="CheckBox.asset-filter-option /template/ Border#PART_Border">
+        <Setter Property="Margin" Value="-4,0"/>
     </Style>
 
     <Style Selector="CheckBox.asset-filter-option:pointerover /template/ Border#PART_Border">
@@ -853,15 +863,6 @@
         <Setter Property="TextBlock.Foreground" Value="#FFFBEB"/>
     </Style>
 
-    <Style Selector="ScrollBar /template/ Thumb">
-        <Setter Property="Background" Value="#66737373"/>
-        <Setter Property="CornerRadius" Value="0"/>
-    </Style>
-
-    <Style Selector="ScrollBar:pointerover /template/ Thumb">
-        <Setter Property="Background" Value="#99A1A1A1"/>
-    </Style>
-
     <Style Selector="search|SearchPanel">
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
@@ -884,7 +885,7 @@
 
     <Style Selector="search|SearchPanel TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel Button">

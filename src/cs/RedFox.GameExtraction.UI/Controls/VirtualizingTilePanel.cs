@@ -2,8 +2,11 @@ using System.Collections.Specialized;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Generators;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 
 namespace RedFox.GameExtraction.UI.Controls;
 
@@ -12,6 +15,8 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
     private readonly Dictionary<int, Control>	_realized		= [];
     private readonly Stack<Control>				_recyclePool	= [];
     private Rect								_viewport;
+    private Size								_tileSize;
+    private ScrollBar?							_scrollBar;
     private int									_columns		= 1;
 
     public static readonly StyledProperty<double> ItemWidthProperty		= AvaloniaProperty.Register<VirtualizingTilePanel, double>(nameof(ItemWidth), 150);
@@ -43,13 +48,14 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        int count	= Items.Count;
-        _columns	= Math.Clamp((int)(availableSize.Width / ItemWidth), 1, Math.Max(1, count));
+        int count		= Items.Count;
+        double width	= double.IsFinite(availableSize.Width) ? availableSize.Width : ItemWidth;
+        _columns		= GetColumns(width);
+        _tileSize		= GetTileSize(width);
 
-        int first	= Math.Max(0, (int)(_viewport.Top / ItemHeight)) * _columns;
-        int last	= Math.Min(count, (int)Math.Ceiling(_viewport.Bottom / ItemHeight) * _columns);
+        int first	= Math.Max(0, (int)(_viewport.Top / _tileSize.Height)) * _columns;
+        int last	= Math.Min(count, (int)Math.Ceiling(_viewport.Bottom / _tileSize.Height) * _columns);
 
-        // The focused tile stays realized so keyboard navigation survives scrolling it out of view.
         foreach ((int index, Control container) in _realized.ToArray())
         {
             if ((index < first || index >= last) && !container.IsKeyboardFocusWithin)
@@ -66,14 +72,20 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
             }
         }
 
-        Size tileSize = new(ItemWidth, ItemHeight);
         foreach (Control container in _realized.Values)
         {
-            container.Measure(tileSize);
+            container.Measure(_tileSize);
         }
 
-        int rows = (count + _columns - 1) / _columns;
-        return new Size(_columns * ItemWidth, rows * ItemHeight);
+        double height	= GetExtentHeight(width);
+        _scrollBar		??= this.FindAncestorOfType<ScrollViewer>()?.GetTemplateDescendants().OfType<ScrollBar>().FirstOrDefault(scrollBar => scrollBar.Orientation == Orientation.Vertical);
+
+        if (_scrollBar is { IsVisible: true } && double.IsFinite(_scrollBar.Width))
+        {
+            height = Math.Max(height, GetExtentHeight(width + _scrollBar.Width));
+        }
+
+        return new Size(_columns * _tileSize.Width, height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -108,7 +120,7 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
         if (!_realized.TryGetValue(index, out Control? container))
         {
             container = Realize(index);
-            container.Measure(new Size(ItemWidth, ItemHeight));
+            container.Measure(_tileSize);
             container.Arrange(GetTileRect(index));
         }
 
@@ -142,7 +154,7 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
         }
 
         int fromIndex	= from is Control control ? IndexFromContainer(control) : -1;
-        int pageSize	= Math.Max(1, (int)(_viewport.Height / ItemHeight)) * _columns;
+        int pageSize	= Math.Max(1, (int)(_viewport.Height / _tileSize.Height)) * _columns;
 
         int toIndex = direction switch
         {
@@ -194,7 +206,21 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel
         _recyclePool.Push(container);
     }
 
-    private Rect GetTileRect(int index) => new(index % _columns * ItemWidth, index / _columns * ItemHeight, ItemWidth, ItemHeight);
+    private int GetColumns(double width) => Math.Max(1, (int)(width / ItemWidth));
+
+    private Size GetTileSize(double width)
+    {
+        double tileWidth = Math.Max(ItemWidth, Math.Floor(width / GetColumns(width)));
+        return new Size(tileWidth, ItemHeight + tileWidth - ItemWidth);
+    }
+
+    private double GetExtentHeight(double width)
+    {
+        int columns = GetColumns(width);
+        return (Items.Count + columns - 1) / columns * GetTileSize(width).Height;
+    }
+
+    private Rect GetTileRect(int index) => new(index % _columns * _tileSize.Width, index / _columns * _tileSize.Height, _tileSize.Width, _tileSize.Height);
 
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
     {
