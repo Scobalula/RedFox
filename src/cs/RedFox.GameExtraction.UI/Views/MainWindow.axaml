@@ -201,18 +201,18 @@
                             Orientation="Horizontal"
                             Spacing="4"
                             VerticalAlignment="Center">
-                    <Button Classes="icon-btn toolbar-icon-btn"
+                    <Button Classes="icon-btn toolbar-icon-btn ghost"
                             Classes.active="{Binding IsPreviewPanelVisible}"
                             ToolTip.Tip="Toggle preview panel"
                             Command="{Binding TogglePreviewPanelCommand}">
                         <PathIcon Data="{StaticResource IconPanelRight}"/>
                     </Button>
-                    <Button Classes="icon-btn toolbar-icon-btn"
+                    <Button Classes="icon-btn toolbar-icon-btn ghost"
                             ToolTip.Tip="Settings"
                             Command="{Binding OpenSettingsCommand}">
                         <PathIcon Data="{StaticResource IconSettings}"/>
                     </Button>
-                    <Button Classes="icon-btn toolbar-icon-btn"
+                    <Button Classes="icon-btn toolbar-icon-btn ghost"
                             ToolTip.Tip="More">
                         <Button.Flyout>
                             <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -328,7 +328,7 @@
                                                     <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
                                                     <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                                                           ColumnSpacing="12"
-                                                          Margin="12,5,12,5"
+                                                          Margin="10,5,12,5"
                                                           ToolTip.Tip="{Binding Name}">
                                                         <Border Classes="asset-icon">
                                                             <Panel>
@@ -370,7 +370,7 @@
                                     <Style Selector="ListBox.asset-list.grid">
                                         <Setter Property="ItemsPanel">
                                             <ItemsPanelTemplate>
-                                                <controls:VirtualizingTilePanel ItemWidth="152" ItemHeight="196" Margin="6"/>
+                                                <controls:VirtualizingTilePanel ItemWidth="160" ItemHeight="204" Margin="6"/>
                                             </ItemsPanelTemplate>
                                         </Setter>
                                         <Setter Property="ItemTemplate">
@@ -468,18 +468,18 @@
                                                IsVisible="{Binding Preview.HasAsset}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <Button Classes="icon-btn"
+                                    <Button Classes="icon-btn ghost"
                                             ToolTip.Tip="Open in preview window"
                                             Command="{Binding PreviewSelectedCommand}">
                                         <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
                                     </Button>
-                                    <Button Classes="icon-btn"
+                                    <Button Classes="icon-btn ghost"
                                             Classes.active="{Binding IsPreviewExpanded}"
                                             ToolTip.Tip="Expand preview"
                                             Command="{Binding ToggleExpandPreviewCommand}">
                                         <PathIcon Data="{StaticResource IconExpand}" Width="14" Height="14"/>
                                     </Button>
-                                    <Button Classes="icon-btn"
+                                    <Button Classes="icon-btn ghost"
                                             ToolTip.Tip="Hide preview panel"
                                             Command="{Binding TogglePreviewPanelCommand}">
                                         <PathIcon Data="{StaticResource IconClose}" Width="12" Height="12"/>

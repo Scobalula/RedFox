@@ -22,6 +22,7 @@
         <SolidColorBrush x:Key="NotificationWarningBrush" Color="#F59E0B"/>
         <SolidColorBrush x:Key="NotificationErrorBrush" Color="#EF4444"/>
         <SolidColorBrush x:Key="AssetSelectionBrush" Color="#553C1800"/>
+        <SolidColorBrush x:Key="AssetSelectionBorderBrush" Color="#993C1800"/>
         <SolidColorBrush x:Key="AssetPreviewSelectionBrush" Color="#193047"/>
         <SolidColorBrush x:Key="AssetPreviewForegroundBrush" Color="#6AB8FF"/>
         <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#171717"/>

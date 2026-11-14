@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterOwner">
 
     <DockPanel Margin="8">
-        <Border DockPanel.Dock="Bottom" Classes="panel" Padding="12,10" Margin="0,8,0,0">
+        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                 <Button Classes="secondary-btn" Content="Cancel" Click="OnCancelClick"/>
                 <Button Classes="accent-btn" Content="Open" Click="OnOpenClick" IsEnabled="{Binding CanOpen}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>

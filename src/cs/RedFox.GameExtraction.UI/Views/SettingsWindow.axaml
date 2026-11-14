@@ -10,8 +10,6 @@
 
     <DockPanel Margin="8">
         <Border DockPanel.Dock="Bottom"
-                Classes="panel"
-                Padding="12,10"
                 Margin="0,8,0,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
@@ -28,8 +26,6 @@
         </Border>
 
         <Border DockPanel.Dock="Top"
-                Classes="panel"
-                Padding="12,10"
                 Margin="0,0,0,8">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
@@ -56,7 +52,7 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingGroupViewModel">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="12,5,12,5">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="10,5,12,5">
                             <Border Classes="asset-icon">
                                 <PathIcon Classes="setting-group-icon" Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
                             </Border>

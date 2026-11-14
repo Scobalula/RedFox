@@ -24,7 +24,7 @@
                              ScrollViewer.AllowAutoHide="False">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="model:AssetSourceViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="12,5,12,5" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="10,5,12,5" ColumnSpacing="12">
                                     <Border Classes="asset-icon">
                                         <PathIcon Classes="open-icon" Data="{StaticResource IconFolder}" Width="16" Height="16"/>
                                     </Border>

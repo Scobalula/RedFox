@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterOwner">
 
     <DockPanel Margin="8">
-        <Border DockPanel.Dock="Bottom" Classes="panel" Padding="12,10" Margin="0,8,0,0">
+        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Classes="accent-btn" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
                 <StackPanel Orientation="Horizontal" Spacing="8">
