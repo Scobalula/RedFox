@@ -10,7 +10,7 @@
     </Style>
 
     <Style Selector="Border.panel">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Padding" Value="12"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
@@ -26,7 +26,7 @@
     </Style>
 
     <Style Selector="Border.pill">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="8,3"/>
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -41,7 +41,7 @@
     </Style>
 
     <Style Selector="Border.preview-toolbar">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding" Value="12,8"/>
@@ -55,7 +55,7 @@
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Margin" Value="12"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
@@ -88,7 +88,7 @@
     <Style Selector="Border.asset-icon">
         <Setter Property="Width" Value="34"/>
         <Setter Property="Height" Value="34"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
@@ -103,7 +103,8 @@
         <Setter Property="Width" Value="136"/>
         <Setter Property="Height" Value="136"/>
         <Setter Property="Padding" Value="4"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
+        <Setter Property="BoxShadow" Value="0 1 4 0 #80000000"/>
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
@@ -114,6 +115,7 @@
     </Style>
 
     <Style Selector="Border.asset-preview-badge">
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Width" Value="20"/>
         <Setter Property="Height" Value="20"/>
         <Setter Property="Padding" Value="3"/>
@@ -152,10 +154,6 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="PathIcon.setting-group-icon">
-        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
-    </Style>
-
     <Style Selector="Separator.sidebar-sep">
         <Setter Property="Margin" Value="4,6"/>
         <Setter Property="Height" Value="1"/>
@@ -188,6 +186,14 @@
 
     <Style Selector="Button.icon-btn:pointerover PathIcon">
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.setting-group-icon">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="ListBoxItem:selected PathIcon.setting-group-icon">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
     <Style Selector="PathIcon.open-icon">
@@ -443,6 +449,7 @@
     </Style>
 
     <Style Selector="Border.notification">
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Width" Value="380"/>
         <Setter Property="Padding" Value="12,10"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -539,7 +546,7 @@
     </Style>
 
     <Style Selector="Border.progress-card">
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Padding" Value="24,20"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
@@ -551,7 +558,7 @@
     <Style Selector="ProgressBar.themed">
         <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
-        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="CornerRadius" Value="3"/>
         <Setter Property="MinHeight" Value="6"/>
     </Style>
 
@@ -590,7 +597,7 @@
     </Style>
 
     <Style Selector="DataGridColumnHeader">
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -614,6 +621,14 @@
         <Setter Property="CornerRadius" Value="0"/>
         <Setter Property="Margin" Value="0"/>
         <Setter Property="Padding" Value="0"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list.grid ListBoxItem">
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
+    </Style>
+
+    <Style Selector="ListBox.asset-list.grid Border.asset-preview-highlight">
+        <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
     </Style>
 
     <Style Selector="ListBox.asset-list ListBoxItem:pointerover, DataGridRow:pointerover">

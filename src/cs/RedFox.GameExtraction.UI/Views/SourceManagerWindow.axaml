@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterOwner">
 
     <Panel>
-        <DockPanel Margin="12">
+        <DockPanel Margin="8">
             <Border Classes="panel" Padding="0" ClipToBounds="True">
                 <DockPanel>
                     <Border DockPanel.Dock="Top" Classes="preview-toolbar">
@@ -24,9 +24,9 @@
                              ScrollViewer.AllowAutoHide="False">
                         <ListBox.ItemTemplate>
                             <DataTemplate x:DataType="model:AssetSourceViewModel">
-                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="10,5,14,5" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="12,5,12,5" ColumnSpacing="12">
                                     <Border Classes="asset-icon">
-                                        <PathIcon Data="{StaticResource IconFolder}" Width="16" Height="16"/>
+                                        <PathIcon Classes="open-icon" Data="{StaticResource IconFolder}" Width="16" Height="16"/>
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                         <TextBlock Classes="asset-name" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>

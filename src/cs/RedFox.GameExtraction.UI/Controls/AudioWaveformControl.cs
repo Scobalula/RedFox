@@ -27,9 +27,9 @@ public sealed class AudioWaveformControl : Control
     /// </summary>
     public static readonly StyledProperty<ICommand?> SeekCommandProperty = AvaloniaProperty.Register<AudioWaveformControl, ICommand?>(nameof(SeekCommand));
 
-    private static readonly IBrush BackgroundBrush = Brush.Parse("#18181B");
+    private static readonly IBrush BackgroundBrush = Brush.Parse("#171717");
     private static readonly IBrush FallbackWaveBrush = Brush.Parse("#4A8FD9");
-    private static readonly IPen CenterLinePen = new Pen(Brush.Parse("#2A2A2F"));
+    private static readonly IPen CenterLinePen = new Pen(Brush.Parse("#2A2A2A"));
     private static readonly IPen PlayheadPen = new Pen(Brush.Parse("#F4F4F8"), 1.5);
 
     private (float Min, float Max)[][] _columns = [];

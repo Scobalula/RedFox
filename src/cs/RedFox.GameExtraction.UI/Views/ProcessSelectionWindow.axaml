@@ -8,7 +8,7 @@
         MinWidth="620" MinHeight="420"
         WindowStartupLocation="CenterOwner">
 
-    <DockPanel Margin="12">
+    <DockPanel Margin="8">
         <Border DockPanel.Dock="Bottom" Classes="panel" Padding="12,10" Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
                 <Button Classes="secondary-btn" Content="Cancel" Click="OnCancelClick"/>

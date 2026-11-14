@@ -328,7 +328,7 @@
                                                     <Border Classes="asset-preview-highlight" IsVisible="{Binding IsInPreviewGroup}" IsHitTestVisible="False"/>
                                                     <Grid ColumnDefinitions="Auto,*,Auto,Auto"
                                                           ColumnSpacing="12"
-                                                          Margin="10,5,14,5"
+                                                          Margin="12,5,12,5"
                                                           ToolTip.Tip="{Binding Name}">
                                                         <Border Classes="asset-icon">
                                                             <Panel>
@@ -494,9 +494,9 @@
                                   IsExpanded="True"
                                   IsVisible="{Binding Preview.HasAsset}">
                             <Expander.Resources>
-                                <StaticResource x:Key="ExpanderHeaderBackground" ResourceKey="ThemeMutedBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBackground" ResourceKey="ThemeHeaderBrush"/>
                                 <StaticResource x:Key="ExpanderHeaderBackgroundPointerOver" ResourceKey="ThemeSecondaryBrush"/>
-                                <StaticResource x:Key="ExpanderHeaderBackgroundPressed" ResourceKey="ThemeMutedBrush"/>
+                                <StaticResource x:Key="ExpanderHeaderBackgroundPressed" ResourceKey="ThemeHeaderBrush"/>
                                 <StaticResource x:Key="ExpanderHeaderForegroundPointerOver" ResourceKey="ThemeForegroundBrush"/>
                                 <StaticResource x:Key="ExpanderHeaderForegroundPressed" ResourceKey="ThemeForegroundBrush"/>
                                 <StaticResource x:Key="ExpanderHeaderBorderBrushPointerOver" ResourceKey="ThemeBorderBrush"/>

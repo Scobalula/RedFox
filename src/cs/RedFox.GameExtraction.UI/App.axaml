@@ -11,8 +11,9 @@
         <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#0A0A0A"/>
         <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="ThemeCardBrush" Color="#171717"/>
-        <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#27272A"/>
+        <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#292929"/>
         <SolidColorBrush x:Key="ThemeMutedBrush" Color="#262626"/>
+        <SolidColorBrush x:Key="ThemeHeaderBrush" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="ThemeMutedForegroundBrush" Color="#A1A1A1"/>
         <SolidColorBrush x:Key="ThemeBorderBrush" Color="#1AFFFFFF"/>
         <SolidColorBrush x:Key="ThemeInputBrush" Color="#26FFFFFF"/>
@@ -27,7 +28,7 @@
         <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
         <SolidColorBrush x:Key="ComboBoxItemBackground" Color="Transparent"/>
-        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#27272A"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#292929"/>
         <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#262626"/>
         <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#737373"/>
         <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#737373"/>
@@ -53,15 +54,15 @@
         <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="#FAFAFA"/>
-        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#27272A"/>
+        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#292929"/>
         <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#262626"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevron" Color="#A1A1A1"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="SliderTrackFill" Color="#262626"/>
-        <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#27272A"/>
-        <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#27272A"/>
+        <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#292929"/>
+        <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#292929"/>
         <CornerRadius x:Key="SliderThumbCornerRadius">4</CornerRadius>
         <SolidColorBrush x:Key="ThemeDestructiveBrush" Color="#FF6467"/>
         <SolidColorBrush x:Key="HeartBrush" Color="#E53935"/>

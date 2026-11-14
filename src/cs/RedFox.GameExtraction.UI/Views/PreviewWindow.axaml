@@ -8,7 +8,7 @@
         MinWidth="640" MinHeight="420"
         WindowStartupLocation="CenterOwner">
 
-    <DockPanel Margin="12">
+    <DockPanel Margin="8">
         <Border DockPanel.Dock="Top"
                 Classes="panel"
                 Padding="16,12"

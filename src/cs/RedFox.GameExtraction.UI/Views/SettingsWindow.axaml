@@ -56,9 +56,9 @@
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SettingGroupViewModel">
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="10,5,14,5">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12" Margin="12,5,12,5">
                             <Border Classes="asset-icon">
-                                <PathIcon Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                <PathIcon Classes="setting-group-icon" Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
                             </Border>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                 <TextBlock Classes="asset-name" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
@@ -78,7 +78,7 @@
                             <Border DockPanel.Dock="Top" Classes="preview-toolbar">
                                 <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" MinHeight="34">
                                     <Border Classes="asset-icon">
-                                        <PathIcon Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
+                                        <PathIcon Classes="setting-group-icon" Data="{Binding Kind, Converter={StaticResource IconResourceConverter}}" Width="16" Height="16"/>
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
                                         <TextBlock Classes="asset-name" Text="{Binding Title}"/>
@@ -117,7 +117,7 @@
                                                                     </ItemsControl.ItemTemplate>
                                                                 </ItemsControl>
                                                                 <StackPanel IsVisible="{Binding IsTextList}" Spacing="8">
-                                                                    <Border BorderThickness="1" BorderBrush="{DynamicResource ThemeInputBrush}" Background="{DynamicResource ThemeCardBrush}" ClipToBounds="True">
+                                                                    <Border BorderThickness="1" BorderBrush="{DynamicResource ThemeInputBrush}" Background="{DynamicResource ThemeCardBrush}" CornerRadius="{DynamicResource ControlCornerRadius}" ClipToBounds="True">
                                                                         <ListBox Classes="asset-list" Height="140" ItemsSource="{Binding TextEntries}" SelectedItem="{Binding SelectedTextEntry}" SelectionChanged="OnTextEntrySelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                                                             <ListBox.ItemTemplate>
                                                                                 <DataTemplate x:DataType="vm:SettingTextEntryViewModel">
