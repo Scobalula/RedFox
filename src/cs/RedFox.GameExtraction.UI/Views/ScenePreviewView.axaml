@@ -36,7 +36,7 @@
                     <MenuItem.Header>
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="Opacity" VerticalAlignment="Center"/>
-                            <Slider Classes="menu-slider" Minimum="0" Maximum="1" Value="{Binding Settings.WireframeOpacity, Mode=TwoWay}" PointerCaptureLost="OnSettingSliderReleased">
+                            <Slider Classes="menu-slider" AutomationProperties.Name="Wireframe opacity" Minimum="0" Maximum="1" Value="{Binding Settings.WireframeOpacity, Mode=TwoWay}" PointerCaptureLost="OnSettingSliderReleased">
                                 <Slider.Resources>
                                     <x:Double x:Key="SliderHorizontalHeight">0</x:Double>
                                     <GridLength x:Key="SliderPreContentMargin">0</GridLength>
@@ -138,11 +138,11 @@
             <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
                 <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleScenes}">
                     <TextBlock Text="Scene"/>
-                    <ComboBox Width="150" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
+                    <ComboBox Width="150" AutomationProperties.Name="Scene" ItemsSource="{Binding SceneNames}" SelectedIndex="{Binding SelectedSceneIndex}"/>
                 </StackPanel>
                 <StackPanel Classes="preview-field" IsVisible="{Binding HasAnimations}">
                     <TextBlock Text="Animation"/>
-                    <ComboBox Width="170" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
+                    <ComboBox Width="170" AutomationProperties.Name="Animation" ItemsSource="{Binding AnimationNames}" SelectedIndex="{Binding SelectedAnimationIndex}"/>
                 </StackPanel>
                 <Button Classes="secondary-btn compact" Content="Clear selection" Command="{Binding ClearSelectionCommand}" IsVisible="{Binding HasModelSelection}"/>
                 <Button Classes="secondary-btn compact" Content="Fit scene" Click="OnFitClick"/>
@@ -159,7 +159,7 @@
                     </Panel>
                 </Button>
                 <Button Grid.Column="1" Classes="secondary-btn compact" Content="Restart" Click="OnRestartClick" Margin="0,0,12,0"/>
-                <Slider Grid.Column="2" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationPosition, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="Scrub animation (seconds)"/>
+                <Slider Grid.Column="2" AutomationProperties.Name="Animation position" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationPosition, Mode=TwoWay}" VerticalAlignment="Center" ToolTip.Tip="Scrub animation (seconds)"/>
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{Binding AnimationPosition, StringFormat={}{0:F2}}"/>
                     <TextBlock Text=" / "/>

@@ -32,6 +32,7 @@ public partial class ConfirmWindow : Window
         window.ConfirmButton.Content		= request.ConfirmText;
         window.AlternateButton.Content		= request.AlternateText;
         window.AlternateButton.IsVisible	= request.AlternateText is not null;
+        window.Opened						+= (_, _) => window.CancelButton.Focus();
 
         return window.ShowDialog<bool?>(owner);
     }

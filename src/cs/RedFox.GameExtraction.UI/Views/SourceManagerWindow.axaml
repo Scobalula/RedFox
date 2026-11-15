@@ -30,7 +30,14 @@
                                      ClipToBounds="True"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     ScrollViewer.AllowAutoHide="False">
+                                     ScrollViewer.AllowAutoHide="False"
+                                     KeyboardNavigation.TabNavigation="Continue"
+                                     AutomationProperties.Name="Sources">
+                                <ListBox.Styles>
+                                    <Style Selector="ListBoxItem" x:DataType="model:AssetSourceViewModel">
+                                        <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}"/>
+                                    </Style>
+                                </ListBox.Styles>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate x:DataType="model:AssetSourceViewModel">
                                         <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="10,5,12,5" ColumnSpacing="12">
@@ -50,6 +57,7 @@
                                             <Button Grid.Column="3"
                                                     Classes="secondary-btn"
                                                     Content="Unload"
+                                                    AutomationProperties.Name="{Binding DisplayName, StringFormat='Unload {0}'}"
                                                     VerticalAlignment="Center"
                                                     Click="OnUnloadClick"
                                                     Tag="{Binding}"/>

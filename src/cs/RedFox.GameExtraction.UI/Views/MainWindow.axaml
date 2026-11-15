@@ -102,6 +102,7 @@
                     <TextBox Grid.Column="1"
                              Classes="search-box"
                              PlaceholderText="Search assets (comma separate to match any)"
+                             AutomationProperties.Name="Search assets"
                              Text="{Binding SearchText}">
                         <TextBox.InnerLeftContent>
                             <PathIcon Data="{StaticResource IconSearch}"
@@ -114,7 +115,9 @@
                     <Button Grid.Column="2"
                             Classes="filter-select-btn"
                             HorizontalAlignment="Stretch"
-                            ToolTip.Tip="{Binding AssetTypeFilterSummary}">
+                            ToolTip.Tip="{Binding AssetTypeFilterSummary}"
+                            AutomationProperties.Name="Asset type filter"
+                            AutomationProperties.HelpText="{Binding AssetTypeFilterSummary}">
                         <Button.Flyout>
                             <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
                                 <Border Classes="asset-filter-flyout" Width="200" MaxHeight="360">
@@ -125,7 +128,7 @@
                                             <ItemsControl ItemsSource="{Binding AssetTypeFilterOptions}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
-                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Name}">
                                                             <TextBlock Text="{Binding Name}"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        ToolTip.Tip="{Binding Name}"/>
@@ -152,7 +155,9 @@
                     <Button Grid.Column="3"
                             Classes="filter-select-btn"
                             HorizontalAlignment="Stretch"
-                            ToolTip.Tip="{Binding AssetSourceFilterSummary}">
+                            ToolTip.Tip="{Binding AssetSourceFilterSummary}"
+                            AutomationProperties.Name="Source filter"
+                            AutomationProperties.HelpText="{Binding AssetSourceFilterSummary}">
                         <Button.Flyout>
                             <Flyout Placement="Bottom" FlyoutPresenterClasses="asset-filter-presenter">
                                 <Border Classes="asset-filter-flyout" Width="300" MaxHeight="360">
@@ -163,7 +168,7 @@
                                             <ItemsControl ItemsSource="{Binding AssetSourceFilterOptions}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate x:DataType="vm:AssetFilterOptionViewModel">
-                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                        <CheckBox Classes="asset-filter-option" IsChecked="{Binding IsSelected, Mode=TwoWay}" AutomationProperties.Name="{Binding Name}">
                                                             <TextBlock Text="{Binding Name}"
                                                                        TextTrimming="CharacterEllipsis"
                                                                        ToolTip.Tip="{Binding Name}"/>
@@ -191,12 +196,13 @@
                                 Orientation="Horizontal"
                                 Spacing="4"
                                 VerticalAlignment="Center">
-                        <Button Classes="icon-btn toolbar-icon-btn"
-                                Classes.active="{Binding IsPreviewPanelVisible}"
-                                ToolTip.Tip="Toggle preview panel"
-                                Command="{Binding TogglePreviewPanelCommand}">
+                        <ToggleButton Classes="icon-btn toolbar-icon-btn"
+                                      Classes.active="{Binding IsPreviewPanelVisible}"
+                                      IsChecked="{Binding IsPreviewPanelVisible, Mode=OneWay}"
+                                      ToolTip.Tip="Toggle preview panel"
+                                      Command="{Binding TogglePreviewPanelCommand}">
                             <PathIcon Data="{StaticResource IconPanelRight}"/>
-                        </Button>
+                        </ToggleButton>
                         <Button Classes="icon-btn toolbar-icon-btn"
                                 ToolTip.Tip="Settings"
                                 Command="{Binding OpenSettingsCommand}">
@@ -286,20 +292,27 @@
                                                 VerticalAlignment="Center">
                                         <TextBlock Classes="status-text" Text="Sort"/>
                                         <ComboBox Width="112"
+                                                  AutomationProperties.Name="Sort by"
                                                   ItemsSource="{Binding SortOptions}"
                                                   SelectedItem="{Binding SortBy, Mode=TwoWay}"/>
-                                        <Button Classes="icon-btn"
-                                                Classes.active="{Binding PreviewSettings.ShowAssetGrid}"
-                                                ToolTip.Tip="Grid view"
-                                                Command="{Binding ShowAssetGridCommand}">
+                                        <RadioButton Classes="icon-btn"
+                                                     Theme="{StaticResource {x:Type ToggleButton}}"
+                                                     GroupName="AssetLayout"
+                                                     Classes.active="{Binding PreviewSettings.ShowAssetGrid}"
+                                                     IsChecked="{Binding PreviewSettings.ShowAssetGrid, Mode=OneWay}"
+                                                     ToolTip.Tip="Grid view"
+                                                     Command="{Binding ShowAssetGridCommand}">
                                             <PathIcon Data="{StaticResource IconGrid}" Width="14" Height="14"/>
-                                        </Button>
-                                        <Button Classes="icon-btn"
-                                                Classes.active="{Binding !PreviewSettings.ShowAssetGrid}"
-                                                ToolTip.Tip="List view"
-                                                Command="{Binding ShowAssetListCommand}">
+                                        </RadioButton>
+                                        <RadioButton Classes="icon-btn"
+                                                     Theme="{StaticResource {x:Type ToggleButton}}"
+                                                     GroupName="AssetLayout"
+                                                     Classes.active="{Binding !PreviewSettings.ShowAssetGrid}"
+                                                     IsChecked="{Binding !PreviewSettings.ShowAssetGrid, Mode=OneWay}"
+                                                     ToolTip.Tip="List view"
+                                                     Command="{Binding ShowAssetListCommand}">
                                             <PathIcon Data="{StaticResource IconList}" Width="14" Height="14"/>
-                                        </Button>
+                                        </RadioButton>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <TextBlock Classes="asset-name" Text="Assets"/>
@@ -317,10 +330,14 @@
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                          ScrollViewer.AllowAutoHide="False"
                                          ItemsSource="{Binding AssetsView}"
+                                         AutomationProperties.Name="Assets"
                                          SelectionMode="Multiple"
                                          SelectionChanged="OnAssetSelectionChanged"
                                          DoubleTapped="OnAssetDoubleTapped">
                                     <ListBox.Styles>
+                                        <Style Selector="ListBoxItem" x:DataType="model:AssetRowViewModel">
+                                            <Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
+                                        </Style>
                                         <Style Selector="ListBox.asset-list">
                                             <Setter Property="ItemTemplate">
                                                 <DataTemplate x:DataType="model:AssetRowViewModel">
@@ -487,12 +504,13 @@
                                                 Command="{Binding PreviewSelectedCommand}">
                                             <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}" Width="14" Height="14"/>
                                         </Button>
-                                        <Button Classes="icon-btn"
-                                                Classes.active="{Binding IsPreviewExpanded}"
-                                                ToolTip.Tip="Expand preview"
-                                                Command="{Binding ToggleExpandPreviewCommand}">
+                                        <ToggleButton Classes="icon-btn"
+                                                      Classes.active="{Binding IsPreviewExpanded}"
+                                                      IsChecked="{Binding IsPreviewExpanded, Mode=OneWay}"
+                                                      ToolTip.Tip="Expand preview"
+                                                      Command="{Binding ToggleExpandPreviewCommand}">
                                             <PathIcon Data="{StaticResource IconExpand}" Width="14" Height="14"/>
-                                        </Button>
+                                        </ToggleButton>
                                         <Button Classes="icon-btn"
                                                 ToolTip.Tip="Hide preview panel"
                                                 Command="{Binding TogglePreviewPanelCommand}">
@@ -565,6 +583,7 @@
                                                TextWrapping="Wrap"
                                                TextAlignment="Center"
                                                IsVisible="{Binding Preview.HasError}"
+                                               AutomationProperties.LiveSetting="Polite"
                                                Text="{Binding Preview.ErrorMessage}"/>
                                 </StackPanel>
 
@@ -592,6 +611,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:StatusNotificationViewModel">
                     <Border Classes="notification"
+                            AutomationProperties.LiveSetting="Polite"
                             Classes.closing="{Binding IsClosing}"
                             Classes.success="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Success}}"
                             Classes.warning="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Warning}}"
@@ -609,7 +629,8 @@
                             <Button DockPanel.Dock="Right"
                                     Classes="notification-close"
                                     Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).CloseNotificationCommand}"
-                                    CommandParameter="{Binding}">
+                                    CommandParameter="{Binding}"
+                                    AutomationProperties.Name="Dismiss notification">
                                 <PathIcon Data="{StaticResource IconClose}"/>
                             </Button>
                             <TextBlock Text="{Binding Message}"
@@ -634,10 +655,12 @@
                     <ProgressBar Classes="themed"
                                  Value="{Binding ProgressValue}"
                                  IsIndeterminate="{Binding IsIndeterminate}"
+                                 AutomationProperties.Name="{Binding Title}"
                                  Maximum="100"/>
                     <ProgressBar Classes="themed"
                                  Value="{Binding SourceProgressValue}"
                                  IsVisible="{Binding HasSourceProgress}"
+                                 AutomationProperties.Name="Source progress"
                                  Maximum="100"/>
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Right"

@@ -73,6 +73,14 @@
         <Setter Property="Focusable" Value="False"/>
     </Style>
 
+    <Style Selector="Button.caption-btn, :is(Button).icon-btn, Button.toolbar-icon-btn">
+        <Setter Property="AutomationProperties.Name" Value="{Binding $self.(ToolTip.Tip)}"/>
+    </Style>
+
+    <Style Selector="PathIcon, Image.titlebar-icon">
+        <Setter Property="AutomationProperties.AccessibilityView" Value="Raw"/>
+    </Style>
+
     <Style Selector=".window-titlebar.inactive Button.caption-btn">
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
@@ -291,11 +299,11 @@
         <Setter Property="Opacity" Value="0.7"/>
     </Style>
 
-    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, Button.icon-btn PathIcon">
+    <Style Selector="Button.sidebar-btn.secondary-action-btn PathIcon, :is(Button).icon-btn PathIcon">
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
-    <Style Selector="Button.icon-btn:pointerover PathIcon">
+    <Style Selector=":is(Button).icon-btn:pointerover PathIcon">
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
@@ -392,7 +400,7 @@
         <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
-    <Style Selector="Button.secondary-btn, Button.icon-btn">
+    <Style Selector="Button.secondary-btn, :is(Button).icon-btn">
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRaisedInputBrush}"/>
@@ -410,7 +418,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="Button.icon-btn">
+    <Style Selector=":is(Button).icon-btn">
         <Setter Property="Width" Value="34"/>
         <Setter Property="Height" Value="34"/>
         <Setter Property="Padding" Value="0"/>
@@ -418,13 +426,13 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
 
-    <Style Selector="Button.secondary-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.secondary-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter, :is(Button).icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
-    <Style Selector="Button.secondary-btn:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.secondary-btn:pressed /template/ ContentPresenter#PART_ContentPresenter, :is(Button).icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
     </Style>
 
@@ -458,27 +466,33 @@
         <Setter Property="Background" Value="{DynamicResource ThemeBorderBrush}"/>
     </Style>
 
-    <Style Selector="Button.icon-btn.active">
+    <Style Selector=":is(Button).icon-btn.active">
         <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
-    <Style Selector="Button.icon-btn.active PathIcon">
+    <Style Selector=":is(Button).icon-btn.active /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
-    <Style Selector="Button.secondary-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, search|SearchPanel Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector=":is(Button).icon-btn.active PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.secondary-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, :is(Button).icon-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, search|SearchPanel Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRaisedInputBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
-    <Style Selector="Button.icon-btn.active:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn.active:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn.active:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector=":is(Button).icon-btn.active:pointerover /template/ ContentPresenter#PART_ContentPresenter, :is(Button).icon-btn.active:pressed /template/ ContentPresenter#PART_ContentPresenter, :is(Button).icon-btn.active:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
-    <Style Selector="Button.icon-btn.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector=":is(Button).icon-btn.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
@@ -588,7 +602,7 @@
 
     <Style Selector="TextBox.search-box:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}"/>
     </Style>
 
     <Style Selector="Border.notification">
@@ -869,10 +883,6 @@
         <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
     </Style>
 
-    <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
-        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
-    </Style>
-
     <Style Selector="CheckBox:checked /template/ Border#NormalRectangle,
                      CheckBox:indeterminate /template/ Border#NormalRectangle">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
@@ -911,6 +921,10 @@
     <Style Selector="Border.preview-toolbar CheckBox:checked /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pointerover /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pressed /template/ Border#NormalRectangle">
         <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
+    </Style>
+
+    <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:disabled">
@@ -1034,7 +1048,7 @@
 
     <Style Selector="search|SearchPanel TextBox:focus /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrushFocused}"/>
     </Style>
 
     <Style Selector="search|SearchPanel Button">

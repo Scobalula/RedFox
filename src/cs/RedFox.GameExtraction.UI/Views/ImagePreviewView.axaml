@@ -11,11 +11,11 @@
             <WrapPanel ItemSpacing="12" LineSpacing="6" VerticalAlignment="Center">
                 <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleMips}">
                     <TextBlock Text="Mip"/>
-                    <ComboBox Width="150" ItemsSource="{Binding MipNames}" SelectedIndex="{Binding SelectedMipIndex}"/>
+                    <ComboBox Width="150" AutomationProperties.Name="Mip level" ItemsSource="{Binding MipNames}" SelectedIndex="{Binding SelectedMipIndex}"/>
                 </StackPanel>
                 <StackPanel Classes="preview-field" IsVisible="{Binding HasMultipleLayers}">
                     <TextBlock Text="Slice"/>
-                    <ComboBox Width="130" ItemsSource="{Binding LayerNames}" SelectedIndex="{Binding SelectedLayerIndex}"/>
+                    <ComboBox Width="130" AutomationProperties.Name="Layer" ItemsSource="{Binding LayerNames}" SelectedIndex="{Binding SelectedLayerIndex}"/>
                 </StackPanel>
                 <StackPanel Classes="preview-field">
                     <CheckBox Content="R" IsChecked="{Binding Settings.ShowRed}"/>
@@ -26,7 +26,7 @@
                 <CheckBox Content="Normal Z" IsChecked="{Binding Settings.ReconstructNormal}" IsVisible="{Binding IsTwoChannel}"/>
                 <StackPanel Classes="preview-field" IsVisible="{Binding IsHighDynamicRange}">
                     <TextBlock Text="Exposure"/>
-                    <Slider Width="110" Minimum="-8" Maximum="8" SmallChange="0.5" Value="{Binding Settings.Exposure}" VerticalAlignment="Center"/>
+                    <Slider Width="110" AutomationProperties.Name="Exposure" Minimum="-8" Maximum="8" SmallChange="0.5" Value="{Binding Settings.Exposure}" VerticalAlignment="Center"/>
                     <TextBlock MinWidth="48" Text="{Binding Settings.ExposureDisplay}"/>
                 </StackPanel>
                 <CheckBox Content="Tile" IsChecked="{Binding Settings.Tile}"/>

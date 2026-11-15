@@ -16,6 +16,8 @@ public partial class ProcessSelectionWindow : Window
     public ProcessSelectionWindow()
     {
         InitializeComponent();
+
+        Opened += (_, _) => ProcessGrid.Focus();
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using RedFox.GameExtraction.UI.Models;
 using RedFox.GameExtraction.UI.ViewModels;
@@ -33,6 +34,21 @@ public partial class SourceManagerWindow : Window
         SourceList.ItemsSource = _viewModel.Sources;
         ProgressOverlay.Bind(IsVisibleProperty, new Binding(nameof(MainWindowViewModel.ShowProgressDialog)) { Source = mainViewModel });
         ProgressCard.Bind(DataContextProperty, new Binding(nameof(MainWindowViewModel.ProgressDialog)) { Source = mainViewModel });
+    }
+
+    /// <summary>
+    /// Closes the window when Escape is pressed.
+    /// </summary>
+    /// <param name="e">The key event data.</param>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+
+        if (!e.Handled && e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+        }
     }
 
     private async void OnUnloadClick(object? sender, RoutedEventArgs e)

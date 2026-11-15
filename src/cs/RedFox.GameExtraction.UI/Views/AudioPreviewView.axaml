@@ -11,7 +11,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Left" Classes="preview-field" Margin="0,0,12,0" IsVisible="{Binding HasMultipleClips}">
                     <TextBlock Text="Clip"/>
-                    <ComboBox Width="220" ItemsSource="{Binding ClipNames}" SelectedIndex="{Binding SelectedClipIndex}"/>
+                    <ComboBox Width="220" AutomationProperties.Name="Clip" ItemsSource="{Binding ClipNames}" SelectedIndex="{Binding SelectedClipIndex}"/>
                 </StackPanel>
                 <TextBlock DockPanel.Dock="Left" Classes="preview-stats" VerticalAlignment="Center" Text="{Binding InfoDisplay}"/>
                 <TextBlock Classes="preview-stats error"
@@ -26,7 +26,7 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
                     <CheckBox Content="Loop" IsChecked="{Binding IsLooping}"/>
                     <TextBlock Classes="preview-stats" Text="Volume"/>
-                    <Slider Width="110" Minimum="0" Maximum="1" Value="{Binding Volume}" VerticalAlignment="Center"/>
+                    <Slider Width="110" AutomationProperties.Name="Volume" Minimum="0" Maximum="1" Value="{Binding Volume}" VerticalAlignment="Center"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <Button Classes="icon-btn" Command="{Binding TogglePlaybackCommand}" IsEnabled="{Binding CanPlay}">

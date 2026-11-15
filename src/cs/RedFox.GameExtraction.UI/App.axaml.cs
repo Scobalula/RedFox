@@ -39,8 +39,8 @@ public class App : Application
         Resources["AccentPressedBrush"]						= new SolidColorBrush(pressed);
         Resources["AssetSelectionBrush"]					= new SolidColorBrush(accent, 0.16);
         Resources["AssetSelectionBorderBrush"]				= new SolidColorBrush(accent, 0.6);
-        Resources["TextControlBorderBrushFocused"]			= Resources["AssetSelectionBorderBrush"];
-        Resources["ComboBoxBackgroundBorderBrushFocused"]	= Resources["AssetSelectionBorderBrush"];
+        Resources["TextControlBorderBrushFocused"]			= FocusBrush(accent);
+        Resources["ComboBoxBackgroundBorderBrushFocused"]	= Resources["TextControlBorderBrushFocused"];
         Resources["SliderTrackValueFill"]					= Resources["AccentBrush"];
         Resources["SliderTrackValueFillPointerOver"]		= Resources["AccentHoverBrush"];
         Resources["SliderTrackValueFillPressed"]			= Resources["AccentHoverBrush"];
@@ -91,6 +91,32 @@ public class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private IBrush FocusBrush(Color accent)
+    {
+        Color background = ((ISolidColorBrush)Resources["ThemeCardBrush"]!).Color;
+        double lighter = Math.Max(Luminance(accent), Luminance(background));
+        double darker = Math.Min(Luminance(accent), Luminance(background));
+
+        if ((lighter + 0.05) / (darker + 0.05) >= 3)
+        {
+            return new SolidColorBrush(accent);
+        }
+
+        return (IBrush)Resources["ThemeForegroundBrush"]!;
+    }
+
+    private static double Luminance(Color color)
+    {
+        static double Channel(byte value)
+        {
+            double c = value / 255.0;
+
+            return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+        }
+
+        return 0.2126 * Channel(color.R) + 0.7152 * Channel(color.G) + 0.0722 * Channel(color.B);
     }
 
     private static Color Shift(Color color, int amount)

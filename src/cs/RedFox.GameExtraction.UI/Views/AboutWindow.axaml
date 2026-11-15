@@ -34,7 +34,7 @@
                     <ItemsControl x:Name="LinksPanel">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="local:AboutLink">
-                                <Button Classes="sidebar-btn" Click="OnLinkClick" Tag="{Binding Url}">
+                                <Button Classes="sidebar-btn" Click="OnLinkClick" Tag="{Binding Url}" AutomationProperties.Name="{Binding Label}">
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <PathIcon Data="{StaticResource IconExternalLink}"/>
                                         <TextBlock Text="{Binding Label}"/>
@@ -45,7 +45,7 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <Button Classes="secondary-btn" Content="Close" HorizontalAlignment="Center" Click="OnCloseClick"/>
+                <Button Classes="secondary-btn" Content="Close" HorizontalAlignment="Center" Click="OnCloseClick" IsCancel="True"/>
             </StackPanel>
         </Border>
     </DockPanel>

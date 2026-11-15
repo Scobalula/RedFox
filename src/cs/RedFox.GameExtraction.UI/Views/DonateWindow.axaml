@@ -32,13 +32,13 @@
                 </StackPanel>
 
                 <StackPanel Spacing="6" HorizontalAlignment="Center">
-                    <Button Classes="accent-btn" HorizontalContentAlignment="Center" MinWidth="180" Click="OnDonateClick">
+                    <Button Classes="accent-btn" HorizontalContentAlignment="Center" MinWidth="180" Click="OnDonateClick" AutomationProperties.Name="Donate">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <PathIcon Data="{StaticResource IconHeart}"/>
                             <TextBlock Text="Donate"/>
                         </StackPanel>
                     </Button>
-                    <Button Classes="secondary-btn" Content="Maybe Later" HorizontalAlignment="Center" Click="OnCloseClick"/>
+                    <Button Classes="secondary-btn" Content="Maybe Later" HorizontalAlignment="Center" Click="OnCloseClick" IsCancel="True"/>
                     <TextBlock x:Name="ShownOnceNotice" Classes="status-text" Text="This won't be shown again." FontSize="11" HorizontalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
