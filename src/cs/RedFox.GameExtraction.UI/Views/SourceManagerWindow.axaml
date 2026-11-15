@@ -8,10 +8,11 @@
         Title="Manage Sources"
         Width="600" Height="400"
         MinWidth="420" MinHeight="280"
+        CanMinimize="False"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconList}"/>
 
         <Panel>
             <DockPanel Margin="8,0,8,8">

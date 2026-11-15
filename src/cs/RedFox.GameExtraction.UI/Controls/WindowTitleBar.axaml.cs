@@ -16,6 +16,11 @@ public partial class WindowTitleBar : UserControl
     public static readonly StyledProperty<IImage?> IconProperty = AvaloniaProperty.Register<WindowTitleBar, IImage?>(nameof(Icon));
 
     /// <summary>
+    /// Defines the <see cref="Glyph"/> property.
+    /// </summary>
+    public static readonly StyledProperty<Geometry?> GlyphProperty = AvaloniaProperty.Register<WindowTitleBar, Geometry?>(nameof(Glyph));
+
+    /// <summary>
     /// Defines the <see cref="Title"/> property.
     /// </summary>
     public static readonly StyledProperty<string?> TitleProperty = AvaloniaProperty.Register<WindowTitleBar, string?>(nameof(Title));
@@ -35,6 +40,15 @@ public partial class WindowTitleBar : UserControl
     {
         get => GetValue(IconProperty);
         set => SetValue(IconProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets a vector icon shown before the title when no <see cref="Icon"/> is set.
+    /// </summary>
+    public Geometry? Glyph
+    {
+        get => GetValue(GlyphProperty);
+        set => SetValue(GlyphProperty, value);
     }
 
     /// <summary>

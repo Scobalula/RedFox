@@ -66,7 +66,7 @@
         <Thickness x:Key="TextControlBorderThemeThicknessFocused">1</Thickness>
         <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
         <CornerRadius x:Key="OverlayCornerRadius">6</CornerRadius>
-        <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#252525"/>
+        <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="ThemePopupBrush"/>
         <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="MenuFlyoutPresenterBorderThemeThickness">1</Thickness>
         <Thickness x:Key="MenuFlyoutPresenterThemePadding">4</Thickness>
@@ -211,6 +211,84 @@
                         </Border>
                     </ControlTemplate>
                 </Setter>
+            </Style>
+        </ControlTheme>
+
+        <ControlTheme x:Key="{x:Type MenuItem}" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource MenuFlyoutItemForeground}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel>
+                        <Border Name="PART_LayoutRoot"
+                                Padding="{TemplateBinding Padding}"
+                                MinHeight="26"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <ContentPresenter Name="PART_IconPresenter"
+                                                  Width="16" Height="16"
+                                                  Margin="0,0,10,0"
+                                                  VerticalAlignment="Center"
+                                                  Content="{TemplateBinding Icon}"/>
+                                <ContentPresenter Name="PART_HeaderPresenter"
+                                                  Grid.Column="1"
+                                                  VerticalAlignment="Center"
+                                                  RecognizesAccessKey="True"
+                                                  Content="{TemplateBinding Header}"
+                                                  ContentTemplate="{TemplateBinding HeaderTemplate}"/>
+                                <Panel Grid.Column="2" Width="12" Margin="12,0,0,0">
+                                    <Path Name="PART_CheckPath"
+                                          Width="10" Height="8"
+                                          Stretch="Uniform"
+                                          IsVisible="False"
+                                          VerticalAlignment="Center"
+                                          StrokeThickness="1.5"
+                                          Stroke="{TemplateBinding Foreground}"
+                                          Data="M0,4 L3.5,7.5 L10,0.5"/>
+                                    <Path Name="PART_ChevronPath"
+                                          Width="5" Height="9"
+                                          Stretch="Uniform"
+                                          VerticalAlignment="Center"
+                                          StrokeThickness="1.5"
+                                          Stroke="{DynamicResource ThemeMutedForegroundBrush}"
+                                          Data="M0,0 L4,4.5 L0,9"/>
+                                </Panel>
+                            </Grid>
+                        </Border>
+                        <Popup Name="PART_Popup"
+                               Placement="RightEdgeAlignedTop"
+                               HorizontalOffset="-4"
+                               WindowManagerAddShadowHint="False"
+                               IsLightDismissEnabled="False"
+                               IsOpen="{TemplateBinding IsSubMenuOpen, Mode=TwoWay}">
+                            <Border Background="{DynamicResource MenuFlyoutPresenterBackground}"
+                                    BorderBrush="{DynamicResource MenuFlyoutPresenterBorderBrush}"
+                                    BorderThickness="{DynamicResource MenuFlyoutPresenterBorderThemeThickness}"
+                                    Padding="{DynamicResource MenuFlyoutPresenterThemePadding}"
+                                    CornerRadius="{DynamicResource OverlayCornerRadius}">
+                                <ScrollViewer>
+                                    <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:selected /template/ Border#PART_LayoutRoot">
+                <Setter Property="Background" Value="{DynamicResource MenuFlyoutItemBackgroundPointerOver}"/>
+            </Style>
+            <Style Selector="^:pressed /template/ Border#PART_LayoutRoot">
+                <Setter Property="Background" Value="{DynamicResource MenuFlyoutItemBackgroundPressed}"/>
+            </Style>
+            <Style Selector="^:disabled">
+                <Setter Property="Opacity" Value="0.45"/>
+            </Style>
+            <Style Selector="^:checked /template/ Path#PART_CheckPath">
+                <Setter Property="IsVisible" Value="True"/>
+            </Style>
+            <Style Selector="^:empty /template/ Path#PART_ChevronPath">
+                <Setter Property="IsVisible" Value="False"/>
             </Style>
         </ControlTheme>
 

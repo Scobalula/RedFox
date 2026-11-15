@@ -36,6 +36,26 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
+    <Style Selector="PathIcon.titlebar-glyph">
+        <Setter Property="Width" Value="16"/>
+        <Setter Property="Height" Value="16"/>
+        <Setter Property="Margin" Value="4"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector=".window-titlebar.inactive PathIcon.titlebar-glyph">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.empty-icon">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
     <Style Selector=".window-titlebar.inactive TextBlock.sidebar-title">
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
@@ -280,6 +300,8 @@
     </Style>
 
     <Style Selector="MenuItem PathIcon">
+        <Setter Property="Width" Value="14"/>
+        <Setter Property="Height" Value="14"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
@@ -289,6 +311,22 @@
 
     <Style Selector="PathIcon.export-icon">
         <Setter Property="Foreground" Value="{DynamicResource IconExportBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.model-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconModelBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.animation-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconAnimationBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.image-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconImageBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.sound-icon">
+        <Setter Property="Foreground" Value="{DynamicResource IconSoundBrush}"/>
     </Style>
 
     <Style Selector="PathIcon.preview-icon">
@@ -476,29 +514,20 @@
         </Setter>
     </Style>
 
-    <Style Selector="MenuFlyoutPresenter">
+    <Style Selector="MenuFlyoutPresenter, ContextMenu">
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Background" Value="{DynamicResource ThemePopupBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRaisedInputBrush}"/>
     </Style>
 
-    <Style Selector="MenuFlyoutPresenter /template/ Border#LayoutRoot">
+    <Style Selector="MenuFlyoutPresenter /template/ Border#LayoutRoot, ContextMenu /template/ Border#LayoutRoot">
         <Setter Property="Padding" Value="{DynamicResource MenuFlyoutPresenterThemePadding}"/>
-    </Style>
-
-    <Style Selector="MenuFlyoutPresenter MenuItem PathIcon">
-        <Setter Property="Width" Value="14"/>
-        <Setter Property="Height" Value="14"/>
     </Style>
 
     <Style Selector="MenuItem">
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
-        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="Padding" Value="8,4"/>
         <Setter Property="FontSize" Value="13"/>
-    </Style>
-
-    <Style Selector="MenuItem:checked /template/ ContentControl#PART_ToggleIconPresenter">
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
     </Style>
 
     <Style Selector="MenuFlyoutPresenter Separator, MenuItem Separator">

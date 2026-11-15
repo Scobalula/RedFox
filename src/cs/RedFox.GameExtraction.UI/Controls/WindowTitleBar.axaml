@@ -37,6 +37,7 @@
             <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar">
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="15,0,8,0" VerticalAlignment="Center" IsHitTestVisible="False">
                     <Image Classes="titlebar-icon" Source="{Binding #Root.Icon}" IsVisible="{Binding #Root.Icon, Converter={x:Static ObjectConverters.IsNotNull}}" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                    <PathIcon Classes="titlebar-glyph" Data="{Binding #Root.Glyph}" IsVisible="{Binding #Root.Glyph, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                     <TextBlock Classes="sidebar-title" Text="{Binding #Root.Title}"/>
                 </StackPanel>
             </Border>

@@ -10,28 +10,53 @@
 
     <UserControl.Resources>
         <MenuFlyout x:Key="OptionsMenu">
-            <MenuItem Header="Fit scene" Click="OnFitClick"/>
+            <MenuItem Header="Fit scene" Click="OnFitClick">
+                <MenuItem.Icon>
+                    <PathIcon Classes="preview-icon" Data="{StaticResource IconExpand}"/>
+                </MenuItem.Icon>
+            </MenuItem>
             <MenuItem Header="Auto fit" ToggleType="CheckBox" IsChecked="{Binding Settings.AutoFitScene, Mode=TwoWay}" Click="OnSettingClick"/>
             <Separator/>
             <MenuItem Header="Merge mode">
+                <MenuItem.Icon>
+                    <PathIcon Classes="model-icon" Data="{StaticResource IconModel}"/>
+                </MenuItem.Icon>
                 <MenuItem Header="Merge in place" ToggleType="Radio" GroupName="MergeMode" IsChecked="{Binding Settings.MergeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static graphics:SceneCombineMode.InPlace}}" Click="OnSettingClick"/>
                 <MenuItem Header="Connect bones" ToggleType="Radio" GroupName="MergeMode" IsChecked="{Binding Settings.MergeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static graphics:SceneCombineMode.ConnectBones}}" Click="OnSettingClick"/>
             </MenuItem>
             <MenuItem Header="Wireframe">
+                <MenuItem.Icon>
+                    <PathIcon Classes="sound-icon" Data="{StaticResource IconShader}"/>
+                </MenuItem.Icon>
                 <MenuItem Header="None" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.None}}" Click="OnSettingClick"/>
                 <MenuItem Header="Overlay" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.Overlay}}" Click="OnSettingClick"/>
                 <MenuItem Header="Wire only" ToggleType="Radio" GroupName="Wireframe" IsChecked="{Binding Settings.WireframeMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static rendering:WireframeMode.WireOnly}}" Click="OnSettingClick"/>
             </MenuItem>
             <MenuItem Header="Shading">
+                <MenuItem.Icon>
+                    <PathIcon Classes="animation-icon" Data="{StaticResource IconMaterial}"/>
+                </MenuItem.Icon>
                 <MenuItem Header="Scene" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.Scene}}" Click="OnSettingClick"/>
                 <MenuItem Header="View based" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.ViewBased}}" Click="OnSettingClick"/>
                 <MenuItem Header="Flat" ToggleType="Radio" GroupName="Shading" IsChecked="{Binding Settings.LightingMode, Mode=TwoWay, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static vm:ScenePreviewLightingMode.Flat}}" Click="OnSettingClick"/>
             </MenuItem>
-            <MenuItem Header="Grid" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowGrid, Mode=TwoWay}" Click="OnSettingClick"/>
-            <MenuItem Header="Vertex normals" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowNormals, Mode=TwoWay}" Click="OnSettingClick"/>
+            <MenuItem Header="Grid" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowGrid, Mode=TwoWay}" Click="OnSettingClick">
+                <MenuItem.Icon>
+                    <PathIcon Data="{StaticResource IconGrid}"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Vertex normals" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowNormals, Mode=TwoWay}" Click="OnSettingClick">
+                <MenuItem.Icon>
+                    <PathIcon Classes="model-icon" Data="{StaticResource IconArrowUp}"/>
+                </MenuItem.Icon>
+            </MenuItem>
             <MenuItem Header="Bones" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowBones, Mode=TwoWay}" Click="OnSettingClick"/>
             <MenuItem Header="Skybox background" ToggleType="CheckBox" IsChecked="{Binding Settings.ShowSkybox, Mode=TwoWay}" Click="OnSettingClick"/>
-            <MenuItem Header="Skybox" AttachedToVisualTree="OnSkyboxMenuAttached"/>
+            <MenuItem Header="Skybox" AttachedToVisualTree="OnSkyboxMenuAttached">
+                <MenuItem.Icon>
+                    <PathIcon Classes="image-icon" Data="{StaticResource IconImage}"/>
+                </MenuItem.Icon>
+            </MenuItem>
         </MenuFlyout>
     </UserControl.Resources>
 

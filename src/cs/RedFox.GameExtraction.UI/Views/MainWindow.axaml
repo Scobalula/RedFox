@@ -206,9 +206,21 @@
                                 ToolTip.Tip="More">
                             <Button.Flyout>
                                 <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                    <MenuItem Header="Browser Only" Command="{Binding ShowBrowserLayoutCommand}"/>
-                                    <MenuItem Header="Split View" Command="{Binding ShowSplitLayoutCommand}"/>
-                                    <MenuItem Header="Preview Focused" Command="{Binding ShowPreviewLayoutCommand}"/>
+                                    <MenuItem Header="Browser Only" Command="{Binding ShowBrowserLayoutCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Classes="open-icon" Data="{StaticResource IconList}"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Split View" Command="{Binding ShowSplitLayoutCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Classes="model-icon" Data="{StaticResource IconPanelRight}"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Preview Focused" Command="{Binding ShowPreviewLayoutCommand}">
+                                        <MenuItem.Icon>
+                                            <PathIcon Classes="image-icon" Data="{StaticResource IconEye}"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
                                     <MenuItem Header="Open Preview Window" Command="{Binding PreviewSelectedCommand}">
                                         <MenuItem.Icon>
                                             <PathIcon Classes="preview-icon" Data="{StaticResource IconExternalLink}"/>
@@ -222,7 +234,7 @@
                                     </MenuItem>
                                     <MenuItem Header="About" Command="{Binding OpenAboutCommand}">
                                         <MenuItem.Icon>
-                                            <PathIcon Data="{StaticResource IconInfo}"/>
+                                            <PathIcon Classes="preview-icon" Data="{StaticResource IconInfo}"/>
                                         </MenuItem.Icon>
                                     </MenuItem>
                                 </MenuFlyout>
@@ -402,14 +414,24 @@
                                             Margin="24"
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
-                                            IsHitTestVisible="False"
                                             IsVisible="{Binding IsAssetListEmpty}">
+                                    <PathIcon Classes="empty-icon" Data="{StaticResource IconFolderOpen}"/>
                                     <TextBlock Classes="title"
                                                HorizontalAlignment="Center"
-                                               Text="No assets loaded"/>
+                                               Text="No sources loaded"/>
                                     <TextBlock Classes="status-text"
                                                TextAlignment="Center"
                                                Text="Load a source to browse its assets."/>
+                                    <TextBlock Classes="status-text"
+                                               TextAlignment="Center"
+                                               IsVisible="{Binding CanLoadFiles}"
+                                               Text="You can also drop files onto this window."/>
+                                    <Button Classes="accent-btn"
+                                            Margin="0,8,0,0"
+                                            HorizontalAlignment="Center"
+                                            Content="Load Files"
+                                            IsVisible="{Binding CanLoadFiles}"
+                                            Command="{Binding LoadSourceCommand}"/>
                                 </StackPanel>
 
                                 <StackPanel Spacing="6"
@@ -418,6 +440,7 @@
                                             VerticalAlignment="Center"
                                             IsHitTestVisible="False"
                                             IsVisible="{Binding NoMatchingAssets}">
+                                    <PathIcon Classes="empty-icon" Data="{StaticResource IconSearch}"/>
                                     <TextBlock Classes="title"
                                                HorizontalAlignment="Center"
                                                Text="No matching assets"/>
@@ -528,6 +551,8 @@
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             IsVisible="{Binding Preview.ShowPlaceholder}">
+                                    <PathIcon Classes="empty-icon" Data="{StaticResource IconEye}" IsVisible="{Binding !Preview.HasError}"/>
+                                    <PathIcon Classes="empty-icon" Data="{StaticResource IconWarning}" IsVisible="{Binding Preview.HasError}"/>
                                     <TextBlock Classes="title"
                                                HorizontalAlignment="Center"
                                                Text="{Binding Preview.PlaceholderTitle}"/>

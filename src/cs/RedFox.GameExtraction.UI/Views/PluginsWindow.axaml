@@ -8,10 +8,11 @@
         Title="Plugins"
         Width="640" Height="460"
         MinWidth="480" MinHeight="320"
+        CanMinimize="False"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconScript}"/>
 
         <DockPanel Margin="8,0,8,8">
             <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">

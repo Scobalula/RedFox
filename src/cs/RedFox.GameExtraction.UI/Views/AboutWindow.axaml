@@ -8,10 +8,11 @@
         Width="420"
         SizeToContent="Height"
         CanResize="False"
+        CanMinimize="False" CanMaximize="False"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconInfo}"/>
 
         <Border Classes="panel" Margin="12,0,12,12" Padding="24,20">
             <StackPanel Spacing="14">

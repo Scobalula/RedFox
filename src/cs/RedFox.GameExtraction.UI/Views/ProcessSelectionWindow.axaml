@@ -8,10 +8,11 @@
         Title="Select Process"
         Width="760" Height="520"
         MinWidth="620" MinHeight="420"
+        CanMinimize="False" CanMaximize="False"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconGamepad}"/>
 
         <DockPanel Margin="8,0,8,8">
             <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">

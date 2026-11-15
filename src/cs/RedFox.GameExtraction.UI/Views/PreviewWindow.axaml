@@ -11,7 +11,7 @@
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconEye}"/>
 
         <DockPanel Margin="8,0,8,8">
             <Border DockPanel.Dock="Top"

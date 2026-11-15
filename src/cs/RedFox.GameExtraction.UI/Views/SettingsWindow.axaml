@@ -8,10 +8,11 @@
         Title="Settings"
         Width="850" Height="600"
         MinWidth="680" MinHeight="420"
+        CanMinimize="False" CanMaximize="False"
         WindowStartupLocation="CenterOwner">
 
     <DockPanel>
-        <controls:WindowTitleBar DockPanel.Dock="Top"/>
+        <controls:WindowTitleBar DockPanel.Dock="Top" Glyph="{StaticResource IconSettings}"/>
 
         <DockPanel Margin="8,0,8,8">
             <Border DockPanel.Dock="Bottom"
