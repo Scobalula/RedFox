@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
+             x:Class="RedFox.GameExtraction.UI.Controls.WindowTitleBar"
+             x:Name="Root"
+             Classes="window-titlebar"
+             Classes.inactive="{Binding !$parent[Window].IsActive}">
+
+    <Panel>
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Classes="caption-btn"
+                        chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+                        ToolTip.Tip="Minimise"
+                        IsVisible="{Binding $parent[Window].CanMinimize}"
+                        Click="OnMinimizeClick">
+                    <Path Data="M0,5 H10"/>
+                </Button>
+                <Button Classes="caption-btn"
+                        chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+                        ToolTip.Tip="Maximise"
+                        IsVisible="{Binding $parent[Window].CanMaximize}"
+                        Click="OnMaximizeClick">
+                    <Panel>
+                        <Path Data="M0.5,0.5 H9.5 V9.5 H0.5 Z" IsVisible="{Binding !#Root.IsMaximized}"/>
+                        <Path Data="M0.5,2.5 H7.5 V9.5 H0.5 Z M2.5,2.5 V0.5 H9.5 V7.5 H7.5" IsVisible="{Binding #Root.IsMaximized}"/>
+                    </Panel>
+                </Button>
+                <Button Classes="caption-btn close"
+                        chrome:WindowDecorationProperties.ElementRole="CloseButton"
+                        ToolTip.Tip="Close"
+                        Click="OnCloseClick">
+                    <Path Data="M0,0 L10,10 M10,0 L0,10"/>
+                </Button>
+            </StackPanel>
+
+            <Border Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="15,0,8,0" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <Image Classes="titlebar-icon" Source="{Binding #Root.Icon}" IsVisible="{Binding #Root.Icon, Converter={x:Static ObjectConverters.IsNotNull}}" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                    <TextBlock Classes="sidebar-title" Text="{Binding #Root.Title}"/>
+                </StackPanel>
+            </Border>
+        </DockPanel>
+
+        <Border Height="4" VerticalAlignment="Top" Background="Transparent" chrome:WindowDecorationProperties.ElementRole="ResizeN" IsVisible="{Binding !#Root.IsMaximized}"/>
+    </Panel>
+</UserControl>

@@ -1,5 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
              xmlns:converters="using:RedFox.GameExtraction.UI.Converters"
              x:Class="RedFox.GameExtraction.UI.App"
              RequestedThemeVariant="Dark">
@@ -211,6 +212,14 @@
                     </ControlTemplate>
                 </Setter>
             </Style>
+        </ControlTheme>
+
+        <ControlTheme x:Key="TitleBarDecorationsTheme" TargetType="chrome:WindowDrawnDecorations">
+            <Setter Property="Template">
+                <WindowDrawnDecorationsTemplate>
+                    <chrome:WindowDrawnDecorationsContent/>
+                </WindowDrawnDecorationsTemplate>
+            </Setter>
         </ControlTheme>
     </Application.Resources>
     <Application.Styles>

@@ -1,46 +1,52 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.ProcessSelectionWindow"
+        Classes="custom-chrome"
         x:DataType="vm:ProcessSelectionViewModel"
         Title="Select Process"
         Width="760" Height="520"
         MinWidth="620" MinHeight="420"
         WindowStartupLocation="CenterOwner">
 
-    <DockPanel Margin="8">
-        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
-            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                <Button Classes="secondary-btn" Content="Cancel" Click="OnCancelClick"/>
-                <Button Classes="accent-btn" Content="Open" Click="OnOpenClick" IsEnabled="{Binding CanOpen}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
-            </StackPanel>
-        </Border>
+    <DockPanel>
+        <controls:WindowTitleBar DockPanel.Dock="Top"/>
 
-        <Border Classes="panel-shadow">
-            <Border Classes="panel"
-                    Padding="0"
-                    ClipToBounds="True">
-                <DataGrid x:Name="ProcessGrid"
-                          ItemsSource="{Binding Processes}"
-                          SelectedItem="{Binding SelectedProcess}"
-                          AutoGenerateColumns="False"
-                          CanUserResizeColumns="True"
-                          CanUserSortColumns="True"
-                          GridLinesVisibility="Horizontal"
-                          HeadersVisibility="Column"
-                          IsReadOnly="True"
-                          SelectionMode="Single"
-                          RowHeight="30"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          DoubleTapped="OnProcessDoubleTapped">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="90"/>
-                        <DataGridTextColumn Header="Name" Binding="{Binding ProcessName}" Width="200"/>
-                        <DataGridTextColumn Header="Window" Binding="{Binding WindowTitle}" Width="*"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+        <DockPanel Margin="8,0,8,8">
+            <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                    <Button Classes="secondary-btn" Content="Cancel" Click="OnCancelClick"/>
+                    <Button Classes="accent-btn" Content="Open" Click="OnOpenClick" IsEnabled="{Binding CanOpen}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
+                </StackPanel>
             </Border>
-        </Border>
+
+            <Border Classes="panel-shadow">
+                <Border Classes="panel"
+                        Padding="0"
+                        ClipToBounds="True">
+                    <DataGrid x:Name="ProcessGrid"
+                              ItemsSource="{Binding Processes}"
+                              SelectedItem="{Binding SelectedProcess}"
+                              AutoGenerateColumns="False"
+                              CanUserResizeColumns="True"
+                              CanUserSortColumns="True"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              RowHeight="30"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              DoubleTapped="OnProcessDoubleTapped">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="90"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding ProcessName}" Width="200"/>
+                            <DataGridTextColumn Header="Window" Binding="{Binding WindowTitle}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Border>
+        </DockPanel>
     </DockPanel>
 </Window>

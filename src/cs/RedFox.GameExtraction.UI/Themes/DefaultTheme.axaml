@@ -18,6 +18,75 @@
         <Setter Property="Background" Value="{DynamicResource ThemeToolbarBrush}"/>
     </Style>
 
+    <Style Selector=":is(Window).custom-chrome">
+        <Setter Property="ExtendClientAreaToDecorationsHint" Value="True"/>
+        <Setter Property="ExtendClientAreaTitleBarHeightHint" Value="0"/>
+        <Setter Property="WindowDecorationsTheme" Value="{DynamicResource TitleBarDecorationsTheme}"/>
+    </Style>
+
+    <Style Selector=":is(UserControl).window-titlebar">
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
+    </Style>
+
+    <Style Selector="Image.titlebar-icon">
+        <Setter Property="Width" Value="24"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Stretch" Value="Uniform"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style Selector=".window-titlebar.inactive TextBlock.sidebar-title">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn">
+        <Setter Property="Width" Value="46"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Focusable" Value="False"/>
+    </Style>
+
+    <Style Selector=".window-titlebar.inactive Button.caption-btn">
+        <Setter Property="Foreground" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn Path">
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Opacity" Value="0.4"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn.close:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#C42B1C"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+    </Style>
+
+    <Style Selector="Button.caption-btn.close:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="#A32417"/>
+    </Style>
+
     <Style Selector="Border.panel">
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
         <Setter Property="Padding" Value="12"/>

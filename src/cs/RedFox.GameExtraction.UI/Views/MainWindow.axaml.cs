@@ -53,7 +53,7 @@ public partial class MainWindow : Window
 
         MainWindowViewModel viewModel = new(config);
         DataContext = viewModel;
-        AppIconImage.Source = LoadIcon(viewModel.SidebarIconPath);
+        TitleBar.Icon = LoadIcon(viewModel.SidebarIconPath);
         viewModel.Thumbnails.Renderer = ThumbnailRenderer;
 
         SubscribeToViewModel(viewModel);

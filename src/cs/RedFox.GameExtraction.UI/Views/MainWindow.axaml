@@ -6,6 +6,7 @@
         xmlns:model="using:RedFox.GameExtraction.UI.Models"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.MainWindow"
+        Classes="custom-chrome"
         x:DataType="vm:MainWindowViewModel"
         Title="{Binding Config.WindowTitle}"
         Width="1280" Height="780"
@@ -13,20 +14,22 @@
         WindowStartupLocation="CenterScreen"
         DragDrop.AllowDrop="True">
 
-    <Panel>
+    <Grid RowDefinitions="Auto,*">
+        <controls:WindowTitleBar x:Name="TitleBar" Title="{Binding SidebarTitle}"/>
+
         <g3d:AvaloniaOpenGlThumbnailRenderer x:Name="ThumbnailRenderer"
+                                             Grid.Row="1"
                                              Width="1" Height="1"
                                              HorizontalAlignment="Left"
                                              VerticalAlignment="Top"
                                              Opacity="0"
                                              IsHitTestVisible="False"/>
 
-        <DockPanel Margin="8">
+        <DockPanel Grid.Row="1" Margin="8,0,8,8">
             <Border DockPanel.Dock="Top"
                     Classes="app-toolbar">
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*" MinWidth="100"/>
                         <ColumnDefinition Width="*" MinWidth="90" MaxWidth="130"/>
@@ -34,19 +37,6 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0"
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                Margin="4,0,8,0"
-                                VerticalAlignment="Center">
-                        <Image x:Name="AppIconImage"
-                               Width="24" Height="24"
-                               Stretch="Uniform"
-                               VerticalAlignment="Center"
-                               IsVisible="{Binding HasSidebarIcon}"
-                               RenderOptions.BitmapInterpolationMode="HighQuality"/>
-                        <TextBlock Classes="sidebar-title" Text="{Binding SidebarTitle}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1"
                                 Orientation="Horizontal"
                                 Spacing="4"
                                 VerticalAlignment="Center">
@@ -109,7 +99,7 @@
                             <PathIcon Classes="open-icon" Data="{StaticResource IconFolderOpen}"/>
                         </Button>
                     </StackPanel>
-                    <TextBox Grid.Column="2"
+                    <TextBox Grid.Column="1"
                              Classes="search-box"
                              PlaceholderText="Search assets (comma separate to match any)"
                              Text="{Binding SearchText}">
@@ -121,7 +111,7 @@
                                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"/>
                         </TextBox.InnerLeftContent>
                     </TextBox>
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="2"
                             Classes="filter-select-btn"
                             HorizontalAlignment="Stretch"
                             ToolTip.Tip="{Binding AssetTypeFilterSummary}">
@@ -159,7 +149,7 @@
                                       VerticalAlignment="Center"/>
                         </Grid>
                     </Button>
-                    <Button Grid.Column="4"
+                    <Button Grid.Column="3"
                             Classes="filter-select-btn"
                             HorizontalAlignment="Stretch"
                             ToolTip.Tip="{Binding AssetSourceFilterSummary}">
@@ -197,7 +187,7 @@
                                       VerticalAlignment="Center"/>
                         </Grid>
                     </Button>
-                    <StackPanel Grid.Column="5"
+                    <StackPanel Grid.Column="4"
                                 Orientation="Horizontal"
                                 Spacing="4"
                                 VerticalAlignment="Center">
@@ -565,7 +555,7 @@
             </Grid>
         </DockPanel>
 
-        <ItemsControl ItemsSource="{Binding Notifications}"
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Notifications}"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom"
                       Margin="0,0,0,48">
@@ -606,7 +596,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <Border Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">
+        <Border Grid.Row="1" Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">
             <Border Classes="progress-card"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
@@ -663,5 +653,5 @@
                 </StackPanel>
             </Border>
         </Border>
-    </Panel>
+    </Grid>
 </Window>

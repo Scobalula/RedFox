@@ -1,73 +1,79 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:RedFox.GameExtraction.UI.Controls"
         xmlns:vm="using:RedFox.GameExtraction.UI.ViewModels"
         x:Class="RedFox.GameExtraction.UI.Views.PluginsWindow"
+        Classes="custom-chrome"
         x:DataType="vm:PluginsWindowViewModel"
         Title="Plugins"
         Width="640" Height="460"
         MinWidth="480" MinHeight="320"
         WindowStartupLocation="CenterOwner">
 
-    <DockPanel Margin="8">
-        <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
-            <DockPanel>
-                <Button DockPanel.Dock="Right" Classes="accent-btn" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="secondary-btn" Content="Open Folder" Command="{Binding BrowseFolderCommand}"/>
-                    <Button Classes="secondary-btn" Content="Refresh" Command="{Binding RefreshCommand}"/>
-                </StackPanel>
-            </DockPanel>
-        </Border>
+    <DockPanel>
+        <controls:WindowTitleBar DockPanel.Dock="Top"/>
 
-        <TextBox DockPanel.Dock="Top"
-                 Classes="search-box"
-                 PlaceholderText="Search plugins"
-                 Text="{Binding SearchText}"
-                 Margin="0,0,0,8"/>
-
-        <Border Classes="panel-shadow">
-            <Border Classes="panel"
-                    Padding="0"
-                    ClipToBounds="True">
-                <Panel>
-                    <ListBox ItemsSource="{Binding Plugins}"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PluginRowViewModel">
-                                <Grid ColumnDefinitions="*,Auto,Auto" Margin="8,6" ColumnSpacing="14">
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource ThemeForegroundBrush}"/>
-                                        <TextBlock Text="{Binding FilePath}" Classes="status-text" TextTrimming="CharacterEllipsis"/>
-                                        <TextBlock Text="{Binding ErrorMessage}"
-                                                   Foreground="{DynamicResource ThemeDestructiveBrush}"
-                                                   FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                    </StackPanel>
-                                    <CheckBox Grid.Column="1" Content="Loaded" IsChecked="{Binding IsLoaded}" VerticalAlignment="Center"/>
-                                    <CheckBox Grid.Column="2" Content="Auto" IsChecked="{Binding IsAutoLoad}" VerticalAlignment="Center"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <StackPanel HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Spacing="6"
-                                Margin="24"
-                                IsHitTestVisible="False"
-                                IsVisible="{Binding IsEmpty}">
-                        <TextBlock Classes="title" HorizontalAlignment="Center" Text="No plugins found"/>
-                        <TextBlock Classes="status-text"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="500"
-                                   Text="{Binding PluginsDirectory}"/>
+        <DockPanel Margin="8,0,8,8">
+            <Border DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Classes="accent-btn" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Left" HorizontalContentAlignment="Center" Padding="14,7" MinWidth="90"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Classes="secondary-btn" Content="Open Folder" Command="{Binding BrowseFolderCommand}"/>
+                        <Button Classes="secondary-btn" Content="Refresh" Command="{Binding RefreshCommand}"/>
                     </StackPanel>
-                </Panel>
+                </DockPanel>
             </Border>
-        </Border>
+
+            <TextBox DockPanel.Dock="Top"
+                     Classes="search-box"
+                     PlaceholderText="Search plugins"
+                     Text="{Binding SearchText}"
+                     Margin="0,0,0,8"/>
+
+            <Border Classes="panel-shadow">
+                <Border Classes="panel"
+                        Padding="0"
+                        ClipToBounds="True">
+                    <Panel>
+                        <ListBox ItemsSource="{Binding Plugins}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:PluginRowViewModel">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="8,6" ColumnSpacing="14">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource ThemeForegroundBrush}"/>
+                                            <TextBlock Text="{Binding FilePath}" Classes="status-text" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding ErrorMessage}"
+                                                       Foreground="{DynamicResource ThemeDestructiveBrush}"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Column="1" Content="Loaded" IsChecked="{Binding IsLoaded}" VerticalAlignment="Center"/>
+                                        <CheckBox Grid.Column="2" Content="Auto" IsChecked="{Binding IsAutoLoad}" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="6"
+                                    Margin="24"
+                                    IsHitTestVisible="False"
+                                    IsVisible="{Binding IsEmpty}">
+                            <TextBlock Classes="title" HorizontalAlignment="Center" Text="No plugins found"/>
+                            <TextBlock Classes="status-text"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="500"
+                                       Text="{Binding PluginsDirectory}"/>
+                        </StackPanel>
+                    </Panel>
+                </Border>
+            </Border>
+        </DockPanel>
     </DockPanel>
 </Window>
