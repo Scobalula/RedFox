@@ -25,32 +25,36 @@
             </Grid>
         </Border>
 
-        <Border Classes="panel" Padding="0" ClipToBounds="True">
-            <Panel>
-                <ContentControl Content="{Binding Content}"/>
+        <Border Classes="panel-shadow">
+            <Border Classes="panel"
+                    Padding="0"
+                    ClipToBounds="True">
+                <Panel>
+                    <ContentControl Content="{Binding Content}"/>
 
-                <StackPanel Spacing="6"
-                            Margin="24"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            IsVisible="{Binding ShowPlaceholder}">
-                    <TextBlock Classes="title"
-                               HorizontalAlignment="Center"
-                               Text="{Binding PlaceholderTitle}"/>
-                    <TextBlock Classes="status-text"
-                               MaxWidth="480"
-                               TextWrapping="Wrap"
-                               TextAlignment="Center"
-                               IsVisible="{Binding HasError}"
-                               Text="{Binding ErrorMessage}"/>
-                </StackPanel>
+                    <StackPanel Spacing="6"
+                                Margin="24"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding ShowPlaceholder}">
+                        <TextBlock Classes="title"
+                                   HorizontalAlignment="Center"
+                                   Text="{Binding PlaceholderTitle}"/>
+                        <TextBlock Classes="status-text"
+                                   MaxWidth="480"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   IsVisible="{Binding HasError}"
+                                   Text="{Binding ErrorMessage}"/>
+                    </StackPanel>
 
-                <ProgressBar Classes="thin"
-                             VerticalAlignment="Top"
-                             IsIndeterminate="True"
-                             IsHitTestVisible="False"
-                             IsVisible="{Binding IsLoading}"/>
-            </Panel>
+                    <ProgressBar Classes="thin"
+                                 VerticalAlignment="Top"
+                                 IsIndeterminate="True"
+                                 IsHitTestVisible="False"
+                                 IsVisible="{Binding IsLoading}"/>
+                </Panel>
+            </Border>
         </Border>
     </DockPanel>
 </Window>

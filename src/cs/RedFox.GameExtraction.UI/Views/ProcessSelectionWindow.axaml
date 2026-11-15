@@ -16,27 +16,31 @@
             </StackPanel>
         </Border>
 
-        <Border Classes="panel" Padding="0" ClipToBounds="True">
-            <DataGrid x:Name="ProcessGrid"
-                      ItemsSource="{Binding Processes}"
-                      SelectedItem="{Binding SelectedProcess}"
-                      AutoGenerateColumns="False"
-                      CanUserResizeColumns="True"
-                      CanUserSortColumns="True"
-                      GridLinesVisibility="Horizontal"
-                      HeadersVisibility="Column"
-                      IsReadOnly="True"
-                      SelectionMode="Single"
-                      RowHeight="30"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      DoubleTapped="OnProcessDoubleTapped">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="90"/>
-                    <DataGridTextColumn Header="Name" Binding="{Binding ProcessName}" Width="200"/>
-                    <DataGridTextColumn Header="Window" Binding="{Binding WindowTitle}" Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
+        <Border Classes="panel-shadow">
+            <Border Classes="panel"
+                    Padding="0"
+                    ClipToBounds="True">
+                <DataGrid x:Name="ProcessGrid"
+                          ItemsSource="{Binding Processes}"
+                          SelectedItem="{Binding SelectedProcess}"
+                          AutoGenerateColumns="False"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          RowHeight="30"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          DoubleTapped="OnProcessDoubleTapped">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="90"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding ProcessName}" Width="200"/>
+                        <DataGridTextColumn Header="Window" Binding="{Binding WindowTitle}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
         </Border>
     </DockPanel>
 </Window>

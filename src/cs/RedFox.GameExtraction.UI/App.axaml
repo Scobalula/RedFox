@@ -12,27 +12,28 @@
         <FontFamily x:Key="GeistFont">avares://RedFox.GameExtraction.UI/Assets/Fonts#Geist</FontFamily>
         <StaticResource x:Key="AppFont" ResourceKey="InterFont"/>
 
-        <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#0A0A0A"/>
-        <Color x:Key="ThemeWindowTintColor">#0A0A0A</Color>
-        <RadialGradientBrush x:Key="ThemeWindowBrush" Center="0%,0%" GradientOrigin="0%,0%" RadiusX="100%" RadiusY="480">
-            <GradientStop Offset="0" Color="{DynamicResource ThemeWindowTintColor}"/>
-            <GradientStop Offset="1" Color="#0A0A0A"/>
-        </RadialGradientBrush>
-        <SolidColorBrush x:Key="ChromeControlBrush" Color="#1AFFFFFF"/>
-        <SolidColorBrush x:Key="ChromeControlHoverBrush" Color="#26FFFFFF"/>
-        <SolidColorBrush x:Key="ChromeControlPressedBrush" Color="#13FFFFFF"/>
-        <SolidColorBrush x:Key="ChromeFieldBrush" Color="#0EFFFFFF"/>
-        <SolidColorBrush x:Key="ThemePanelBrush" Color="#0EFFFFFF"/>
-        <SolidColorBrush x:Key="ThemePanelHeaderBrush" Color="#07FFFFFF"/>
-        <SolidColorBrush x:Key="ThemePopupBrush" Color="#222222" Opacity="0.95"/>
+        <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#141414"/>
+        <SolidColorBrush x:Key="ThemeToolbarBrush" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="ThemePanelHeaderBrush" Color="#232323"/>
+        <SolidColorBrush x:Key="ThemePopupBrush" Color="#272727"/>
         <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#FAFAFA"/>
-        <SolidColorBrush x:Key="ThemeCardBrush" Color="#171717"/>
-        <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#292929"/>
-        <SolidColorBrush x:Key="ThemeMutedBrush" Color="#262626"/>
-        <SolidColorBrush x:Key="ThemeHeaderBrush" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="ThemeCardBrush" Color="#1C1C1C"/>
+        <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#303030"/>
+        <SolidColorBrush x:Key="ThemeMutedBrush" Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="ThemeHeaderBrush" Color="#242424"/>
         <SolidColorBrush x:Key="ThemeMutedForegroundBrush" Color="#A1A1A1"/>
         <SolidColorBrush x:Key="ThemeBorderBrush" Color="#1AFFFFFF"/>
+        <LinearGradientBrush x:Key="ThemeRaisedBorderBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#2EFFFFFF"/>
+            <GradientStop Offset="0.25" Color="#17FFFFFF"/>
+            <GradientStop Offset="1" Color="#14FFFFFF"/>
+        </LinearGradientBrush>
         <SolidColorBrush x:Key="ThemeInputBrush" Color="#26FFFFFF"/>
+        <LinearGradientBrush x:Key="ThemeRaisedInputBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#3DFFFFFF"/>
+            <GradientStop Offset="0.4" Color="#26FFFFFF"/>
+            <GradientStop Offset="1" Color="#1FFFFFFF"/>
+        </LinearGradientBrush>
         <SolidColorBrush x:Key="ThemeRingBrush" Color="#737373"/>
         <Thickness x:Key="ComboBoxPadding">10,0,0,0</Thickness>
         <SolidColorBrush x:Key="NotificationSuccessBrush" Color="#22C55E"/>
@@ -42,15 +43,15 @@
         <SolidColorBrush x:Key="AssetSelectionBorderBrush" Color="#993C1800"/>
         <SolidColorBrush x:Key="AssetPreviewSelectionBrush" Color="#193047"/>
         <SolidColorBrush x:Key="AssetPreviewForegroundBrush" Color="#6AB8FF"/>
-        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#252525"/>
         <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
         <SolidColorBrush x:Key="ComboBoxItemBackground" Color="Transparent"/>
-        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#292929"/>
-        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#262626"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#303030"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#2D2D2D"/>
         <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#737373"/>
         <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="#737373"/>
-        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#171717"/>
+        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="#26FFFFFF"/>
         <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="ComboBoxBackgroundUnfocused" Color="Transparent"/>
@@ -58,13 +59,13 @@
         <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundFocused" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#A1A1A1"/>
-        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#171717"/>
+        <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="#26FFFFFF"/>
         <SolidColorBrush x:Key="TextControlForegroundDisabled" Color="#FAFAFA"/>
         <Thickness x:Key="TextControlBorderThemeThicknessFocused">1</Thickness>
         <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
         <CornerRadius x:Key="OverlayCornerRadius">6</CornerRadius>
-        <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#252525"/>
         <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#26FFFFFF"/>
         <Thickness x:Key="MenuFlyoutPresenterBorderThemeThickness">1</Thickness>
         <Thickness x:Key="MenuFlyoutPresenterThemePadding">4</Thickness>
@@ -72,21 +73,21 @@
         <SolidColorBrush x:Key="MenuFlyoutItemForeground" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed" Color="#FAFAFA"/>
-        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#292929"/>
-        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#262626"/>
+        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver" Color="#303030"/>
+        <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed" Color="#2D2D2D"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevron" Color="#A1A1A1"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened" Color="#FAFAFA"/>
-        <SolidColorBrush x:Key="SliderTrackFill" Color="#262626"/>
-        <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#292929"/>
-        <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#292929"/>
+        <SolidColorBrush x:Key="SliderTrackFill" Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#303030"/>
+        <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#303030"/>
         <CornerRadius x:Key="SliderThumbCornerRadius">4</CornerRadius>
         <SolidColorBrush x:Key="ThemeDestructiveBrush" Color="#FF6467"/>
         <SolidColorBrush x:Key="HeartBrush" Color="#E53935"/>
-        <SolidColorBrush x:Key="SecondaryActionBrush" Color="#222222"/>
-        <SolidColorBrush x:Key="SecondaryActionHoverBrush" Color="#292929"/>
-        <SolidColorBrush x:Key="SecondaryActionPressedBrush" Color="#1C1C1C"/>
+        <SolidColorBrush x:Key="SecondaryActionBrush" Color="#292929"/>
+        <SolidColorBrush x:Key="SecondaryActionHoverBrush" Color="#303030"/>
+        <SolidColorBrush x:Key="SecondaryActionPressedBrush" Color="#232323"/>
         <SolidColorBrush x:Key="IconOpenBrush" Color="#E8C17A"/>
         <SolidColorBrush x:Key="IconExportBrush" Color="#8FD6A3"/>
         <SolidColorBrush x:Key="IconModelBrush" Color="#8DD6FF"/>
@@ -141,7 +142,7 @@
         <StreamGeometry x:Key="IconClose">F1 M3.4,2.3 L8,6.9 L12.6,2.3 L13.7,3.4 L9.1,8 L13.7,12.6 L12.6,13.7 L8,9.1 L3.4,13.7 L2.3,12.6 L6.9,8 L2.3,3.4 Z</StreamGeometry>
         <StreamGeometry x:Key="IconMore">M2,8 A1.5,1.5 0 1 1 5,8 A1.5,1.5 0 1 1 2,8 Z M6.5,8 A1.5,1.5 0 1 1 9.5,8 A1.5,1.5 0 1 1 6.5,8 Z M11,8 A1.5,1.5 0 1 1 14,8 A1.5,1.5 0 1 1 11,8 Z</StreamGeometry>
         <ControlTheme x:Key="ScrollBarThumb" TargetType="Thumb">
-            <Setter Property="Background" Value="#66737373"/>
+            <Setter Property="Background" Value="#8C737373"/>
             <Setter Property="Template">
                 <ControlTemplate>
                     <Border Background="{TemplateBinding Background}" CornerRadius="3" Margin="2"/>

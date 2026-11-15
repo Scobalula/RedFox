@@ -49,24 +49,21 @@ public class App : Application
         Resources["SystemAccentColorDark2"]					= Shift(accent, -48);
         Resources["SystemAccentColorDark3"]					= Shift(accent, -72);
 
-        if (Resources["ThemeBackgroundBrush"] is ISolidColorBrush backgroundBrush)
+        if (Resources["ThemeHeaderBrush"] is ISolidColorBrush headerBrush)
         {
-            Resources["ThemeWindowTintColor"] = Blend(backgroundBrush.Color, accent, CurrentConfig.WindowTintStrength);
+            Resources["ThemePanelHeaderBrush"] = new SolidColorBrush(RedFoxThemeColors.Tint(headerBrush.Color, accent, CurrentConfig.WindowTintStrength / 4));
         }
 
-        if (Resources["ThemePopupBrush"] is SolidColorBrush popupBrush)
+        if (Resources["ThemeCardBrush"] is ISolidColorBrush panelBrush)
         {
-            popupBrush.Opacity = CurrentConfig.PopupOpacity;
-        }
+            Color toolbar = panelBrush.Color;
 
-        if (!CurrentConfig.TranslucentChrome)
-        {
-            Resources["ChromeControlBrush"]			= Resources["SecondaryActionBrush"];
-            Resources["ChromeControlHoverBrush"]	= Resources["SecondaryActionHoverBrush"];
-            Resources["ChromeControlPressedBrush"]	= Resources["SecondaryActionPressedBrush"];
-            Resources["ChromeFieldBrush"]			= Resources["ThemeCardBrush"];
-            Resources["ThemePanelBrush"]			= Resources["ThemeCardBrush"];
-            Resources["ThemePanelHeaderBrush"]		= Resources["ThemeHeaderBrush"];
+            Resources["ThemeToolbarBrush"] = new LinearGradientBrush
+            {
+                StartPoint		= new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint		= new RelativePoint(0.5, 0, RelativeUnit.Relative),
+                GradientStops	= { new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength), 0), new GradientStop(toolbar, 1) }
+            };
         }
 
         if (!string.IsNullOrEmpty(CurrentConfig.FontFamily))
@@ -93,11 +90,6 @@ public class App : Application
     private static Color Shift(Color color, int amount)
     {
         return Color.FromArgb(color.A, (byte)Math.Clamp(color.R + amount, 0, 255), (byte)Math.Clamp(color.G + amount, 0, 255), (byte)Math.Clamp(color.B + amount, 0, 255));
-    }
-
-    private static Color Blend(Color from, Color to, double amount)
-    {
-        return Color.FromRgb((byte)(from.R + (to.R - from.R) * amount), (byte)(from.G + (to.G - from.G) * amount), (byte)(from.B + (to.B - from.B) * amount));
     }
 
 }

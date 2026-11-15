@@ -54,6 +54,23 @@ public static class RedFoxThemeColors
     public static Vector4 SceneBackgroundVector => ToVector4(Background);
 
     /// <summary>
+    /// Mixes an accent into a surface color, normalizing the accent's saturation and brightness so different accents tint by a similar visible amount.
+    /// </summary>
+    /// <param name="surface">The surface color to tint.</param>
+    /// <param name="accent">The accent color.</param>
+    /// <param name="amount">The tint strength, from 0 (none) to 1.</param>
+    /// <returns>The opaque tinted color.</returns>
+    public static Color Tint(Color surface, Color accent, double amount)
+    {
+        HslColor hsl		= accent.ToHsl();
+        Color normalized	= HslColor.ToRgb(hsl.H, Math.Min(hsl.S, 0.7), 0.45);
+        double luma			= (normalized.R * 0.299 + normalized.G * 0.587 + normalized.B * 0.114) / byte.MaxValue;
+        double weight		= Math.Clamp(amount * 0.35 / luma, 0.0, 1.0);
+
+        return Color.FromRgb((byte)(surface.R + (normalized.R - surface.R) * weight), (byte)(surface.G + (normalized.G - surface.G) * weight), (byte)(surface.B + (normalized.B - surface.B) * weight));
+    }
+
+    /// <summary>
     /// Converts an Avalonia color to a normalized renderer color vector.
     /// </summary>
     /// <param name="color">The color to convert.</param>
