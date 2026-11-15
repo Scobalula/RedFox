@@ -61,6 +61,21 @@ public sealed class GameExtractionConfig
     public string AccentColor { get; init; } = "#9F0712";
 
     /// <summary>
+    /// Gets how strongly the accent color tints the top-left of each window, from 0 (none) to 1.
+    /// </summary>
+    public double WindowTintStrength { get; init; } = 0.12;
+
+    /// <summary>
+    /// Gets a value indicating whether panels and toolbar controls are translucent so the window tint shows through them.
+    /// </summary>
+    public bool TranslucentChrome { get; init; } = true;
+
+    /// <summary>
+    /// Gets the opacity of menus, dropdowns, and tooltips, from 0 to 1.
+    /// </summary>
+    public double PopupOpacity { get; init; } = 0.95;
+
+    /// <summary>
     /// Gets the previewers tried in order when an asset payload has been read.
     /// </summary>
     /// <remarks>

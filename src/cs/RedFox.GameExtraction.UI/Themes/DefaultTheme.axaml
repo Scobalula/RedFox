@@ -3,7 +3,7 @@
         xmlns:search="using:AvaloniaEdit.Search">
 
     <Style Selector="Window">
-        <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemeWindowBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontFamily" Value="{DynamicResource AppFont}"/>
         <Setter Property="FontSize" Value="13"/>
@@ -14,7 +14,7 @@
         <Setter Property="Padding" Value="12"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemePanelBrush}"/>
     </Style>
 
     <Style Selector="Border.asset-list-panel">
@@ -41,7 +41,7 @@
     </Style>
 
     <Style Selector="Border.preview-toolbar">
-        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemePanelHeaderBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}"/>
         <Setter Property="BorderThickness" Value="0,0,0,1"/>
         <Setter Property="Padding" Value="12,8"/>
@@ -256,7 +256,7 @@
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -279,13 +279,13 @@
     </Style>
 
     <Style Selector="Button.secondary-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.secondary-btn:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlPressedBrush}"/>
     </Style>
 
     <Style Selector="Button.secondary-btn.compact">
@@ -328,7 +328,7 @@
     </Style>
 
     <Style Selector="Button.secondary-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.icon-btn:disabled /template/ ContentPresenter#PART_ContentPresenter, search|SearchPanel Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
@@ -354,7 +354,7 @@
     </Style>
 
     <Style Selector="Button.filter-select-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeFieldBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
@@ -381,7 +381,7 @@
 
     <Style Selector="MenuFlyoutPresenter">
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemePopupBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
     </Style>
 
@@ -439,7 +439,7 @@
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="Padding" Value="10,7"/>
         <Setter Property="MinHeight" Value="34"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeFieldBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -451,12 +451,12 @@
     </Style>
 
     <Style Selector="TextBox.search-box:pointerover /template/ Border#PART_BorderElement">
-        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
     </Style>
 
     <Style Selector="TextBox.search-box:focus /template/ Border#PART_BorderElement">
-        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
     </Style>
 
@@ -764,6 +764,11 @@
         <Setter Property="Fill" Value="#FFFBEB"/>
     </Style>
 
+    <Style Selector="Border.preview-toolbar CheckBox:checked /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pointerover /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pressed /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AssetSelectionBorderBrush}"/>
+    </Style>
+
     <Style Selector="CheckBox:disabled">
         <Setter Property="Cursor" Value="Arrow"/>
         <Setter Property="Opacity" Value="0.4"/>
@@ -772,7 +777,7 @@
     <Style Selector="ComboBox">
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeFieldBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
     </Style>
@@ -783,7 +788,7 @@
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeFieldBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="Padding" Value="10,0"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -791,13 +796,13 @@
     </Style>
 
     <Style Selector="Button.filter-select-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.filter-select-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlPressedBrush}"/>
     </Style>
 
     <Style Selector="FlyoutPresenter.asset-filter-presenter">
@@ -812,7 +817,7 @@
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemePopupBrush}"/>
     </Style>
 
     <Style Selector="CheckBox.asset-filter-option">
@@ -842,7 +847,7 @@
     </Style>
 
     <Style Selector="ComboBox:dropdownopen /template/ Border#PopupBorder">
-        <Setter Property="Background" Value="{DynamicResource ThemeHeaderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ThemePopupBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
@@ -892,7 +897,7 @@
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -900,13 +905,13 @@
     </Style>
 
     <Style Selector="search|SearchPanel Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ChromeControlPressedBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel ToggleButton">

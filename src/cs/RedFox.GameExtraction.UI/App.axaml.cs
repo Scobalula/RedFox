@@ -49,6 +49,26 @@ public class App : Application
         Resources["SystemAccentColorDark2"]					= Shift(accent, -48);
         Resources["SystemAccentColorDark3"]					= Shift(accent, -72);
 
+        if (Resources["ThemeBackgroundBrush"] is ISolidColorBrush backgroundBrush)
+        {
+            Resources["ThemeWindowTintColor"] = Blend(backgroundBrush.Color, accent, CurrentConfig.WindowTintStrength);
+        }
+
+        if (Resources["ThemePopupBrush"] is SolidColorBrush popupBrush)
+        {
+            popupBrush.Opacity = CurrentConfig.PopupOpacity;
+        }
+
+        if (!CurrentConfig.TranslucentChrome)
+        {
+            Resources["ChromeControlBrush"]			= Resources["SecondaryActionBrush"];
+            Resources["ChromeControlHoverBrush"]	= Resources["SecondaryActionHoverBrush"];
+            Resources["ChromeControlPressedBrush"]	= Resources["SecondaryActionPressedBrush"];
+            Resources["ChromeFieldBrush"]			= Resources["ThemeCardBrush"];
+            Resources["ThemePanelBrush"]			= Resources["ThemeCardBrush"];
+            Resources["ThemePanelHeaderBrush"]		= Resources["ThemeHeaderBrush"];
+        }
+
         if (!string.IsNullOrEmpty(CurrentConfig.FontFamily))
         {
             Resources["AppFont"] = new FontFamily(CurrentConfig.FontFamily);
@@ -73,6 +93,11 @@ public class App : Application
     private static Color Shift(Color color, int amount)
     {
         return Color.FromArgb(color.A, (byte)Math.Clamp(color.R + amount, 0, 255), (byte)Math.Clamp(color.G + amount, 0, 255), (byte)Math.Clamp(color.B + amount, 0, 255));
+    }
+
+    private static Color Blend(Color from, Color to, double amount)
+    {
+        return Color.FromRgb((byte)(from.R + (to.R - from.R) * amount), (byte)(from.G + (to.G - from.G) * amount), (byte)(from.B + (to.B - from.B) * amount));
     }
 
 }

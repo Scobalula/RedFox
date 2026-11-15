@@ -13,6 +13,18 @@
         <StaticResource x:Key="AppFont" ResourceKey="InterFont"/>
 
         <SolidColorBrush x:Key="ThemeBackgroundBrush" Color="#0A0A0A"/>
+        <Color x:Key="ThemeWindowTintColor">#0A0A0A</Color>
+        <RadialGradientBrush x:Key="ThemeWindowBrush" Center="0%,0%" GradientOrigin="0%,0%" RadiusX="100%" RadiusY="480">
+            <GradientStop Offset="0" Color="{DynamicResource ThemeWindowTintColor}"/>
+            <GradientStop Offset="1" Color="#0A0A0A"/>
+        </RadialGradientBrush>
+        <SolidColorBrush x:Key="ChromeControlBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="ChromeControlHoverBrush" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="ChromeControlPressedBrush" Color="#13FFFFFF"/>
+        <SolidColorBrush x:Key="ChromeFieldBrush" Color="#0EFFFFFF"/>
+        <SolidColorBrush x:Key="ThemePanelBrush" Color="#0EFFFFFF"/>
+        <SolidColorBrush x:Key="ThemePanelHeaderBrush" Color="#07FFFFFF"/>
+        <SolidColorBrush x:Key="ThemePopupBrush" Color="#222222" Opacity="0.95"/>
         <SolidColorBrush x:Key="ThemeForegroundBrush" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="ThemeCardBrush" Color="#171717"/>
         <SolidColorBrush x:Key="ThemeSecondaryBrush" Color="#292929"/>
@@ -81,7 +93,7 @@
         <SolidColorBrush x:Key="IconAnimationBrush" Color="#C5A5FF"/>
         <SolidColorBrush x:Key="IconImageBrush" Color="#E8A0BF"/>
         <SolidColorBrush x:Key="IconSoundBrush" Color="#7FD4C1"/>
-        <SolidColorBrush x:Key="ToolTipBackground" Color="#1E1E1E"/>
+        <StaticResource x:Key="ToolTipBackground" ResourceKey="ThemePopupBrush"/>
         <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#26FFFFFF"/>
         <SolidColorBrush x:Key="ToolTipForeground" Color="#FAFAFA"/>
         <Thickness x:Key="ComboBoxDropdownBorderPadding">4</Thickness>
