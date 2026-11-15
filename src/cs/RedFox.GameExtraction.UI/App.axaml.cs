@@ -41,6 +41,10 @@ public class App : Application
         Resources["AssetSelectionBorderBrush"]				= new SolidColorBrush(accent, 0.6);
         Resources["TextControlBorderBrushFocused"]			= Resources["AssetSelectionBorderBrush"];
         Resources["ComboBoxBackgroundBorderBrushFocused"]	= Resources["AssetSelectionBorderBrush"];
+        Resources["SliderTrackValueFill"]					= Resources["AccentBrush"];
+        Resources["SliderTrackValueFillPointerOver"]		= Resources["AccentHoverBrush"];
+        Resources["SliderTrackValueFillPressed"]			= Resources["AccentHoverBrush"];
+        Resources["SliderThumbBackgroundPressed"]			= Resources["AccentHoverBrush"];
         Resources["SystemAccentColor"]						= accent;
         Resources["SystemAccentColorLight1"]				= hover;
         Resources["SystemAccentColorLight2"]				= Shift(accent, 48);
@@ -58,11 +62,13 @@ public class App : Application
         {
             Color toolbar = panelBrush.Color;
 
-            Resources["ThemeToolbarBrush"] = new LinearGradientBrush
+            Resources["ThemeToolbarBrush"] = new RadialGradientBrush
             {
-                StartPoint		= new RelativePoint(0, 0, RelativeUnit.Relative),
-                EndPoint		= new RelativePoint(0.5, 0, RelativeUnit.Relative),
-                GradientStops	= { new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength), 0), new GradientStop(toolbar, 1) }
+                Center			= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
+                GradientOrigin	= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
+                RadiusX			= RelativeScalar.Parse("35%"),
+                RadiusY			= RelativeScalar.Parse("400%"),
+                GradientStops	= { new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength * 3), 0), new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength), 0.45), new GradientStop(toolbar, 1) }
             };
         }
 

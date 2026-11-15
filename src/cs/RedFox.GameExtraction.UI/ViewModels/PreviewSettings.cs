@@ -44,6 +44,29 @@ public sealed partial class PreviewSettings : ObservableObject
         DefaultValue	= WireframeMode.None,
     };
 
+    private static readonly GameExtractionSetting WireframeColorSetting = new()
+    {
+        Name			= "PreviewWireframeColor",
+        Group			= GameExtractionSettingGroup.Preview,
+        Section			= "Scene",
+        Label			= "Wireframe color",
+        Type			= GameExtractionSettingType.Choice,
+        Options			= [.. Enum.GetNames<ScenePreviewWireframeColor>()],
+        DefaultValue	= ScenePreviewWireframeColor.Auto,
+    };
+
+    private static readonly GameExtractionSetting WireframeOpacitySetting = new()
+    {
+        Name			= "PreviewWireframeOpacity",
+        Group			= GameExtractionSettingGroup.Preview,
+        Section			= "Scene",
+        Label			= "Wireframe opacity",
+        Type			= GameExtractionSettingType.Slider,
+        DefaultValue	= 1.0,
+        Minimum			= 0.0,
+        Maximum			= 1.0,
+    };
+
     private static readonly GameExtractionSetting GridSetting = new()
     {
         Name			= "PreviewGrid",
@@ -320,6 +343,8 @@ public sealed partial class PreviewSettings : ObservableObject
         NormalsSetting,
         MergeModeSetting,
         WireframeSetting,
+        WireframeColorSetting,
+        WireframeOpacitySetting,
         GridSetting,
         BonesSetting,
         UpAxisSetting,
@@ -437,6 +462,19 @@ public sealed partial class PreviewSettings : ObservableObject
     [ObservableProperty]
     public partial WireframeMode WireframeMode { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WireframeColorValue))]
+    internal partial ScenePreviewWireframeColor WireframeColor { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WireframeColorValue))]
+    internal partial float WireframeOpacity { get; set; } = 1.0f;
+
+    /// <summary>
+    /// Gets the color mesh wireframes are drawn with in scene previews.
+    /// </summary>
+    public Vector4 WireframeColorValue => new(GetWireframeRgb(), WireframeOpacity);
+
     // The skybox always lights and reflects on the model; these only control the visible background.
     [ObservableProperty]
     public partial bool ShowSkybox { get; set; } = true;
@@ -491,6 +529,8 @@ public sealed partial class PreviewSettings : ObservableObject
         ShowNormals			= bool.TryParse(settings.GetSettingValue(NormalsSetting), out bool showNormals) && showNormals;
         MergeMode			= GetEnumValue(settings, MergeModeSetting, SceneCombineMode.ConnectBones);
         WireframeMode		= GetEnumValue(settings, WireframeSetting, WireframeMode.None);
+        WireframeColor		= GetEnumValue(settings, WireframeColorSetting, ScenePreviewWireframeColor.Auto);
+        WireframeOpacity	= float.TryParse(settings.GetSettingValue(WireframeOpacitySetting), NumberStyles.Float, CultureInfo.InvariantCulture, out float wireframeOpacity) ? Math.Clamp(wireframeOpacity, 0.0f, 1.0f) : 1.0f;
         ShowGrid			= !bool.TryParse(settings.GetSettingValue(GridSetting), out bool grid) || grid;
         ShowBones			= !bool.TryParse(settings.GetSettingValue(BonesSetting), out bool bones) || bones;
         SkyboxFile			= settings.GetSettingValue(SkyboxFileSetting) ?? string.Empty;
@@ -528,6 +568,8 @@ public sealed partial class PreviewSettings : ObservableObject
         settings.SetSettingValue(NormalsSetting, ShowNormals.ToString());
         settings.SetSettingValue(MergeModeSetting, MergeMode.ToString());
         settings.SetSettingValue(WireframeSetting, WireframeMode.ToString());
+        settings.SetSettingValue(WireframeColorSetting, WireframeColor.ToString());
+        settings.SetSettingValue(WireframeOpacitySetting, WireframeOpacity.ToString(CultureInfo.InvariantCulture));
         settings.SetSettingValue(GridSetting, ShowGrid.ToString());
         settings.SetSettingValue(BonesSetting, ShowBones.ToString());
         settings.SetSettingValue(AutoFitSetting, AutoFitScene.ToString());
@@ -575,5 +617,22 @@ public sealed partial class PreviewSettings : ObservableObject
     {
         string? value = settings.GetSettingValue(setting)?.Replace(" ", string.Empty);
         return Enum.TryParse(value, ignoreCase: true, out TEnum parsed) && Enum.IsDefined(parsed) ? parsed : fallback;
+    }
+
+    private Vector3 GetWireframeRgb()
+    {
+        return WireframeColor switch
+        {
+            ScenePreviewWireframeColor.White	=> new(1.0f, 1.0f, 1.0f),
+            ScenePreviewWireframeColor.Black	=> new(0.0f, 0.0f, 0.0f),
+            ScenePreviewWireframeColor.Red		=> new(0.94f, 0.27f, 0.27f),
+            ScenePreviewWireframeColor.Orange	=> new(0.98f, 0.6f, 0.15f),
+            ScenePreviewWireframeColor.Yellow	=> new(0.98f, 0.85f, 0.2f),
+            ScenePreviewWireframeColor.Green	=> new(0.33f, 0.85f, 0.33f),
+            ScenePreviewWireframeColor.Cyan		=> new(0.25f, 0.85f, 0.92f),
+            ScenePreviewWireframeColor.Blue		=> new(0.3f, 0.55f, 0.98f),
+            ScenePreviewWireframeColor.Magenta	=> new(0.9f, 0.35f, 0.9f),
+            _									=> new(0.78f, 0.84f, 0.94f),
+        };
     }
 }

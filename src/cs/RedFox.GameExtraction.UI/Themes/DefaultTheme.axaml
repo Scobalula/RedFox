@@ -373,16 +373,21 @@
 
     <Style Selector="Button.accent-btn">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
+        <Setter Property="Padding" Value="9,7"/>
         <Setter Property="Foreground" Value="#FFFBEB"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
         <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
         <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
         <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
@@ -479,7 +484,7 @@
 
     <Style Selector="Button.accent-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
         <Setter Property="Foreground" Value="#FFFBEB"/>
     </Style>
 
@@ -840,14 +845,14 @@
     </Style>
 
     <Style Selector="CheckBox /template/ Border#NormalRectangle">
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
     </Style>
 
     <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
-        <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
     </Style>
 
@@ -856,12 +861,12 @@
     </Style>
 
     <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
-        <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:pressed /template/ Border#NormalRectangle">
-        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource SecondaryActionPressedBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:focus-visible /template/ Border#NormalRectangle">
@@ -888,7 +893,19 @@
 
     <Style Selector="CheckBox:checked /template/ Path#CheckGlyph,
                      CheckBox:indeterminate /template/ Path#CheckGlyph">
-        <Setter Property="Fill" Value="#FFFBEB"/>
+        <Setter Property="Fill" Value="Transparent"/>
+        <Setter Property="Stroke" Value="#FFFBEB"/>
+        <Setter Property="StrokeThickness" Value="1.5"/>
+        <Setter Property="StrokeLineCap" Value="Round"/>
+        <Setter Property="StrokeJoin" Value="Round"/>
+    </Style>
+
+    <Style Selector="CheckBox:checked /template/ Path#CheckGlyph">
+        <Setter Property="Data" Value="M0,4 L3.5,7.5 L10,0.5"/>
+    </Style>
+
+    <Style Selector="CheckBox:indeterminate /template/ Path#CheckGlyph">
+        <Setter Property="Data" Value="M0,0 L8,0"/>
     </Style>
 
     <Style Selector="Border.preview-toolbar CheckBox:checked /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pointerover /template/ Border#NormalRectangle, Border.preview-toolbar CheckBox:checked:pressed /template/ Border#NormalRectangle">
@@ -1063,6 +1080,12 @@
 
     <Style Selector="search|SearchPanel ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="Slider.menu-slider">
+        <Setter Property="Width" Value="90"/>
+        <Setter Property="Height" Value="16"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
 </Styles>

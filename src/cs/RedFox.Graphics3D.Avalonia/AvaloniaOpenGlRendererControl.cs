@@ -66,6 +66,11 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     public static readonly StyledProperty<WireframeMode> WireframeModeProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, WireframeMode>(nameof(WireframeMode));
 
     /// <summary>
+    /// Defines the <see cref="WireframeColor"/> property.
+    /// </summary>
+    public static readonly StyledProperty<Vector4> WireframeColorProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, Vector4>(nameof(WireframeColor), new Vector4(0.78f, 0.84f, 0.94f, 1.0f));
+
+    /// <summary>
     /// Defines the <see cref="ShowNormals"/> property.
     /// </summary>
     public static readonly StyledProperty<bool> ShowNormalsProperty = AvaloniaProperty.Register<AvaloniaOpenGlRendererControl, bool>(nameof(ShowNormals));
@@ -126,6 +131,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         UseFlatShadingProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         ShowNormalsProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         WireframeModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
+        WireframeColorProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         SkinningModeProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         AntiAliasingSamplesProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
         ShadowQualityProperty.Changed.AddClassHandler<AvaloniaOpenGlRendererControl>((control, _) => control.ApplyRendererProperties());
@@ -223,6 +229,15 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
     {
         get => GetValue(WireframeModeProperty);
         set => SetValue(WireframeModeProperty, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the color mesh wireframes are drawn with.
+    /// </summary>
+    public Vector4 WireframeColor
+    {
+        get => GetValue(WireframeColorProperty);
+        set => SetValue(WireframeColorProperty, value);
     }
 
     /// <summary>
@@ -522,6 +537,7 @@ public sealed class AvaloniaOpenGlRendererControl : OpenGlControlBase, ICustomHi
         _renderer.UseViewBasedLighting		= UseViewBasedLighting;
         _renderer.UseFlatShading			= UseFlatShading;
         _renderer.WireframeMode				= WireframeMode;
+        _renderer.WireframeColor			= WireframeColor;
         _renderer.ShowNormals				= ShowNormals;
         _renderer.SkinningMode				= SkinningMode;
         _renderer.AntiAliasingSamples		= Math.Max(AntiAliasingSamples, 1);

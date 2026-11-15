@@ -136,6 +136,11 @@ public sealed class SceneRenderer : IDisposable
     public WireframeMode WireframeMode { get; set; }
 
     /// <summary>
+    /// Gets or sets the color mesh wireframes are drawn with.
+    /// </summary>
+    public Vector4 WireframeColor { get; set; } = new(0.78f, 0.84f, 0.94f, 1.0f);
+
+    /// <summary>
     /// Gets or sets whether vertex normal direction lines are drawn over meshes.
     /// </summary>
     public bool ShowNormals { get; set; }
@@ -887,7 +892,7 @@ public sealed class SceneRenderer : IDisposable
 
         foreach (MeshRenderHandle meshHandle in _visibleMeshes)
         {
-            meshHandle.RenderWireframe(_commandList, pipeline, WireframeDepthBias, view, projection, sceneAxis, cameraPosition);
+            meshHandle.RenderWireframe(_commandList, pipeline, WireframeDepthBias, WireframeColor, view, projection, sceneAxis, cameraPosition);
         }
     }
 

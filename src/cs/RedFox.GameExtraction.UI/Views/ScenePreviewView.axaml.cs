@@ -288,6 +288,8 @@ public partial class ScenePreviewView : UserControl
 
     private void OnSettingClick(object? sender, RoutedEventArgs e) => _viewModel?.Settings.RequestSave();
 
+    private void OnSettingSliderReleased(object? sender, PointerCaptureLostEventArgs e) => _viewModel?.Settings.RequestSave();
+
     private void OnSkyboxMenuAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {
         if (_viewModel is not { } viewModel || sender is not MenuItem skyboxes)

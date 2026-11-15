@@ -278,7 +278,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         }
     }
 
-    internal void RenderWireframe(ICommandList commandList, IGpuPipelineState pipeline, float depthBias, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
+    internal void RenderWireframe(ICommandList commandList, IGpuPipelineState pipeline, float depthBias, Vector4 color, in Matrix4x4 view, in Matrix4x4 projection, in Matrix4x4 sceneAxis, Vector3 cameraPosition)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(commandList);
@@ -294,6 +294,7 @@ internal sealed class MeshRenderHandle(IGraphicsDevice graphicsDevice, Mesh mesh
         commandList.SetPipelineState(pipeline);
         BindDrawState(commandList, pipeline, model, normalMatrix, view, projection, sceneAxis, cameraPosition, 0, false);
         commandList.SetUniformFloat("ClipDepthBias", depthBias);
+        commandList.SetUniformVector4("WireframeColor", color);
         _wireframeIndices.Bind(commandList, pipeline);
         commandList.DrawIndexed(_wireframeIndices.TotalComponentCount, 0, 0);
     }
