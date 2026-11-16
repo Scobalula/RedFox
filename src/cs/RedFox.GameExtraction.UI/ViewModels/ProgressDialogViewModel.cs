@@ -68,14 +68,33 @@ public partial class ProgressDialogViewModel(string title) : ObservableObject
     public partial bool IsCompleted { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the operation has failed.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsFailed { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the details panel is open.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsDetailsOpen { get; set; }
+
+    /// <summary>
     /// Gets the formatted completed and total item counts.
     /// </summary>
     public string ProgressText => Total > 0
         ? $"{Current:N0} / {Total:N0}"
         : string.Empty;
 
+    /// <summary>
+    /// Gets the formatted progress percentage, or empty when indeterminate.
+    /// </summary>
+    public string PercentText => IsIndeterminate ? string.Empty : $"{ProgressValue:0}%";
+
     partial void OnCurrentChanged(int value) => OnPropertyChanged(nameof(ProgressText));
     partial void OnTotalChanged(int value) => OnPropertyChanged(nameof(ProgressText));
+    partial void OnProgressValueChanged(double value) => OnPropertyChanged(nameof(PercentText));
+    partial void OnIsIndeterminateChanged(bool value) => OnPropertyChanged(nameof(PercentText));
 
     /// <summary>
     /// Gets or sets the command that cancels the operation.

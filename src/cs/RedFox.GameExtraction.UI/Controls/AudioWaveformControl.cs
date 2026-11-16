@@ -27,10 +27,7 @@ public sealed class AudioWaveformControl : Control
     /// </summary>
     public static readonly StyledProperty<ICommand?> SeekCommandProperty = AvaloniaProperty.Register<AudioWaveformControl, ICommand?>(nameof(SeekCommand));
 
-    private static readonly IBrush BackgroundBrush = Brush.Parse("#171717");
     private static readonly IBrush FallbackWaveBrush = Brush.Parse("#4A8FD9");
-    private static readonly IPen CenterLinePen = new Pen(Brush.Parse("#2A2A2A"));
-    private static readonly IPen PlayheadPen = new Pen(Brush.Parse("#F4F4F8"), 1.5);
 
     private (float Min, float Max)[][] _columns = [];
 
@@ -71,7 +68,7 @@ public sealed class AudioWaveformControl : Control
     public override void Render(DrawingContext context)
     {
         Rect bounds = new(Bounds.Size);
-        context.FillRectangle(BackgroundBrush, bounds);
+        context.FillRectangle(ThemeBrush("ThemeBackgroundBrush"), bounds);
 
         (float Min, float Max)[][]? peaks = Peaks;
         if (peaks is null || peaks.Length == 0 || peaks[0].Length == 0 || bounds.Width < 1 || bounds.Height < 1)
@@ -111,12 +108,12 @@ public sealed class AudioWaveformControl : Control
                 figure.EndFigure(true);
             }
 
-            context.DrawLine(CenterLinePen, new Point(0, centerY), new Point(bounds.Width, centerY));
+            context.DrawLine(new Pen(ThemeBrush("ThemeBorderBrush")), new Point(0, centerY), new Point(bounds.Width, centerY));
             context.DrawGeometry(waveBrush, null, geometry);
         }
 
         double playheadX = Math.Round(Math.Clamp(Position, 0.0, 1.0) * bounds.Width) + 0.5;
-        context.DrawLine(PlayheadPen, new Point(playheadX, 0), new Point(playheadX, bounds.Height));
+        context.DrawLine(new Pen(ThemeBrush("ThemeForegroundBrush"), 1.5), new Point(playheadX, 0), new Point(playheadX, bounds.Height));
     }
 
     /// <inheritdoc/>
@@ -147,6 +144,16 @@ public sealed class AudioWaveformControl : Control
         e.Pointer.Capture(null);
     }
 
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == ThemeVariantScope.ActualThemeVariantProperty)
+        {
+            InvalidateVisual();
+        }
+    }
+
     private void Seek(PointerEventArgs e)
     {
         if (Bounds.Width <= 0 || SeekCommand is not { } command)
@@ -159,5 +166,10 @@ public sealed class AudioWaveformControl : Control
         {
             command.Execute(fraction);
         }
+    }
+
+    private IBrush ThemeBrush(string key)
+    {
+        return this.TryFindResource(key, ActualThemeVariant, out object? value) && value is IBrush brush ? brush : Brushes.Transparent;
     }
 }

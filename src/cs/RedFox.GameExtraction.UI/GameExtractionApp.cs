@@ -8,6 +8,22 @@ namespace RedFox.GameExtraction.UI;
 public static class GameExtractionApp
 {
     /// <summary>
+    /// Gets the optional setting that selects the interface theme.
+    /// Add it to an application's setting definitions to expose it in its settings UI.
+    /// </summary>
+    public static GameExtractionSetting ThemeSetting { get; } = new()
+    {
+        Name			= "InterfaceTheme",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Appearance",
+        Label			= "Theme",
+        Description		= "System follows the operating system's light, dark, and high contrast preferences.",
+        Type			= GameExtractionSettingType.Choice,
+        Options			= [.. Enum.GetNames<InterfaceTheme>()],
+        DefaultValue	= InterfaceTheme.Dark,
+    };
+
+    /// <summary>
     /// Builds and runs the Avalonia application with the provided configuration.
     /// This method blocks until the application window is closed.
     /// </summary>

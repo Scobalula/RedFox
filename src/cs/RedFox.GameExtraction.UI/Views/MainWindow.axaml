@@ -259,6 +259,87 @@
                                 Orientation="Horizontal"
                                 Spacing="16"
                                 Margin="16,0,0,0">
+                        <ToggleButton x:Name="ProgressToggle"
+                                      Classes="status-progress"
+                                      IsVisible="{Binding ProgressDialog, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                      IsChecked="{Binding ProgressDialog.IsDetailsOpen, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding ProgressDialog.Title}"
+                                      ToolTip.Tip="Show progress details">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ProgressBar Classes="themed"
+                                             Width="96"
+                                             VerticalAlignment="Center"
+                                             Maximum="100"
+                                             Value="{Binding ProgressDialog.ProgressValue}"
+                                             IsIndeterminate="{Binding ProgressDialog.IsIndeterminate}"/>
+                                <TextBlock Classes="status-text"
+                                           MaxWidth="220"
+                                           TextTrimming="CharacterEllipsis"
+                                           Text="{Binding ProgressDialog.Title}"/>
+                                <TextBlock Classes="status-text"
+                                           Text="{Binding ProgressDialog.PercentText}"/>
+                            </StackPanel>
+                        </ToggleButton>
+                        <Popup PlacementTarget="{Binding #ProgressToggle}"
+                               Placement="Top"
+                               VerticalOffset="-8"
+                               IsLightDismissEnabled="True"
+                               IsOpen="{Binding ProgressDialog.IsDetailsOpen, Mode=TwoWay, FallbackValue=False}">
+                            <Border Classes="progress-card"
+                                    DataContext="{Binding ProgressDialog}">
+                                <StackPanel Spacing="12">
+                                    <TextBlock Classes="title"
+                                               Text="{Binding Title}"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap"/>
+                                    <ProgressBar Classes="themed"
+                                                 Value="{Binding ProgressValue}"
+                                                 IsIndeterminate="{Binding IsIndeterminate}"
+                                                 AutomationProperties.Name="{Binding Title}"
+                                                 Maximum="100"/>
+                                    <ProgressBar Classes="themed"
+                                                 Value="{Binding SourceProgressValue}"
+                                                 IsVisible="{Binding HasSourceProgress}"
+                                                 AutomationProperties.Name="Source progress"
+                                                 Maximum="100"/>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Classes="status-text"
+                                                   Margin="16,0,0,0"
+                                                   TextAlignment="Right"
+                                                   Text="{Binding ProgressText}"/>
+                                        <TextBlock Classes="status-text"
+                                                   Text="{Binding StatusText}"
+                                                   Height="18"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                    <Grid Height="32" ColumnDefinitions="*,Auto">
+                                        <Button Grid.Column="0"
+                                                Classes="secondary-btn"
+                                                Content="Open Export Folder"
+                                                Command="{Binding OpenExportFolderCommand}"
+                                                IsVisible="{Binding OpenExportFolderCommand, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                HorizontalAlignment="Left"/>
+                                        <Button Grid.Column="1"
+                                                Classes="secondary-btn"
+                                                Content="Cancel"
+                                                Command="{Binding CancelCommand}"
+                                                IsVisible="{Binding !IsCompleted}"
+                                                IsEnabled="{Binding !IsCancelling}"
+                                                Width="96"
+                                                HorizontalAlignment="Right"/>
+                                        <Button Grid.Column="1"
+                                                Classes="secondary-btn"
+                                                Content="Close"
+                                                Command="{Binding CloseCommand}"
+                                                IsVisible="{Binding IsCompleted}"
+                                                Width="96"
+                                                HorizontalAlignment="Right"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                         <TextBlock Classes="status-text"
                                    Text="{Binding SelectedAssetsSummary}"
                                    IsVisible="{Binding HasSelectedAssets}"/>
@@ -273,6 +354,7 @@
                     </StackPanel>
                     <TextBlock Classes="status-text"
                                Text="{Binding StatusText}"
+                               AutomationProperties.LiveSetting="Polite"
                                TextTrimming="CharacterEllipsis"/>
                 </DockPanel>
             </Border>
@@ -526,13 +608,6 @@
                                       IsExpanded="True"
                                       IsVisible="{Binding Preview.HasAsset}">
                                 <Expander.Resources>
-                                    <StaticResource x:Key="ExpanderHeaderBackground" ResourceKey="ThemeHeaderBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderBackgroundPointerOver" ResourceKey="ThemeSecondaryBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderBackgroundPressed" ResourceKey="ThemeHeaderBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderForegroundPointerOver" ResourceKey="ThemeForegroundBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderForegroundPressed" ResourceKey="ThemeForegroundBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderBorderBrushPointerOver" ResourceKey="ThemeBorderBrush"/>
-                                    <StaticResource x:Key="ExpanderHeaderBorderBrushPressed" ResourceKey="ThemeBorderBrush"/>
                                     <SolidColorBrush x:Key="ExpanderChevronBackgroundPointerOver" Color="Transparent"/>
                                     <SolidColorBrush x:Key="ExpanderChevronBackgroundPressed" Color="Transparent"/>
                                     <SolidColorBrush x:Key="ExpanderChevronBorderBrushPointerOver" Color="Transparent"/>
@@ -587,7 +662,7 @@
                                                Text="{Binding Preview.ErrorMessage}"/>
                                 </StackPanel>
 
-                                <ProgressBar Classes="thin"
+                                <ProgressBar Classes="themed"
                                              VerticalAlignment="Top"
                                              IsIndeterminate="True"
                                              IsHitTestVisible="False"
@@ -642,64 +717,5 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <Border Grid.Row="1" Classes="progress-overlay" IsVisible="{Binding ShowProgressDialog}">
-            <Border Classes="progress-card"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    DataContext="{Binding ProgressDialog}">
-                <StackPanel Spacing="12">
-                    <TextBlock Classes="title"
-                               Text="{Binding Title}"
-                               TextTrimming="CharacterEllipsis"
-                               TextWrapping="NoWrap"/>
-                    <ProgressBar Classes="themed"
-                                 Value="{Binding ProgressValue}"
-                                 IsIndeterminate="{Binding IsIndeterminate}"
-                                 AutomationProperties.Name="{Binding Title}"
-                                 Maximum="100"/>
-                    <ProgressBar Classes="themed"
-                                 Value="{Binding SourceProgressValue}"
-                                 IsVisible="{Binding HasSourceProgress}"
-                                 AutomationProperties.Name="Source progress"
-                                 Maximum="100"/>
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Right"
-                                   Classes="status-text"
-                                   Margin="16,0,0,0"
-                                   Width="76"
-                                   TextAlignment="Right"
-                                   Text="{Binding ProgressText}"/>
-                        <TextBlock Classes="status-text"
-                                   Text="{Binding StatusText}"
-                                   Height="18"
-                                   TextWrapping="NoWrap"
-                                   TextTrimming="CharacterEllipsis"/>
-                    </DockPanel>
-                    <Grid Height="32" ColumnDefinitions="*,Auto">
-                        <Button Grid.Column="0"
-                                Classes="secondary-btn"
-                                Content="Open Export Folder"
-                                Command="{Binding OpenExportFolderCommand}"
-                                IsVisible="{Binding IsCompleted}"
-                                HorizontalAlignment="Left"/>
-                        <Button Grid.Column="1"
-                                Classes="secondary-btn"
-                                Content="Cancel"
-                                Command="{Binding CancelCommand}"
-                                IsVisible="{Binding !IsCompleted}"
-                                IsEnabled="{Binding !IsCancelling}"
-                                Width="96"
-                                HorizontalAlignment="Right"/>
-                        <Button Grid.Column="1"
-                                Classes="secondary-btn"
-                                Content="Close"
-                                Command="{Binding CloseCommand}"
-                                IsVisible="{Binding IsCompleted}"
-                                Width="96"
-                                HorizontalAlignment="Right"/>
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </Border>
     </Grid>
 </Window>

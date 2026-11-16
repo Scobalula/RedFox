@@ -26,20 +26,7 @@ public sealed class HexBytesPreviewControl : UserControl
     internal const double TextFontSize = 13;
 
     internal static readonly Typeface HexTypeface = new("Cascadia Mono, Consolas, monospace");
-    internal static readonly IBrush BackgroundBrush = Brush.Parse("#171717");
-    internal static readonly IBrush HeaderBackgroundBrush = Brush.Parse("#262626");
-    internal static readonly IBrush AlternateRowBrush = Brush.Parse("#1C1C1C");
-    internal static readonly IBrush HeaderTextBrush = Brush.Parse("#A1A1A1");
-    internal static readonly IBrush OffsetTextBrush = Brush.Parse("#A1A1A1");
-    internal static readonly IBrush HexTextBrush = Brush.Parse("#FAFAFA");
-    internal static readonly IReadOnlyList<IBrush> ByteGroupBrushes =
-    [
-        Brush.Parse("#8DD6FF"),
-        Brush.Parse("#E8C17A"),
-        Brush.Parse("#C5A5FF"),
-        Brush.Parse("#8FD6A3"),
-    ];
-    internal static readonly IBrush BorderStrokeBrush = Brush.Parse("#1AFFFFFF");
+    internal static readonly IReadOnlyList<string> ByteGroupBrushKeys = ["IconModelBrush", "IconOpenBrush", "IconAnimationBrush", "IconExportBrush"];
 
     private readonly ScrollBar _horizontalScrollBar;
     private readonly ScrollBar _verticalScrollBar;
@@ -98,17 +85,16 @@ public sealed class HexBytesPreviewControl : UserControl
 
         Border viewportBorder = new()
         {
-            Background = BackgroundBrush,
             ClipToBounds = true,
             Child = _viewport,
         };
 
         Grid root = new()
         {
-            Background = BackgroundBrush,
             RowDefinitions = new RowDefinitions("*,Auto"),
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
         };
+        root.Bind(Panel.BackgroundProperty, root.GetResourceObservable("ThemeBackgroundBrush"));
         Grid.SetRow(viewportBorder, 0);
         Grid.SetColumn(viewportBorder, 0);
         Grid.SetRow(_verticalScrollBar, 0);
@@ -365,11 +351,9 @@ public sealed class HexBytesPreviewControl : UserControl
         return builder.ToString();
     }
 
-    internal static IBrush GetByteGroupBrush(int groupIndex) => ByteGroupBrushes[groupIndex % ByteGroupBrushes.Count];
-
-    internal static void DrawGroupedText(DrawingContext context, string text, int byteCount, bool isHex, Point origin)
+    internal static void DrawGroupedText(DrawingContext context, string text, int byteCount, bool isHex, Point origin, IBrush textBrush, IReadOnlyList<IBrush> groupBrushes)
     {
-        FormattedText formattedText = new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, HexTypeface, TextFontSize, HexTextBrush);
+        FormattedText formattedText = new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, HexTypeface, TextFontSize, textBrush);
 
         for (int groupStart = 0; groupStart < byteCount; groupStart += BytesPerColorGroup)
         {
@@ -377,7 +361,7 @@ public sealed class HexBytesPreviewControl : UserControl
             int groupIndex = groupStart / BytesPerColorGroup;
             int textStart = isHex ? groupStart * 3 + groupIndex : groupStart + groupIndex;
             int textLength = isHex ? groupCount * 3 - 1 : groupCount;
-            formattedText.SetForegroundBrush(GetByteGroupBrush(groupIndex), textStart, textLength);
+            formattedText.SetForegroundBrush(groupBrushes[groupIndex % groupBrushes.Count], textStart, textLength);
         }
 
         context.DrawText(formattedText, origin);

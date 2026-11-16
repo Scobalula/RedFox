@@ -69,44 +69,6 @@
                     </Border>
                 </Border>
             </DockPanel>
-
-            <Border x:Name="ProgressOverlay" Classes="progress-overlay">
-                <Border x:Name="ProgressCard"
-                        Classes="progress-card"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        x:DataType="vm:ProgressDialogViewModel">
-                    <StackPanel Spacing="12">
-                        <TextBlock Classes="title"
-                                   Text="{Binding Title}"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap"/>
-                        <ProgressBar Classes="themed"
-                                     Value="{Binding ProgressValue}"
-                                     IsIndeterminate="{Binding IsIndeterminate}"
-                                     Maximum="100"/>
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Right"
-                                       Classes="status-text"
-                                       Margin="16,0,0,0"
-                                       Width="76"
-                                       TextAlignment="Right"
-                                       Text="{Binding ProgressText}"/>
-                            <TextBlock Classes="status-text"
-                                       Text="{Binding StatusText}"
-                                       Height="18"
-                                       TextWrapping="NoWrap"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </DockPanel>
-                        <Button Classes="secondary-btn"
-                                Content="Cancel"
-                                Command="{Binding CancelCommand}"
-                                IsEnabled="{Binding !IsCancelling}"
-                                Width="96"
-                                HorizontalAlignment="Right"/>
-                    </StackPanel>
-                </Border>
-            </Border>
         </Panel>
     </DockPanel>
 </Window>

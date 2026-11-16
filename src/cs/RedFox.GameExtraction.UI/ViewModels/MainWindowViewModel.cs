@@ -217,13 +217,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// Gets or sets a value indicating whether an operation is running.
     /// </summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LoadSourceCommand), nameof(LoadDirectoryCommand), nameof(LoadProcessCommand), nameof(BrowseProcessCommand), nameof(ClearAllCommand), nameof(ExportAllCommand), nameof(ExportSelectedCommand))]
     public partial bool IsLoading { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the progress overlay is visible.
-    /// </summary>
-    [ObservableProperty]
-    public partial bool ShowProgressDialog { get; set; }
 
     /// <summary>
     /// Gets or sets the progress dialog state.
@@ -507,7 +502,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     /// <returns>A task that completes when the source is unloaded.</returns>
     public async Task UnloadSourceAsync(AssetSourceViewModel source)
     {
-        if (!LoadedSources.Contains(source))
+        if (!LoadedSources.Contains(source) || IsLoading)
         {
             return;
         }
@@ -517,7 +512,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _currentCts = cancellationSource;
         ProgressDialogViewModel progressVm = CreateProgressDialog($"Unloading {source.DisplayName}...", cancellationSource);
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
 
         try
         {
@@ -541,7 +535,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
@@ -854,19 +847,19 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         Thumbnails.Orbit(PreviewSettings.ShowAssetGrid ? SelectedAsset : null);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private Task LoadSource()
     {
         return RequestLoadFilesAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private Task LoadDirectory()
     {
         return RequestLoadDirectoryAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private async Task LoadProcess()
     {
         IReadOnlyList<ProcessCandidateViewModel> processes = await DiscoverProcessCandidatesAsync(applyConfiguredFilter: true).ConfigureAwait(true);
@@ -890,7 +883,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private Task BrowseProcess()
     {
         return RequestProcessSelectionAsync();
@@ -1060,6 +1053,11 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task MountFilesAsync(IReadOnlyList<string> filePaths)
     {
+        if (IsLoading)
+        {
+            return;
+        }
+
         IsLoading = true;
         CancellationTokenSource cancellationSource = new();
         _currentCts = cancellationSource;
@@ -1067,7 +1065,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         progressVm.Total = filePaths.Count;
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
         StatusText = progressVm.Title;
 
         try
@@ -1123,7 +1120,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
@@ -1199,7 +1195,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _currentCts = cancellationSource;
         ProgressDialogViewModel progressVm = CreateProgressDialog("Scanning processes...", cancellationSource);
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
         StatusText = "Scanning processes";
 
         try
@@ -1254,7 +1249,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
@@ -1310,12 +1304,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task MountSourceAsync(string title, Func<IProgress<string>, CancellationToken, Task<IAssetSource>> mountSourceAsync)
     {
+        if (IsLoading)
+        {
+            return;
+        }
+
         IsLoading = true;
         CancellationTokenSource cancellationSource = new();
         _currentCts = cancellationSource;
         ProgressDialogViewModel progressVm = CreateProgressDialog(title, cancellationSource);
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
         StatusText = title.TrimEnd('.');
 
         try
@@ -1338,7 +1336,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
@@ -1379,7 +1376,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         await ExportAssetsAsync(AssetsView.ToArray()).ConfigureAwait(false);
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedAssets))]
+    [RelayCommand(CanExecute = nameof(CanExportSelected))]
     private async Task ExportSelected()
     {
         await ExportAssetsAsync(SelectedAssets).ConfigureAwait(false);
@@ -1397,7 +1394,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private bool CanExportAll()
     {
-        return FilteredCount > 0;
+        return FilteredCount > 0 && !IsLoading;
+    }
+
+    private bool CanExportSelected()
+    {
+        return HasSelectedAssets && !IsLoading;
+    }
+
+    private bool CanStartOperation()
+    {
+        return !IsLoading;
     }
 
     /// <summary>
@@ -1421,7 +1428,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private async Task ExportAssetsAsync(IEnumerable<AssetRowViewModel> rows)
     {
         List<AssetRowViewModel> rowList = [.. rows];
-        if (rowList.Count == 0)
+        if (rowList.Count == 0 || IsLoading)
         {
             return;
         }
@@ -1433,7 +1440,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         progressVm.Total = rowList.Count;
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
         StatusText = $"Exporting {rowList.Count:N0} assets...";
         Interlocked.Exchange(ref _exportFailureCount, 0);
         bool completed = false;
@@ -1465,6 +1471,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             if (failureCount > 0)
             {
+                progressVm.IsFailed = true;
                 _assetManager.Notify(StatusNotificationKind.Error, summary);
             }
         }
@@ -1474,14 +1481,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         catch (Exception exception)
         {
-            StatusText = "Ready";
-            _assetManager.Notify(StatusNotificationKind.Error, $"Export failed: {exception.Message}");
+            progressVm.StatusText	= $"Export failed: {exception.Message}";
+            progressVm.IsCompleted	= true;
+            progressVm.IsFailed		= true;
+            StatusText				= "Export failed";
+            completed				= true;
+            _assetManager.Notify(StatusNotificationKind.Error, progressVm.StatusText);
         }
         finally
         {
             if (!completed)
             {
-                ShowProgressDialog = false;
                 ProgressDialog = null;
             }
             IsLoading = false;
@@ -1489,11 +1499,30 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 _currentCts = null;
             cancellationSource.Dispose();
         }
+
+        if (completed && !progressVm.IsFailed)
+        {
+            _ = DismissCompletedProgressAsync(progressVm);
+        }
     }
 
-    [RelayCommand]
+    private async Task DismissCompletedProgressAsync(ProgressDialogViewModel progressVm)
+    {
+        await Task.Delay(NotificationDuration).ConfigureAwait(true);
+        if (ReferenceEquals(ProgressDialog, progressVm) && !progressVm.IsDetailsOpen)
+        {
+            ProgressDialog = null;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStartOperation))]
     private async Task ClearAll()
     {
+        if (IsLoading)
+        {
+            return;
+        }
+
         AssetSourceViewModel[] sources = [.. LoadedSources];
         if (sources.Length == 0)
         {
@@ -1509,7 +1538,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         progressVm.Total = sources.Length;
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
-        ShowProgressDialog = true;
         StatusText = progressVm.Title;
 
         try
@@ -1586,7 +1614,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            ShowProgressDialog = false;
             ProgressDialog = null;
             IsLoading = false;
             if (ReferenceEquals(_currentCts, cancellationSource))
@@ -1619,7 +1646,6 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             if (ReferenceEquals(ProgressDialog, progressVm))
             {
-                ShowProgressDialog = false;
                 ProgressDialog = null;
             }
         });

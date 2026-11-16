@@ -1,7 +1,10 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
+using Avalonia.Platform;
+using Avalonia.Styling;
 using RedFox.Avalonia.Themes;
 
 namespace RedFox.GameExtraction.UI;
@@ -11,6 +14,14 @@ namespace RedFox.GameExtraction.UI;
 /// </summary>
 public class App : Application
 {
+    private static readonly Color LightAccentForeground	= Color.Parse("#FFFBEB");
+    private static readonly Color DarkAccentForeground	= Color.Parse("#171717");
+
+    /// <summary>
+    /// Gets the high contrast theme variant, which falls back to the dark theme for resources it does not override.
+    /// </summary>
+    public static ThemeVariant HighContrastVariant { get; } = new("HighContrast", ThemeVariant.Dark);
+
     internal static GameExtractionConfig? CurrentConfig { get; set; }
 
     /// <summary>
@@ -20,9 +31,9 @@ public class App : Application
     {
         AvaloniaXamlLoader.Load(this);
 
-        if (Resources["ThemeCardBrush"] is ISolidColorBrush cardBrush)
+        foreach (ResourceDictionary resources in Resources.ThemeDictionaries.Values.Cast<ResourceDictionary>())
         {
-            Resources["ScenePreviewClearColor"] = RedFoxThemeColors.ToVector4(cardBrush.Color);
+            resources["ScenePreviewClearColor"] = RedFoxThemeColors.ToVector4(((ISolidColorBrush)resources["ThemeCardBrush"]!).Color);
         }
 
         if (CurrentConfig is null)
@@ -37,10 +48,8 @@ public class App : Application
         Resources["AccentBrush"]							= new SolidColorBrush(accent);
         Resources["AccentHoverBrush"]						= new SolidColorBrush(hover);
         Resources["AccentPressedBrush"]						= new SolidColorBrush(pressed);
+        Resources["AccentForegroundBrush"]					= new SolidColorBrush(ContrastRatio(accent, LightAccentForeground) >= 4.5 ? LightAccentForeground : DarkAccentForeground);
         Resources["AssetSelectionBrush"]					= new SolidColorBrush(accent, 0.16);
-        Resources["AssetSelectionBorderBrush"]				= new SolidColorBrush(accent, 0.6);
-        Resources["TextControlBorderBrushFocused"]			= FocusBrush(accent);
-        Resources["ComboBoxBackgroundBorderBrushFocused"]	= Resources["TextControlBorderBrushFocused"];
         Resources["SliderTrackValueFill"]					= Resources["AccentBrush"];
         Resources["SliderTrackValueFillPointerOver"]		= Resources["AccentHoverBrush"];
         Resources["SliderTrackValueFillPressed"]			= Resources["AccentHoverBrush"];
@@ -53,23 +62,16 @@ public class App : Application
         Resources["SystemAccentColorDark2"]					= Shift(accent, -48);
         Resources["SystemAccentColorDark3"]					= Shift(accent, -72);
 
-        if (Resources["ThemeHeaderBrush"] is ISolidColorBrush headerBrush)
+        foreach (ThemeVariant variant in Resources.ThemeDictionaries.Keys)
         {
-            Resources["ThemePanelHeaderBrush"] = new SolidColorBrush(RedFoxThemeColors.Tint(headerBrush.Color, accent, CurrentConfig.WindowTintStrength / 4));
+            ApplyAccent((ResourceDictionary)Resources.ThemeDictionaries[variant], accent, CurrentConfig.WindowTintStrength);
         }
 
-        if (Resources["ThemeCardBrush"] is ISolidColorBrush panelBrush)
-        {
-            Color toolbar = panelBrush.Color;
+        ApplyTheme(CurrentConfig);
 
-            Resources["ThemeToolbarBrush"] = new RadialGradientBrush
-            {
-                Center			= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
-                GradientOrigin	= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
-                RadiusX			= RelativeScalar.Parse("35%"),
-                RadiusY			= RelativeScalar.Parse("400%"),
-                GradientStops	= { new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength * 3), 0), new GradientStop(RedFoxThemeColors.Tint(toolbar, accent, CurrentConfig.WindowTintStrength), 0.45), new GradientStop(toolbar, 1) }
-            };
+        if (PlatformSettings is not null)
+        {
+            PlatformSettings.ColorValuesChanged += (_, _) => ApplyTheme(CurrentConfig);
         }
 
         if (!string.IsNullOrEmpty(CurrentConfig.FontFamily))
@@ -93,18 +95,77 @@ public class App : Application
         base.OnFrameworkInitializationCompleted();
     }
 
-    private IBrush FocusBrush(Color accent)
+    /// <summary>
+    /// Applies the interface theme selected by the theme setting.
+    /// </summary>
+    /// <param name="config">The game extraction configuration.</param>
+    internal static void ApplyTheme(GameExtractionConfig config)
     {
-        Color background = ((ISolidColorBrush)Resources["ThemeCardBrush"]!).Color;
-        double lighter = Math.Max(Luminance(accent), Luminance(background));
-        double darker = Math.Min(Luminance(accent), Luminance(background));
-
-        if ((lighter + 0.05) / (darker + 0.05) >= 3)
+        if (Current is null)
         {
-            return new SolidColorBrush(accent);
+            return;
         }
 
-        return (IBrush)Resources["ThemeForegroundBrush"]!;
+        if (!Enum.TryParse(config.Settings.GetSettingValue(GameExtractionApp.ThemeSetting), true, out InterfaceTheme theme))
+        {
+            theme = InterfaceTheme.Dark;
+        }
+
+        if (theme == InterfaceTheme.System && Current.PlatformSettings?.GetColorValues().ContrastPreference == ColorContrastPreference.High)
+        {
+            theme = InterfaceTheme.HighContrast;
+        }
+
+        Current.RequestedThemeVariant = theme switch
+        {
+            InterfaceTheme.Light		=> ThemeVariant.Light,
+            InterfaceTheme.HighContrast	=> HighContrastVariant,
+            InterfaceTheme.System		=> ThemeVariant.Default,
+            _							=> ThemeVariant.Dark,
+        };
+    }
+
+    private static void ApplyAccent(ResourceDictionary resources, Color accent, double tintStrength)
+    {
+        Color card		= ((ISolidColorBrush)resources["ThemeCardBrush"]!).Color;
+        Color header	= ((ISolidColorBrush)resources["ThemeHeaderBrush"]!).Color;
+        Color readable	= ReadableAccent(accent, card);
+
+        resources["AssetSelectionBorderBrush"]				= new SolidColorBrush(readable);
+        resources["TextControlBorderBrushFocused"]			= resources["AssetSelectionBorderBrush"];
+        resources["ComboBoxBackgroundBorderBrushFocused"]	= resources["AssetSelectionBorderBrush"];
+        resources["ThemePanelHeaderBrush"]					= new SolidColorBrush(RedFoxThemeColors.Tint(header, accent, tintStrength / 4));
+        resources["ThemeToolbarBrush"]						= new RadialGradientBrush
+        {
+            Center			= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
+            GradientOrigin	= new RelativePoint(0.04, 0.5, RelativeUnit.Relative),
+            RadiusX			= RelativeScalar.Parse("35%"),
+            RadiusY			= RelativeScalar.Parse("400%"),
+            GradientStops	= { new GradientStop(RedFoxThemeColors.Tint(card, accent, tintStrength * 3), 0), new GradientStop(RedFoxThemeColors.Tint(card, accent, tintStrength), 0.45), new GradientStop(card, 1) }
+        };
+    }
+
+    private static Color ReadableAccent(Color accent, Color background)
+    {
+        Color target = Luminance(background) < 0.5 ? Colors.White : Colors.Black;
+        Color result = accent;
+
+        for (int step = 1; step <= 10 && ContrastRatio(result, background) < 3; step++)
+        {
+            double amount = step / 10.0;
+
+            result = Color.FromRgb((byte)(accent.R + (target.R - accent.R) * amount), (byte)(accent.G + (target.G - accent.G) * amount), (byte)(accent.B + (target.B - accent.B) * amount));
+        }
+
+        return result;
+    }
+
+    private static double ContrastRatio(Color first, Color second)
+    {
+        double lighter	= Math.Max(Luminance(first), Luminance(second));
+        double darker	= Math.Min(Luminance(first), Luminance(second));
+
+        return (lighter + 0.05) / (darker + 0.05);
     }
 
     private static double Luminance(Color color)

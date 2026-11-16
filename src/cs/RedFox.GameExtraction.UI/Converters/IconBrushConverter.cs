@@ -46,7 +46,9 @@ public sealed class IconBrushConverter : IValueConverter
             _										=> "ThemeMutedForegroundBrush",
         };
 
-        return Application.Current?.Resources[resourceKey];
+        Application? application = Application.Current;
+
+        return application is not null && application.TryGetResource(resourceKey, application.ActualThemeVariant, out object? brush) ? brush : null;
     }
 
     /// <summary>

@@ -16,6 +16,7 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRaisedBorderBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeToolbarBrush}"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource PanelShadow}"/>
     </Style>
 
     <Style Selector=":is(Window).custom-chrome">
@@ -73,7 +74,7 @@
         <Setter Property="Focusable" Value="False"/>
     </Style>
 
-    <Style Selector="Button.caption-btn, :is(Button).icon-btn, Button.toolbar-icon-btn">
+    <Style Selector="Button.caption-btn, :is(Button).icon-btn, :is(Button).toolbar-icon-btn">
         <Setter Property="AutomationProperties.Name" Value="{Binding $self.(ToolTip.Tip)}"/>
     </Style>
 
@@ -121,12 +122,12 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource ThemeRaisedBorderBrush}"/>
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
-        <Setter Property="BoxShadow" Value="0 1 2 0 #66000000, 0 0 10 0 #66000000"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource PanelShadow}"/>
     </Style>
 
     <Style Selector="Border.panel-shadow">
         <Setter Property="CornerRadius" Value="{DynamicResource OverlayCornerRadius}"/>
-        <Setter Property="BoxShadow" Value="0 1 2 0 #66000000, 0 0 10 0 #66000000"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource PanelShadow}"/>
     </Style>
 
     <Style Selector="Border.asset-list-panel">
@@ -384,20 +385,20 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
         <Setter Property="Padding" Value="9,7"/>
-        <Setter Property="Foreground" Value="#FFFBEB"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
         <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
-        <Setter Property="Foreground" Value="#FFFBEB"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.accent-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
-        <Setter Property="Foreground" Value="#FFFBEB"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.secondary-btn, :is(Button).icon-btn">
@@ -442,12 +443,12 @@
         <Setter Property="Padding" Value="10,0"/>
     </Style>
 
-    <Style Selector="Button.toolbar-icon-btn">
+    <Style Selector=":is(Button).toolbar-icon-btn">
         <Setter Property="Width" Value="34"/>
         <Setter Property="Height" Value="34"/>
     </Style>
 
-    <Style Selector="Button.toolbar-icon-btn PathIcon">
+    <Style Selector=":is(Button).toolbar-icon-btn PathIcon">
         <Setter Property="Width" Value="15"/>
         <Setter Property="Height" Value="15"/>
     </Style>
@@ -499,7 +500,7 @@
     <Style Selector="Button.accent-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}"/>
-        <Setter Property="Foreground" Value="#FFFBEB"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/>
     </Style>
 
     <Style Selector="Button.sidebar-btn:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -698,8 +699,30 @@
         <Setter Property="Height" Value="10"/>
     </Style>
 
-    <Style Selector="Border.progress-overlay">
-        <Setter Property="Background" Value="#8C000000"/>
+    <Style Selector="ToggleButton.status-progress">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="8,0"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Margin" Value="0,-7"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
+    </Style>
+
+    <Style Selector="ToggleButton.status-progress /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="ToggleButton.status-progress:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
+    </Style>
+
+    <Style Selector="ToggleButton.status-progress:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource ThemeMutedBrush}"/>
     </Style>
 
     <Style Selector="Border.progress-card">
@@ -860,14 +883,14 @@
 
     <Style Selector="CheckBox /template/ Border#NormalRectangle">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource ControlCornerRadius}"/>
     </Style>
 
     <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -876,7 +899,7 @@
 
     <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
         <Setter Property="Background" Value="{DynamicResource SecondaryActionHoverBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource ThemeRingBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource ThemeMutedForegroundBrush}"/>
     </Style>
 
     <Style Selector="CheckBox:pressed /template/ Border#NormalRectangle">
@@ -904,7 +927,7 @@
     <Style Selector="CheckBox:checked /template/ Path#CheckGlyph,
                      CheckBox:indeterminate /template/ Path#CheckGlyph">
         <Setter Property="Fill" Value="Transparent"/>
-        <Setter Property="Stroke" Value="#FFFBEB"/>
+        <Setter Property="Stroke" Value="{DynamicResource AccentForegroundBrush}"/>
         <Setter Property="StrokeThickness" Value="1.5"/>
         <Setter Property="StrokeLineCap" Value="Round"/>
         <Setter Property="StrokeJoin" Value="Round"/>
@@ -1018,12 +1041,12 @@
 
     <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource ThemeSecondaryBrush}"/>
-        <Setter Property="TextBlock.Foreground" Value="#FFFBEB"/>
+        <Setter Property="TextBlock.Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource AssetSelectionBrush}"/>
-        <Setter Property="TextBlock.Foreground" Value="#FFFBEB"/>
+        <Setter Property="TextBlock.Foreground" Value="{DynamicResource ThemeForegroundBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel">
@@ -1089,7 +1112,7 @@
     </Style>
 
     <Style Selector="search|SearchPanel ToggleButton:checked">
-        <Setter Property="Foreground" Value="#FFFBEB"/>
+        <Setter Property="Foreground" Value="{DynamicResource AccentForegroundBrush}"/>
     </Style>
 
     <Style Selector="search|SearchPanel ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
