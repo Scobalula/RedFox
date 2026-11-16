@@ -1066,6 +1066,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
         StatusText = progressVm.Title;
+        NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Information, progressVm.Title);
 
         try
         {
@@ -1113,10 +1114,15 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             {
                 _assetManager.Notify(StatusNotificationKind.Error, $"Failed to load {failures.Count:N0} of {filePaths.Count:N0} sources");
             }
+            else
+            {
+                NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Success, $"Loaded {filePaths.Count:N0} sources");
+            }
         }
         catch (OperationCanceledException)
         {
             StatusText = "Loading cancelled";
+            NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Warning, StatusText);
         }
         finally
         {
@@ -1315,6 +1321,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         ProgressDialogViewModel progressVm = CreateProgressDialog(title, cancellationSource);
         ProgressDialog = progressVm;
         StatusText = title.TrimEnd('.');
+        NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Information, title);
 
         try
         {
@@ -1324,10 +1331,12 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
             await AddMountedSourceAsync(source).ConfigureAwait(true);
             StatusText = "Ready";
+            NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Success, $"{title.TrimEnd('.')} complete");
         }
         catch (OperationCanceledException)
         {
             StatusText = "Loading cancelled";
+            NotifyActivity(GameExtractionApp.LoadNotificationsSetting, StatusNotificationKind.Warning, StatusText);
         }
         catch (Exception exception)
         {
@@ -1441,6 +1450,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         progressVm.IsIndeterminate = false;
         ProgressDialog = progressVm;
         StatusText = $"Exporting {rowList.Count:N0} assets...";
+        NotifyActivity(GameExtractionApp.ExportNotificationsSetting, StatusNotificationKind.Information, StatusText);
         Interlocked.Exchange(ref _exportFailureCount, 0);
         bool completed = false;
 
@@ -1474,10 +1484,15 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 progressVm.IsFailed = true;
                 _assetManager.Notify(StatusNotificationKind.Error, summary);
             }
+            else
+            {
+                NotifyActivity(GameExtractionApp.ExportNotificationsSetting, StatusNotificationKind.Success, summary);
+            }
         }
         catch (OperationCanceledException)
         {
             StatusText = "Export cancelled";
+            NotifyActivity(GameExtractionApp.ExportNotificationsSetting, StatusNotificationKind.Warning, StatusText);
         }
         catch (Exception exception)
         {
@@ -1666,6 +1681,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         {
             error = $"Unable to open export folder: {exception.Message}";
             return false;
+        }
+    }
+
+    private void NotifyActivity(GameExtractionSetting setting, StatusNotificationKind kind, string message)
+    {
+        if (bool.TryParse(_config.Settings.GetSettingValue(setting), out bool enabled) && enabled)
+        {
+            _assetManager.Notify(kind, message);
         }
     }
 

@@ -688,6 +688,7 @@
                     <Border Classes="notification"
                             AutomationProperties.LiveSetting="Polite"
                             Classes.closing="{Binding IsClosing}"
+                            Classes.information="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Information}}"
                             Classes.success="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Success}}"
                             Classes.warning="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Warning}}"
                             Classes.error="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Error}}">
@@ -697,6 +698,7 @@
                         <DockPanel>
                             <PathIcon DockPanel.Dock="Left"
                                       Classes="notification-icon"
+                                      Classes.information="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Information}}"
                                       Classes.success="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Success}}"
                                       Classes.warning="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Warning}}"
                                       Classes.error="{Binding Kind, Converter={StaticResource EnumMatchConverter}, ConverterParameter={x:Static gx:StatusNotificationKind.Error}}"

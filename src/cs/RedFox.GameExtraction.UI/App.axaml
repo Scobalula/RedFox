@@ -58,9 +58,14 @@
                         <GradientStop Offset="1" Color="#1FFFFFFF"/>
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="ThemeRingBrush" Color="#737373"/>
+                    <SolidColorBrush x:Key="NotificationInformationBrush" Color="#3B82F6"/>
                     <SolidColorBrush x:Key="NotificationSuccessBrush" Color="#22C55E"/>
                     <SolidColorBrush x:Key="NotificationWarningBrush" Color="#F59E0B"/>
                     <SolidColorBrush x:Key="NotificationErrorBrush" Color="#EF4444"/>
+                    <SolidColorBrush x:Key="NotificationInformationBackgroundBrush" Color="#202836"/>
+                    <SolidColorBrush x:Key="NotificationSuccessBackgroundBrush" Color="#1D3024"/>
+                    <SolidColorBrush x:Key="NotificationWarningBackgroundBrush" Color="#362C1A"/>
+                    <SolidColorBrush x:Key="NotificationErrorBackgroundBrush" Color="#352121"/>
                     <SolidColorBrush x:Key="AssetSelectionBrush" Color="#553C1800"/>
                     <SolidColorBrush x:Key="AssetSelectionBorderBrush" Color="#993C1800"/>
                     <SolidColorBrush x:Key="AssetPreviewSelectionBrush" Color="#193047"/>
@@ -153,9 +158,14 @@
                         <GradientStop Offset="1" Color="#2B000000"/>
                     </LinearGradientBrush>
                     <SolidColorBrush x:Key="ThemeRingBrush" Color="#858585"/>
+                    <SolidColorBrush x:Key="NotificationInformationBrush" Color="#2563EB"/>
                     <SolidColorBrush x:Key="NotificationSuccessBrush" Color="#15803D"/>
                     <SolidColorBrush x:Key="NotificationWarningBrush" Color="#B45309"/>
                     <SolidColorBrush x:Key="NotificationErrorBrush" Color="#DC2626"/>
+                    <SolidColorBrush x:Key="NotificationInformationBackgroundBrush" Color="#EEF3FD"/>
+                    <SolidColorBrush x:Key="NotificationSuccessBackgroundBrush" Color="#ECF5F0"/>
+                    <SolidColorBrush x:Key="NotificationWarningBackgroundBrush" Color="#F9F1EB"/>
+                    <SolidColorBrush x:Key="NotificationErrorBackgroundBrush" Color="#FCEEEE"/>
                     <SolidColorBrush x:Key="AssetSelectionBrush" Color="#553C1800"/>
                     <SolidColorBrush x:Key="AssetSelectionBorderBrush" Color="#993C1800"/>
                     <SolidColorBrush x:Key="AssetPreviewSelectionBrush" Color="#DCEBFA"/>

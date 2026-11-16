@@ -24,6 +24,36 @@ public static class GameExtractionApp
     };
 
     /// <summary>
+    /// Gets the optional setting that shows notifications when loading sources starts, finishes, or is cancelled.
+    /// Add it to an application's setting definitions to expose it in its settings UI.
+    /// </summary>
+    public static GameExtractionSetting LoadNotificationsSetting { get; } = new()
+    {
+        Name			= "ShowLoadNotifications",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Notifications",
+        Label			= "Show notifications for loading",
+        Description		= "Errors are always shown.",
+        Type			= GameExtractionSettingType.Boolean,
+        DefaultValue	= true,
+    };
+
+    /// <summary>
+    /// Gets the optional setting that shows notifications when an export starts, finishes, or is cancelled.
+    /// Add it to an application's setting definitions to expose it in its settings UI.
+    /// </summary>
+    public static GameExtractionSetting ExportNotificationsSetting { get; } = new()
+    {
+        Name			= "ShowExportNotifications",
+        Group			= GameExtractionSettingGroup.General,
+        Section			= "Notifications",
+        Label			= "Show notifications for export",
+        Description		= "Errors are always shown.",
+        Type			= GameExtractionSettingType.Boolean,
+        DefaultValue	= true,
+    };
+
+    /// <summary>
     /// Builds and runs the Avalonia application with the provided configuration.
     /// This method blocks until the application window is closed.
     /// </summary>

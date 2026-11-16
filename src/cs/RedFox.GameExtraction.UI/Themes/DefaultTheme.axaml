@@ -615,16 +615,24 @@
         <Setter Property="Background" Value="{DynamicResource ThemeCardBrush}"/>
     </Style>
 
+    <Style Selector="Border.notification.information">
+        <Setter Property="BorderBrush" Value="{DynamicResource NotificationInformationBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource NotificationInformationBackgroundBrush}"/>
+    </Style>
+
     <Style Selector="Border.notification.success">
         <Setter Property="BorderBrush" Value="{DynamicResource NotificationSuccessBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource NotificationSuccessBackgroundBrush}"/>
     </Style>
 
     <Style Selector="Border.notification.warning">
         <Setter Property="BorderBrush" Value="{DynamicResource NotificationWarningBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource NotificationWarningBackgroundBrush}"/>
     </Style>
 
     <Style Selector="Border.notification.error">
         <Setter Property="BorderBrush" Value="{DynamicResource NotificationErrorBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource NotificationErrorBackgroundBrush}"/>
     </Style>
 
     <Style Selector="Border.notification:not(.closing)">
@@ -663,6 +671,10 @@
         <Setter Property="Margin" Value="0,0,10,0"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
+    </Style>
+
+    <Style Selector="PathIcon.notification-icon.information">
+        <Setter Property="Foreground" Value="{DynamicResource NotificationInformationBrush}"/>
     </Style>
 
     <Style Selector="PathIcon.notification-icon.success">
