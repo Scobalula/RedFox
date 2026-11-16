@@ -253,7 +253,14 @@ public sealed class MeshGpuBufferBinding
             data = GetRequiredGpuBufferData(new DataBuffer<uint>(sourceData.ToArray<uint>(), sourceData.ValueCount, sourceData.ComponentCount), ShaderName);
         }
 
-        return graphicsDevice is IFrameBufferUploadBudget uploadBudget ? UpdateBindingIncrementally(graphicsDevice, uploadBudget, data) : UpdateBinding(graphicsDevice, data);
+        bool uploaded = graphicsDevice is IFrameBufferUploadBudget uploadBudget ? UpdateBindingIncrementally(graphicsDevice, uploadBudget, data) : UpdateBinding(graphicsDevice, data);
+
+        if (!_incrementalUploadPending)
+        {
+            _unpackedData = null;
+        }
+
+        return uploaded;
     }
 
     private bool UpdateBindingIncrementally(IGraphicsDevice graphicsDevice, IFrameBufferUploadBudget uploadBudget, GpuBufferData data)

@@ -49,6 +49,10 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
 
     internal ImageFormat Format => _format;
 
+    internal int Width => _width;
+
+    internal int MipLevels => _mipLevels;
+
     /// <summary>
     /// Returns whether this handle belongs to the supplied graphics device.
     /// </summary>
@@ -96,6 +100,12 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         }
 
         Image? image = _texture.Data;
+        if (image is null && _gpuTexture is not null && !_textureUploadPending)
+        {
+            _lastUpdateFrameIndex = frameIndex;
+            return;
+        }
+
         if (image is null || image.Width <= 0 || image.Height <= 0 || image.Depth != 1 || image.IsCubemap || image.ArraySize != 1 || image.Format == ImageFormat.Unknown || image.PixelMemory.IsEmpty)
         {
             ReleaseTexture();
@@ -120,6 +130,7 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
             if (_graphicsDevice is IFrameTextureUploadBudget continuationBudget)
             {
                 UploadPendingImage(image, continuationBudget);
+                ReleaseUploadedImage();
             }
 
             _lastUpdateFrameIndex = frameIndex;
@@ -172,6 +183,7 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         _image = image;
         _payloadLength = image.PixelMemory.Length;
         _lastUpdateFrameIndex = frameIndex;
+        ReleaseUploadedImage();
     }
 
     /// <inheritdoc/>
@@ -183,6 +195,11 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
     /// <inheritdoc/>
     protected override void ReleaseResources()
     {
+        if (_gpuTexture is not null && _texture.Data is null)
+        {
+            _texture.LoadAttempted = false;
+        }
+
         ReleaseTexture();
         _failedImage = null;
         _lastLoadAttemptPath = null;
@@ -200,7 +217,7 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         {
             if (_gpuTexture is not null)
             {
-                return true;
+                return false;
             }
 
             return !string.Equals(_lastLoadAttemptPath, _texture.EffectiveFilePath, StringComparison.OrdinalIgnoreCase);
@@ -239,6 +256,17 @@ internal sealed class TextureRenderHandle(IGraphicsDevice graphicsDevice, Textur
         _format = ImageFormat.Unknown;
         _image = null;
         _payloadLength = 0;
+    }
+
+    private void ReleaseUploadedImage()
+    {
+        if (_textureUploadPending)
+        {
+            return;
+        }
+
+        _texture.Data	= null;
+        _image			= null;
     }
 
     private void UploadPendingImage(Image image, IFrameTextureUploadBudget uploadBudget)

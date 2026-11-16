@@ -142,6 +142,11 @@ public class RendererUploadTests
         Assert.Equal(1, device.TextureAllocations);
         Assert.Equal(1, device.TextureUploads);
         Assert.False(handle.RequiresPerFrameUpdate);
+        Assert.Null(texture.Data);
+
+        ((UploadTestProxy)(object)commands).FrameIndex++;
+        handle.Update(commands);
+        Assert.Equal(1, device.TextureAllocations);
     }
 
     [Fact]

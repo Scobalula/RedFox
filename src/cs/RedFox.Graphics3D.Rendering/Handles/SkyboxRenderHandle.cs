@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using RedFox.Imaging;
 using RedFox.Imaging.Primitives;
 using RedFox.Graphics3D.Rendering.Materials;
@@ -17,6 +18,8 @@ internal sealed class SkyboxRenderHandle : RenderHandle
 
     internal const string SkyboxMaterialTypeName = "Skybox";
     internal const string SkyboxRotationMaterialTypeName = "SkyboxRotation";
+
+    private static readonly ConditionalWeakTable<Texture, EnvironmentLight[]> ExtractedLights = [];
 
     private readonly IGraphicsDevice _graphicsDevice;
     private readonly IMaterialTypeRegistry _materialTypes;
@@ -68,34 +71,50 @@ internal sealed class SkyboxRenderHandle : RenderHandle
         _textureHandle = null;
         _mipLevels = 0;
 
-        if (!_skybox.Enabled || _skybox.Texture is not { Data: { } image } texture || !IsUsablePanorama(image) || !_graphicsDevice.SupportsFormat(image.Format, TextureUsage.Sampled))
+        if (!_skybox.Enabled || _skybox.Texture is not { } texture)
         {
             return;
         }
 
-        _pipeline = EnsurePipeline(_pipeline, SkyboxMaterialTypeName);
+        Image? image = texture.Data;
 
-        // The GPU copy is keyed by the texture rather than the scene, so switching previewed assets reuses the uploaded panorama.
-        _textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
-        _textureHandle.Update(commandList);
-        _mipLevels = image.MipLevels;
-
-        if (!ReferenceEquals(_lightsSource, image))
+        if (image is not null && (!IsUsablePanorama(image) || !_graphicsDevice.SupportsFormat(image.Format, TextureUsage.Sampled)))
         {
-            _extractedLights = EnvironmentLightExtractor.Extract(image);
-            _lightsSource = image;
-            _lightsRotation = float.NaN;
+            return;
+        }
+
+        if (image is not null && !ReferenceEquals(_lightsSource, image))
+        {
+            ExtractedLights.AddOrUpdate(texture, EnvironmentLightExtractor.Extract(image));
             ReleaseRotatedTexture();
         }
 
-        if (_lightsRotation != _skybox.Rotation)
+        _lightsSource = image;
+
+        // The GPU copy is keyed by the texture rather than the scene, so switching previewed assets reuses the uploaded panorama.
+        TextureRenderHandle textureHandle = SceneRenderResources.GetOrCreate(_graphicsDevice, texture, () => new TextureRenderHandle(_graphicsDevice, texture));
+        textureHandle.Update(commandList);
+
+        if (textureHandle.BindableTexture is null)
         {
+            return;
+        }
+
+        _pipeline		= EnsurePipeline(_pipeline, SkyboxMaterialTypeName);
+        _textureHandle	= textureHandle;
+        _mipLevels		= textureHandle.MipLevels;
+
+        EnvironmentLight[] extractedLights = ExtractedLights.TryGetValue(texture, out EnvironmentLight[]? lights) ? lights : [];
+
+        if (!ReferenceEquals(_extractedLights, extractedLights) || _lightsRotation != _skybox.Rotation)
+        {
+            _extractedLights = extractedLights;
             Matrix4x4 rotation = Matrix4x4.CreateRotationY(_skybox.Rotation);
             _lights = [.. _extractedLights.Select(light => light with { Direction = Vector3.TransformNormal(light.Direction, rotation), MajorAxis = Vector3.TransformNormal(light.MajorAxis, rotation) })];
             _lightsRotation = _skybox.Rotation;
         }
 
-        UpdateRotatedTexture(commandList, image);
+        UpdateRotatedTexture(commandList, textureHandle);
     }
 
     /// <inheritdoc/>
@@ -141,19 +160,19 @@ internal sealed class SkyboxRenderHandle : RenderHandle
     }
 
     // Materials sample the environment with world directions, so a rotated sky is baked into a copy that is shifted around the panorama.
-    private void UpdateRotatedTexture(ICommandList commandList, Image image)
+    private void UpdateRotatedTexture(ICommandList commandList, TextureRenderHandle textureHandle)
     {
-        if (_skybox.Rotation == 0.0f || Texture is not { } source || !_graphicsDevice.SupportsFormat(image.Format, TextureUsage.Sampled | TextureUsage.RenderTarget))
+        if (_skybox.Rotation == 0.0f || Texture is not { } source || !_graphicsDevice.SupportsFormat(textureHandle.Format, TextureUsage.Sampled | TextureUsage.RenderTarget))
         {
             return;
         }
 
-        int width	= Math.Min(image.Width, RotatedEnvironmentMaxWidth);
+        int width	= Math.Min(textureHandle.Width, RotatedEnvironmentMaxWidth);
         int height	= width / 2;
 
         if (_rotatedTexture is null)
         {
-            _rotatedTexture		= _graphicsDevice.CreateTexture(width, height, _mipLevels, image.Format, TextureUsage.Sampled | TextureUsage.RenderTarget);
+            _rotatedTexture		= _graphicsDevice.CreateTexture(width, height, _mipLevels, textureHandle.Format, TextureUsage.Sampled | TextureUsage.RenderTarget);
             _rotatedTargets		= [.. Enumerable.Range(0, _mipLevels).Select(level => _graphicsDevice.CreateRenderTarget(_rotatedTexture, level))];
             _rotatedComplete	= false;
         }

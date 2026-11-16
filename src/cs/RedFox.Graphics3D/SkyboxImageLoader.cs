@@ -9,7 +9,7 @@ namespace RedFox.Graphics3D;
 
 // Turns an equirectangular panorama into a prefiltered skybox: the source is halved to a viewport-sized background,
 // then each mip is GGX-convolved for one roughness so it serves both rough reflections and background blur.
-// Building it takes seconds for an 8K source, so the result is kept in memory and cached to disk as a DDS.
+// Building it takes seconds for an 8K source, so the result is cached to disk as a DDS and reloaded from there when needed again.
 public sealed class SkyboxImageLoader(ImageTranslatorManager translators, string cacheDirectory) : ITextureLoader
 {
     private const int MaxWidth = 4096;
@@ -17,13 +17,12 @@ public sealed class SkyboxImageLoader(ImageTranslatorManager translators, string
     private const string CacheVersion = "ggx-2";
 
     private readonly Lock _sync = new();
-    private Image? _image;
 
     public Image? Load(Texture texture, ImageTranslatorManager translatorManager, MipType mipType)
     {
         lock (_sync)
         {
-            return _image ??= LoadCachedOrBuild(texture.EffectiveFilePath);
+            return LoadCachedOrBuild(texture.EffectiveFilePath);
         }
     }
 

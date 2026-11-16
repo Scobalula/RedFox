@@ -774,7 +774,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         };
         try
         {
-            await Task.Run(() => texture.ImageLoader.Load(texture, translators, MipType.High));
+            texture.Data = await Task.Run(() => texture.ImageLoader.Load(texture, translators, MipType.High));
             if (!_isDisposed && string.Equals(PreviewSettings.SkyboxFile, texture.FilePath, StringComparison.OrdinalIgnoreCase))
             {
                 PreviewSettings.SkyboxTexture = texture;
